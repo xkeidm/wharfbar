@@ -1,0 +1,20 @@
+---
+description: WharfBar core — read canonical agent docs before coding
+alwaysApply: true
+---
+
+# WharfBar Core
+
+Before implementing anything:
+
+1. Read `AGENTS.md`
+2. Read `.agent/project.md` and `.agent/boundaries.md`
+3. Read relevant files under `docs/` for the task
+
+**Canonical AI context is `.agent/` + `docs/`.** These Cursor rules are thin pointers only — do not duplicate Win32 guides or full architecture here.
+
+- Code root is `src/WharfBar/`; solution is `WharfBar.sln` at the repo root
+- Prefer `Views/` (not `/Windows`) for UI folders; raw P/Invoke stays `internal` in `Native/`
+- Never leave AppBar registered on exit; never pair `AllowsTransparency` with Mica
+- Ask before changing the Windows taskbar
+- Do not add a `global.json` — only the .NET 9 SDK is installed and it builds the net8.0 target

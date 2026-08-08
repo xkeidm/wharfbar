@@ -1,0 +1,15 @@
+---
+description: Keep WharfBar docs and .agent in sync
+alwaysApply: true
+globs:
+  - "**/*.md"
+---
+
+# Documentation
+
+- Human docs: prefer Turkish; keep API names in English
+- Before changing behavior/architecture, read matching `docs/` + `.agent/` files first
+- Update `.agent/` and `docs/` in the same change when decisions shift
+- Do not paste long technical guides into `.cursor/rules` — link to `docs/` instead
+- External notes (e.g. Downloads) are not source of truth; fold content into `docs/`
+- New major decisions → `docs/decisions/NNN-*.md` ADR
