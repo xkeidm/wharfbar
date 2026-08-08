@@ -1,0 +1,24 @@
+<Window x:Class="WharfBar.Views.TopBarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="WharfBar"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        WindowStartupLocation="Manual"
+        SizeToContent="Manual"
+        MinHeight="30"
+        MaxHeight="30"
+        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        UseLayoutRounding="True">
+
+    <!-- Opaque window, AllowsTransparency off (kills Mica). WindowStyle=None is required so
+         Windows does not enforce a captioned-window minimum height (~39 px) above our 30 DIP
+         AppBar strip. Glass comes from DwmExtendFrameIntoClientArea(MARGINS=-1) in
+         WindowAppearance (ADR-004). When Mica is confirmed, Background is punched to Transparent. -->
+
+    <Border x:Name="Surface" Background="Transparent" />
+
+</Window>
