@@ -8,6 +8,7 @@ namespace WharfBar;
 public partial class App : Application
 {
     private SingleInstanceGuard? _singleInstance;
+    private DockWindow? _dock;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -28,10 +29,16 @@ public partial class App : Application
         var topBar = new TopBarWindow();
         MainWindow = topBar;
         topBar.Show();
+
+        _dock = new DockWindow();
+        _dock.Show();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _dock?.Close();
+        _dock = null;
+
         _singleInstance?.Dispose();
         _singleInstance = null;
         base.OnExit(e);
