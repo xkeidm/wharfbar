@@ -15,11 +15,14 @@
 
 ## Kod (hedef, scaffold sonrası)
 
+- C#: `PascalCase` tür/üye, private field `_camelCase`; nullable açık.
 - Klasör: `Views/` (veya `UI/`), `Native/`, `Models/`, `Services/` — **`Windows/` klasör adı yok**.
 - P/Invoke: `Native/` altında ince wrapper’lar; UI’dan ham DllImport çağırma.
+- Win32 struct’lar (`APPBARDATA` vb.) `Native/` içinde `internal`; servis katmanı domain modellerine çevirir.
+- Yeni Win32 çağrısı: imzayı `docs/02-win32-appbar-dwm.md`’ye ekle; hata dönüşünü / `GetLastWin32Error`’ı sessizce yutma (en azından debug log).
 - WPF-UI backdrop önce; DWM yedek.
-- Config modellerinde `schemaVersion` zorunlu alan.
-- AppBar yaşam döngüsü tek yerde (register/unregister/re-register).
+- Config modellerinde `schemaVersion` zorunlu alan; alan bazlı varsayılanlarla kırılmadan okuma tercih.
+- AppBar yaşam döngüsü tek yerde (register/unregister/re-register); `ABM_NEW` / `ABM_REMOVE` simetrik.
 - `unsafe` / `AllowUnsafeBlocks` yalnızca gerçek ihtiyaçta.
 - Anlamlı isimler; gereksiz abstraction yok.
 

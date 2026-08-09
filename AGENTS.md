@@ -44,9 +44,9 @@ hedefini derleyebilir. **`global.json` ile 8.x’e sabitleme** — 8.x SDK yoksa
 
 ## Boundaries (özet)
 
-- **Asla:** Çıkışta AppBar kaydını (`ABM_REMOVE`) unutma; Mica ile `AllowsTransparency=true` birlikte kullanma.
-- **Sor:** Windows görev çubuğunu gizleme / auto-hide değiştirme.
-- **v1:** Yalnızca birincil monitör; UWP/Store ikonları yok; durum göstergeleri .NET API ile simüle edilir.
+- **Asla:** Çıkışta AppBar kaydını (`ABM_REMOVE`) veya görev çubuğu restore’unu unutma; Mica ile `AllowsTransparency=true` birlikte kullanma; yabancı tepsi ikonlarını bellek/undocumented yolla okuma.
+- **Yap (ADR-005):** WharfBar çalışırken görev çubuğunu gizle/auto-hide; çıkış/crash’te önceki duruma geri yükle. Dock: canlı TaskBar pin + running. Tepsi: hibrit (native overflow düğmesi; tam ayna yok).
+- **v1:** Yalnızca birincil monitör; UWP/Store ikonları sınırlı; durum göstergeleri .NET API ile simüle edilir.
 - Ayrıntı: [`.agent/boundaries.md`](.agent/boundaries.md)
 
 ## Doküman güncelleme

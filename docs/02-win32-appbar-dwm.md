@@ -77,9 +77,12 @@ Shell_NotifyIcon  // NIM_ADD / MODIFY / DELETE
 
 Top bar göstergeleri için:
 
-- Durumu `NetworkInformation`, güç API’leri, saat vb. **.NET API’lerinden** oku
-- Kendi ikon setini çiz / kullan
-- İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u (uygulama tepsi menüsü) — bu sistem ikon okuma değildir
+- Durumu `NetworkInformation`, güç API’leri (`GetSystemPowerStatus`), saat vb. **.NET / Win32 API’lerinden** oku
+- Kendi ikon setini kullan (WPF-UI Fluent `SymbolIcon`)
+- İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
+- **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
+
+**Uygulanan (Faz 7):** saat, ağ, pil; ses göstergesi yok. Overflow düğmesi Faz 9c.
 
 ---
 
@@ -90,11 +93,21 @@ SHGetFileInfo(..., SHGFI_ICON | SHGFI_LARGEICON)
 // HICON → Imaging.CreateBitmapSourceFromHIcon → ImageSource
 ```
 
-Klasik `.exe` / `.lnk` için uygundur. **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 kapsam dışı**.
+Klasik `.exe` / `.lnk` için uygundur. **UWP/Store** paketleri farklı yol ister (AppxManifest) —
+**v1 tam destek yok**; çalışan UWP için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
 ---
 
-## e) DPI ve ekran değişimi
+## e) Görev çubuğu gizleme / geri yükleme (ADR-005)
+
+WharfBar çalışırken birincil monitör görev çubuğu gizlenir veya auto-hide’a alınır; başlatmada
+durum yakalanır, çıkış/crash yollarında geri yüklenir (`ABM_REMOVE` disiplini). Teknik API
+seçimi (`ABM_SETSTATE` vb.) uygulama planında. Zorla kill restore’u atlayabilir →
+[`04-gotchas.md`](04-gotchas.md).
+
+---
+
+## f) DPI ve ekran değişimi
 
 - Manifest: Per-Monitor V2
 - `WM_DPICHANGED` ve display change bildirimlerini dinle; AppBar `QUERYPOS`/`SETPOS` ve pencere konumunu güncelle
@@ -105,12 +118,12 @@ Klasik `.exe` / `.lnk` için uygundur. **UWP/Store** paketleri farklı yol ister
 
 ---
 
-## f) Hit-testing (dock / overlay)
+## g) Hit-testing (dock / overlay)
 
 Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test / `WS_EX_TRANSPARENT` veya benzeri stratejiler planlanmalı. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
 
 ---
 
-## g) AllowUnsafeBlocks
+## h) AllowUnsafeBlocks
 
 Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca pointer arithmetic veya `unsafe` blok gerçekten yazılırsa aç.

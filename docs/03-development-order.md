@@ -2,6 +2,10 @@
 
 Önerilen fazlar. Her faz sonunda manuel doğrulama; AppBar kullanan fazlarda çökme sonrası `ABM_REMOVE` / explorer düzeltmesi bilinciyle çalış.
 
+> Faz 1–7 tamamlandı. Sıradaki ürün işi: **Faz 9** (ADR-005 — görev çubuğu gizle/restore,
+> canlı dock, tepsi hibrit). Faz 8 (dock auto-hide) 9a/9b sonrası daha anlamlı.
+> Spec: [`superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+
 ## Faz 0 — Repo / docs ✓
 
 - [x] `AGENTS.md`, `.agent/`, `docs/`, ince Cursor kuralları
@@ -51,22 +55,74 @@
 - [x] `DockHitTest` stub (tam etkileşimli; passthrough ertelendi)
 - [x] Mica + `DWMWCP_ROUND` köşeler; DPI / display / tema yenileme
 
-## Faz 5 — Config ve kalıcılık
+## Faz 5 — Config ve kalıcılık ✓
 
-- `AppConfig` şeması + `ConfigService`
-- `%AppData%/WharfBar/config.json`
-- Pinned apps + tema + dock ayarları
+- [x] `AppConfig` şeması + `ConfigService` (`System.Text.Json`, camelCase)
+- [x] `%AppData%/WharfBar/config.json` — ilk çalıştırmada demo pinlerle oluşturulur
+- [x] Pinned apps dock’a config’ten yüklenir; `theme` (`system`/`light`/`dark`); dock `iconSize` / `autoHide` (auto-hide davranışı hâlâ stub)
+- [x] Bozuk / desteklenmeyen `schemaVersion` → `.bak` yedek + varsayılanlara dön
 
-## Faz 6 — Autostart ve dayanıklılık
+## Faz 6 — Autostart ve dayanıklılık ✓
 
-- Startup klasörü kısayolu (Registry Run değil)
-- Explorer / shell restart sonrası AppBar yeniden kayıt
-- Fullscreen hide polish
+- [x] Startup klasörü kısayolu (`AutostartService` → `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\WharfBar.lnk`)
+- [x] `AppConfig.autostart` ile senkron: yükleme (`App.OnStartup`) ve her `ConfigService.Save`
+- [x] Explorer / shell restart sonrası AppBar yeniden kayıt — Faz 2’de (`TaskbarCreated`)
+- [x] Fullscreen gizleme köprüsü — Faz 2/4 (`ABN_FULLSCREENAPP` + `FullscreenState`); hit-test polish sonraki faz
 
-## Faz 7 — Durum göstergeleri / saat
+## Faz 7 — Durum göstergeleri / saat ✓
 
-- Saat
-- Ağ / pil vb. .NET API simülasyonu + özel ikonlar
-- Kendi NotifyIcon (opsiyonel, uygulama menüsü)
+- [x] Canlı saat (`StatusService` + `TopBarWindow` sağ şerit)
+- [x] Ağ + pil: .NET `NetworkInformation` + `GetSystemPowerStatus`; WPF-UI Fluent ikonları
+- [x] Kendi tepsi ikonu (`Shell_NotifyIcon` / `TrayIconService`) — yalnızca Quit menüsü
+- [x] Ses / volume göstergesi yok (Core Audio gerekir; v1 sonrası aday)
 
-> Tepsi/durum görsel olarak en az kritik; sona bırakılabilir.
+> Tepsi ikonu sistem Wi-Fi/pil ikonlarını **okumaz**; yalnızca WharfBar’ın kendi çıkış menüsüdür.
+
+## Faz 8 — Dock auto-hide / hit-test polish ⬜
+
+> Tercihen **Faz 9a/9b sonrası**: görev çubuğu gizlenince dock alt kenar geometrisi değişir.
+
+Config’te `dock.autoHide` zaten saklanıyor; `DockAutoHideController` ve `DockHitTest` stub.
+Bu faz davranışı tamamlar:
+
+- [ ] Fare kenar bandına yaklaşınca dock gösterme; uzaklaşınca gizleme (animasyonlu)
+- [ ] Gizli / daraltılmış halde `WS_EX_TRANSPARENT` (veya eşdeğer) ile tıklamayı alttaki pencereye geçirme
+- [ ] Görünür halde hit-test’i tam etkileşimli tutma (`DockHitTest.ApplyInteractive`)
+- [ ] Fullscreen (`FullscreenState`) ile auto-hide çakışmasını netleştirme
+- [ ] `autoHide: false` iken dock her zaman görünür (mevcut stub davranışıyla uyumlu)
+- [ ] Manuel doğrulama: maximize pencere, oyun/video fullscreen, kenar hover
+
+## Faz 9 — Shell yerine geçme (canlı dock + tepsi hibrit + görev çubuğu) ⬜
+
+ADR-005 / [spec](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+Uygulama planı: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md). Alt fazlar:
+
+### 9a — Görev çubuğu yaşam döngüsü
+
+- [ ] Başlatmada görev çubuğu durumunu yakala; gizle / auto-hide uygula
+- [ ] Çıkış + crash yollarında önceki duruma geri yükle (`ABM_REMOVE` ile aynı set; idempotent)
+- [ ] `TaskbarCreated` sonrası gizlemeyi yeniden uygula
+- [ ] Manuel: Quit → restore; zorla kill gotcha bilinci
+
+### 9b — Canlı dock
+
+- [ ] `User Pinned\TaskBar` `.lnk` tarama; pin sırası
+- [ ] `EnumWindows` + AppUserModelID running gruplama
+- [ ] `config.pinnedApps` yalnızca seed/fallback
+- [ ] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok)
+- [ ] Manuel: pin ekle/çıkar, çalışan gösterge, launch / focus
+
+### 9c — Tepsi hibrit düğmesi
+
+- [ ] Üst barda “tray / gizli ikonlar” düğmesi → native overflow (`Win+B` veya chevron)
+- [ ] Yabancı ikon çizimi / RPM / undocumented enumeration yok
+- [ ] İsteğe bağlı: ses / volume göstergesi (`StatusService` genişletmesi)
+- [ ] Manuel: düğme overflow açar; WharfBar’da üçüncü taraf ikon yok
+
+## Faz 10+ (v1 sonrası adaylar — sıra sabit değil)
+
+- [ ] İkincil monitör / work-area stratejisi
+- [ ] UWP/Store ikonları (tam yol)
+- [ ] İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
+- [ ] Daha zengin durum menüleri / bildirim merkezi benzeri UI
+

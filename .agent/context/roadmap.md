@@ -1,24 +1,66 @@
 # Roadmap
 
-## Şimdi
+## Şimdi (tamamlanan)
 
 - Doküman + agent iskeleti (Approach B) ✓
-- **Faz 1 — İskelet pencere ✓** — `src/WharfBar/` scaffold, `WharfBar.sln`, WPF-UI paketi,
+- **Faz 1 — İskelet pencere ✓** — `src/WharfBar/` scaffold, `WharfBar.sln`, WPF-UI,
   PerMonitorV2 manifest, `TopBarWindow` (DPI-farkında fiziksel piksel yerleşimi), Mutex
 - **Faz 2 — AppBar ✓** — `Native/AppBar.cs`, NEW → QUERYPOS → SETPOS, idempotent `ABM_REMOVE`,
   `ABN_*` callback’leri, `TaskbarCreated` sonrası yeniden kayıt, fullscreen z-order
 - **Faz 3 — Görsellik ✓** — WPF-UI Mica + sistem teması, `DWMWCP_DONOTROUND`,
   `WindowAppearance` / `Native/Dwm.cs`, ADR-004
-- **Faz 4 — Dock ✓** — `DockWindow` overlay (Topmost, AppBar yok), 4 demo pin,
-  `ShellIcon` / `AppIconService`, tıklayınca `ProcessLauncherService`, `FullscreenState`
-  köprüsü, `DockAutoHideController` / `DockHitTest` stub, Mica + yuvarlak köşeler
-- Derleme temiz (0 uyarı / 0 hata); **çalışma zamanı betikle doğrulandı** (aşağı bkz.)
+- **Faz 4 — Dock ✓** — `DockWindow` overlay (Topmost, AppBar yok), pinler,
+  `ShellIcon` / `AppIconService`, `ProcessLauncherService`, `FullscreenState`,
+  `DockAutoHideController` / `DockHitTest` stub, Mica + yuvarlak köşeler
+- **Faz 5 — Config ✓** — `AppConfig` / `ConfigService`, `%AppData%/WharfBar/config.json`
+- **Faz 6 — Autostart ✓** — Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`)
+- **Faz 7 — Saat / durum ✓** — `StatusService` (saat, ağ, pil); `TrayIconService` + Quit
+- Derleme temiz; work area betikle doğrulandı (aşağı bkz.)
+- **Tasarım onay ✓** — canlı dock + tepsi hibrit + görev çubuğu gizle/restore (ADR-005);
+  spec: [`../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md)
 
-## Sonraki
+## Yapılacaklar listesi (öncelikli)
 
-5. Config şeması  
-6. Startup autostart  
-7. Saat / durum göstergeleri  
+### P0 — Sıradaki uygulama
+
+1. **Faz 9 — Shell yerine geçme (ADR-005)** — plan:
+     [`../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md)
+   - **9a** Görev çubuğu capture → hide/auto-hide → restore (AppBar ile aynı çıkış yolları)
+   - **9b** Canlı pin (`User Pinned\TaskBar`) + running (`EnumWindows`/AUMID); `pinnedApps` fallback
+   - **9c** Üst bar “tray / gizli ikonlar” düğmesi (native overflow); isteğe bağlı ses göstergesi
+   - Checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 9
+
+2. **Faz 8 — Dock auto-hide / hit-test polish** (9a/9b sonrası daha anlamlı)
+   - Kenar proximity → göster / gizle + animasyon
+   - Gizlikte click-through (`WS_EX_TRANSPARENT` / `DockHitTest.ApplyPassthrough`)
+   - `dock.autoHide: false` → her zaman görünür
+   - Fullscreen ile çakışma netliği
+   - Checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 8
+
+### P1 — Manuel doğrulama (insan gözü; kod yazmadan)
+
+3. Bar / dock görsel görünüm, Mica dokusu, hiza
+4. Saat / ağ / pil şeridi + tepsi **Quit WharfBar**
+5. Sistem light/dark runtime geçişi
+6. DPI / ölçek değişimi ve monitör tak-çıkar
+7. Tam ekran uygulama ile `ABN_FULLSCREENAPP` z-order
+8. Bilinçli: `explorer.exe` restart → `TaskbarCreated`; zorla kill → asılı work area / görev çubuğu farkındalığı
+
+### P2 — v1 sonrası adaylar
+
+9. Ses / volume göstergesi (Core Audio) — Faz 9c ile kısmen örtüşebilir
+10. İkincil monitör / work-area stratejisi
+11. UWP/Store ikonları (tam yol)
+12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
+13. Daha zengin durum menüleri / bildirim merkezi benzeri UI
+
+### Bilinçli ertelenenler / yasaklar
+
+- Yabancı / sistem tepsi ikonlarını okuma, WharfBar içinde çizme, click-forward (ADR-005)
+- `ReadProcessMemory` / belgelenmemiş NotifyIcon enumeration
+- Görev çubuğunu **kalıcı** bozmak (restore’suz)
+- Registry `Run` autostart (Startup klasörü tercih)
+- Global uygulama menüsü
 
 ## Faz 1–3 doğrulama durumu
 
@@ -43,25 +85,4 @@
   attribute okuması + opak-olmayan client ile desteklenir, insan gözü gerekir.
 - Light/dark runtime geçişi manuel tema değiştirerek doğrulanmalı.
 
-### Yalnızca insan gözüyle / manuel
-
-- Barın görsel görünümü, hizası, okunabilirliği, Mica dokusu
-- DPI / ölçek değişiminde yeniden konumlanma — test makinesi %100 ölçekte
-- Monitör tak-çıkar / `WM_DISPLAYCHANGE`
-- Tam ekran oyun / video ile `ABN_FULLSCREENAPP` z-order davranışı
-- `explorer.exe` yeniden başlatma sonrası `TaskbarCreated` yeniden kaydı (bilinçli atlandı)
-- Süreç zorla öldürüldüğünde asılı kalan work area (bilinçli test edilmedi)
-
 Ayrıntılı checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md)
-
-## Sonra (v1 sonrası adaylar)
-
-- İkincil monitör / work-area stratejisi  
-- UWP/Store ikonları  
-- İsteğe bağlı “dock reserves space” (alt AppBar)  
-- Daha zengin durum menüleri / bildirim merkezi benzeri UI  
-
-## Bilinçli ertelenenler
-
-- Görev çubuğu gizleme  
-- Sistem tepsi ikon okuma (mümkün değil / desteklenmiyor)  

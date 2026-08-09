@@ -11,10 +11,12 @@
 | Kenar şeritte yuvarlak DWM köşe | DWM dört köşeyi birden yuvarlar; üst bar `DONOTROUND` |
 | DPI değişimi / monitör tak-çıkar | Per-Monitor V2 + `WM_DPICHANGED` + display handlers + AppBar yeniden SETPOS |
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
-| Sistem tepsi ikonlarını okumaya çalışma | Simüle et (.NET API + kendi ikonlar); `Shell_NotifyIcon` ≠ okuma |
-| UWP ikonları | v1 destekleme; yalnızca `.exe`/`.lnk` |
-| Görev çubuğunu gizleme (`ABM_SETSTATE`) | v1 dokunma; kullanıcıya sorulmadan yapma |
-| Dock için gereksiz AppBar | Overlay + Topmost (+ auto-hide); ADR-001 |
+| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Simüle et (.NET API + kendi ikonlar); overflow için native `Win+B`/chevron; `Shell_NotifyIcon` ≠ okuma; RPM yok (ADR-005) |
+| UWP ikonları | v1 tam destek yok; placeholder veya atla; kırık Appx yolu sunma |
+| Görev çubuğu gizleme sonrası restore kaçması | Başlatmada durumu yakala; `ABM_REMOVE` ile aynı çıkış/crash yollarında geri yükle; idempotent tut (ADR-005) |
+| Zorla kill → görev çubuğu gizli kalır | `Stop-Process -Force` restore’u atlar; `explorer.exe` restart; normal Quit kullan |
+| Dock için gereksiz AppBar | Overlay + Topmost (+ auto-hide); ADR-001 — erken notlar “her iki yüzey AppBar” diyordu; geçersiz |
+| Erken notta `AllowUnsafeBlocks=true` / `/Windows` | ADR-002: unsafe kapalı; klasör `Views/` |
 | İkinci örnek / çift AppBar | Named Mutex |
 | Autostart için Registry Run | Startup klasörü tercih |
 | `/Windows` klasör adı kafa karışıklığı | `Views/` veya `UI/` kullan |
@@ -23,9 +25,9 @@
 | `global.json` ile SDK pinleme | Makinede yalnızca .NET 9 SDK var; 8.x’e pinleme derlemeyi kırar (ADR-002) |
 | Kendi `SetWindowPos`’umuz → `ABM_WINDOWPOSCHANGED` → `ABN_POSCHANGED` döngüsü | Yerleşim uygularken bildirimi atla (`_isApplyingPlacement`) |
 | `ShowInTaskbar=false` → `Process.MainWindowHandle` **0** | WPF pencereye gizli bir owner verir; `CloseMainWindow()` çalışmaz. Dışarıdan kapatmak için `EnumWindows` + PID filtresi ile `WM_CLOSE` gönder |
-| Uygulamayı kapatmanın görünür yolu yok | Bar’ın başlık çubuğu ve görev çubuğu girişi yok; şimdilik odaktayken **Alt+F4**. Kalıcı çözüm Faz 7 tepsi menüsü |
+| Uygulamayı kapatmanın görünür yolu yoktu | Tepsi ikonu → **Quit WharfBar** (`TrayIconService`); Alt+F4 hâlâ çalışır |
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
-| Config şemasız JSON | `schemaVersion` + net model |
+| Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
 
 ## Geliştirme ipucu
 

@@ -2,8 +2,12 @@
 
 Windows için macOS tarzı **üst bar** (saat, durum göstergeleri) ve **dock** (sabitlenmiş uygulamalar).
 
-> Durum: Geliştirme aşaması. **Faz 1–3 tamamlandı** — üst bar AppBar ile alan rezerve eder;
-> WPF-UI Mica + sistem light/dark uygulanır. Dock, config ve durum göstergeleri henüz yok.
+Öncelik: düşük kaynak tüketimi → Windows Fluent native görünüm → basitlik. macOS marka/ikon dili yok.
+
+> Durum: Geliştirme aşaması. **Faz 1–7 tamamlandı** — üst bar AppBar + Mica, dock overlay,
+> kalıcı JSON config (`%AppData%/WharfBar/config.json`), Startup klasörü autostart,
+> saat / ağ / pil göstergeleri, tepsi Quit menüsü.
+> Sırada: dock auto-hide / hit-test polish (Faz 8).
 
 ## Kurulum ve çalıştırma
 
@@ -18,6 +22,8 @@ dotnet build WharfBar.sln
 dotnet run --project src/WharfBar
 ```
 
+Çift tıklayarak: kökteki `run.bat`.
+
 > ⚠️ **Çalıştırmadan önce oku.** Uygulama açıkken ekranın üstünde bir şerit alan rezerve edilir.
 > Süreç zorla sonlandırılırsa (`Stop-Process -Force`, hata ayıklayıcıyı koparma) `ABM_REMOVE`
 > çalışmaz ve bu alan asılı kalır. Düzeltmesi: Görev Yöneticisi’nden **Windows Gezgini’ni
@@ -27,8 +33,8 @@ dotnet run --project src/WharfBar
 
 ### Nasıl kapatılır
 
-Barın başlık çubuğu ve görev çubuğu girişi yoktur; şu an kapatmanın yolu **bara tıklayıp
-Alt+F4**’tür. Kalıcı bir “Çıkış” menüsü Faz 7’de tepsi ikonuyla gelecek.
+Sistem tepsisindeki WharfBar ikonuna tıklayıp **Quit WharfBar** seçin. Alternatif: bara odaklanıp
+**Alt+F4**.
 
 `Process.MainWindowHandle` bu pencere için `0` döner (`ShowInTaskbar=false` WPF’te pencereye
 gizli bir owner verir), bu yüzden betikten kapatırken `CloseMainWindow()` işe yaramaz — PID’e
@@ -45,9 +51,10 @@ kapanınca **birebir** geri geliyor, maximize edilmiş pencereler barın altınd
 ```
 WharfBar.sln
 src/WharfBar/
-  Views/     TopBarWindow    — üst bar UI + AppBar sahibi
-  Native/    AppBar, Dwm, NativeMethods, Display — Win32 P/Invoke
-  Services/  SingleInstanceGuard, WindowAppearance
+  Views/     TopBarWindow (saat/durum), DockWindow
+  Native/    AppBar, Dwm, NativeMethods, Display, ShellIcon, PowerStatus, NotifyIconHost
+  Models/    AppConfig, PinnedApp, DemoPinnedApps
+  Services/  ConfigService, StatusService, TrayIconService, WindowAppearance, …
   app.manifest                — Per-Monitor V2 DPI
 ```
 
@@ -93,13 +100,15 @@ Ayrıntılar: [`docs/`](docs/) · Agent bağlamı: [`AGENTS.md`](AGENTS.md) · [
 1. ✅ İskelet pencere (pozisyon/boyut, DPI, Mutex)
 2. ✅ Top bar AppBar (`ABM_REMOVE` garantisi, callback’ler, yeniden kayıt)
 3. ✅ Görsellik (WPF-UI Mica, sistem teması, kare köşeler — ADR-004)
-4. ⬜ Dock overlay + pinned apps
-5. ⬜ Config
-6. ⬜ Autostart
-7. ⬜ Durum göstergeleri / saat
+4. ✅ Dock overlay + pinned apps
+5. ✅ Config
+6. ✅ Autostart (Startup klasörü)
+7. ✅ Durum göstergeleri / saat (+ tepsi Quit)
+8. ⬜ Dock auto-hide / hit-test polish
 
-Tam sıra: [`docs/03-development-order.md`](docs/03-development-order.md)
+Tam sıra ve yapılacaklar: [`docs/03-development-order.md`](docs/03-development-order.md) ·
+[`.agent/context/roadmap.md`](.agent/context/roadmap.md)
 
 ## Lisans
 
-Bkz. [LICENSE](LICENSE).
+[MIT](LICENSE) (WPF-UI de MIT).

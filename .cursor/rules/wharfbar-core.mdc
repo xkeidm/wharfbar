@@ -15,6 +15,6 @@ Before implementing anything:
 
 - Code root is `src/WharfBar/`; solution is `WharfBar.sln` at the repo root
 - Prefer `Views/` (not `/Windows`) for UI folders; raw P/Invoke stays `internal` in `Native/`
-- Never leave AppBar registered on exit; never pair `AllowsTransparency` with Mica
-- Ask before changing the Windows taskbar
+- Never leave AppBar registered on exit; never leave the Windows taskbar hidden without restore (ADR-005); never pair `AllowsTransparency` with Mica
+- Do not mirror foreign tray icons inside WharfBar (native overflow button only; ADR-005)
 - Do not add a `global.json` — only the .NET 9 SDK is installed and it builds the net8.0 target
