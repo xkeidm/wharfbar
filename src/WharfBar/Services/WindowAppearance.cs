@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WharfBar.Models;
 using WharfBar.Native;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -67,6 +68,37 @@ internal sealed class WindowAppearance
         return IsBackdropActive;
     }
 
+    /// <summary>
+    /// No system backdrop. Window must already have AllowsTransparency=true.
+    /// <paramref name="tintOpacity"/> null = fully clear; else 0–100 theme tint.
+    /// </summary>
+    internal void ApplyTranslucent(int? tintOpacity)
+    {
+        Dwm.SetCornerPreference(_hwnd, _corners);
+
+        ApplicationTheme theme = AppThemePreference.Resolve();
+        ApplicationThemeManager.Apply(theme, WindowBackdropType.None, updateAccent: false);
+        Dwm.SetImmersiveDarkMode(_hwnd, theme == ApplicationTheme.Dark);
+
+        ClearSystemBackdrop();
+        IsBackdropActive = false;
+
+        if (tintOpacity is null)
+        {
+            _window.SetCurrentValue(Control.BackgroundProperty, Brushes.Transparent);
+            return;
+        }
+
+        int opacity = TopBarBackgroundModes.ClampOpacity(tintOpacity.Value);
+        byte a = (byte)(int)Math.Round(opacity / 100.0 * 255.0);
+        Color baseColor = theme == ApplicationTheme.Dark
+            ? Color.FromRgb(0x20, 0x20, 0x20)
+            : Color.FromRgb(0xFA, 0xFA, 0xFA);
+        var brush = new SolidColorBrush(Color.FromArgb(a, baseColor.R, baseColor.G, baseColor.B));
+        brush.Freeze();
+        _window.SetCurrentValue(Control.BackgroundProperty, brush);
+    }
+
     /// <summary>Call when the system reports a theme or colourization change.</summary>
     internal void Refresh() => Apply();
 
@@ -112,6 +144,17 @@ internal sealed class WindowAppearance
             : Color.FromRgb(0x20, 0x20, 0x20);
 
         _window.SetCurrentValue(Control.BackgroundProperty, new SolidColorBrush(color));
+    }
+
+    private void ClearSystemBackdrop()
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        Dwm.SetSystemBackdrop(_hwnd, DwmSystemBackdrop.None);
+        // Do not call WindowBackdrop.RemoveBackground here for translucent — we own the brush.
     }
 
     /// <summary>WPF-UI and DWM number these differently for <c>Auto</c> and <c>None</c>.</summary>
