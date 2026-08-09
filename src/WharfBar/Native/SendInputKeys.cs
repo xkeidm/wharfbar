@@ -9,6 +9,9 @@ internal static class SendInputKeys
     /// <summary>Opens the Windows 10/11 Notification Center / calendar pane focus path.</summary>
     internal static bool TrySendWinN() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_N);
 
+    /// <summary>Opens the Project / display projection UI (Win+P).</summary>
+    internal static bool TrySendWinP() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_P);
+
     internal static bool TrySendReturn() => TrySendKey(NativeMethods.VK_RETURN);
 
     internal static bool TrySendSpace() => TrySendKey(NativeMethods.VK_SPACE);

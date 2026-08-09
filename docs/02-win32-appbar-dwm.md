@@ -84,9 +84,12 @@ Top bar göstergeleri için:
 - **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
-sağ küme `gizli · ağ · pil · ses · tarih · saat · bildirimler`. Ses: Core Audio
-(`AudioEndpointVolume` / `VolumeService`) + üstten açılan Fluent `Popup`. Tarih/saat: takvim
-flyout. Bildirimler: native Notification Center (`Win+N`) — içerik aynası yok (ADR-005).
+sağ küme `gizli · ağ · pil · ses · saat/tarih+bildirim`. Saat/tarih: Win11 tarzı üst üste
+(kısa saat + kısa tarih, Segoe UI) + zil glifi; **tek tıklama hedefi** native Notification
+Center (`Win+N` — takvim + bildirimler birlikte; ayrı takvim `Popup` yok; ADR-005 aynası yok).
+Ses + ağ: paylaşılan **Hızlı ayarlar** flyout (ADR-006) — master / çıkış aygıtı / uygulama
+oturumları (`CoreAudio*`) + ağ durumu / Settings URI / WinRT radyo; opak Fluent `Popup`
+(`AllowsTransparency=false`).
 
 **Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
 `TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,
@@ -94,7 +97,21 @@ sonra `EndTrayPeek()`. Çıkışta tam `Restore`.
 
 ---
 
-## d) Uygulama ikonu (dock)
+## d) Ses (Core Audio) — hızlı ayarlar
+
+```
+IMMDeviceEnumerator / IMMDevice          // aygıt listesi + varsayılan
+IAudioEndpointVolume                     // master seviye / mute
+IAudioSessionManager2 / ISimpleAudioVolume // uygulama oturumları
+IPolicyConfig.SetDefaultEndpoint         // varsayılan çıkış (ADR-006; dar istisna)
+```
+
+Ham COM `Native/AudioEndpointVolume.cs`, `CoreAudioDevices.cs`, `CoreAudioSessions.cs` içinde;
+UI `QuickSettingsFlyout` üzerinden.
+
+---
+
+## e) Uygulama ikonu (dock)
 
 ```csharp
 // Tercih: IShellItemImageFactory.GetImage(sizePx) — DPI’ya göre keskin
@@ -111,7 +128,7 @@ için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
 ---
 
-## e) Görev çubuğu gizleme / geri yükleme (ADR-005)
+## f) Görev çubuğu gizleme / geri yükleme (ADR-005)
 
 WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada durum yakalanır,
 çıkış/crash yollarında geri yüklenir (`ABM_REMOVE` disiplini). Uygulama: `TaskbarVisibilityService`
@@ -131,7 +148,7 @@ Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
 ---
 
-## f) Çalışan uygulama listesi (dock)
+## g) Çalışan uygulama listesi (dock)
 
 `EnumWindows` ile üst düzey görünür pencereler taranır; `Shell_TrayWnd`, `Progman`, `WorkerW` ve
 kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
@@ -141,7 +158,7 @@ kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
 
 ---
 
-## g) DPI ve ekran değişimi
+## h) DPI ve ekran değişimi
 
 - Manifest: Per-Monitor V2
 - `WM_DPICHANGED` ve display change bildirimlerini dinle; AppBar `QUERYPOS`/`SETPOS` ve pencere konumunu güncelle
@@ -152,12 +169,12 @@ kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
 
 ---
 
-## h) Hit-testing (dock / overlay)
+## i) Hit-testing (dock / overlay)
 
 Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test / `WS_EX_TRANSPARENT` veya benzeri stratejiler planlanmalı. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
 
 ---
 
-## i) AllowUnsafeBlocks
+## j) AllowUnsafeBlocks
 
 Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca pointer arithmetic veya `unsafe` blok gerçekten yazılırsa aç.

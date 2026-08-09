@@ -207,6 +207,7 @@ internal static class NativeMethods
     internal const ushort VK_LWIN = 0x5B;
     internal const ushort VK_B = 0x42;
     internal const ushort VK_N = 0x4E;
+    internal const ushort VK_P = 0x50;
     internal const ushort VK_RETURN = 0x0D;
     internal const ushort VK_SPACE = 0x20;
     internal const uint INPUT_KEYBOARD = 1;

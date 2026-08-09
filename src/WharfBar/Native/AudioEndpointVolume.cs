@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace WharfBar.Native;
 
 /// <summary>
-/// Default-render endpoint master volume via Core Audio (no extra NuGet — see boundaries).
+/// Render endpoint master volume via Core Audio (default or by device id).
 /// </summary>
 internal static class AudioEndpointVolume
 {
@@ -15,11 +15,20 @@ internal static class AudioEndpointVolume
     private const int ERoleMultimedia = 1;
     private const int ClsCtxInprocServer = 1;
 
-    internal static bool TryGetScalar(out float level01, out bool muted)
+    internal static bool TryGetScalar(out float level01, out bool muted) =>
+        TryGetScalarForDevice(deviceId: null, out level01, out muted);
+
+    internal static bool TrySetScalar(float level01) =>
+        TrySetScalarForDevice(deviceId: null, level01);
+
+    internal static bool TrySetMute(bool muted) =>
+        TrySetMuteForDevice(deviceId: null, muted);
+
+    internal static bool TryGetScalarForDevice(string? deviceId, out float level01, out bool muted)
     {
         level01 = 0f;
         muted = false;
-        if (!TryGetEndpoint(out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -45,10 +54,10 @@ internal static class AudioEndpointVolume
         }
     }
 
-    internal static bool TrySetScalar(float level01)
+    internal static bool TrySetScalarForDevice(string? deviceId, float level01)
     {
         level01 = Math.Clamp(level01, 0f, 1f);
-        if (!TryGetEndpoint(out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -63,9 +72,9 @@ internal static class AudioEndpointVolume
         }
     }
 
-    internal static bool TrySetMute(bool muted)
+    internal static bool TrySetMuteForDevice(string? deviceId, bool muted)
     {
-        if (!TryGetEndpoint(out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -80,7 +89,7 @@ internal static class AudioEndpointVolume
         }
     }
 
-    private static bool TryGetEndpoint(out IAudioEndpointVolume? volume)
+    private static bool TryGetEndpoint(string? deviceId, out IAudioEndpointVolume? volume)
     {
         volume = null;
         object? enumeratorObj = null;
@@ -98,7 +107,16 @@ internal static class AudioEndpointVolume
             enumeratorObj = Activator.CreateInstance(clsidType);
             enumerator = (IMMDeviceEnumerator)enumeratorObj!;
 
-            int hr = enumerator.GetDefaultAudioEndpoint(EDataFlowRender, ERoleMultimedia, out device);
+            int hr;
+            if (string.IsNullOrWhiteSpace(deviceId))
+            {
+                hr = enumerator.GetDefaultAudioEndpoint(EDataFlowRender, ERoleMultimedia, out device);
+            }
+            else
+            {
+                hr = enumerator.GetDevice(deviceId, out device);
+            }
+
             if (hr != NativeMethods.S_OK || device is null)
             {
                 return false;
@@ -147,6 +165,9 @@ internal static class AudioEndpointVolume
 
         [PreserveSig]
         int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppEndpoint);
+
+        [PreserveSig]
+        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string pwstrId, out IMMDevice ppDevice);
     }
 
     [ComImport]

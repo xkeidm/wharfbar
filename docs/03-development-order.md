@@ -75,7 +75,7 @@
 - [x] Canlı saat (`StatusService` + `TopBarWindow` sağ şerit)
 - [x] Ağ + pil: .NET `NetworkInformation` + `GetSystemPowerStatus`; WPF-UI Fluent ikonları
 - [x] Kendi tepsi ikonu (`Shell_NotifyIcon` / `TrayIconService`) — yalnızca Quit menüsü
-- [x] Ses / volume göstergesi yok (Core Audio gerekir; v1 sonrası aday)
+- [x] Ses / volume göstergesi + hızlı ayarlar flyout (ADR-006; Core Audio + karıştırıcı + ağ)
 
 > Tepsi ikonu sistem Wi-Fi/pil ikonlarını **okumaz**; yalnızca WharfBar’ın kendi çıkış menüsüdür.
 
@@ -118,7 +118,7 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 
 - [x] Üst barda “tray / gizli ikonlar” düğmesi → native overflow (`TrayOverflowInvoker` / `Win+B`)
 - [x] Yabancı ikon çizimi / RPM / undocumented enumeration yok
-- [ ] İsteğe bağlı: ses / volume göstergesi (`StatusService` genişletmesi) — bu planda yok
+- [x] İsteğe bağlı: ses / volume göstergesi + hızlı ayarlar (ADR-006; 9c sonrası genişletildi)
 - [ ] Manuel: düğme overflow açar; WharfBar’da üçüncü taraf ikon yok
 
 ## Faz 10+ (v1 sonrası adaylar — sıra sabit değil)

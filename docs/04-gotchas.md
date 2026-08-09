@@ -4,7 +4,9 @@
 |-------|---------|
 | AppBar kaydı silinmeden crash → asılı work area | `OnClosing` + `Exit` + mümkünse unhandled path’te `ABM_REMOVE`; geliştirmede `explorer.exe` restart |
 | Shell/explorer restart → AppBar kaybı | Yeniden kayıt stratejisi (shell mesajı / sağlık kontrolü) |
-| `AllowsTransparency=true` + Mica | Asla birlikte kullanma; WPF-UI backdrop veya opak + DWM extend |
+| `AllowsTransparency=true` + Mica | Asla birlikte kullanma; WPF-UI backdrop veya opak + DWM extend; hızlı ayarlar Popup da opak |
+| Hızlı ayarlar / PolicyConfig | Varsayılan ses aygıtı için `IPolicyConfig` (ADR-006); tepsi RPM değil |
+| Ses karıştırıcı / çoklu aygıt | Mixer sayfası aygıt başına `IAudioEndpointVolume` + oturum listesi; oturum ikonu süreç yolu yoksa MDL2; UWP ikonları sınırlı (ADR-006) |
 | WPF-UI backdrop + ham DWM aynı anda | Önce WPF-UI; ham DWM’yi yedek tut |
 | `WindowChrome` / caption + 30 DIP şerit | Caption min-height ~39 px; `WindowStyle=None` + frame extend (ADR-004) |
 | `SystemThemeWatcher` istenen backdrop’u ezer | Watcher varsayılan Mica basar; tema mesajlarını `WindowAppearance.Refresh` ile işle |
