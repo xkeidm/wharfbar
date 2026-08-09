@@ -18,16 +18,35 @@ namespace WharfBar.Views;
 /// </summary>
 public partial class DockWindow : Window
 {
-    private const double DockHeightDip = 72d;
-    private const double HoverScale = 1.2d;
-    private const int HoverDurationMs = 180;
-    private const double MinWidthDip = 200d;
+    /// <summary>Vertical padding around icons (DIP).</summary>
+    private const double VerticalPaddingDip = 6d;
+
+    /// <summary>Horizontal inset inside the dock surface (DIP).</summary>
+    private const double HorizontalPaddingDip = 12d;
+
+    /// <summary>Gap between adjacent icons (DIP). Wider than early 4 DIP — less cramped.</summary>
+    private const double IconGapDip = 12d;
+
+    private const double RunningDotSizeDip = 4d;
+    private const double RunningDotGapDip = 2d;
+
+    /// <summary>
+    /// Gap between dock window bottom and the primary monitor's bottom edge (DIP).
+    /// Kept at 0 so the strip sits on the screen edge (work-area bottom often leaves a taskbar-sized hole
+    /// while Shell_TrayWnd is hidden).
+    /// </summary>
+    private const double BottomGapDip = 0d;
+
+    private const double HoverScale = 1.12d;
+    private const int HoverDurationMs = 140;
+    private const double MinWidthDip = 180d;
 
     private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
     private const DwmCornerPreference Corners = DwmCornerPreference.Round;
 
     private readonly AppConfig _config;
     private readonly double _iconSizeDip;
+    private readonly double _dockHeightDip;
     private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
     private WindowAppearance? _appearance;
@@ -51,7 +70,19 @@ public partial class DockWindow : Window
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
+        // Icon + running-dot stack + vertical padding ≈ Windows taskbar (~40–48 DIP at default).
+        _dockHeightDip = VerticalPaddingDip * 2
+            + _iconSizeDip
+            + RunningDotGapDip
+            + RunningDotSizeDip;
         _autoHide = new DockAutoHideController(config.Dock.AutoHide);
+
+        // Keep XAML padding in sync with the height budget used by SetWindowPos.
+        Surface.Padding = new Thickness(
+            HorizontalPaddingDip,
+            VerticalPaddingDip,
+            HorizontalPaddingDip,
+            VerticalPaddingDip);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -149,7 +180,7 @@ public partial class DockWindow : Window
         {
             Width = 1,
             Opacity = 0.3,
-            Margin = new Thickness(8, 4, 8, 4),
+            Margin = new Thickness(6, 2, 6, 2),
             Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Stretch,
         };
@@ -157,20 +188,23 @@ public partial class DockWindow : Window
 
     private FrameworkElement CreateIconVisual(DockAppItem item, bool trailingMargin)
     {
+        int sizePx = ResolveIconPixelSize();
         var transform = new ScaleTransform(1, 1);
         var image = new System.Windows.Controls.Image
         {
             Width = _iconSizeDip,
             Height = _iconSizeDip,
             Stretch = Stretch.Uniform,
+            SnapsToDevicePixels = true,
             Source = string.IsNullOrWhiteSpace(item.Path)
-                ? _icons.GetIcon(string.Empty)
-                : _icons.GetIcon(item.Path),
+                ? _icons.GetIcon(string.Empty, sizePx)
+                : _icons.GetIcon(item.Path, sizePx),
             ToolTip = item.Label,
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = transform,
             Cursor = Cursors.Hand,
         };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
         image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
         image.MouseLeave += (_, _) => AnimateScale(transform, 1.0);
@@ -183,21 +217,29 @@ public partial class DockWindow : Window
         };
         if (trailingMargin)
         {
-            stack.Margin = new Thickness(0, 0, 8, 0);
+            stack.Margin = new Thickness(0, 0, IconGapDip, 0);
         }
 
         stack.Children.Add(image);
 
         var dot = new System.Windows.Shapes.Ellipse
         {
-            Width = 6,
-            Height = 6,
-            Margin = new Thickness(0, 4, 0, 0),
+            Width = RunningDotSizeDip,
+            Height = RunningDotSizeDip,
+            Margin = new Thickness(0, RunningDotGapDip, 0, 0),
             Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
             Visibility = item.IsRunning ? Visibility.Visible : Visibility.Hidden,
         };
         stack.Children.Add(dot);
         return stack;
+    }
+
+    private int ResolveIconPixelSize()
+    {
+        uint dpi = _source is null ? 96u : Display.GetDpi(_source.Handle);
+        // Request at least the DIP size in px; prefer even sizes for GDI icons.
+        int px = Display.DipToPixels(_iconSizeDip, dpi);
+        return Math.Clamp(px <= 0 ? 24 : px, 16, 256);
     }
 
     private static void AnimateScale(ScaleTransform transform, double to)
@@ -211,8 +253,9 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Centers the dock on the work-area bottom in physical pixels. WPF Left/Top/Width are
-    /// deliberately unused — they assume the primary monitor's scale factor.
+    /// Centers the dock on the primary monitor bottom edge in physical pixels. Uses monitor
+    /// bounds (not work area) for Y so the strip sits flush when the taskbar is hidden but the
+    /// shell work area still reserves that strip. WPF Left/Top/Width are unused (primary-scale bias).
     /// </summary>
     private void ApplyPlacement()
     {
@@ -231,20 +274,21 @@ public partial class DockWindow : Window
         try
         {
             uint dpi = Display.GetDpi(hwnd);
-            int heightPx = Display.DipToPixels(DockHeightDip, dpi);
-            RECT work = Display.GetPrimaryMonitorWorkArea(hwnd);
+            int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
+            int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
+            RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
 
-            if (work.Width <= 0 || heightPx <= 0)
+            if (monitor.Width <= 0 || heightPx <= 0)
             {
                 return;
             }
 
             int widthPx = MeasureDesiredWidthPx(dpi);
             int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
-            widthPx = Math.Clamp(widthPx, minWidthPx, work.Width);
+            widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
 
-            int x = work.Left + (work.Width - widthPx) / 2;
-            int y = work.Bottom - heightPx;
+            int x = monitor.Left + (monitor.Width - widthPx) / 2;
+            int y = monitor.Bottom - heightPx - bottomGapPx;
 
             IntPtr insertAfter = _isFullscreenHidden
                 ? NativeMethods.HWND_BOTTOM

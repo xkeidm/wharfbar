@@ -27,9 +27,16 @@ internal sealed class AppConfig
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
 internal sealed class DockConfig
 {
-    public const double DefaultIconSize = 48d;
-    public const double MinIconSize = 24d;
-    public const double MaxIconSize = 72d;
+    /// <summary>Taskbar-like icon size in DIP (slightly above shell medium; not macOS-dock large).</summary>
+    public const double DefaultIconSize = 28d;
+
+    /// <summary>Previous brief default; remapped to <see cref="DefaultIconSize"/> on load.</summary>
+    public const double PreviousDefaultIconSize = 24d;
+
+    public const double MinIconSize = 16d;
+
+    /// <summary>Caps oversized early defaults (48/72); allows a modest bump above default.</summary>
+    public const double MaxIconSize = 36d;
 
     /// <summary>Stored for later; <see cref="Services.DockAutoHideController"/> still stubs behavior.</summary>
     public bool AutoHide { get; set; } = true;

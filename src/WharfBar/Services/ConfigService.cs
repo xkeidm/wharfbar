@@ -64,7 +64,15 @@ internal sealed class ConfigService
                 return ReplaceWithDefault($"unsupported schemaVersion {loaded.SchemaVersion}");
             }
 
+            double originalIconSize = loaded.Dock?.IconSize ?? DockConfig.DefaultIconSize;
             Current = Normalize(loaded);
+
+            // Persist soft migrations (e.g. oversized dock.iconSize → taskbar default).
+            if (Math.Abs(Current.Dock.IconSize - originalIconSize) > 0.01)
+            {
+                Save(Current);
+            }
+
             return Current;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
@@ -150,6 +158,15 @@ internal sealed class ConfigService
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.Theme = NormalizeTheme(config.Theme);
         config.Dock ??= new DockConfig();
+
+        // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
+        // Other values inside Min–Max are preserved.
+        if (config.Dock.IconSize > DockConfig.MaxIconSize
+            || Math.Abs(config.Dock.IconSize - DockConfig.PreviousDefaultIconSize) < 0.01)
+        {
+            config.Dock.IconSize = DockConfig.DefaultIconSize;
+        }
+
         config.Dock.IconSize = Math.Clamp(
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,

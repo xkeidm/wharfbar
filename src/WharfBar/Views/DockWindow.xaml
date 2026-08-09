@@ -14,9 +14,9 @@
         AllowsTransparency="False">
 
     <Border x:Name="Surface"
-            Padding="12,8"
+            Padding="12,6"
             Background="Transparent"
-            CornerRadius="12">
+            CornerRadius="8">
         <ItemsControl x:Name="Pins">
             <ItemsControl.ItemsPanel>
                 <ItemsPanelTemplate>
