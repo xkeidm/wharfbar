@@ -50,6 +50,8 @@ public partial class TopBarWindow : Window
     private Dictionary<string, FrameworkElement>? _statusElements;
     private bool _batteryPresent = false;
     private bool _volumeAvailable = true;
+    private DispatcherTimer? _tintSaveTimer;
+    private int _pendingTintOpacity;
 
     internal TopBarWindow(TaskbarVisibilityService taskbar, ConfigService config)
     {
@@ -210,36 +212,65 @@ public partial class TopBarWindow : Window
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (_tintSaveTimer is { IsEnabled: true }
+            && TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar?.BackgroundMode)
+               == TopBarBackgroundModes.Tint)
+        {
+            _tintSaveTimer.Stop();
+            PersistBackground(TopBarBackgroundModes.Tint, _pendingTintOpacity);
+        }
+
+        _tintSaveTimer = null;
+
         if (_isRecreateClose)
         {
-            // Services + AppBar already released in PrepareForRecreate; never restore taskbar here.
+            // AppBar already removed in PrepareForRecreate; dispose services here so AbortRecreate
+            // can still recover a prepared-but-failed swap. Never restore taskbar on this path.
+            DisposeOwnedServices();
             base.OnClosing(e);
             return;
         }
 
         CloseFlyouts();
-        QuickSettingsHost.Detach();
-        _status?.Dispose();
-        _status = null;
-        _mixer?.Dispose();
-        _mixer = null;
-        _quick?.Dispose();
-        _quick = null;
-        _volume?.Dispose();
-        _volume = null;
-
+        DisposeOwnedServices();
         ReleaseShellState(); // taskbar.Restore + AppBar.Remove
         base.OnClosing(e);
     }
 
     /// <summary>
     /// Tear down for Mica ↔ translucent window recreate. AppBar remove only — no taskbar restore.
+    /// Services stay alive until <see cref="OnClosing"/> so <see cref="AbortRecreate"/> can recover.
     /// </summary>
     internal void PrepareForRecreate()
     {
         _isRecreateClose = true;
         UnhookShutdownPaths();
         CloseFlyouts();
+        _appBar?.Remove();
+    }
+
+    /// <summary>
+    /// Re-registers AppBar after a failed recreate. Never restores the Windows taskbar.
+    /// </summary>
+    internal void AbortRecreate()
+    {
+        _isRecreateClose = false;
+        if (_source is not null)
+        {
+            // Previous AppBar instance is permanently removed; allocate a fresh one.
+            _appBar = new AppBar(
+                _source.Handle,
+                NativeMethods.RegisterWindowMessage(AppBarCallbackName),
+                NativeMethods.ABE_TOP);
+            _appBar.Register();
+            ApplyPlacement();
+        }
+
+        HookShutdownPaths();
+    }
+
+    private void DisposeOwnedServices()
+    {
         QuickSettingsHost.Detach();
         _status?.Dispose();
         _status = null;
@@ -249,7 +280,6 @@ public partial class TopBarWindow : Window
         _quick = null;
         _volume?.Dispose();
         _volume = null;
-        _appBar?.Remove();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -397,9 +427,10 @@ public partial class TopBarWindow : Window
         string mode = TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar.BackgroundMode);
         int opacity = TopBarBackgroundModes.ClampOpacity(_config.Current.TopBar.TintOpacity);
 
-        AddBackgroundRadio(menu, "Mica", TopBarBackgroundModes.Mica, mode);
-        AddBackgroundRadio(menu, "Transparent", TopBarBackgroundModes.Transparent, mode);
-        AddBackgroundRadio(menu, "Tint", TopBarBackgroundModes.Tint, mode);
+        var radios = new List<System.Windows.Controls.MenuItem>(3);
+        radios.Add(CreateBackgroundRadio("Mica", TopBarBackgroundModes.Mica, mode));
+        radios.Add(CreateBackgroundRadio("Transparent", TopBarBackgroundModes.Transparent, mode));
+        radios.Add(CreateBackgroundRadio("Tint", TopBarBackgroundModes.Tint, mode));
 
         var opacityHost = new System.Windows.Controls.MenuItem
         {
@@ -429,10 +460,26 @@ public partial class TopBarWindow : Window
         {
             int v = (int)Math.Round(args.NewValue);
             label.Text = $"Opaklık {v}%";
-            SetTintOpacity(v);
+            ScheduleTintOpacitySave(v);
         };
         row.Children.Add(slider);
         opacityHost.Header = row;
+
+        foreach (System.Windows.Controls.MenuItem radio in radios)
+        {
+            string radioMode = (string)radio.Tag!;
+            radio.Click += (_, _) =>
+            {
+                SetBackgroundMode(radioMode);
+                // Recreate destroys this menu; otherwise keep radios exclusive + slider enable in sync.
+                SyncBackgroundMenuUi(
+                    radios,
+                    opacityHost,
+                    TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar.BackgroundMode));
+            };
+            menu.Items.Add(radio);
+        }
+
         menu.Items.Add(opacityHost);
 
         menu.Items.Add(new Separator());
@@ -467,20 +514,32 @@ public partial class TopBarWindow : Window
         return menu;
     }
 
-    private void AddBackgroundRadio(ContextMenu menu, string header, string mode, string current)
+    private static System.Windows.Controls.MenuItem CreateBackgroundRadio(
+        string header,
+        string mode,
+        string current)
     {
-        var item = new System.Windows.Controls.MenuItem
+        return new System.Windows.Controls.MenuItem
         {
             Header = header,
             IsCheckable = true,
             IsChecked = current == mode,
             StaysOpenOnClick = true,
+            Tag = mode,
         };
-        item.Click += (_, _) =>
+    }
+
+    private static void SyncBackgroundMenuUi(
+        IReadOnlyList<System.Windows.Controls.MenuItem> radios,
+        System.Windows.Controls.MenuItem opacityHost,
+        string mode)
+    {
+        foreach (System.Windows.Controls.MenuItem radio in radios)
         {
-            SetBackgroundMode(mode);
-        };
-        menu.Items.Add(item);
+            radio.IsChecked = string.Equals(radio.Tag as string, mode, StringComparison.Ordinal);
+        }
+
+        opacityHost.IsEnabled = mode == TopBarBackgroundModes.Tint;
     }
 
     private static string StatusItemHeader(string id) => id switch
@@ -633,6 +692,7 @@ public partial class TopBarWindow : Window
 
     private void SetBackgroundMode(string mode)
     {
+        _tintSaveTimer?.Stop();
         string normalized = TopBarBackgroundModes.NormalizeMode(mode);
         bool needTx = TopBarBackgroundModes.NeedsTransparency(normalized);
         PersistBackground(normalized);
@@ -655,6 +715,38 @@ public partial class TopBarWindow : Window
         {
             _appearance?.ApplyTranslucent(TopBarBackgroundModes.ClampOpacity(opacity));
         }
+    }
+
+    private void ScheduleTintOpacitySave(int opacity)
+    {
+        _pendingTintOpacity = TopBarBackgroundModes.ClampOpacity(opacity);
+        // Live preview immediately; debounce disk Save.
+        if (AllowsTransparency
+            && TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar.BackgroundMode)
+               == TopBarBackgroundModes.Tint)
+        {
+            _appearance?.ApplyTranslucent(_pendingTintOpacity);
+        }
+
+        if (_tintSaveTimer is null)
+        {
+            _tintSaveTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(250),
+            };
+            _tintSaveTimer.Tick += (_, _) =>
+            {
+                _tintSaveTimer.Stop();
+                if (TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar?.BackgroundMode)
+                    == TopBarBackgroundModes.Tint)
+                {
+                    PersistBackground(TopBarBackgroundModes.Tint, _pendingTintOpacity);
+                }
+            };
+        }
+
+        _tintSaveTimer.Stop();
+        _tintSaveTimer.Start();
     }
 
     private static void SetPlainToolTip(FrameworkElement element, string? text)
