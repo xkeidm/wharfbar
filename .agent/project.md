@@ -13,7 +13,8 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 - **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
   (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `network` →
-  `battery`; özelleştirilebilir). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
+  `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
+  + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   `config.pinnedApps` seed/fallback.
@@ -92,6 +93,9 @@ plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.m
 Durum şeridi sırası + `controlCenter` + tek satır saat:
 [`../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
 plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../docs/superpowers/plans/2026-08-09-topbar-status-strip.md).
+Üst bar arka plan kişiselleştirme:
+[`../docs/superpowers/specs/2026-08-09-topbar-background-personalization-design.md`](../docs/superpowers/specs/2026-08-09-topbar-background-personalization-design.md);
+plan: [`../docs/superpowers/plans/2026-08-09-topbar-background-personalization.md`](../docs/superpowers/plans/2026-08-09-topbar-background-personalization.md).
 
 Derleme: `dotnet build WharfBar.sln`. Ayrıntı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 

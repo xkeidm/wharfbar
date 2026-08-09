@@ -1,7 +1,7 @@
 # WharfBar — Üst bar arka plan kişiselleştirme (tasarım)
 
 **Tarih:** 2026-08-09  
-**Durum:** Tasarım onaylandı (kullanıcı 2026-08-09) — uygulama planı henüz yok.  
+**Durum:** Tasarım onaylandı — uygulama planı: [../plans/2026-08-09-topbar-background-personalization.md](../plans/2026-08-09-topbar-background-personalization.md).
 **İlgili:** [ADR-004](../../decisions/004-topbar-mica-corners-and-theme.md),
 [özelleştirme spec](2026-08-09-topbar-shortcuts-customization-design.md),
 [`docs/04-gotchas.md`](../../04-gotchas.md)

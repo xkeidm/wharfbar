@@ -37,6 +37,7 @@
 | Uygulamayı kapatmanın görünür yolu yoktu | Tepsi ikonu → **Quit WharfBar** (`TrayIconService`); Alt+F4 hâlâ çalışır |
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
 | Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
+| Translucent üst bar / Mica geçişi | `AllowsTransparency` ctor'da; Mica↔translucent = TopBar recreate; recreate'de **taskbar restore yok**, yalnız `ABM_REMOVE`+yeni `ABM_NEW`; Mica+`AllowsTransparency` yasak |
 
 ## Geliştirme ipucu
 
