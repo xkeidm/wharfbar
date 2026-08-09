@@ -388,6 +388,55 @@ public partial class TopBarWindow : Window
 
         menu.Items.Add(new Separator());
 
+        menu.Items.Add(new System.Windows.Controls.MenuItem
+        {
+            Header = "Arka plan",
+            IsEnabled = false,
+        });
+
+        string mode = TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar.BackgroundMode);
+        int opacity = TopBarBackgroundModes.ClampOpacity(_config.Current.TopBar.TintOpacity);
+
+        AddBackgroundRadio(menu, "Mica", TopBarBackgroundModes.Mica, mode);
+        AddBackgroundRadio(menu, "Transparent", TopBarBackgroundModes.Transparent, mode);
+        AddBackgroundRadio(menu, "Tint", TopBarBackgroundModes.Tint, mode);
+
+        var opacityHost = new System.Windows.Controls.MenuItem
+        {
+            StaysOpenOnClick = true,
+            IsEnabled = mode == TopBarBackgroundModes.Tint,
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        row.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = $"Opaklık {opacity}%",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+            Width = 88,
+        });
+        var label = (System.Windows.Controls.TextBlock)row.Children[0];
+        var slider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Width = 120,
+            Value = opacity,
+            IsSnapToTickEnabled = true,
+            TickFrequency = 1,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        slider.ValueChanged += (_, args) =>
+        {
+            int v = (int)Math.Round(args.NewValue);
+            label.Text = $"Opaklık {v}%";
+            SetTintOpacity(v);
+        };
+        row.Children.Add(slider);
+        opacityHost.Header = row;
+        menu.Items.Add(opacityHost);
+
+        menu.Items.Add(new Separator());
+
         if (hitItem is not null
             && TryGetIdForElement(hitItem, out string hitId)
             && visible.Contains(hitId))
@@ -416,6 +465,22 @@ public partial class TopBarWindow : Window
         reset.Click += OnResetStatusItems;
         menu.Items.Add(reset);
         return menu;
+    }
+
+    private void AddBackgroundRadio(ContextMenu menu, string header, string mode, string current)
+    {
+        var item = new System.Windows.Controls.MenuItem
+        {
+            Header = header,
+            IsCheckable = true,
+            IsChecked = current == mode,
+            StaysOpenOnClick = true,
+        };
+        item.Click += (_, _) =>
+        {
+            SetBackgroundMode(mode);
+        };
+        menu.Items.Add(item);
     }
 
     private static string StatusItemHeader(string id) => id switch
