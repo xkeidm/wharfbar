@@ -131,14 +131,16 @@
                 </Border>
             </Grid>
 
-            <!-- MIXER (EarTrumpet-style: per-device blocks + per-app rows) -->
+            <!-- MIXER (single device + dropdown + sessions) -->
             <Grid x:Name="MixerPage" Visibility="Collapsed">
                 <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <Button Style="{StaticResource QsIconButton}"
                             Content="&#xE76B;"
                             Click="OnBackToMainClick"
@@ -150,11 +152,88 @@
                                Text="Ses karıştırıcı" />
                 </DockPanel>
 
-                <ScrollViewer Grid.Row="1"
-                              MaxHeight="420"
+                <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                    <TextBlock FontSize="11"
+                               Opacity="0.7"
+                               Margin="2,0,0,4"
+                               Text="Çıkış cihazı" />
+                    <Grid>
+                        <Border x:Name="DevicePickerButton"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                CornerRadius="8"
+                                Padding="12,10"
+                                Cursor="Hand"
+                                MouseLeftButtonUp="OnDevicePickerClick">
+                            <DockPanel>
+                                <TextBlock DockPanel.Dock="Right"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="12"
+                                           VerticalAlignment="Center"
+                                           Opacity="0.8"
+                                           Text="&#xE70D;" />
+                                <TextBlock x:Name="SelectedDeviceNameText"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"
+                                           Text="—" />
+                            </DockPanel>
+                        </Border>
+                        <Popup x:Name="DevicePickerPopup"
+                               PlacementTarget="{Binding ElementName=DevicePickerButton}"
+                               Placement="Bottom"
+                               StaysOpen="False"
+                               AllowsTransparency="False">
+                            <Border Background="{DynamicResource ApplicationBackgroundBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    MinWidth="{Binding ActualWidth, ElementName=DevicePickerButton}"
+                                    MaxHeight="220"
+                                    Padding="4">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel x:Name="DevicePickerList" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                </StackPanel>
+
+                <Border Grid.Row="2"
+                        Margin="0,0,0,10"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="8"
+                        Padding="10,8">
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="MixerMasterMuteButton"
+                                DockPanel.Dock="Left"
+                                Style="{StaticResource QsIconButton}"
+                                Content="&#xE767;"
+                                Click="OnMixerMasterMuteClick"
+                                ToolTip="Sessiz" />
+                        <TextBlock x:Name="MixerMasterPercentText"
+                                   DockPanel.Dock="Right"
+                                   Width="28"
+                                   VerticalAlignment="Center"
+                                   TextAlignment="Right"
+                                   FontSize="12"
+                                   Text="0" />
+                        <Slider x:Name="MixerMasterSlider"
+                                Minimum="0"
+                                Maximum="100"
+                                VerticalAlignment="Center"
+                                Margin="8,0"
+                                TickFrequency="1"
+                                IsSnapToTickEnabled="True"
+                                ValueChanged="OnMixerMasterVolumeChanged" />
+                    </DockPanel>
+                </Border>
+
+                <ScrollViewer Grid.Row="3"
+                              MaxHeight="320"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel x:Name="MixerDeviceList" />
+                    <StackPanel x:Name="MixerSessionList" />
                 </ScrollViewer>
             </Grid>
 
