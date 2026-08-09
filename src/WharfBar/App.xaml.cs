@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using WharfBar.Models;
 using WharfBar.Services;
 using WharfBar.Views;
 using Wpf.Ui.Appearance;
@@ -8,7 +9,9 @@ namespace WharfBar;
 public partial class App : Application
 {
     private SingleInstanceGuard? _singleInstance;
+    private ConfigService? _config;
     private DockWindow? _dock;
+    private TrayIconService? _tray;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -22,20 +25,34 @@ public partial class App : Application
 
         base.OnStartup(e);
 
-        // Match the system light/dark choice before the first window is realized, so the bar
-        // never flashes the wrong theme.
-        ApplicationThemeManager.ApplySystemTheme();
+        _config = new ConfigService();
+        AppConfig config = _config.LoadOrCreate();
+
+        // LoadOrCreate already Save()'s on first run / reset (which syncs Startup).
+        // Explicit Apply covers the common case where config exists and Save is skipped.
+        new AutostartService().Apply(config.Autostart);
+
+        // Match the configured theme before the first window is realized, so the bar
+        // never flashes the wrong palette.
+        AppThemePreference.Mode = config.Theme;
+        ApplicationThemeManager.Apply(AppThemePreference.Resolve());
 
         var topBar = new TopBarWindow();
         MainWindow = topBar;
         topBar.Show();
 
-        _dock = new DockWindow();
+        _dock = new DockWindow(config);
         _dock.Show();
+
+        // Own tray icon only (quit menu). Not reading system status tray icons.
+        _tray = new TrayIconService();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _tray?.Dispose();
+        _tray = null;
+
         _dock?.Close();
         _dock = null;
 
