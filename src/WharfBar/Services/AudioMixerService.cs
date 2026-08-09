@@ -3,22 +3,22 @@ using WharfBar.Native;
 
 namespace WharfBar.Services;
 
-/// <summary>One EarTrumpet-style block: device header + master + per-app sessions.</summary>
-internal sealed record MixerDeviceSection(
+internal sealed record MixerDeviceInfo(
     string DeviceId,
     string Name,
     bool IsDefault,
     int Percent,
-    bool IsMuted,
-    IReadOnlyList<AudioAppSession> Sessions);
+    bool IsMuted);
 
 internal sealed record MixerSnapshot(
     VolumeSnapshot Master,
-    IReadOnlyList<MixerDeviceSection> Devices);
+    IReadOnlyList<MixerDeviceInfo> Devices,
+    MixerDeviceInfo? Selected,
+    IReadOnlyList<AudioAppSession> Sessions);
 
 /// <summary>
-/// EarTrumpet-like mixer data: per-output-device master volume + sessions, polled while
-/// the Quick Settings mixer page is visible.
+/// Single-device mixer: device list for picker, master on default render,
+/// sessions on the selected (default) device.
 /// </summary>
 internal sealed class AudioMixerService : IDisposable
 {
@@ -56,49 +56,6 @@ internal sealed class AudioMixerService : IDisposable
     internal void SetMasterMuted(bool muted) => _volume.SetMuted(muted);
 
     internal void ToggleMasterMute() => _volume.ToggleMute();
-
-    internal bool TrySetDevicePercent(string deviceId, int percent)
-    {
-        percent = Math.Clamp(percent, 0, 100);
-        MixerDeviceSection? device = Snapshot.Devices.FirstOrDefault(d => d.DeviceId == deviceId);
-        if (device?.IsDefault == true)
-        {
-            _volume.SetPercent(percent);
-            Refresh();
-            return true;
-        }
-
-        if (!AudioEndpointVolume.TrySetScalarForDevice(deviceId, percent / 100f))
-        {
-            return false;
-        }
-
-        Refresh();
-        return true;
-    }
-
-    internal bool TryToggleDeviceMute(string deviceId)
-    {
-        MixerDeviceSection? device = Snapshot.Devices.FirstOrDefault(d => d.DeviceId == deviceId);
-        if (device is null)
-        {
-            return false;
-        }
-
-        bool nextMuted = !device.IsMuted;
-        if (!AudioEndpointVolume.TrySetMuteForDevice(deviceId, nextMuted))
-        {
-            return false;
-        }
-
-        if (device.IsDefault)
-        {
-            _volume.SetMuted(nextMuted);
-        }
-
-        Refresh();
-        return true;
-    }
 
     internal bool TrySetDefaultDevice(string deviceId)
     {
@@ -146,44 +103,24 @@ internal sealed class AudioMixerService : IDisposable
 
     private void Refresh()
     {
-        MixerSnapshot next = Read();
-        Snapshot = next;
+        Snapshot = Read();
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
     private MixerSnapshot Read()
     {
         IReadOnlyList<AudioOutputDevice> devices = CoreAudioDevices.ListActiveRenderDevices();
-        IReadOnlyList<AudioAppSession> sessions = CoreAudioSessions.ListSessionsOnAllActiveRenderDevices();
+        var infos = devices
+            .Select(d => new MixerDeviceInfo(d.Id, d.Name, d.IsDefault, d.Percent, d.IsMuted))
+            .OrderByDescending(d => d.IsDefault)
+            .ThenBy(d => d.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
 
-        var sections = new List<MixerDeviceSection>(devices.Count);
-        foreach (AudioOutputDevice device in devices)
-        {
-            // Default first for EarTrumpet-like ordering; rest keep MMDevice order.
-            IReadOnlyList<AudioAppSession> deviceSessions = sessions
-                .Where(s => string.Equals(s.DeviceId, device.Id, StringComparison.Ordinal))
-                .ToList();
+        MixerDeviceInfo? selected = infos.FirstOrDefault(d => d.IsDefault) ?? infos.FirstOrDefault();
+        IReadOnlyList<AudioAppSession> sessions = selected is null
+            ? Array.Empty<AudioAppSession>()
+            : CoreAudioSessions.ListSessionsOnDevice(selected.DeviceId);
 
-            sections.Add(new MixerDeviceSection(
-                device.Id,
-                device.Name,
-                device.IsDefault,
-                device.Percent,
-                device.IsMuted,
-                deviceSessions));
-        }
-
-        // Default device on top.
-        sections.Sort((a, b) =>
-        {
-            if (a.IsDefault == b.IsDefault)
-            {
-                return string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
-            }
-
-            return a.IsDefault ? -1 : 1;
-        });
-
-        return new MixerSnapshot(_volume.Snapshot, sections);
+        return new MixerSnapshot(_volume.Snapshot, infos, selected, sessions);
     }
 }
