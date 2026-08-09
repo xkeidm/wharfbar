@@ -21,6 +21,8 @@ internal sealed class AppConfig
 
     public DockConfig Dock { get; set; } = new();
 
+    public TopBarConfig TopBar { get; set; } = new();
+
     public List<PinnedApp> PinnedApps { get; set; } = [];
 }
 
@@ -42,4 +44,14 @@ internal sealed class DockConfig
     public bool AutoHide { get; set; } = true;
 
     public double IconSize { get; set; } = DefaultIconSize;
+}
+
+/// <summary>Top bar settings under <see cref="AppConfig.TopBar"/>.</summary>
+internal sealed class TopBarConfig
+{
+    /// <summary>
+    /// Visible status item ids in left→right order. Omitted ids are hidden.
+    /// Unknown ids stripped on load.
+    /// </summary>
+    public List<string> StatusItems { get; set; } = TopBarStatusItemIds.DefaultOrder.ToList();
 }

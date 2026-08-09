@@ -52,6 +52,7 @@ internal sealed class ConfigService
         try
         {
             string json = File.ReadAllText(ConfigPath);
+            bool topBarKeyMissing = !JsonRootHasProperty(json, "topBar");
             AppConfig? loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
 
             if (loaded is null)
@@ -67,8 +68,12 @@ internal sealed class ConfigService
             double originalIconSize = loaded.Dock?.IconSize ?? DockConfig.DefaultIconSize;
             Current = Normalize(loaded);
 
-            // Persist soft migrations (e.g. oversized dock.iconSize → taskbar default).
-            if (Math.Abs(Current.Dock.IconSize - originalIconSize) > 0.01)
+            bool statusChanged = topBarKeyMissing || !StatusItemsEqual(
+                loaded.TopBar?.StatusItems,
+                Current.TopBar.StatusItems);
+            bool iconChanged = Math.Abs(Current.Dock.IconSize - originalIconSize) > 0.01;
+
+            if (iconChanged || statusChanged)
             {
                 Save(Current);
             }
@@ -120,6 +125,10 @@ internal sealed class ConfigService
                 IconSize = DockConfig.DefaultIconSize,
             },
             PinnedApps = DemoPinnedApps.All.Select(static a => new PinnedApp(a.Path, a.Args, a.Label)).ToList(),
+            TopBar = new TopBarConfig
+            {
+                StatusItems = TopBarStatusItemIds.DefaultOrder.ToList(),
+            },
         };
     }
 
@@ -158,6 +167,8 @@ internal sealed class ConfigService
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.Theme = NormalizeTheme(config.Theme);
         config.Dock ??= new DockConfig();
+        config.TopBar ??= new TopBarConfig();
+        config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
 
         // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
         // Other values inside Min–Max are preserved.
@@ -189,6 +200,47 @@ internal sealed class ConfigService
         }
 
         return config;
+    }
+
+    private static bool JsonRootHasProperty(string json, string propertyName)
+    {
+        using JsonDocument doc = JsonDocument.Parse(json, new JsonDocumentOptions
+        {
+            CommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+        });
+        foreach (JsonProperty prop in doc.RootElement.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, propertyName, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool StatusItemsEqual(IList<string>? a, IList<string> b)
+    {
+        if (a is null)
+        {
+            return false; // missing → we wrote defaults; persist once
+        }
+
+        if (a.Count != b.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < b.Count; i++)
+        {
+            if (!string.Equals(a[i]?.Trim(), b[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private static string NormalizeTheme(string? theme)
