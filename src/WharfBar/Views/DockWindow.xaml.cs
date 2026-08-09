@@ -33,6 +33,10 @@ public partial class DockWindow : Window
     private WindowAppearance? _appearance;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
+    private TaskbarPinnedAppsSource? _pinSource;
+    private RunningAppsSource? _runningSource;
+    private DockAppsComposer? _composer;
+    private WindowActivationService? _activation;
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
 
@@ -72,8 +76,12 @@ public partial class DockWindow : Window
         FullscreenState.Instance.Changed += OnFullscreenChanged;
         WorkAreaChanged.Raised += OnWorkAreaChanged;
 
-        BuildPinVisuals();
-        ApplyPlacement();
+        _pinSource = new TaskbarPinnedAppsSource(Dispatcher);
+        _runningSource = new RunningAppsSource(Dispatcher);
+        _composer = new DockAppsComposer(_pinSource, _runningSource, _config.PinnedApps);
+        _activation = new WindowActivationService();
+        _composer.Changed += OnComposerChanged;
+        RebuildStrip();
 
         // Preference is live from config; proximity hide remains a no-op until a later phase.
         if (_autoHide.Enabled)
@@ -92,39 +100,104 @@ public partial class DockWindow : Window
         FullscreenState.Instance.Changed -= OnFullscreenChanged;
         WorkAreaChanged.Raised -= OnWorkAreaChanged;
 
+        if (_composer is not null)
+        {
+            _composer.Changed -= OnComposerChanged;
+            _composer.Dispose();
+            _composer = null;
+        }
+
+        _pinSource?.Dispose();
+        _pinSource = null;
+        _runningSource?.Dispose();
+        _runningSource = null;
+        _activation = null;
+
         _source?.RemoveHook(WndProc);
         _source = null;
 
         base.OnClosed(e);
     }
 
-    private void BuildPinVisuals()
+    private void OnComposerChanged(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(RebuildStrip);
+
+    private void RebuildStrip()
     {
-        IReadOnlyList<PinnedApp> apps = _config.PinnedApps;
-        for (int i = 0; i < apps.Count; i++)
+        Pins.Items.Clear();
+        IReadOnlyList<DockAppItem> items = _composer!.Items;
+        bool sawUnpinned = false;
+
+        for (int i = 0; i < items.Count; i++)
         {
-            PinnedApp app = apps[i];
-            var transform = new ScaleTransform(1, 1);
-
-            var image = new System.Windows.Controls.Image
+            DockAppItem item = items[i];
+            if (!item.IsPinned && !sawUnpinned && Pins.Items.Count > 0)
             {
-                Width = _iconSizeDip,
-                Height = _iconSizeDip,
-                Margin = i < apps.Count - 1 ? new Thickness(0, 0, 8, 0) : new Thickness(0),
-                Stretch = Stretch.Uniform,
-                Source = _icons.GetIcon(app.Path),
-                ToolTip = app.Label,
-                RenderTransformOrigin = new Point(0.5, 0.5),
-                RenderTransform = transform,
-                Cursor = Cursors.Hand,
-            };
+                sawUnpinned = true;
+                Pins.Items.Add(CreateSeparator());
+            }
 
-            image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
-            image.MouseLeave += (_, _) => AnimateScale(transform, 1.0);
-            image.MouseLeftButtonUp += (_, _) => _launcher.Launch(app.Path, app.Args);
-
-            Pins.Items.Add(image);
+            Pins.Items.Add(CreateIconVisual(item, i < items.Count - 1));
         }
+
+        ApplyPlacement();
+    }
+
+    private FrameworkElement CreateSeparator()
+    {
+        return new System.Windows.Shapes.Rectangle
+        {
+            Width = 1,
+            Opacity = 0.3,
+            Margin = new Thickness(8, 4, 8, 4),
+            Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Stretch,
+        };
+    }
+
+    private FrameworkElement CreateIconVisual(DockAppItem item, bool trailingMargin)
+    {
+        var transform = new ScaleTransform(1, 1);
+        var image = new System.Windows.Controls.Image
+        {
+            Width = _iconSizeDip,
+            Height = _iconSizeDip,
+            Stretch = Stretch.Uniform,
+            Source = string.IsNullOrWhiteSpace(item.Path)
+                ? _icons.GetIcon(string.Empty)
+                : _icons.GetIcon(item.Path),
+            ToolTip = item.Label,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = transform,
+            Cursor = Cursors.Hand,
+        };
+
+        image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
+        image.MouseLeave += (_, _) => AnimateScale(transform, 1.0);
+        image.MouseLeftButtonUp += (_, _) => _activation!.LaunchOrActivate(item, _launcher);
+
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Center,
+        };
+        if (trailingMargin)
+        {
+            stack.Margin = new Thickness(0, 0, 8, 0);
+        }
+
+        stack.Children.Add(image);
+
+        var dot = new System.Windows.Shapes.Ellipse
+        {
+            Width = 6,
+            Height = 6,
+            Margin = new Thickness(0, 4, 0, 0),
+            Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
+            Visibility = item.IsRunning ? Visibility.Visible : Visibility.Hidden,
+        };
+        stack.Children.Add(dot);
+        return stack;
     }
 
     private static void AnimateScale(ScaleTransform transform, double to)

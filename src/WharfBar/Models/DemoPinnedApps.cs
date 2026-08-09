@@ -1,8 +1,8 @@
 namespace WharfBar.Models;
 
 /// <summary>
-/// Default pin list used to seed <c>config.json</c> on first run (Faz 5).
-/// Runtime pins come from <see cref="AppConfig.PinnedApps"/>.
+/// Default pin list used to seed config.json on first run and as dock fallback
+/// when TaskBar User Pinned folder is empty/unreadable (ADR-005). Not the live source.
 /// </summary>
 internal static class DemoPinnedApps
 {
