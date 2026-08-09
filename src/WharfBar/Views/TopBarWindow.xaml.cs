@@ -149,7 +149,7 @@ public partial class TopBarWindow : Window
     private void OnVolumeClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        ToggleQuickSettings(QuickSettingsPage.Main, VolumeButton);
+        ToggleQuickSettings(QuickSettingsPage.Mixer, VolumeButton);
     }
 
     private void OnNetworkClick(object sender, MouseButtonEventArgs e)

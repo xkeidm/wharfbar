@@ -144,7 +144,9 @@ public partial class QuickSettingsFlyout : UserControl
             if (snap.Selected is null)
             {
                 SelectedDeviceNameText.Text = "Çıkış aygıtı bulunamadı";
+                SelectedDeviceNameText.ToolTip = null;
                 DevicePickerButton.IsEnabled = false;
+                DevicePickerList.Children.Clear();
                 MixerMasterSlider.IsEnabled = false;
                 MixerMasterMuteButton.IsEnabled = false;
                 MixerMasterPercentText.Text = "—";
@@ -432,22 +434,6 @@ public partial class QuickSettingsFlyout : UserControl
         FontSize = 12,
     };
 
-    private static T? FindAncestor<T>(DependencyObject? current)
-        where T : DependencyObject
-    {
-        while (current is not null)
-        {
-            if (current is T match)
-            {
-                return match;
-            }
-
-            current = VisualTreeHelper.GetParent(current);
-        }
-
-        return null;
-    }
-
     private async void OnTileClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string id } || _quick is null)
@@ -542,7 +528,9 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
-        _mixer.SetMasterPercent((int)Math.Round(e.NewValue));
+        int percent = (int)Math.Round(e.NewValue);
+        _mixer.SetMasterPercent(percent);
+        MixerMasterPercentText.Text = percent.ToString();
     }
 
     private void OnSessionVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
