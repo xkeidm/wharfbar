@@ -4,17 +4,37 @@ namespace WharfBar.Native;
 
 internal static class SendInputKeys
 {
-    internal static bool TrySendWinB()
+    internal static bool TrySendWinB() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_B);
+
+    /// <summary>Opens the Windows 10/11 Notification Center / calendar pane focus path.</summary>
+    internal static bool TrySendWinN() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_N);
+
+    internal static bool TrySendReturn() => TrySendKey(NativeMethods.VK_RETURN);
+
+    internal static bool TrySendSpace() => TrySendKey(NativeMethods.VK_SPACE);
+
+    private static bool TrySendChord(ushort modifier, ushort key)
     {
         var inputs = new INPUT[]
         {
-            CreateKeyInput(NativeMethods.VK_LWIN, keyUp: false),
-            CreateKeyInput(NativeMethods.VK_B, keyUp: false),
-            CreateKeyInput(NativeMethods.VK_B, keyUp: true),
-            CreateKeyInput(NativeMethods.VK_LWIN, keyUp: true),
+            CreateKeyInput(modifier, keyUp: false),
+            CreateKeyInput(key, keyUp: false),
+            CreateKeyInput(key, keyUp: true),
+            CreateKeyInput(modifier, keyUp: true),
         };
 
-        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == 4;
+        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
+    }
+
+    private static bool TrySendKey(ushort virtualKey)
+    {
+        var inputs = new INPUT[]
+        {
+            CreateKeyInput(virtualKey, keyUp: false),
+            CreateKeyInput(virtualKey, keyUp: true),
+        };
+
+        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
     }
 
     private static INPUT CreateKeyInput(ushort virtualKey, bool keyUp)

@@ -171,6 +171,7 @@ internal static class NativeMethods
     internal const uint SWP_NOSIZE = 0x0001;
     internal const uint SWP_NOMOVE = 0x0002;
     internal const uint SWP_NOACTIVATE = 0x0010;
+    internal const uint SWP_SHOWWINDOW = 0x0040;
 
     internal const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
 
@@ -183,6 +184,12 @@ internal static class NativeMethods
     internal const uint SHGFI_ICON = 0x000000100;
     internal const uint SHGFI_LARGEICON = 0x000000000;
     internal const uint SHGFI_SMALLICON = 0x000000001;
+
+    /// <summary><c>IShellItemImageFactory.GetImage</c> — return an icon, not a thumbnail.</summary>
+    internal const int SIIGBF_ICONONLY = 0x00000004;
+
+    /// <summary>Allow a larger asset than requested when that yields a sharper downsample.</summary>
+    internal const int SIIGBF_BIGGERSIZEOK = 0x00000001;
 
     internal const uint MF_STRING = 0x00000000;
     internal const uint TPM_RIGHTBUTTON = 0x0002;
@@ -199,8 +206,17 @@ internal static class NativeMethods
 
     internal const ushort VK_LWIN = 0x5B;
     internal const ushort VK_B = 0x42;
+    internal const ushort VK_N = 0x4E;
+    internal const ushort VK_RETURN = 0x0D;
+    internal const ushort VK_SPACE = 0x20;
     internal const uint INPUT_KEYBOARD = 1;
     internal const uint KEYEVENTF_KEYUP = 0x0002;
+
+    internal const uint BM_CLICK = 0x00F5;
+    internal const uint WM_LBUTTONDOWN = 0x0201;
+    // WM_LBUTTONUP already defined above for tray callbacks
+    internal const uint MK_LBUTTON = 0x0001;
+    internal const int ASFW_ANY = -1;
 
     [DllImport("shell32.dll", SetLastError = false)]
     internal static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
@@ -250,6 +266,17 @@ internal static class NativeMethods
         uint cbFileInfo,
         uint uFlags);
 
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
+    internal static extern int SHCreateItemFromParsingName(
+        string pszPath,
+        IntPtr pbc,
+        ref Guid riid,
+        out IShellItemImageFactory ppv);
+
+    [DllImport("gdi32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DeleteObject(IntPtr ho);
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DestroyIcon(IntPtr hIcon);
@@ -257,6 +284,19 @@ internal static class NativeMethods
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
+
+    // Console close / Ctrl+C while attached to a console (e.g. `dotnet run`) — restore taskbar.
+    internal const uint CTRL_C_EVENT = 0;
+    internal const uint CTRL_BREAK_EVENT = 1;
+    internal const uint CTRL_CLOSE_EVENT = 2;
+    internal const uint CTRL_LOGOFF_EVENT = 5;
+    internal const uint CTRL_SHUTDOWN_EVENT = 6;
+
+    internal delegate bool ConsoleCtrlHandlerRoutine(uint dwCtrlType);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetConsoleCtrlHandler(ConsoleCtrlHandlerRoutine? handler, bool add);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -296,11 +336,37 @@ internal static class NativeMethods
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern IntPtr FindWindowEx(
+        IntPtr hwndParent,
+        IntPtr hwndChildAfter,
+        string? lpszClass,
+        string? lpszWindow);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AllowSetForegroundWindow(int dwProcessId);
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool IsWindowVisible(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsWindow(IntPtr hWnd);
 
     internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
@@ -336,4 +402,21 @@ internal struct POINT
 {
     public int X;
     public int Y;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct SIZE
+{
+    public int cx;
+    public int cy;
+}
+
+/// <summary>Shell item → sized HBITMAP (Windows 7+). Used for DPI-aware dock icons.</summary>
+[ComImport]
+[Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IShellItemImageFactory
+{
+    [PreserveSig]
+    int GetImage(SIZE size, int flags, out IntPtr phbm);
 }
