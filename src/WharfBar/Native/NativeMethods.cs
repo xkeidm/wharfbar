@@ -119,6 +119,20 @@ internal static class NativeMethods
 
     internal const uint SHGFI_ICON = 0x000000100;
     internal const uint SHGFI_LARGEICON = 0x000000000;
+    internal const uint SHGFI_SMALLICON = 0x000000001;
+
+    internal const uint MF_STRING = 0x00000000;
+    internal const uint TPM_RIGHTBUTTON = 0x0002;
+    internal const uint TPM_RETURNCMD = 0x0100;
+
+    internal const int WM_LBUTTONUP = 0x0202;
+    internal const int WM_RBUTTONUP = 0x0205;
+    internal const int WM_CONTEXTMENU = 0x007B;
+    internal const int WM_COMMAND = 0x0111;
+
+    /// <summary>Low word of tray callback lParam carries the mouse message.</summary>
+    internal const int NIN_SELECT = 0x0400;
+    internal const int NIN_KEYSELECT = 0x0401;
 
     [DllImport("shell32.dll", SetLastError = false)]
     internal static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
@@ -171,4 +185,50 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr CreatePopupMenu();
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool AppendMenu(IntPtr hMenu, uint uFlags, UIntPtr uIDNewItem, string lpNewItem);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool DestroyMenu(IntPtr hMenu);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint TrackPopupMenu(
+        IntPtr hMenu,
+        uint uFlags,
+        int x,
+        int y,
+        int nReserved,
+        IntPtr hWnd,
+        IntPtr prcRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct POINT
+{
+    public int X;
+    public int Y;
 }

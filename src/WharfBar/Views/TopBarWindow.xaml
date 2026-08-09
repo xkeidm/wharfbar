@@ -1,6 +1,7 @@
 <Window x:Class="WharfBar.Views.TopBarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         Title="WharfBar"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -19,6 +20,49 @@
          AppBar strip. Glass comes from DwmExtendFrameIntoClientArea(MARGINS=-1) in
          WindowAppearance (ADR-004). When Mica is confirmed, Background is punched to Transparent. -->
 
-    <Border x:Name="Surface" Background="Transparent" />
+    <Border x:Name="Surface" Background="Transparent">
+        <Grid Margin="10,0">
+            <StackPanel x:Name="StatusStrip"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center">
+                <StackPanel.Resources>
+                    <Style TargetType="ui:SymbolIcon">
+                        <Setter Property="FontSize" Value="14" />
+                        <Setter Property="Margin" Value="0,0,8,0" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="FontSize" Value="12" />
+                        <Setter Property="VerticalAlignment" Value="Center" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+                    </Style>
+                </StackPanel.Resources>
+
+                <ui:SymbolIcon x:Name="NetworkIcon"
+                               Symbol="Wifi124"
+                               ToolTip="Network" />
+
+                <StackPanel x:Name="BatteryGroup"
+                            Orientation="Horizontal"
+                            Margin="0,0,10,0"
+                            VerticalAlignment="Center">
+                    <ui:SymbolIcon x:Name="BatteryIcon"
+                                   Symbol="Battery1024"
+                                   Margin="0,0,4,0"
+                                   ToolTip="Battery" />
+                    <TextBlock x:Name="BatteryText"
+                               Text=""
+                               ToolTip="Battery" />
+                </StackPanel>
+
+                <TextBlock x:Name="ClockText"
+                           FontWeight="SemiBold"
+                           Text="--:--"
+                           ToolTip="Clock" />
+            </StackPanel>
+        </Grid>
+    </Border>
 
 </Window>

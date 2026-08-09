@@ -27,6 +27,7 @@ public partial class TopBarWindow : Window
 
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
+    private StatusService? _status;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
@@ -62,12 +63,19 @@ public partial class TopBarWindow : Window
         _appearance = new WindowAppearance(this, _source.Handle, Backdrop, Corners);
         _appearance.Apply();
 
+        _status = new StatusService();
+        _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
+        ApplyStatus(_status.Snapshot);
+
         _appBar.Register();
         ApplyPlacement();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        _status?.Dispose();
+        _status = null;
+
         ReleaseAppBar();
         base.OnClosing(e);
     }
@@ -77,6 +85,58 @@ public partial class TopBarWindow : Window
         _source?.RemoveHook(WndProc);
         _source = null;
         base.OnClosed(e);
+    }
+
+    private void ApplyStatus(StatusSnapshot snapshot)
+    {
+        ClockText.Text = snapshot.ClockText;
+        ClockText.ToolTip = snapshot.ClockTooltip;
+
+        NetworkIcon.Symbol = snapshot.NetworkKind switch
+        {
+            NetworkKind.WiFi => SymbolRegular.Wifi124,
+            NetworkKind.Ethernet => SymbolRegular.PlugConnected24,
+            NetworkKind.Other when snapshot.IsNetworkOnline => SymbolRegular.Globe24,
+            _ => SymbolRegular.WifiOff24,
+        };
+        NetworkIcon.ToolTip = snapshot.NetworkTooltip;
+
+        if (!snapshot.IsBatteryPresent)
+        {
+            BatteryGroup.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BatteryGroup.Visibility = Visibility.Visible;
+        BatteryText.Text = snapshot.BatteryText;
+        BatteryText.ToolTip = snapshot.BatteryTooltip;
+        BatteryIcon.ToolTip = snapshot.BatteryTooltip;
+        BatteryIcon.Symbol = ResolveBatterySymbol(snapshot);
+    }
+
+    private static SymbolRegular ResolveBatterySymbol(StatusSnapshot snapshot)
+    {
+        if (snapshot.IsBatteryCharging)
+        {
+            return SymbolRegular.BatteryCharge24;
+        }
+
+        // Fluent battery glyphs are roughly 0–10 buckets (0%, 10%, …, 100%).
+        int bucket = Math.Clamp((snapshot.BatteryPercent + 5) / 10, 0, 10);
+        return bucket switch
+        {
+            0 => SymbolRegular.Battery024,
+            1 => SymbolRegular.Battery124,
+            2 => SymbolRegular.Battery224,
+            3 => SymbolRegular.Battery324,
+            4 => SymbolRegular.Battery424,
+            5 => SymbolRegular.Battery524,
+            6 => SymbolRegular.Battery624,
+            7 => SymbolRegular.Battery724,
+            8 => SymbolRegular.Battery824,
+            9 => SymbolRegular.Battery924,
+            _ => SymbolRegular.Battery1024,
+        };
     }
 
     /// <summary>
