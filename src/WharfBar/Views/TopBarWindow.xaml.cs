@@ -1,6 +1,11 @@
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media;
+using System.Windows.Threading;
 using WharfBar.Native;
 using WharfBar.Services;
 using Wpf.Ui.Controls;
@@ -16,29 +21,27 @@ public partial class TopBarWindow : Window
     private const double BarHeightDip = 30d;
     private const string AppBarCallbackName = "WharfBarAppBarMessage";
 
-    /// <summary>
-    /// Mica rather than Acrylic: the AppBar reserves the strip, so in practice only the wallpaper
-    /// sits behind the bar and Acrylic's live blur would cost more for the same result.
-    /// </summary>
     private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
-
-    /// <summary>Square corners on a full-width edge-anchored bar — see ADR-004.</summary>
     private const DwmCornerPreference Corners = DwmCornerPreference.DoNotRound;
 
     private readonly TaskbarVisibilityService _taskbar;
-    private readonly TrayOverflowInvoker _trayOverflow = new();
+    private readonly TrayOverflowInvoker _trayOverflow;
+    private readonly NotificationCenterInvoker _notifications = new();
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
     private StatusService? _status;
+    private VolumeService? _volume;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
     private bool _isFullScreenAppActive;
     private bool _isShutdownHooked;
+    private bool _volumeSliderUpdating;
 
     internal TopBarWindow(TaskbarVisibilityService taskbar)
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
+        _trayOverflow = new TrayOverflowInvoker(_taskbar);
         InitializeComponent();
     }
 
@@ -70,16 +73,122 @@ public partial class TopBarWindow : Window
         _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
         ApplyStatus(_status.Snapshot);
 
+        _volume = new VolumeService();
+        _volume.Changed += (_, _) => ApplyVolume(_volume.Snapshot);
+        ApplyVolume(_volume.Snapshot);
+
         _appBar.Register();
         ApplyPlacement();
 
-        TrayOverflowIcon.MouseLeftButtonUp += (_, _) => _trayOverflow.TryOpen();
+        TrayOverflowButton.PreviewMouseLeftButtonUp += OnTrayOverflowClick;
+        AppMenuButton.PreviewMouseLeftButtonUp += OnAppMenuClick;
+        VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
+        DateButton.PreviewMouseLeftButtonUp += OnDateTimeClick;
+        ClockButton.PreviewMouseLeftButtonUp += OnDateTimeClick;
+        NotificationsButton.PreviewMouseLeftButtonUp += OnNotificationsClick;
+    }
+
+    private void OnAppMenuClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        CloseFlyouts();
+        if (AppMenuButton.ContextMenu is not { } menu)
+        {
+            return;
+        }
+
+        menu.PlacementTarget = AppMenuButton;
+        menu.Placement = PlacementMode.Bottom;
+        menu.IsOpen = true;
+    }
+
+    private void OnAboutClick(object sender, RoutedEventArgs e)
+    {
+        var about = new AboutWindow { Owner = this };
+        about.ShowDialog();
+    }
+
+    private void OnQuitClick(object sender, RoutedEventArgs e)
+    {
+        Application.Current?.Shutdown();
+    }
+
+    private void OnTrayOverflowClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        CloseFlyouts();
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            new Action(() => _trayOverflow.TryOpen()));
+    }
+
+    private void OnVolumeClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        DateTimePopup.IsOpen = false;
+        if (_volume is null || !_volume.Snapshot.IsAvailable)
+        {
+            return;
+        }
+
+        ApplyVolume(_volume.Snapshot);
+        VolumePopup.PlacementTarget = VolumeButton;
+        VolumePopup.IsOpen = !VolumePopup.IsOpen;
+    }
+
+    private void OnDateTimeClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        VolumePopup.IsOpen = false;
+        if (_status is not null)
+        {
+            FlyoutClockText.Text = _status.Snapshot.ClockText;
+            FlyoutDateText.Text = _status.Snapshot.DateTooltip;
+            FlyoutCalendar.SelectedDate = DateTime.Today;
+            FlyoutCalendar.DisplayDate = DateTime.Today;
+        }
+
+        DateTimePopup.PlacementTarget = sender as UIElement ?? ClockButton;
+        DateTimePopup.IsOpen = !DateTimePopup.IsOpen;
+    }
+
+    private void OnNotificationsClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        CloseFlyouts();
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            new Action(() => _notifications.TryOpen()));
+    }
+
+    private void OnMuteClick(object sender, RoutedEventArgs e)
+    {
+        _volume?.ToggleMute();
+    }
+
+    private void OnVolumeSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_volumeSliderUpdating || _volume is null)
+        {
+            return;
+        }
+
+        _volume.SetPercent((int)Math.Round(e.NewValue));
+    }
+
+    private void CloseFlyouts()
+    {
+        VolumePopup.IsOpen = false;
+        DateTimePopup.IsOpen = false;
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        CloseFlyouts();
         _status?.Dispose();
         _status = null;
+        _volume?.Dispose();
+        _volume = null;
 
         ReleaseShellState();
         base.OnClosing(e);
@@ -95,16 +204,25 @@ public partial class TopBarWindow : Window
     private void ApplyStatus(StatusSnapshot snapshot)
     {
         ClockText.Text = snapshot.ClockText;
-        ClockText.ToolTip = snapshot.ClockTooltip;
+        SetPlainToolTip(ClockButton, snapshot.ClockTooltip);
 
-        NetworkIcon.Symbol = snapshot.NetworkKind switch
+        DateText.Text = snapshot.DateText;
+        SetPlainToolTip(DateButton, snapshot.DateTooltip);
+
+        if (DateTimePopup.IsOpen)
         {
-            NetworkKind.WiFi => SymbolRegular.Wifi124,
-            NetworkKind.Ethernet => SymbolRegular.PlugConnected24,
-            NetworkKind.Other when snapshot.IsNetworkOnline => SymbolRegular.Globe24,
-            _ => SymbolRegular.WifiOff24,
+            FlyoutClockText.Text = snapshot.ClockText;
+            FlyoutDateText.Text = snapshot.DateTooltip;
+        }
+
+        NetworkGlyph.Text = snapshot.NetworkKind switch
+        {
+            NetworkKind.WiFi => "\uE701",
+            NetworkKind.Ethernet => "\uE839",
+            NetworkKind.Other when snapshot.IsNetworkOnline => "\uE774",
+            _ => "\uE704",
         };
-        NetworkIcon.ToolTip = snapshot.NetworkTooltip;
+        SetPlainToolTip(NetworkButton, snapshot.NetworkTooltip);
 
         if (!snapshot.IsBatteryPresent)
         {
@@ -114,40 +232,83 @@ public partial class TopBarWindow : Window
 
         BatteryGroup.Visibility = Visibility.Visible;
         BatteryText.Text = snapshot.BatteryText;
-        BatteryText.ToolTip = snapshot.BatteryTooltip;
-        BatteryIcon.ToolTip = snapshot.BatteryTooltip;
-        BatteryIcon.Symbol = ResolveBatterySymbol(snapshot);
+        SetPlainToolTip(BatteryGroup, snapshot.BatteryTooltip);
+        BatteryGlyph.Text = ResolveBatteryGlyph(snapshot);
     }
 
-    private static SymbolRegular ResolveBatterySymbol(StatusSnapshot snapshot)
+    private void ApplyVolume(VolumeSnapshot snapshot)
     {
-        if (snapshot.IsBatteryCharging)
+        if (!snapshot.IsAvailable)
         {
-            return SymbolRegular.BatteryCharge24;
+            VolumeButton.Visibility = Visibility.Collapsed;
+            VolumePopup.IsOpen = false;
+            return;
         }
 
-        // Fluent battery glyphs are roughly 0–10 buckets (0%, 10%, …, 100%).
-        int bucket = Math.Clamp((snapshot.BatteryPercent + 5) / 10, 0, 10);
-        return bucket switch
+        VolumeButton.Visibility = Visibility.Visible;
+        VolumeGlyph.Text = snapshot.IsMuted || snapshot.Percent == 0
+            ? "\uE74F" // Mute
+            : snapshot.Percent < 33
+                ? "\uE992" // Volume0 / low
+                : snapshot.Percent < 66
+                    ? "\uE993"
+                    : "\uE767"; // Volume3
+
+        string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
+        SetPlainToolTip(VolumeButton, tip);
+
+        _volumeSliderUpdating = true;
+        try
         {
-            0 => SymbolRegular.Battery024,
-            1 => SymbolRegular.Battery124,
-            2 => SymbolRegular.Battery224,
-            3 => SymbolRegular.Battery324,
-            4 => SymbolRegular.Battery424,
-            5 => SymbolRegular.Battery524,
-            6 => SymbolRegular.Battery624,
-            7 => SymbolRegular.Battery724,
-            8 => SymbolRegular.Battery824,
-            9 => SymbolRegular.Battery924,
-            _ => SymbolRegular.Battery1024,
+            VolumeSlider.Value = snapshot.Percent;
+            VolumePercentText.Text = $"{snapshot.Percent}%";
+            MuteButton.Content = snapshot.IsMuted ? "\uE74F" : "\uE767";
+            MuteButton.FontFamily = new FontFamily("Segoe MDL2 Assets");
+            MuteButton.ToolTip = new ToolTip
+            {
+                Content = snapshot.IsMuted ? "Sesi aç" : "Sessiz",
+                FontFamily = new FontFamily("Segoe UI"),
+            };
+        }
+        finally
+        {
+            _volumeSliderUpdating = false;
+        }
+    }
+
+    private static void SetPlainToolTip(FrameworkElement element, string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            element.ToolTip = null;
+            return;
+        }
+
+        element.ToolTip = new ToolTip
+        {
+            Content = text,
+            FontFamily = new FontFamily("Segoe UI"),
+            FontSize = 12,
         };
     }
 
-    /// <summary>
-    /// Every route out of the process must reach <see cref="ReleaseShellState"/>, otherwise the
-    /// reserved work area survives us. Release is idempotent, so overlapping hooks are fine.
-    /// </summary>
+    private static string ResolveBatteryGlyph(StatusSnapshot snapshot)
+    {
+        if (snapshot.IsBatteryCharging)
+        {
+            return "\uE83E";
+        }
+
+        return snapshot.BatteryPercent switch
+        {
+            <= 5 => "\uE850",
+            <= 25 => "\uE851",
+            <= 50 => "\uE852",
+            <= 75 => "\uE853",
+            _ => "\uE83F",
+        };
+    }
+
     private void HookShutdownPaths()
     {
         if (_isShutdownHooked)
@@ -170,16 +331,10 @@ public partial class TopBarWindow : Window
 
     private void ReleaseShellState()
     {
-        // Taskbar first so work area can expand before we drop our AppBar reservation.
         _taskbar.Restore();
         _appBar?.Remove();
     }
 
-    /// <summary>
-    /// Recomputes the bar rect in physical pixels for the current monitor DPI and asks the
-    /// shell to approve it, then moves the window there with SetWindowPos. WPF's DIP-based
-    /// Left/Top/Width/Height are deliberately unused: they assume the primary monitor's scale.
-    /// </summary>
     private void ApplyPlacement()
     {
         if (_source is null || _appBar is null || _isApplyingPlacement)
@@ -243,7 +398,6 @@ public partial class TopBarWindow : Window
 
         if (_taskbarCreatedMessage != 0 && (uint)msg == _taskbarCreatedMessage)
         {
-            // explorer.exe restarted and forgot us; claim the work area again.
             _appBar?.ReRegister();
             _taskbar.ReapplyHide();
             ApplyPlacement();
@@ -254,13 +408,10 @@ public partial class TopBarWindow : Window
         {
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
-                // Let WPF and DefWindowProc finish their own repositioning first, then override it.
                 Dispatcher.BeginInvoke(new Action(ApplyPlacement));
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGED:
-                // Skip our own SetWindowPos: notifying the shell about a move we just made
-                // invites an ABN_POSCHANGED echo and a move/notify ping-pong.
                 if (!_isApplyingPlacement)
                 {
                     _appBar?.NotifyWindowPosChanged();
@@ -294,12 +445,6 @@ public partial class TopBarWindow : Window
         return IntPtr.Zero;
     }
 
-    /// <summary>
-    /// Keeping a captioned frame (or WindowChrome that leaves WS_CAPTION) also brings the
-    /// minimum track height for captioned windows (~39 px), which DefWindowProc will re-impose
-    /// even if we shrink cy first. With WindowStyle=None that floor is gone; this clamp still
-    /// blocks any other resize source (WPF layout, DPI churn) from growing the strip.
-    /// </summary>
     private void ClampHeight(IntPtr lParam)
     {
         if (_source is null || lParam == IntPtr.Zero)
@@ -323,10 +468,6 @@ public partial class TopBarWindow : Window
         Marshal.StructureToPtr(pos, lParam, false);
     }
 
-    /// <summary>
-    /// Light/dark switches arrive as a WM_SETTINGCHANGE whose lParam names the changed area;
-    /// every other setting change also lands here, so the name has to be checked.
-    /// </summary>
     private static bool IsImmersiveColorSet(IntPtr lParam)
     {
         return lParam != IntPtr.Zero
@@ -351,10 +492,6 @@ public partial class TopBarWindow : Window
         }
     }
 
-    /// <summary>
-    /// A fullscreen app must not be covered by the bar, so we drop out of the topmost band
-    /// while one is in the foreground and climb back afterwards.
-    /// </summary>
     private void SetFullScreenAppActive(bool isActive)
     {
         if (_isFullScreenAppActive == isActive || _source is null)

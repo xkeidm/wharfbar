@@ -87,7 +87,7 @@ internal sealed class TrayIconService : IDisposable
 
         try
         {
-            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)QuitCommandId, "Quit WharfBar");
+            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)QuitCommandId, "WharfBar'ı kapat");
 
             // Required so the menu dismisses correctly when clicking away.
             _ = NativeMethods.SetForegroundWindow(hwnd);

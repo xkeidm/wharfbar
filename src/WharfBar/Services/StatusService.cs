@@ -18,6 +18,8 @@ internal enum NetworkKind
 internal sealed record StatusSnapshot(
     string ClockText,
     string ClockTooltip,
+    string DateText,
+    string DateTooltip,
     bool IsNetworkOnline,
     NetworkKind NetworkKind,
     string NetworkTooltip,
@@ -93,13 +95,24 @@ internal sealed class StatusService : IDisposable
     private void RefreshClock()
     {
         StatusSnapshot previous = Snapshot;
-        (string clock, string tip) = FormatClock(DateTime.Now);
-        if (clock == previous.ClockText && tip == previous.ClockTooltip)
+        DateTime now = DateTime.Now;
+        (string clock, string clockTip) = FormatClock(now);
+        (string date, string dateTip) = FormatDate(now);
+        if (clock == previous.ClockText
+            && clockTip == previous.ClockTooltip
+            && date == previous.DateText
+            && dateTip == previous.DateTooltip)
         {
             return;
         }
 
-        Snapshot = previous with { ClockText = clock, ClockTooltip = tip };
+        Snapshot = previous with
+        {
+            ClockText = clock,
+            ClockTooltip = clockTip,
+            DateText = date,
+            DateTooltip = dateTip,
+        };
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -110,6 +123,7 @@ internal sealed class StatusService : IDisposable
 
         // Keep the just-ticked clock text if BuildSnapshot lands in the same minute.
         if (next.ClockText == previous.ClockText
+            && next.DateText == previous.DateText
             && next.IsNetworkOnline == previous.IsNetworkOnline
             && next.NetworkKind == previous.NetworkKind
             && next.IsBatteryPresent == previous.IsBatteryPresent
@@ -128,6 +142,7 @@ internal sealed class StatusService : IDisposable
     {
         DateTime now = DateTime.Now;
         (string clock, string clockTip) = FormatClock(now);
+        (string date, string dateTip) = FormatDate(now);
 
         (bool online, NetworkKind kind, string netTip) = ReadNetwork();
         PowerStatusInfo power = PowerStatus.Query();
@@ -136,6 +151,8 @@ internal sealed class StatusService : IDisposable
         return new StatusSnapshot(
             clock,
             clockTip,
+            date,
+            dateTip,
             online,
             kind,
             netTip,
@@ -152,6 +169,15 @@ internal sealed class StatusService : IDisposable
         CultureInfo culture = CultureInfo.CurrentCulture;
         string text = now.ToString("t", culture);
         string tip = now.ToString("f", culture);
+        return (text, tip);
+    }
+
+    private static (string Text, string Tooltip) FormatDate(DateTime now)
+    {
+        CultureInfo culture = CultureInfo.CurrentCulture;
+        // Compact bar label: "9 Ağu" / "Aug 9" depending on culture.
+        string text = now.ToString("d MMM", culture);
+        string tip = now.ToString("D", culture);
         return (text, tip);
     }
 
