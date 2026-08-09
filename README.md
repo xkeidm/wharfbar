@@ -22,12 +22,15 @@ dotnet build WharfBar.sln
 dotnet run --project src/WharfBar
 ```
 
-Çift tıklayarak: kökteki `run.bat`.
+Çift tıklayarak: kökteki `run.bat` (derler, `WharfBar.exe`’yi **ayrık** başlatır — bat
+penceresini kapatmak uygulamayı öldürmez).
 
-> ⚠️ **Çalıştırmadan önce oku.** Uygulama açıkken ekranın üstünde bir şerit alan rezerve edilir.
-> Süreç zorla sonlandırılırsa (`Stop-Process -Force`, hata ayıklayıcıyı koparma) `ABM_REMOVE`
-> çalışmaz ve bu alan asılı kalır. Düzeltmesi: Görev Yöneticisi’nden **Windows Gezgini’ni
-> yeniden başlat**. Normal kapatmada alan kendiliğinden geri gelir.
+> ⚠️ **Çalıştırmadan önce oku.** Uygulama açıkken ekranın üstünde bir şerit alan rezerve edilir
+> ve Windows görev çubuğu gizlenir. Süreç zorla sonlandırılırsa (`Stop-Process -Force`,
+> `dotnet run` konsolunu kapatmak) restore / `ABM_REMOVE` atlanabilir: görev çubuğu veya üst
+> work area asılı kalır. Düzeltmesi: Görev Yöneticisi’nden **Windows Gezgini’ni yeniden başlat**.
+> Normal kapatmada (tepsi Quit / Alt+F4) her ikisi de geri gelir. `run.bat` kullan; ham
+> `dotnet run` konsolunu kapatma.
 
 İkinci bir örnek başlatılamaz (named Mutex); çalışan örnek varken `dotnet run` sessizce çıkar.
 
