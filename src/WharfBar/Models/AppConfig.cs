@@ -54,4 +54,10 @@ internal sealed class TopBarConfig
     /// Unknown ids stripped on load.
     /// </summary>
     public List<string> StatusItems { get; set; } = TopBarStatusItemIds.DefaultOrder.ToList();
+
+    /// <summary><c>mica</c>, <c>transparent</c>, or <c>tint</c>.</summary>
+    public string BackgroundMode { get; set; } = TopBarBackgroundModes.Mica;
+
+    /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
+    public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
 }

@@ -128,6 +128,8 @@ internal sealed class ConfigService
             TopBar = new TopBarConfig
             {
                 StatusItems = TopBarStatusItemIds.DefaultOrder.ToList(),
+                BackgroundMode = TopBarBackgroundModes.Mica,
+                TintOpacity = TopBarBackgroundModes.DefaultOpacity,
             },
         };
     }
@@ -168,6 +170,8 @@ internal sealed class ConfigService
         config.Theme = NormalizeTheme(config.Theme);
         config.Dock ??= new DockConfig();
         config.TopBar ??= new TopBarConfig();
+        config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
+        config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
 
         // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
