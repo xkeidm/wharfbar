@@ -9,6 +9,9 @@ namespace WharfBar.Services;
 /// </summary>
 internal sealed class TaskbarVisibilityService
 {
+    // Keep alive for SetConsoleCtrlHandler — GC collecting the delegate unregisters the handler.
+    private NativeMethods.ConsoleCtrlHandlerRoutine? _consoleCtrlHandler;
+
     private uint _baselineState;
     private int _captured; // 0 = not captured
     private int _restored; // 0 = not restored
@@ -16,6 +19,9 @@ internal sealed class TaskbarVisibilityService
     private bool _hidden;
 
     internal bool IsHidden => _hidden;
+
+    /// <summary>True while a tray-overflow peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
+    internal bool IsTrayPeekActive { get; private set; }
 
     internal void CaptureAndHide()
     {
@@ -42,6 +48,61 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
+        // Do not yank the tray closed mid-overflow; the peek timer will EndTrayPeek.
+        if (IsTrayPeekActive)
+        {
+            return;
+        }
+
+        ApplyHide();
+    }
+
+    /// <summary>
+    /// Temporarily shows the real taskbar so native overflow / Win+B can work.
+    /// Pair with <see cref="EndTrayPeek"/>. No-op if we are not in the hidden session.
+    /// </summary>
+    /// <returns>True when a peek was started (caller must end it).</returns>
+    internal bool BeginTrayPeek()
+    {
+        if (Volatile.Read(ref _captured) == 0 || Volatile.Read(ref _restored) != 0)
+        {
+            return false;
+        }
+
+        if (IsTrayPeekActive)
+        {
+            TaskbarNative.SetTrayVisible(true);
+            return true;
+        }
+
+        try
+        {
+            TaskbarNative.SetTrayVisible(true);
+            IsTrayPeekActive = true;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar tray peek show failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>Hides the taskbar again after a tray-overflow peek (still respects restore).</summary>
+    internal void EndTrayPeek()
+    {
+        if (!IsTrayPeekActive)
+        {
+            return;
+        }
+
+        IsTrayPeekActive = false;
+
+        if (Volatile.Read(ref _restored) != 0 || Volatile.Read(ref _captured) == 0)
+        {
+            return;
+        }
+
         ApplyHide();
     }
 
@@ -56,6 +117,8 @@ internal sealed class TaskbarVisibilityService
         {
             return;
         }
+
+        IsTrayPeekActive = false;
 
         try
         {
@@ -99,5 +162,31 @@ internal sealed class TaskbarVisibilityService
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Restore();
         AppDomain.CurrentDomain.UnhandledException += (_, _) => Restore();
+
+        // Closing the console that owns `dotnet run` does not run WPF OnExit reliably;
+        // CTRL_CLOSE_EVENT does — restore here before the process is torn down.
+        _consoleCtrlHandler = OnConsoleCtrl;
+        if (!NativeMethods.SetConsoleCtrlHandler(_consoleCtrlHandler, add: true))
+        {
+            Debug.WriteLine("WharfBar: SetConsoleCtrlHandler failed (no console is fine for WinExe start)");
+        }
+    }
+
+    private bool OnConsoleCtrl(uint ctrlType)
+    {
+        switch (ctrlType)
+        {
+            case NativeMethods.CTRL_CLOSE_EVENT:
+            case NativeMethods.CTRL_LOGOFF_EVENT:
+            case NativeMethods.CTRL_SHUTDOWN_EVENT:
+                Restore();
+                return true; // restored; system still ends the process shortly
+            case NativeMethods.CTRL_C_EVENT:
+            case NativeMethods.CTRL_BREAK_EVENT:
+                Restore();
+                return false; // allow default terminate
+            default:
+                return false;
+        }
     }
 }
