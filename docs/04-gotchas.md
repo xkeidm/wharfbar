@@ -11,11 +11,17 @@
 | Kenar şeritte yuvarlak DWM köşe | DWM dört köşeyi birden yuvarlar; üst bar `DONOTROUND` |
 | DPI değişimi / monitör tak-çıkar | Per-Monitor V2 + `WM_DPICHANGED` + display handlers + AppBar yeniden SETPOS |
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
-| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Simüle et (.NET API + kendi ikonlar); overflow için native `Win+B`/chevron; `Shell_NotifyIcon` ≠ okuma; RPM yok (ADR-005) |
+| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Simüle et (.NET API + Segoe MDL2 glifleri); overflow için native `Win+B`/chevron; `Shell_NotifyIcon` ≠ okuma; RPM yok (ADR-005) |
+| Üst barda yalnızca saat görünmesi | WPF-UI `SymbolIcon` Mica AppBar’da boş kalabiliyor; durum/overflow için Segoe MDL2 `TextBlock` kullan |
+| Sol Windows logosu görünmüyor | MDL2 `E782` bazı yüzlerde boş; 4 kare `Rectangle`/`Viewbox` çiz (font bağımsız) |
+| Durum tooltip’lerinde □□□□ (tofu) | MDL2 glif `TextBlock` üzerinde string `ToolTip` fontu miras alır; `ToolTip` stilini Segoe UI yap / `SetPlainToolTip` kullan |
+| “Gizli simgeler” tıklanınca hiçbir şey olmaması | Görev çubuğu `SW_HIDE` iken Win+B işe yaramaz; `BeginTrayPeek` → overflow aç → `EndTrayPeek` |
+| Dock ikonları bulanık / aşırı büyük | `dock.iconSize` varsayılan 28 DIP; `IShellItemImageFactory` ile DPI piksel boyutu iste; 32px `SHGFI_LARGEICON`’u 48+ DIP’e büyütme |
+| Dock ekran kenarından yukarıda | Görev çubuğu gizliyken work area boşluğu kalabilir; dock Y için monitör alt kenarını kullan |
 | UWP ikonları | v1 tam destek yok; placeholder veya atla; kırık Appx yolu sunma |
 | Görev çubuğu gizleme sonrası restore kaçması | Başlatmada `ABM_GETSTATE` yakala; çıkışta **her zaman** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` sonra `ABM_REMOVE`; `IsWindowVisible` auto-hide’ta yanıltır — restore’da kullanma |
 | Görev çubuğu hide API seçimi | `ShowWindow(Shell_TrayWnd, SW_HIDE)` gizler; restore `SW_SHOW` (SHOWNA yetmez) + `ABM_SETSTATE` baseline |
-| Zorla kill → görev çubuğu gizli kalır | `Stop-Process -Force` restore’u atlar; `explorer.exe` restart; normal Quit kullan |
+| Zorla kill / konsol kapatma → görev çubuğu gizli kalır | `Stop-Process -Force` restore’u atlar. `dotnet run` konsolunu kapatmak da WPF `OnExit`’i atlayabilir — `SetConsoleCtrlHandler` + `run.bat` artık EXE’yi **ayrık** başlatır. Düzeltme: `explorer.exe` restart veya `ShowWindow(Shell_TrayWnd, SW_SHOW)`. Normal Quit kullan |
 | Dock için gereksiz AppBar | Overlay + Topmost (+ auto-hide); ADR-001 — erken notlar “her iki yüzey AppBar” diyordu; geçersiz |
 | Erken notta `AllowUnsafeBlocks=true` / `/Windows` | ADR-002: unsafe kapalı; klasör `Views/` |
 | İkinci örnek / çift AppBar | Named Mutex |

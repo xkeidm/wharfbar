@@ -50,7 +50,7 @@
 
 ### P2 — v1 sonrası adaylar
 
-9. Ses / volume göstergesi (Core Audio) — Faz 9c ile kısmen örtüşebilir
+9. Ses flyout polish / cihaz seçici (temel Core Audio slider + mute üst barda var)
 10. İkincil monitör / work-area stratejisi
 11. UWP/Store ikonları (tam yol)
 12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)

@@ -11,8 +11,8 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 ## Ürün
 
-- **Top bar:** Saat ve durum göstergeleri; **AppBar** ile üst kenarda work area rezerve eder;
-  tepsi hibrit: simüle durum + native overflow düğmesi (yabancı ikon çizimi yok; ADR-005).
+- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda gizli/ağ/pil/ses/tarih/saat/
+  bildirimler; ses+takvim Fluent `Popup` (üstten); bildirimler native `Win+N`; **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   `config.pinnedApps` seed/fallback.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
@@ -68,11 +68,14 @@ tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare k�
 hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
 konumlanma, auto-hide / hit-test stub), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
-(`StatusService`, top bar sağ şerit), kendi tepsi ikonu + Quit (`TrayIconService`),
+(`StatusService`, üst bar sağ şerit; **Segoe MDL2** glifleri + overflow düğmesi), kendi tepsi ikonu + Quit (`TrayIconService`),
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
 canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
 `DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
-Henüz yok: dock auto-hide polish (Faz 8); ses göstergesi.
+Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, monitör alt kenarına
+yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
+Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). Henüz yok: dock
+auto-hide polish (Faz 8); ses göstergesi.
 Öncelikli yapılacaklar: [`context/roadmap.md`](context/roadmap.md).
 Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından Faz 8 auto-hide (9a/9b sonrası daha anlamlı).
 Spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).

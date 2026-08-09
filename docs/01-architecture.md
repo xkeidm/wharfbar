@@ -37,16 +37,18 @@ WharfBar.sln                    # kökte, tek proje
 .gitignore
 src/WharfBar/
   Views/
-    TopBarWindow.xaml(.cs)      # üst bar; AppBar sahibi; overflow düğmesi; WndProc hook
+    TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; sağ durum/overflow; WndProc
+    AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
     AppBar.cs                   # SHAppBarMessage wrapper; idempotent ABM_REMOVE
     Display.cs                  # birincil monitör sınırları + DPI → fiziksel piksel
     Dwm.cs                      # köşe, immersive dark, backdrop yedek, frame extend
-    ShellIcon.cs                # SHGetFileInfo ikon çıkarma / Destroy
+    ShellIcon.cs                # IShellItemImageFactory + SHGetFileInfo ikon çıkarma / Destroy
     TaskbarNative.cs            # Shell_TrayWnd + ABM_GETSTATE/SETSTATE sarmalayıcı
-    SendInputKeys.cs            # Win+B (tray overflow) SendInput
+    SendInputKeys.cs            # Win+B / Space / Enter (tray overflow)
+    TrayOverflowNative.cs       # overflow penceresi / TrayNotifyWnd chevron / Win+B
     WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # hit-test stub (Faz 4: tam etkileşimli; passthrough ertelendi)
@@ -56,13 +58,13 @@ src/WharfBar/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
-    AppConfig.cs                # JSON kök şema + DockConfig
+    AppConfig.cs                # JSON kök şema + DockConfig (iconSize varsayılan 28)
   Services/
     SingleInstanceGuard.cs      # named Mutex
     WindowAppearance.cs         # WPF-UI tema + backdrop; DWM ince ayar
     AppThemePreference.cs       # config theme → ApplicationTheme
     ConfigService.cs            # %AppData%/WharfBar/config.json oku/yaz
-    AppIconService.cs           # ShellIcon → WPF ImageSource
+    AppIconService.cs           # ShellIcon → WPF ImageSource (DPI boyutlu)
     ProcessLauncherService.cs   # Process.Start launcher
     WindowActivationService.cs  # çalışan pencereye odaklama
     FullscreenState.cs          # süreç içi fullscreen sinyali (TopBar → Dock)
@@ -76,7 +78,7 @@ src/WharfBar/
     RunningAppsSource.cs        # EnumWindows + AUMID gruplama
     DockAppsComposer.cs         # pin + running birleşik liste
     ShortcutResolver.cs         # .lnk → hedef yol / args
-    TrayOverflowInvoker.cs      # Win+B ile native overflow
+    TrayOverflowInvoker.cs      # peek-show + native overflow + yeniden gizle
   App.xaml(.cs)                 # Startup: taskbar hide → TopBar + Dock + tray
   app.manifest                  # PerMonitorV2 + longPathAware + asInvoker
   WharfBar.csproj
@@ -99,7 +101,10 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | Üst kenar UI; AppBar sahibi; `WndProc` hook; DPI / display / tema; saat/ağ/pil şeridi |
+| `TopBarWindow` | AppBar; sol logo menü; sağ küme + ses/takvim Popup; bildirimler Win+N |
+| `AboutWindow` | Hakkında diyaloğu; shell kaydı yok |
+| `VolumeService` / `AudioEndpointVolume` | Varsayılan render endpoint ses seviyesi / mute (Core Audio) |
+| `NotificationCenterInvoker` | Native bildirim merkezi (`Win+N`) |
 | `AppBar` | `ABM_NEW` / `QUERYPOS` / `SETPOS` / `REMOVE`; `ABN_*` çözümleme; yeniden kayıt |
 | `NativeMethods` | Ham `DllImport` + struct + sabitler; `internal`, UI’dan doğrudan çağrılmaz |
 | `Display` | Birincil monitör sınırları, DPI, DIP → piksel dönüşümü |
@@ -113,9 +118,9 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 | `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi; `pinnedApps` fallback |
 | `ShortcutResolver` | `.lnk` hedef yol / args çözümleme |
 | `WindowActivationService` | Çalışan pencereye odaklama |
-| `TrayOverflowInvoker` | `SendInput` ile `Win+B` → native tray overflow |
-| `ShellIcon` | `SHGetFileInfo` ile dosya ikonu çıkarma / `DestroyIcon` |
-| `AppIconService` | `ShellIcon` → WPF `ImageSource` dönüşümü |
+| `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
+| `ShellIcon` | `IShellItemImageFactory` (DPI px) + `SHGetFileInfo` yedek; ikon / bitmap destroy |
+| `AppIconService` | `ShellIcon` → WPF `ImageSource` (boyut önbellek anahtarlı) |
 | `ProcessLauncherService` | Pin tıklamasında `Process.Start` |
 | `FullscreenState` | `TopBarWindow` `ABN_FULLSCREENAPP` → dock gizleme/gösterme |
 | `WorkAreaChanged` | Top bar AppBar yerleşiminden sonra dock’u yeniden konumlandırma |
@@ -155,7 +160,7 @@ Uygulanan (Faz 1–9):
 3. `AutostartService.Apply(config.Autostart)` — Startup klasörü kısayolunu senkronlar
 4. `TaskbarVisibilityService.CaptureAndHide()` — `ABM_GETSTATE` + `Shell_TrayWnd` görünürlük baseline;
    ardından `ShowWindow(SW_HIDE)` ile gizle
-5. `TopBarWindow.Show()` — AppBar + `StatusService` (saat / ağ / pil şeridi) + overflow düğmesi
+5. `TopBarWindow.Show()` — AppBar + sol Windows menü + `StatusService` / overflow
 6. `DockWindow.Show(config)` — overlay; `DockAppsComposer` ile canlı pin/running; AppBar kaydı yok
 7. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
 8. `OnSourceInitialized` (TopBar) → `HwndSource.AddHook`; `RegisterWindowMessage("TaskbarCreated")`;
@@ -220,7 +225,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
   "autostart": true,
   "dock": {
     "autoHide": true,
-    "iconSize": 48
+    "iconSize": 28
   },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
@@ -234,7 +239,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | Tercih saklanır; gerçek gizleme sonraki faz |
-| `dock.iconSize` | DIP; 24–72 aralığına sıkıştırılır (varsayılan 48) |
+| `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

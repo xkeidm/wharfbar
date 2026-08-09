@@ -78,23 +78,36 @@ Shell_NotifyIcon  // NIM_ADD / MODIFY / DELETE
 Top bar göstergeleri için:
 
 - Durumu `NetworkInformation`, güç API’leri (`GetSystemPowerStatus`), saat vb. **.NET / Win32 API’lerinden** oku
-- Kendi ikon setini kullan (WPF-UI Fluent `SymbolIcon`)
+- Kendi ikon setini kullan (üst barda **Segoe MDL2 Assets** glifleri — Mica AppBar şeridinde
+  WPF-UI `SymbolIcon` boş kalabiliyordu; saat dışı göstergeler kayboluyordu)
 - İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
 - **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
 
-**Uygulanan (Faz 7 + 9c):** saat, ağ, pil; overflow düğmesi (`TrayOverflowInvoker` → `SendInputKeys.TrySendWinB()`). Ses göstergesi yok.
+**Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
+sağ küme `gizli · ağ · pil · ses · tarih · saat · bildirimler`. Ses: Core Audio
+(`AudioEndpointVolume` / `VolumeService`) + üstten açılan Fluent `Popup`. Tarih/saat: takvim
+flyout. Bildirimler: native Notification Center (`Win+N`) — içerik aynası yok (ADR-005).
+
+**Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
+`TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,
+sonra `EndTrayPeek()`. Çıkışta tam `Restore`.
 
 ---
 
 ## d) Uygulama ikonu (dock)
 
 ```csharp
-SHGetFileInfo(..., SHGFI_ICON | SHGFI_LARGEICON)
-// HICON → Imaging.CreateBitmapSourceFromHIcon → ImageSource
+// Tercih: IShellItemImageFactory.GetImage(sizePx) — DPI’ya göre keskin
+// Yedek: SHGetFileInfo(..., SHGFI_ICON | SHGFI_LARGEICON / SMALLICON)
+// HBITMAP/HICON → Imaging.CreateBitmapSourceFromHBitmap/HIcon → ImageSource
 ```
 
-Klasik `.exe` / `.lnk` için uygundur. **UWP/Store** paketleri farklı yol ister (AppxManifest) —
-**v1 tam destek yok**; çalışan UWP için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
+Varsayılan `dock.iconSize` **28 DIP** (görev çubuğu benzeri, 24’ten hafif büyük); dock yüksekliği
+ikon + padding + çalışıyor noktasına göre hesaplanır (~46 DIP @ 28). Yerleşim: birincil monitör
+alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu yok). İkon aralığı
+**12 DIP**. Klasik `.exe` / `.lnk` için uygundur.
+**UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
+için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
 ---
 
