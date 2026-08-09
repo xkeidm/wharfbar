@@ -1,6 +1,7 @@
 # 01 — Mimari
 
-> Faz 1–7 uygulandı. Aşağıda **mevcut** yapı ile **hedef** yapı ayrı ayrı işaretlidir.
+> Faz 1–9 kodu çalışma ağacında (commit + 9a/9b/9c manuel doğrulama bekliyor). Aşağıda **mevcut**
+> yapı ile **hedef** yapı ayrı ayrı işaretlidir.
 
 ## Stack
 
@@ -27,7 +28,7 @@ Windows’ta macOS’taki gibi sistem genelinde uygulama menüsü yoktur. Top ba
 benzeri uygulamaya özel menüler **olmayacak** — yalnızca saat, durum göstergeleri ve kontrol
 alanı. Bu bilinçli bir kapsam sınırı, eksik özellik değil.
 
-## Mevcut klasör yapısı (Faz 1–7)
+## Mevcut klasör yapısı (Faz 1–9)
 
 `/Windows` klasör adı Win32 ile karışmasın diye **Views** kullanılır.
 
@@ -36,19 +37,24 @@ WharfBar.sln                    # kökte, tek proje
 .gitignore
 src/WharfBar/
   Views/
-    TopBarWindow.xaml(.cs)      # üst bar; AppBar sahibi; WndProc hook; tema mesajları
-    DockWindow.xaml(.cs)        # alt overlay; config pin strip; fullscreen / work-area dinleyicisi
+    TopBarWindow.xaml(.cs)      # üst bar; AppBar sahibi; overflow düğmesi; WndProc hook
+    DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
     AppBar.cs                   # SHAppBarMessage wrapper; idempotent ABM_REMOVE
     Display.cs                  # birincil monitör sınırları + DPI → fiziksel piksel
     Dwm.cs                      # köşe, immersive dark, backdrop yedek, frame extend
     ShellIcon.cs                # SHGetFileInfo ikon çıkarma / Destroy
+    TaskbarNative.cs            # Shell_TrayWnd + ABM_GETSTATE/SETSTATE sarmalayıcı
+    SendInputKeys.cs            # Win+B (tray overflow) SendInput
+    WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
+    AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # hit-test stub (Faz 4: tam etkileşimli; passthrough ertelendi)
     PowerStatus.cs              # GetSystemPowerStatus sarmalayıcı
     NotifyIconHost.cs           # Shell_NotifyIcon ADD/DELETE (kendi tepsi ikonu)
   Models/
     PinnedApp.cs                # pin kaydı (path, args, label)
+    DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
     AppConfig.cs                # JSON kök şema + DockConfig
   Services/
@@ -58,13 +64,20 @@ src/WharfBar/
     ConfigService.cs            # %AppData%/WharfBar/config.json oku/yaz
     AppIconService.cs           # ShellIcon → WPF ImageSource
     ProcessLauncherService.cs   # Process.Start launcher
+    WindowActivationService.cs  # çalışan pencereye odaklama
     FullscreenState.cs          # süreç içi fullscreen sinyali (TopBar → Dock)
     WorkAreaChanged.cs          # AppBar yerleşim sonrası dock yeniden konumlanma olayı
-    DockAutoHideController.cs   # auto-hide stub (Enabled config’ten; davranış sonraki faz)
+    DockAutoHideController.cs   # auto-hide stub (Enabled config’ten; davranış Faz 8)
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
-  App.xaml(.cs)                 # StartupUri yok; config + autostart + tray → TopBar + Dock
+    TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
+    TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
+    RunningAppsSource.cs        # EnumWindows + AUMID gruplama
+    DockAppsComposer.cs         # pin + running birleşik liste
+    ShortcutResolver.cs         # .lnk → hedef yol / args
+    TrayOverflowInvoker.cs      # Win+B ile native overflow
+  App.xaml(.cs)                 # Startup: taskbar hide → TopBar + Dock + tray
   app.manifest                  # PerMonitorV2 + longPathAware + asInvoker
   WharfBar.csproj
 ```
@@ -77,12 +90,7 @@ başlatma `App.OnStartup` içine alındı.
 ```
 src/WharfBar/
   Services/
-    TaskbarVisibilityService.cs   # Faz 9a — capture / hide / restore
-    TaskbarPinnedAppsSource.cs    # Faz 9b — User Pinned\TaskBar .lnk
-    RunningAppsSource.cs          # Faz 9b — EnumWindows + AUMID
     (dock auto-hide / hit-test polish — Faz 8, tercihen 9a/9b sonrası)
-  Views/
-    TopBarWindow — tray overflow düğmesi (Faz 9c)
 ```
 
 Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
@@ -98,7 +106,14 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
-| `DockWindow` | Alt overlay; config pin strip; hover ölçek; Mica + yuvarlak köşe; AppBar yok |
+| `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek; Mica + yuvarlak köşe; AppBar yok |
+| `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` gizle; çıkışta restore |
+| `TaskbarPinnedAppsSource` | `User Pinned\TaskBar` `.lnk` tarama; değişiklik watcher |
+| `RunningAppsSource` | `EnumWindows` + AUMID ile çalışan uygulama gruplama |
+| `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi; `pinnedApps` fallback |
+| `ShortcutResolver` | `.lnk` hedef yol / args çözümleme |
+| `WindowActivationService` | Çalışan pencereye odaklama |
+| `TrayOverflowInvoker` | `SendInput` ile `Win+B` → native tray overflow |
 | `ShellIcon` | `SHGetFileInfo` ile dosya ikonu çıkarma / `DestroyIcon` |
 | `AppIconService` | `ShellIcon` → WPF `ImageSource` dönüşümü |
 | `ProcessLauncherService` | Pin tıklamasında `Process.Start` |
@@ -133,24 +148,25 @@ Karar gerekçesi: [`decisions/001-dock-appbar-vs-overlay.md`](decisions/001-dock
 
 ## Yaşam döngüsü
 
-Uygulanan (Faz 1–7):
+Uygulanan (Faz 1–9):
 
 1. `App.OnStartup` → `SingleInstanceGuard.TryAcquire()`; mutex alınamazsa `Shutdown()`
 2. `ConfigService.LoadOrCreate()` → `%AppData%/WharfBar/config.json`; `AppThemePreference` uygulanır
 3. `AutostartService.Apply(config.Autostart)` — Startup klasörü kısayolunu senkronlar
-   (`Save` da aynı senkronu yapar)
-4. `TopBarWindow.Show()` — AppBar + `StatusService` (saat / ağ / pil şeridi)
-5. `DockWindow.Show(config)` — overlay; pinler config’ten; AppBar kaydı yok
-6. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
-7. `OnSourceInitialized` (TopBar) → `HwndSource.AddHook`; `RegisterWindowMessage("TaskbarCreated")`;
+4. `TaskbarVisibilityService.CaptureAndHide()` — `ABM_GETSTATE` + `Shell_TrayWnd` görünürlük baseline;
+   ardından `ShowWindow(SW_HIDE)` ile gizle
+5. `TopBarWindow.Show()` — AppBar + `StatusService` (saat / ağ / pil şeridi) + overflow düğmesi
+6. `DockWindow.Show(config)` — overlay; `DockAppsComposer` ile canlı pin/running; AppBar kaydı yok
+7. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
+8. `OnSourceInitialized` (TopBar) → `HwndSource.AddHook`; `RegisterWindowMessage("TaskbarCreated")`;
    `AppBar` oluştur (`ABE_TOP`, callback mesajı `WharfBarAppBarMessage`); durum şeridi bağlanır
-8. `OnSourceInitialized` (Dock) → hook; `WindowAppearance`; `DockHitTest.ApplyInteractive`;
+9. `OnSourceInitialized` (Dock) → hook; `WindowAppearance`; `DockHitTest.ApplyInteractive`;
    `FullscreenState` / `WorkAreaChanged` abonelikleri; pin görselleri; yerleşim
-9. Çıkış yolları bağlanır → `ABM_NEW` → yerleşim uygulanır → `WorkAreaChanged.Notify`
-10. Çıkış: tray dispose → dock kapat → `ABM_REMOVE` (idempotent, aşağıdaki tüm yollardan)
+10. Çıkış yolları bağlanır → `ABM_NEW` → yerleşim uygulanır → `WorkAreaChanged.Notify`
+11. Çıkış: **görev çubuğu restore** (`TaskbarVisibilityService.Restore`) → tray dispose → dock kapat
+    → `ABM_REMOVE` (idempotent; `ReleaseShellState` sırası: restore önce, sonra remove)
 
-Sonraki faz: Faz 9 (görev çubuğu gizle/restore + canlı dock + tepsi hibrit; ADR-005);
-Faz 8 dock auto-hide polish tercihen 9a/9b sonrası.
+Sonraki faz: Faz 8 dock auto-hide polish (tercihen 9a/9b sonrası).
 
 ### Yerleşim hesabı (fiziksel piksel)
 
@@ -187,7 +203,7 @@ mesajının AppBar’ı yeniden kaydetmesi böyle engellenir.
 | `ABN_POSCHANGED`, `ABN_STATECHANGE` | Yerleşimi yeniden uygula |
 | `ABN_FULLSCREENAPP` | Tam ekran uygulama varken `HWND_BOTTOM`, bitince `HWND_TOPMOST`; `FullscreenState.Instance.Set` |
 | `ABN_WINDOWARRANGE` | v1’de işlem yok |
-| `TaskbarCreated` | `ABM_NEW` tekrar (explorer yeniden başladı) + yerleşim |
+| `TaskbarCreated` | `ABM_NEW` tekrar (explorer yeniden başladı) + yerleşim + `TaskbarVisibilityService.ReapplyHide()` |
 | `WM_DPICHANGED`, `WM_DISPLAYCHANGE` | `Dispatcher.BeginInvoke` ile yerleşimi yeniden uygula |
 | `WM_WINDOWPOSCHANGED` | `ABM_WINDOWPOSCHANGED` (kendi taşımamız sırasında atlanır) |
 | `WM_ACTIVATE` | `ABM_ACTIVATE` |

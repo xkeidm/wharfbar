@@ -2,9 +2,10 @@
 
 Önerilen fazlar. Her faz sonunda manuel doğrulama; AppBar kullanan fazlarda çökme sonrası `ABM_REMOVE` / explorer düzeltmesi bilinciyle çalış.
 
-> Faz 1–7 tamamlandı. Sıradaki ürün işi: **Faz 9** (ADR-005 — görev çubuğu gizle/restore,
-> canlı dock, tepsi hibrit). Faz 8 (dock auto-hide) 9a/9b sonrası daha anlamlı.
+> Faz 1–7 tamamlandı. **Faz 9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor).
+> Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından **Faz 8** (dock auto-hide, 9a/9b sonrası daha anlamlı).
 > Spec: [`superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+> Plan: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
 
 ## Faz 0 — Repo / docs ✓
 
@@ -92,31 +93,32 @@ Bu faz davranışı tamamlar:
 - [ ] `autoHide: false` iken dock her zaman görünür (mevcut stub davranışıyla uyumlu)
 - [ ] Manuel doğrulama: maximize pencere, oyun/video fullscreen, kenar hover
 
-## Faz 9 — Shell yerine geçme (canlı dock + tepsi hibrit + görev çubuğu) ⬜
+## Faz 9 — Shell yerine geçme (canlı dock + tepsi hibrit + görev çubuğu) ✓ (kod)
 
 ADR-005 / [spec](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
-Uygulama planı: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md). Alt fazlar:
+Uygulama planı: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
+Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bekliyor. Alt fazlar:
 
 ### 9a — Görev çubuğu yaşam döngüsü
 
-- [ ] Başlatmada görev çubuğu durumunu yakala; gizle / auto-hide uygula
-- [ ] Çıkış + crash yollarında önceki duruma geri yükle (`ABM_REMOVE` ile aynı set; idempotent)
-- [ ] `TaskbarCreated` sonrası gizlemeyi yeniden uygula
+- [x] Başlatmada görev çubuğu durumunu yakala (`ABM_GETSTATE` + `Shell_TrayWnd` görünürlük); gizle
+- [x] Çıkış + crash yollarında önceki duruma geri yükle (restore → `ABM_REMOVE`; idempotent)
+- [x] `TaskbarCreated` sonrası gizlemeyi yeniden uygula (`ReapplyHide`)
 - [ ] Manuel: Quit → restore; zorla kill gotcha bilinci
 
 ### 9b — Canlı dock
 
-- [ ] `User Pinned\TaskBar` `.lnk` tarama; pin sırası
-- [ ] `EnumWindows` + AppUserModelID running gruplama
-- [ ] `config.pinnedApps` yalnızca seed/fallback
-- [ ] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok)
+- [x] `User Pinned\TaskBar` `.lnk` tarama; pin sırası (`TaskbarPinnedAppsSource`)
+- [x] `EnumWindows` + AppUserModelID running gruplama (`RunningAppsSource`)
+- [x] `config.pinnedApps` yalnızca seed/fallback (`DockAppsComposer`)
+- [x] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok)
 - [ ] Manuel: pin ekle/çıkar, çalışan gösterge, launch / focus
 
 ### 9c — Tepsi hibrit düğmesi
 
-- [ ] Üst barda “tray / gizli ikonlar” düğmesi → native overflow (`Win+B` veya chevron)
-- [ ] Yabancı ikon çizimi / RPM / undocumented enumeration yok
-- [ ] İsteğe bağlı: ses / volume göstergesi (`StatusService` genişletmesi)
+- [x] Üst barda “tray / gizli ikonlar” düğmesi → native overflow (`TrayOverflowInvoker` / `Win+B`)
+- [x] Yabancı ikon çizimi / RPM / undocumented enumeration yok
+- [ ] İsteğe bağlı: ses / volume göstergesi (`StatusService` genişletmesi) — bu planda yok
 - [ ] Manuel: düğme overflow açar; WharfBar’da üçüncü taraf ikon yok
 
 ## Faz 10+ (v1 sonrası adaylar — sıra sabit değil)

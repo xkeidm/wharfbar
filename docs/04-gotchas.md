@@ -13,7 +13,8 @@
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
 | Sistem / yabancı tepsi ikonlarını okumaya çalışma | Simüle et (.NET API + kendi ikonlar); overflow için native `Win+B`/chevron; `Shell_NotifyIcon` ≠ okuma; RPM yok (ADR-005) |
 | UWP ikonları | v1 tam destek yok; placeholder veya atla; kırık Appx yolu sunma |
-| Görev çubuğu gizleme sonrası restore kaçması | Başlatmada durumu yakala; `ABM_REMOVE` ile aynı çıkış/crash yollarında geri yükle; idempotent tut (ADR-005) |
+| Görev çubuğu gizleme sonrası restore kaçması | Başlatmada `ABM_GETSTATE` yakala; çıkışta **her zaman** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` sonra `ABM_REMOVE`; `IsWindowVisible` auto-hide’ta yanıltır — restore’da kullanma |
+| Görev çubuğu hide API seçimi | `ShowWindow(Shell_TrayWnd, SW_HIDE)` gizler; restore `SW_SHOW` (SHOWNA yetmez) + `ABM_SETSTATE` baseline |
 | Zorla kill → görev çubuğu gizli kalır | `Stop-Process -Force` restore’u atlar; `explorer.exe` restart; normal Quit kullan |
 | Dock için gereksiz AppBar | Overlay + Topmost (+ auto-hide); ADR-001 — erken notlar “her iki yüzey AppBar” diyordu; geçersiz |
 | Erken notta `AllowUnsafeBlocks=true` / `/Windows` | ADR-002: unsafe kapalı; klasör `Views/` |

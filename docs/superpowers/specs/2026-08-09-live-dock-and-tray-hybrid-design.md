@@ -1,7 +1,7 @@
 # WharfBar — Canlı dock, tepsi hibrit ve görev çubuğu değişimi
 
 **Tarih:** 2026-08-09  
-**Durum:** Onaylandı (kullanıcı tasarım onayı); uygulama planı: [`../plans/2026-08-09-live-dock-and-tray-hybrid.md`](../plans/2026-08-09-live-dock-and-tray-hybrid.md)  
+**Durum:** Onaylandı; uygulama kodu çalışma ağacında (commit + 9a/9b/9c manuel doğrulama bekliyor); plan: [`../plans/2026-08-09-live-dock-and-tray-hybrid.md`](../plans/2026-08-09-live-dock-and-tray-hybrid.md)  
 **ADR:** [005-shell-replace-live-dock-tray-hybrid.md](../../decisions/005-shell-replace-live-dock-tray-hybrid.md)  
 **Kapsam:** Canlı görev çubuğu pin + çalışan uygulamalar (dock), üst barda tepsi hibrit
 (native overflow; tam ayna değil), WharfBar çalışırken Windows görev çubuğunu gizleme /

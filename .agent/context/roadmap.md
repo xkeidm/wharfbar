@@ -18,17 +18,19 @@
 - Derleme temiz; work area betikle doğrulandı (aşağı bkz.)
 - **Tasarım onay ✓** — canlı dock + tepsi hibrit + görev çubuğu gizle/restore (ADR-005);
   spec: [`../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md)
+- **Faz 9 — Shell yerine geçme (ADR-005) ✓ (kod)** — plan:
+  [`../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md)
+  - **9a** `TaskbarVisibilityService` — capture (`ABM_GETSTATE` + `Shell_TrayWnd` görünürlük) → hide → restore
+  - **9b** Canlı pin (`TaskbarPinnedAppsSource`) + running (`RunningAppsSource` / `EnumWindows` + AUMID); `DockAppsComposer`
+  - **9c** Üst bar overflow düğmesi (`TrayOverflowInvoker` / `Win+B`)
+  - Kod çalışma ağacında; kullanıcı commit + 9a/9b/9c manuel UI doğrulaması bekliyor
 
 ## Yapılacaklar listesi (öncelikli)
 
 ### P0 — Sıradaki uygulama
 
-1. **Faz 9 — Shell yerine geçme (ADR-005)** — plan:
-     [`../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md)
-   - **9a** Görev çubuğu capture → hide/auto-hide → restore (AppBar ile aynı çıkış yolları)
-   - **9b** Canlı pin (`User Pinned\TaskBar`) + running (`EnumWindows`/AUMID); `pinnedApps` fallback
-   - **9c** Üst bar “tray / gizli ikonlar” düğmesi (native overflow); isteğe bağlı ses göstergesi
-   - Checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 9
+1. **Faz 9 manuel doğrulama** — commit sonrası 9a/9b/9c UI checklist
+   ([`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 9; plan uçtan uca bölümü)
 
 2. **Faz 8 — Dock auto-hide / hit-test polish** (9a/9b sonrası daha anlamlı)
    - Kenar proximity → göster / gizle + animasyon

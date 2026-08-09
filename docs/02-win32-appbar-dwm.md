@@ -82,7 +82,7 @@ Top bar göstergeleri için:
 - İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
 - **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
 
-**Uygulanan (Faz 7):** saat, ağ, pil; ses göstergesi yok. Overflow düğmesi Faz 9c.
+**Uygulanan (Faz 7 + 9c):** saat, ağ, pil; overflow düğmesi (`TrayOverflowInvoker` → `SendInputKeys.TrySendWinB()`). Ses göstergesi yok.
 
 ---
 
@@ -100,14 +100,35 @@ Klasik `.exe` / `.lnk` için uygundur. **UWP/Store** paketleri farklı yol ister
 
 ## e) Görev çubuğu gizleme / geri yükleme (ADR-005)
 
-WharfBar çalışırken birincil monitör görev çubuğu gizlenir veya auto-hide’a alınır; başlatmada
-durum yakalanır, çıkış/crash yollarında geri yüklenir (`ABM_REMOVE` disiplini). Teknik API
-seçimi (`ABM_SETSTATE` vb.) uygulama planında. Zorla kill restore’u atlayabilir →
-[`04-gotchas.md`](04-gotchas.md).
+WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada durum yakalanır,
+çıkış/crash yollarında geri yüklenir (`ABM_REMOVE` disiplini). Uygulama: `TaskbarVisibilityService`
++ `Native/TaskbarNative.cs`.
+
+**Seçilen hide yolu (plan):**
+
+1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + `FindWindow("Shell_TrayWnd")` +
+   `IsWindowVisible` — restore için saklanır.
+2. **Gizleme:** `ShowWindow(Shell_TrayWnd, SW_HIDE)` — birincil görev çubuğu penceresini gizler.
+3. **Geri yükleme:** önce `ShowWindow` ile kayıtlı görünürlük, ardından `ABM_SETSTATE` ile kayıtlı
+   auto-hide durumu.
+4. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
+5. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
+
+Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
 ---
 
-## f) DPI ve ekran değişimi
+## f) Çalışan uygulama listesi (dock)
+
+`EnumWindows` ile üst düzey görünür pencereler taranır; `Shell_TrayWnd`, `Progman`, `WorkerW` ve
+kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
+`GetCurrentProcessExplicitAppUserModelID` (`AppUserModelId.cs`). WharfBar kendi pencereleri
+(`ShowInTaskbar=false`) için `Process.MainWindowHandle` güvenilmez — odaklama
+`WindowActivationService` + `EnumWindows` + PID filtresi ile yapılır.
+
+---
+
+## g) DPI ve ekran değişimi
 
 - Manifest: Per-Monitor V2
 - `WM_DPICHANGED` ve display change bildirimlerini dinle; AppBar `QUERYPOS`/`SETPOS` ve pencere konumunu güncelle
@@ -118,12 +139,12 @@ seçimi (`ABM_SETSTATE` vb.) uygulama planında. Zorla kill restore’u atlayabi
 
 ---
 
-## g) Hit-testing (dock / overlay)
+## h) Hit-testing (dock / overlay)
 
 Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test / `WS_EX_TRANSPARENT` veya benzeri stratejiler planlanmalı. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
 
 ---
 
-## h) AllowUnsafeBlocks
+## i) AllowUnsafeBlocks
 
 Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca pointer arithmetic veya `unsafe` blok gerçekten yazılırsa aç.

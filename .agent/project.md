@@ -60,21 +60,23 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 
 ## Mevcut repo durumu
 
-**Faz 1–7 uygulandı.** Kod kökü `src/WharfBar/`, çözüm kökte `WharfBar.sln`.
-Çalışan: top bar penceresi (DPI-farkında yerleşim), AppBar kaydı + garantili `ABM_REMOVE`,
-`ABN_*` callback’leri, explorer restart sonrası yeniden kayıt, tek örnek Mutex,
-WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler (`DWMWCP_DONOTROUND`, ADR-004),
-dock overlay (`DockWindow`, config pinler, hover ölçek, süreç başlatma, fullscreen gizleme,
-`WorkAreaChanged` yeniden konumlanma, auto-hide / hit-test stub),
-`ConfigService` → `%AppData%/WharfBar/config.json`,
-`AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`),
-saat + ağ + pil (`StatusService`, top bar sağ şerit), kendi tepsi ikonu + Quit (`TrayIconService`).
-Henüz yok: dock auto-hide polish (Faz 8); canlı TaskBar pin/running + görev çubuğu gizle/restore +
-tepsi overflow düğmesi (Faz 9 / ADR-005); ses göstergesi.
+**Faz 1–9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor). Kod kökü
+`src/WharfBar/`, çözüm kökte `WharfBar.sln`. Çalışan: top bar penceresi (DPI-farkında yerleşim),
+AppBar kaydı + garantili `ABM_REMOVE`, `ABN_*` callback’leri, explorer restart sonrası yeniden kayıt,
+tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler
+(`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`, canlı pin/running birleşik UI,
+hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
+konumlanma, auto-hide / hit-test stub), `ConfigService` → `%AppData%/WharfBar/config.json`,
+`AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
+(`StatusService`, top bar sağ şerit), kendi tepsi ikonu + Quit (`TrayIconService`),
+görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
+canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
+`DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
+Henüz yok: dock auto-hide polish (Faz 8); ses göstergesi.
 Öncelikli yapılacaklar: [`context/roadmap.md`](context/roadmap.md).
-Sıradaki ürün işi: Faz 9 (taskbar lifecycle → canlı dock → tray hibrit); Faz 8 auto-hide
-Faz 9a/9b sonrası daha anlamlı. Spec:
-[`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından Faz 8 auto-hide (9a/9b sonrası daha anlamlı).
+Spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+Plan: [`../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
 
 Derleme: `dotnet build WharfBar.sln`. Ayrıntı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 
