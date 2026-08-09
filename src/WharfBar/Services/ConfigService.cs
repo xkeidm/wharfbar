@@ -1,0 +1,191 @@
+using System.Diagnostics;
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using WharfBar.Models;
+
+namespace WharfBar.Services;
+
+/// <summary>
+/// Loads and saves <see cref="AppConfig"/> from <c>%AppData%/WharfBar/config.json</c>.
+/// Missing or unreadable files are replaced with defaults seeded from <see cref="DemoPinnedApps"/>.
+/// </summary>
+internal sealed class ConfigService
+{
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip,
+        AllowTrailingCommas = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.Never,
+    };
+
+    internal string ConfigDirectory { get; }
+
+    internal string ConfigPath { get; }
+
+    internal AppConfig Current { get; private set; }
+
+    internal ConfigService()
+    {
+        ConfigDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "WharfBar");
+        ConfigPath = Path.Combine(ConfigDirectory, "config.json");
+        Current = CreateDefault();
+    }
+
+    /// <summary>
+    /// Loads existing config, or writes defaults on first run / unsupported schema / corrupt JSON.
+    /// </summary>
+    internal AppConfig LoadOrCreate()
+    {
+        if (!File.Exists(ConfigPath))
+        {
+            Current = CreateDefault();
+            Save(Current);
+            return Current;
+        }
+
+        try
+        {
+            string json = File.ReadAllText(ConfigPath);
+            AppConfig? loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
+
+            if (loaded is null)
+            {
+                return ReplaceWithDefault("deserialized null");
+            }
+
+            if (loaded.SchemaVersion != AppConfig.CurrentSchemaVersion)
+            {
+                return ReplaceWithDefault($"unsupported schemaVersion {loaded.SchemaVersion}");
+            }
+
+            Current = Normalize(loaded);
+            return Current;
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        {
+            return ReplaceWithDefault(ex.Message);
+        }
+    }
+
+    /// <summary>Writes <paramref name="config"/> atomically (temp file + replace) and updates <see cref="Current"/>.</summary>
+    internal void Save(AppConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        AppConfig normalized = Normalize(config);
+        Directory.CreateDirectory(ConfigDirectory);
+
+        string json = JsonSerializer.Serialize(normalized, JsonOptions);
+        string tempPath = ConfigPath + ".tmp";
+
+        File.WriteAllText(tempPath, json);
+
+        if (File.Exists(ConfigPath))
+        {
+            File.Replace(tempPath, ConfigPath, destinationBackupFileName: null);
+        }
+        else
+        {
+            File.Move(tempPath, ConfigPath);
+        }
+
+        Current = normalized;
+        new AutostartService().Apply(normalized.Autostart);
+    }
+
+    internal static AppConfig CreateDefault()
+    {
+        return new AppConfig
+        {
+            SchemaVersion = AppConfig.CurrentSchemaVersion,
+            Theme = AppConfig.ThemeSystem,
+            Autostart = true,
+            Dock = new DockConfig
+            {
+                AutoHide = true,
+                IconSize = DockConfig.DefaultIconSize,
+            },
+            PinnedApps = DemoPinnedApps.All.Select(static a => new PinnedApp(a.Path, a.Args, a.Label)).ToList(),
+        };
+    }
+
+    private AppConfig ReplaceWithDefault(string reason)
+    {
+        Debug.WriteLine($"[WharfBar] Config reset to defaults: {reason}");
+        TryBackupCorruptFile();
+        Current = CreateDefault();
+        Save(Current);
+        return Current;
+    }
+
+    private void TryBackupCorruptFile()
+    {
+        try
+        {
+            if (!File.Exists(ConfigPath))
+            {
+                return;
+            }
+
+            string backupPath = ConfigPath + ".bak";
+            File.Copy(ConfigPath, backupPath, overwrite: true);
+        }
+        catch (IOException)
+        {
+            // Best-effort; defaults still get written.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static AppConfig Normalize(AppConfig config)
+    {
+        config.SchemaVersion = AppConfig.CurrentSchemaVersion;
+        config.Theme = NormalizeTheme(config.Theme);
+        config.Dock ??= new DockConfig();
+        config.Dock.IconSize = Math.Clamp(
+            config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
+            DockConfig.MinIconSize,
+            DockConfig.MaxIconSize);
+        config.PinnedApps ??= [];
+
+        for (int i = config.PinnedApps.Count - 1; i >= 0; i--)
+        {
+            PinnedApp? app = config.PinnedApps[i];
+            if (app is null || string.IsNullOrWhiteSpace(app.Path))
+            {
+                config.PinnedApps.RemoveAt(i);
+                continue;
+            }
+
+            config.PinnedApps[i] = new PinnedApp(
+                app.Path.Trim(),
+                app.Args ?? string.Empty,
+                string.IsNullOrWhiteSpace(app.Label) ? Path.GetFileNameWithoutExtension(app.Path) : app.Label.Trim());
+        }
+
+        return config;
+    }
+
+    private static string NormalizeTheme(string? theme)
+    {
+        if (string.Equals(theme, AppConfig.ThemeLight, StringComparison.OrdinalIgnoreCase))
+        {
+            return AppConfig.ThemeLight;
+        }
+
+        if (string.Equals(theme, AppConfig.ThemeDark, StringComparison.OrdinalIgnoreCase))
+        {
+            return AppConfig.ThemeDark;
+        }
+
+        return AppConfig.ThemeSystem;
+    }
+}

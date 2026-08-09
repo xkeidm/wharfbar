@@ -19,7 +19,6 @@ namespace WharfBar.Views;
 public partial class DockWindow : Window
 {
     private const double DockHeightDip = 72d;
-    private const double IconSizeDip = 48d;
     private const double HoverScale = 1.2d;
     private const int HoverDurationMs = 180;
     private const double MinWidthDip = 200d;
@@ -27,17 +26,28 @@ public partial class DockWindow : Window
     private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
     private const DwmCornerPreference Corners = DwmCornerPreference.Round;
 
+    private readonly AppConfig _config;
+    private readonly double _iconSizeDip;
+    private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
     private WindowAppearance? _appearance;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
-    private readonly DockAutoHideController _autoHide = new();
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
 
-    public DockWindow()
+    internal DockWindow(AppConfig config)
     {
+        ArgumentNullException.ThrowIfNull(config);
+
         InitializeComponent();
+
+        _config = config;
+        _iconSizeDip = Math.Clamp(
+            config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
+            DockConfig.MinIconSize,
+            DockConfig.MaxIconSize);
+        _autoHide = new DockAutoHideController(config.Dock.AutoHide);
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -65,6 +75,12 @@ public partial class DockWindow : Window
         BuildPinVisuals();
         ApplyPlacement();
 
+        // Preference is live from config; proximity hide remains a no-op until a later phase.
+        if (_autoHide.Enabled)
+        {
+            _autoHide.Show();
+        }
+
         if (FullscreenState.Instance.IsFullscreen)
         {
             OnFullscreenChanged(this, EventArgs.Empty);
@@ -84,7 +100,7 @@ public partial class DockWindow : Window
 
     private void BuildPinVisuals()
     {
-        IReadOnlyList<PinnedApp> apps = DemoPinnedApps.All;
+        IReadOnlyList<PinnedApp> apps = _config.PinnedApps;
         for (int i = 0; i < apps.Count; i++)
         {
             PinnedApp app = apps[i];
@@ -92,8 +108,8 @@ public partial class DockWindow : Window
 
             var image = new System.Windows.Controls.Image
             {
-                Width = IconSizeDip,
-                Height = IconSizeDip,
+                Width = _iconSizeDip,
+                Height = _iconSizeDip,
                 Margin = i < apps.Count - 1 ? new Thickness(0, 0, 8, 0) : new Thickness(0),
                 Stretch = Stretch.Uniform,
                 Source = _icons.GetIcon(app.Path),

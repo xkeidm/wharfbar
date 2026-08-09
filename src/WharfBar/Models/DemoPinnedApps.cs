@@ -1,5 +1,9 @@
 namespace WharfBar.Models;
 
+/// <summary>
+/// Default pin list used to seed <c>config.json</c> on first run (Faz 5).
+/// Runtime pins come from <see cref="AppConfig.PinnedApps"/>.
+/// </summary>
 internal static class DemoPinnedApps
 {
     internal static IReadOnlyList<PinnedApp> All { get; } =

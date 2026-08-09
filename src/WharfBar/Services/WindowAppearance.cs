@@ -19,6 +19,7 @@ namespace WharfBar.Services;
 /// calling <c>ApplicationThemeManager.ApplySystemTheme</c>, which re-applies the library default
 /// (<see cref="WindowBackdropType.Mica"/>) and silently overrides any other requested backdrop.
 /// The owning window forwards the theme messages to <see cref="Refresh"/> instead.
+/// Theme choice comes from <see cref="AppThemePreference"/> (config <c>theme</c>).
 /// </summary>
 internal sealed class WindowAppearance
 {
@@ -46,7 +47,7 @@ internal sealed class WindowAppearance
     {
         Dwm.SetCornerPreference(_hwnd, _corners);
 
-        ApplicationTheme theme = ResolveSystemTheme();
+        ApplicationTheme theme = AppThemePreference.Resolve();
 
         // Swaps the theme resource dictionaries. Passing our backdrop explicitly keeps WPF-UI
         // from force-applying its default one to Application.MainWindow.
@@ -112,14 +113,6 @@ internal sealed class WindowAppearance
 
         _window.SetCurrentValue(Control.BackgroundProperty, new SolidColorBrush(color));
     }
-
-    private static ApplicationTheme ResolveSystemTheme() => ApplicationThemeManager.GetSystemTheme() switch
-    {
-        SystemTheme.Dark or SystemTheme.CapturedMotion or SystemTheme.Glow => ApplicationTheme.Dark,
-        SystemTheme.HC1 or SystemTheme.HC2 or SystemTheme.HCBlack or SystemTheme.HCWhite =>
-            ApplicationTheme.HighContrast,
-        _ => ApplicationTheme.Light,
-    };
 
     /// <summary>WPF-UI and DWM number these differently for <c>Auto</c> and <c>None</c>.</summary>
     private static DwmSystemBackdrop ToDwmBackdrop(WindowBackdropType backdrop) => backdrop switch
