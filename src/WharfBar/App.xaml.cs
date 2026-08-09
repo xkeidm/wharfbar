@@ -12,6 +12,7 @@ public partial class App : Application
     private ConfigService? _config;
     private DockWindow? _dock;
     private TrayIconService? _tray;
+    private TaskbarVisibilityService? _taskbar;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -37,7 +38,10 @@ public partial class App : Application
         AppThemePreference.Mode = config.Theme;
         ApplicationThemeManager.Apply(AppThemePreference.Resolve());
 
-        var topBar = new TopBarWindow();
+        _taskbar = new TaskbarVisibilityService();
+        _taskbar.CaptureAndHide();
+
+        var topBar = new TopBarWindow(_taskbar);
         MainWindow = topBar;
         topBar.Show();
 
@@ -50,6 +54,9 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _taskbar?.Restore();
+        _taskbar = null;
+
         _tray?.Dispose();
         _tray = null;
 

@@ -40,6 +40,11 @@
                     </Style>
                 </StackPanel.Resources>
 
+                <ui:SymbolIcon x:Name="TrayOverflowIcon"
+                               Symbol="ChevronUp24"
+                               Cursor="Hand"
+                               ToolTip="Hidden icons" />
+
                 <ui:SymbolIcon x:Name="NetworkIcon"
                                Symbol="Wifi124"
                                ToolTip="Network" />

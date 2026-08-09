@@ -25,6 +25,8 @@ public partial class TopBarWindow : Window
     /// <summary>Square corners on a full-width edge-anchored bar — see ADR-004.</summary>
     private const DwmCornerPreference Corners = DwmCornerPreference.DoNotRound;
 
+    private readonly TaskbarVisibilityService _taskbar;
+    private readonly TrayOverflowInvoker _trayOverflow = new();
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
     private StatusService? _status;
@@ -34,8 +36,9 @@ public partial class TopBarWindow : Window
     private bool _isFullScreenAppActive;
     private bool _isShutdownHooked;
 
-    public TopBarWindow()
+    internal TopBarWindow(TaskbarVisibilityService taskbar)
     {
+        _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         InitializeComponent();
     }
 
@@ -69,6 +72,8 @@ public partial class TopBarWindow : Window
 
         _appBar.Register();
         ApplyPlacement();
+
+        TrayOverflowIcon.MouseLeftButtonUp += (_, _) => _trayOverflow.TryOpen();
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -76,7 +81,7 @@ public partial class TopBarWindow : Window
         _status?.Dispose();
         _status = null;
 
-        ReleaseAppBar();
+        ReleaseShellState();
         base.OnClosing(e);
     }
 
@@ -140,8 +145,8 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// Every route out of the process must reach <see cref="AppBar.Remove"/>, otherwise the
-    /// reserved work area survives us. Removal is idempotent, so overlapping hooks are fine.
+    /// Every route out of the process must reach <see cref="ReleaseShellState"/>, otherwise the
+    /// reserved work area survives us. Release is idempotent, so overlapping hooks are fine.
     /// </summary>
     private void HookShutdownPaths()
     {
@@ -154,16 +159,21 @@ public partial class TopBarWindow : Window
 
         if (Application.Current is { } app)
         {
-            app.Exit += (_, _) => ReleaseAppBar();
-            app.SessionEnding += (_, _) => ReleaseAppBar();
-            app.DispatcherUnhandledException += (_, _) => ReleaseAppBar();
+            app.Exit += (_, _) => ReleaseShellState();
+            app.SessionEnding += (_, _) => ReleaseShellState();
+            app.DispatcherUnhandledException += (_, _) => ReleaseShellState();
         }
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => ReleaseAppBar();
-        AppDomain.CurrentDomain.UnhandledException += (_, _) => ReleaseAppBar();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => ReleaseShellState();
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => ReleaseShellState();
     }
 
-    private void ReleaseAppBar() => _appBar?.Remove();
+    private void ReleaseShellState()
+    {
+        // Taskbar first so work area can expand before we drop our AppBar reservation.
+        _taskbar.Restore();
+        _appBar?.Remove();
+    }
 
     /// <summary>
     /// Recomputes the bar rect in physical pixels for the current monitor DPI and asks the
@@ -235,6 +245,7 @@ public partial class TopBarWindow : Window
         {
             // explorer.exe restarted and forgot us; claim the work area again.
             _appBar?.ReRegister();
+            _taskbar.ReapplyHide();
             ApplyPlacement();
             return IntPtr.Zero;
         }
