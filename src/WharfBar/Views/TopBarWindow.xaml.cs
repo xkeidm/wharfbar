@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
 using Wpf.Ui.Controls;
@@ -25,24 +26,43 @@ public partial class TopBarWindow : Window
     private const DwmCornerPreference Corners = DwmCornerPreference.DoNotRound;
 
     private readonly TaskbarVisibilityService _taskbar;
+    private readonly ConfigService _config;
     private readonly TrayOverflowInvoker _trayOverflow;
     private readonly NotificationCenterInvoker _notifications = new();
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
     private StatusService? _status;
     private VolumeService? _volume;
+    private AudioMixerService? _mixer;
+    private QuickSettingsService? _quick;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
     private bool _isFullScreenAppActive;
     private bool _isShutdownHooked;
-    private bool _volumeSliderUpdating;
+    private QuickSettingsPage _pendingQuickPage = QuickSettingsPage.Main;
+    private Dictionary<string, FrameworkElement>? _statusElements;
+    private bool _batteryPresent = false;
+    private bool _volumeAvailable = true;
 
-    internal TopBarWindow(TaskbarVisibilityService taskbar)
+    internal TopBarWindow(TaskbarVisibilityService taskbar, ConfigService config)
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
+        _config = config ?? throw new ArgumentNullException(nameof(config));
         _trayOverflow = new TrayOverflowInvoker(_taskbar);
         InitializeComponent();
+
+        _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
+        {
+            [TopBarStatusItemIds.TrayOverflow] = TrayOverflowButton,
+            [TopBarStatusItemIds.Network] = NetworkButton,
+            [TopBarStatusItemIds.Battery] = BatteryGroup,
+            [TopBarStatusItemIds.Volume] = VolumeButton,
+            [TopBarStatusItemIds.DateTime] = DateTimeButton,
+            [TopBarStatusItemIds.Notifications] = NotificationsButton,
+        };
+        ApplyStatusItemLayout();
+        StatusStrip.MouseRightButtonUp += OnStatusStripRightClick;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -77,15 +97,19 @@ public partial class TopBarWindow : Window
         _volume.Changed += (_, _) => ApplyVolume(_volume.Snapshot);
         ApplyVolume(_volume.Snapshot);
 
+        _mixer = new AudioMixerService(_volume);
+        _quick = new QuickSettingsService();
+        QuickSettingsHost.Attach(_volume, _mixer, _quick);
+
         _appBar.Register();
         ApplyPlacement();
 
         TrayOverflowButton.PreviewMouseLeftButtonUp += OnTrayOverflowClick;
         AppMenuButton.PreviewMouseLeftButtonUp += OnAppMenuClick;
+        NetworkButton.PreviewMouseLeftButtonUp += OnNetworkClick;
         VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
-        DateButton.PreviewMouseLeftButtonUp += OnDateTimeClick;
-        ClockButton.PreviewMouseLeftButtonUp += OnDateTimeClick;
-        NotificationsButton.PreviewMouseLeftButtonUp += OnNotificationsClick;
+        DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
+        NotificationsButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
     }
 
     private void OnAppMenuClick(object sender, MouseButtonEventArgs e)
@@ -125,34 +149,42 @@ public partial class TopBarWindow : Window
     private void OnVolumeClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        DateTimePopup.IsOpen = false;
-        if (_volume is null || !_volume.Snapshot.IsAvailable)
+        ToggleQuickSettings(QuickSettingsPage.Main, VolumeButton);
+    }
+
+    private void OnNetworkClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleQuickSettings(QuickSettingsPage.Network, NetworkButton);
+    }
+
+    private void ToggleQuickSettings(QuickSettingsPage page, UIElement anchor)
+    {
+        if (QuickSettingsPopup.IsOpen
+            && ReferenceEquals(QuickSettingsPopup.PlacementTarget, anchor)
+            && _pendingQuickPage == page)
         {
+            QuickSettingsPopup.IsOpen = false;
             return;
         }
 
-        ApplyVolume(_volume.Snapshot);
-        VolumePopup.PlacementTarget = VolumeButton;
-        VolumePopup.IsOpen = !VolumePopup.IsOpen;
+        _pendingQuickPage = page;
+        QuickSettingsPopup.PlacementTarget = anchor;
+        QuickSettingsHost.ShowPage(page);
+        QuickSettingsPopup.IsOpen = true;
     }
 
-    private void OnDateTimeClick(object sender, MouseButtonEventArgs e)
+    private void OnQuickSettingsOpened(object sender, EventArgs e)
     {
-        e.Handled = true;
-        VolumePopup.IsOpen = false;
-        if (_status is not null)
-        {
-            FlyoutClockText.Text = _status.Snapshot.ClockText;
-            FlyoutDateText.Text = _status.Snapshot.DateTooltip;
-            FlyoutCalendar.SelectedDate = DateTime.Today;
-            FlyoutCalendar.DisplayDate = DateTime.Today;
-        }
-
-        DateTimePopup.PlacementTarget = sender as UIElement ?? ClockButton;
-        DateTimePopup.IsOpen = !DateTimePopup.IsOpen;
+        QuickSettingsHost.OnFlyoutOpened(_pendingQuickPage);
     }
 
-    private void OnNotificationsClick(object sender, MouseButtonEventArgs e)
+    private void OnQuickSettingsClosed(object sender, EventArgs e)
+    {
+        QuickSettingsHost.OnFlyoutClosed();
+    }
+
+    private void OnDateTimeOrNotificationsClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
         CloseFlyouts();
@@ -161,32 +193,21 @@ public partial class TopBarWindow : Window
             new Action(() => _notifications.TryOpen()));
     }
 
-    private void OnMuteClick(object sender, RoutedEventArgs e)
-    {
-        _volume?.ToggleMute();
-    }
-
-    private void OnVolumeSliderChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_volumeSliderUpdating || _volume is null)
-        {
-            return;
-        }
-
-        _volume.SetPercent((int)Math.Round(e.NewValue));
-    }
-
     private void CloseFlyouts()
     {
-        VolumePopup.IsOpen = false;
-        DateTimePopup.IsOpen = false;
+        QuickSettingsPopup.IsOpen = false;
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
         CloseFlyouts();
+        QuickSettingsHost.Detach();
         _status?.Dispose();
         _status = null;
+        _mixer?.Dispose();
+        _mixer = null;
+        _quick?.Dispose();
+        _quick = null;
         _volume?.Dispose();
         _volume = null;
 
@@ -204,16 +225,8 @@ public partial class TopBarWindow : Window
     private void ApplyStatus(StatusSnapshot snapshot)
     {
         ClockText.Text = snapshot.ClockText;
-        SetPlainToolTip(ClockButton, snapshot.ClockTooltip);
-
         DateText.Text = snapshot.DateText;
-        SetPlainToolTip(DateButton, snapshot.DateTooltip);
-
-        if (DateTimePopup.IsOpen)
-        {
-            FlyoutClockText.Text = snapshot.ClockText;
-            FlyoutDateText.Text = snapshot.DateTooltip;
-        }
+        SetPlainToolTip(DateTimeButton, snapshot.ClockTooltip);
 
         NetworkGlyph.Text = snapshot.NetworkKind switch
         {
@@ -224,56 +237,260 @@ public partial class TopBarWindow : Window
         };
         SetPlainToolTip(NetworkButton, snapshot.NetworkTooltip);
 
-        if (!snapshot.IsBatteryPresent)
+        _batteryPresent = snapshot.IsBatteryPresent;
+        if (snapshot.IsBatteryPresent)
         {
-            BatteryGroup.Visibility = Visibility.Collapsed;
-            return;
+            BatteryText.Text = snapshot.BatteryText;
+            SetPlainToolTip(BatteryGroup, snapshot.BatteryTooltip);
+            BatteryGlyph.Text = ResolveBatteryGlyph(snapshot);
         }
 
-        BatteryGroup.Visibility = Visibility.Visible;
-        BatteryText.Text = snapshot.BatteryText;
-        SetPlainToolTip(BatteryGroup, snapshot.BatteryTooltip);
-        BatteryGlyph.Text = ResolveBatteryGlyph(snapshot);
+        ApplyStatusItemLayout();
     }
 
     private void ApplyVolume(VolumeSnapshot snapshot)
     {
-        if (!snapshot.IsAvailable)
+        _volumeAvailable = snapshot.IsAvailable;
+        if (snapshot.IsAvailable)
         {
-            VolumeButton.Visibility = Visibility.Collapsed;
-            VolumePopup.IsOpen = false;
+            VolumeGlyph.Text = snapshot.IsMuted || snapshot.Percent == 0
+                ? "\uE74F" // Mute
+                : snapshot.Percent < 33
+                    ? "\uE992" // Volume0 / low
+                    : snapshot.Percent < 66
+                        ? "\uE993"
+                        : "\uE767"; // Volume3
+
+            string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
+            SetPlainToolTip(VolumeButton, tip);
+        }
+        else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton))
+        {
+            QuickSettingsPopup.IsOpen = false;
+        }
+
+        ApplyStatusItemLayout();
+    }
+
+    private void ApplyStatusItemLayout()
+    {
+        if (_statusElements is null)
+        {
             return;
         }
 
-        VolumeButton.Visibility = Visibility.Visible;
-        VolumeGlyph.Text = snapshot.IsMuted || snapshot.Percent == 0
-            ? "\uE74F" // Mute
-            : snapshot.Percent < 33
-                ? "\uE992" // Volume0 / low
-                : snapshot.Percent < 66
-                    ? "\uE993"
-                    : "\uE767"; // Volume3
+        IReadOnlyList<string> order = TopBarStatusItemIds.Normalize(
+            _config.Current.TopBar?.StatusItems);
 
-        string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
-        SetPlainToolTip(VolumeButton, tip);
-
-        _volumeSliderUpdating = true;
-        try
+        StatusStrip.Children.Clear();
+        foreach (string id in order)
         {
-            VolumeSlider.Value = snapshot.Percent;
-            VolumePercentText.Text = $"{snapshot.Percent}%";
-            MuteButton.Content = snapshot.IsMuted ? "\uE74F" : "\uE767";
-            MuteButton.FontFamily = new FontFamily("Segoe MDL2 Assets");
-            MuteButton.ToolTip = new ToolTip
+            if (_statusElements.TryGetValue(id, out FrameworkElement? el))
             {
-                Content = snapshot.IsMuted ? "Sesi aç" : "Sessiz",
-                FontFamily = new FontFamily("Segoe UI"),
-            };
+                StatusStrip.Children.Add(el);
+            }
         }
-        finally
+
+        foreach (string id in order)
         {
-            _volumeSliderUpdating = false;
+            FrameworkElement el = _statusElements[id];
+            bool show = id switch
+            {
+                TopBarStatusItemIds.Battery => _batteryPresent,
+                TopBarStatusItemIds.Volume => _volumeAvailable,
+                _ => true,
+            };
+            el.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         }
+    }
+
+    private void OnStatusStripRightClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        FrameworkElement? hit = FindStatusElement(e.OriginalSource as DependencyObject);
+        ContextMenu menu = BuildStatusItemsMenu(hit);
+        menu.PlacementTarget = StatusStrip;
+        menu.IsOpen = true;
+    }
+
+    private FrameworkElement? FindStatusElement(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is FrameworkElement fe
+                && _statusElements is not null
+                && _statusElements.Values.Contains(fe))
+            {
+                return fe;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
+    private ContextMenu BuildStatusItemsMenu(FrameworkElement? hitItem)
+    {
+        var menu = new ContextMenu();
+        List<string> current = TopBarStatusItemIds.Normalize(_config.Current.TopBar.StatusItems);
+        var visible = new HashSet<string>(current, StringComparer.Ordinal);
+
+        foreach (string id in TopBarStatusItemIds.DefaultOrder)
+        {
+            var item = new System.Windows.Controls.MenuItem
+            {
+                Header = StatusItemHeader(id),
+                IsCheckable = true,
+                IsChecked = visible.Contains(id),
+                Tag = id,
+            };
+            item.Click += OnToggleStatusItem;
+            menu.Items.Add(item);
+        }
+
+        menu.Items.Add(new Separator());
+
+        if (hitItem is not null
+            && TryGetIdForElement(hitItem, out string hitId)
+            && visible.Contains(hitId))
+        {
+            int index = current.IndexOf(hitId);
+            var moveLeft = new System.Windows.Controls.MenuItem
+            {
+                Header = "Sola taşı",
+                IsEnabled = index > 0,
+                Tag = hitId,
+            };
+            moveLeft.Click += OnMoveStatusItemLeft;
+            var moveRight = new System.Windows.Controls.MenuItem
+            {
+                Header = "Sağa taşı",
+                IsEnabled = index >= 0 && index < current.Count - 1,
+                Tag = hitId,
+            };
+            moveRight.Click += OnMoveStatusItemRight;
+            menu.Items.Add(moveLeft);
+            menu.Items.Add(moveRight);
+            menu.Items.Add(new Separator());
+        }
+
+        var reset = new System.Windows.Controls.MenuItem { Header = "Varsayılana sıfırla" };
+        reset.Click += OnResetStatusItems;
+        menu.Items.Add(reset);
+        return menu;
+    }
+
+    private static string StatusItemHeader(string id) => id switch
+    {
+        TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
+        TopBarStatusItemIds.Network => "Ağ",
+        TopBarStatusItemIds.Battery => "Pil",
+        TopBarStatusItemIds.Volume => "Ses",
+        TopBarStatusItemIds.DateTime => "Tarih ve saat",
+        TopBarStatusItemIds.Notifications => "Bildirimler",
+        _ => id,
+    };
+
+    private bool TryGetIdForElement(FrameworkElement el, out string id)
+    {
+        if (_statusElements is not null)
+        {
+            foreach (KeyValuePair<string, FrameworkElement> pair in _statusElements)
+            {
+                if (ReferenceEquals(pair.Value, el))
+                {
+                    id = pair.Key;
+                    return true;
+                }
+            }
+        }
+
+        id = string.Empty;
+        return false;
+    }
+
+    private void OnToggleStatusItem(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { Tag: string id, IsChecked: bool isChecked })
+        {
+            return;
+        }
+
+        List<string> items = TopBarStatusItemIds.Normalize(_config.Current.TopBar.StatusItems);
+        if (isChecked)
+        {
+            if (!items.Contains(id, StringComparer.Ordinal))
+            {
+                items = InsertByDefaultOrder(items, id);
+            }
+        }
+        else
+        {
+            items.RemoveAll(x => string.Equals(x, id, StringComparison.Ordinal));
+            if (items.Count == 0)
+            {
+                items.Add(TopBarStatusItemIds.DateTime);
+            }
+        }
+
+        PersistStatusItems(items);
+    }
+
+    private static List<string> InsertByDefaultOrder(List<string> current, string id)
+    {
+        var set = new HashSet<string>(current, StringComparer.Ordinal) { id };
+        return TopBarStatusItemIds.DefaultOrder.Where(set.Contains).ToList();
+    }
+
+    private void OnMoveStatusItemLeft(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { Tag: string id })
+        {
+            return;
+        }
+
+        List<string> items = TopBarStatusItemIds.Normalize(_config.Current.TopBar.StatusItems);
+        int i = items.IndexOf(id);
+        if (i <= 0)
+        {
+            return;
+        }
+
+        (items[i - 1], items[i]) = (items[i], items[i - 1]);
+        PersistStatusItems(items);
+    }
+
+    private void OnMoveStatusItemRight(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.MenuItem { Tag: string id })
+        {
+            return;
+        }
+
+        List<string> items = TopBarStatusItemIds.Normalize(_config.Current.TopBar.StatusItems);
+        int i = items.IndexOf(id);
+        if (i < 0 || i >= items.Count - 1)
+        {
+            return;
+        }
+
+        (items[i + 1], items[i]) = (items[i], items[i + 1]);
+        PersistStatusItems(items);
+    }
+
+    private void OnResetStatusItems(object sender, RoutedEventArgs e)
+    {
+        PersistStatusItems(TopBarStatusItemIds.DefaultOrder.ToList());
+    }
+
+    private void PersistStatusItems(List<string> items)
+    {
+        AppConfig cfg = _config.Current;
+        cfg.TopBar ??= new TopBarConfig();
+        cfg.TopBar.StatusItems = TopBarStatusItemIds.Normalize(items);
+        _config.Save(cfg);
+        ApplyStatusItemLayout();
     }
 
     private static void SetPlainToolTip(FrameworkElement element, string? text)

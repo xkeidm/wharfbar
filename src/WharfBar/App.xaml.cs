@@ -41,7 +41,7 @@ public partial class App : Application
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
 
-        var topBar = new TopBarWindow(_taskbar);
+        var topBar = new TopBarWindow(_taskbar, _config);
         MainWindow = topBar;
         topBar.Show();
 

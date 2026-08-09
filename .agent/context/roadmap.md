@@ -50,11 +50,18 @@
 
 ### P2 — v1 sonrası adaylar
 
-9. Ses flyout polish / cihaz seçici (temel Core Audio slider + mute üst barda var)
+8b. **Üst bar durum öğesi özelleştirme** (göster/gizle + sıra; yerleşik katalog) —
+    QS + mixer stabilize olduktan sonra. Tasarım onaylı:
+    [`../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
+    plan:
+    [`../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md)
+    (kod landed; manuel UI checklist bekliyor; ayrı Control Center yok; ADR-005 tepsi aynası yok; sağ tık menü)
+9. Hızlı ayarlar cila: gerçek Gece ışığı / Enerji tasarrufu toggle; oturum ikonları; Wi-Fi SSID listesi
+   (8b’den sonra; panel = mevcut ADR-006)
 10. İkincil monitör / work-area stratejisi
 11. UWP/Store ikonları (tam yol)
 12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
-13. Daha zengin durum menüleri / bildirim merkezi benzeri UI
+13. Bildirim merkezi benzeri içerik aynası (ADR-005 hâlâ reddediyor; ayrı onay gerekir)
 
 ### Bilinçli ertelenenler / yasaklar
 

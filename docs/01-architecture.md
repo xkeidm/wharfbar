@@ -38,6 +38,7 @@ WharfBar.sln                    # kökte, tek proje
 src/WharfBar/
   Views/
     TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; sağ durum/overflow; WndProc
+    QuickSettingsFlyout.xaml(.cs) # Win11 tarzı hızlı ayarlar (ses/ağ; ADR-006)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
   Native/
@@ -47,18 +48,22 @@ src/WharfBar/
     Dwm.cs                      # köşe, immersive dark, backdrop yedek, frame extend
     ShellIcon.cs                # IShellItemImageFactory + SHGetFileInfo ikon çıkarma / Destroy
     TaskbarNative.cs            # Shell_TrayWnd + ABM_GETSTATE/SETSTATE sarmalayıcı
-    SendInputKeys.cs            # Win+B / Space / Enter (tray overflow)
+    SendInputKeys.cs            # Win+B / Win+N / Win+P / Space / Enter
     TrayOverflowNative.cs       # overflow penceresi / TrayNotifyWnd chevron / Win+B
     WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # hit-test stub (Faz 4: tam etkileşimli; passthrough ertelendi)
     PowerStatus.cs              # GetSystemPowerStatus sarmalayıcı
     NotifyIconHost.cs           # Shell_NotifyIcon ADD/DELETE (kendi tepsi ikonu)
+    AudioEndpointVolume.cs      # master volume / mute (Core Audio)
+    CoreAudioDevices.cs         # render aygıt listesi + varsayılan seçimi
+    CoreAudioSessions.cs        # uygulama oturum sesleri
   Models/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
-    AppConfig.cs                # JSON kök şema + DockConfig (iconSize varsayılan 28)
+    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (6 sabit id)
+    AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
     WindowAppearance.cs         # WPF-UI tema + backdrop; DWM ince ayar
@@ -72,6 +77,9 @@ src/WharfBar/
     DockAutoHideController.cs   # auto-hide stub (Enabled config’ten; davranış Faz 8)
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
+    VolumeService.cs            # master volume poll
+    AudioMixerService.cs        # aygıt + uygulama karıştırıcı
+    QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
@@ -79,6 +87,7 @@ src/WharfBar/
     DockAppsComposer.cs         # pin + running birleşik liste
     ShortcutResolver.cs         # .lnk → hedef yol / args
     TrayOverflowInvoker.cs      # peek-show + native overflow + yeniden gizle
+    NotificationCenterInvoker.cs # Win+N
   App.xaml(.cs)                 # Startup: taskbar hide → TopBar + Dock + tray
   app.manifest                  # PerMonitorV2 + longPathAware + asInvoker
   WharfBar.csproj
@@ -101,9 +110,12 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | AppBar; sol logo menü; sağ küme + ses/takvim Popup; bildirimler Win+N |
+| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `DateTimeButton` + `NotificationsButton` (ayrı; ikisi de Win+N) |
+| `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
 | `AboutWindow` | Hakkında diyaloğu; shell kaydı yok |
 | `VolumeService` / `AudioEndpointVolume` | Varsayılan render endpoint ses seviyesi / mute (Core Audio) |
+| `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | EarTrumpet tarzı aygıt blokları + uygulama oturum sesleri (ADR-006) |
+| `QuickSettingsService` | Ağ detayı, WinRT radyo, Settings URI / Win+P |
 | `NotificationCenterInvoker` | Native bildirim merkezi (`Win+N`) |
 | `AppBar` | `ABM_NEW` / `QUERYPOS` / `SETPOS` / `REMOVE`; `ABN_*` çözümleme; yeniden kayıt |
 | `NativeMethods` | Ham `DllImport` + struct + sabitler; `internal`, UI’dan doğrudan çağrılmaz |
@@ -227,6 +239,16 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "autoHide": true,
     "iconSize": 28
   },
+  "topBar": {
+    "statusItems": [
+      "trayOverflow",
+      "network",
+      "battery",
+      "volume",
+      "dateTime",
+      "notifications"
+    ]
+  },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
   ]
@@ -240,6 +262,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | Tercih saklanır; gerçek gizleme sonraki faz |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set. Soft alan (`schemaVersion` 1) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

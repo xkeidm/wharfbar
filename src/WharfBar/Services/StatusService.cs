@@ -175,8 +175,8 @@ internal sealed class StatusService : IDisposable
     private static (string Text, string Tooltip) FormatDate(DateTime now)
     {
         CultureInfo culture = CultureInfo.CurrentCulture;
-        // Compact bar label: "9 Ağu" / "Aug 9" depending on culture.
-        string text = now.ToString("d MMM", culture);
+        // Win11 taskbar-style short date under the time ("9.08.2026" / "8/9/2026").
+        string text = now.ToString("d", culture);
         string tip = now.ToString("D", culture);
         return (text, tip);
     }

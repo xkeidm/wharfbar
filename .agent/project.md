@@ -11,8 +11,9 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 ## Ürün
 
-- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda gizli/ağ/pil/ses/tarih/saat/
-  bildirimler; ses+takvim Fluent `Popup` (üstten); bildirimler native `Win+N`; **AppBar** + tepsi hibrit.
+- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda gizli/ağ/pil/ses/
+  **saat+tarih+bildirim** (tek Win11 kümesi; tıklanınca native `Win+N`); **Hızlı ayarlar**
+  flyout (ses+ağ, ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   `config.pinnedApps` seed/fallback.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
@@ -41,7 +42,8 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 5. **v1:** UWP ikonları sınırlı (placeholder); görev çubuğu gizleme + restore (ADR-005); tek örnek Mutex.
 6. **Autostart:** Startup klasörü > Registry Run (`AutostartService` + `AppConfig.autostart`).
 7. **Hit-testing + fullscreen hide** dock’ta uygulandı (stub + `FullscreenState` köprüsü); gerçek auto-hide sonraki faz (tercih Faz 5’te config’te).
-8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; tepsi yalnızca kendi Quit menüsü.
+8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
+   (ADR-006); tepsi yalnızca kendi Quit menüsü.
 
 ## Doküman haritası
 
@@ -57,6 +59,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/003-...` | Top bar yerleşimi, `ABM_REMOVE`, fullscreen |
 | `docs/decisions/004-...` | Mica / WPF-UI, köşe `DONOTROUND`, tema yenileme |
 | `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle |
+| `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
 
 ## Mevcut repo durumu
 
@@ -74,12 +77,16 @@ canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `Run
 `DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
 Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, monitör alt kenarına
 yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
-Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). Henüz yok: dock
-auto-hide polish (Faz 8); ses göstergesi.
+Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
+(ADR-006): ses/ağ ikonundan paylaşılan flyout; EarTrumpet tarzı aygıt blokları + uygulama
+sesleri; ağ durumu / Settings. Henüz yok: dock auto-hide polish (Faz 8).
 Öncelikli yapılacaklar: [`context/roadmap.md`](context/roadmap.md).
 Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından Faz 8 auto-hide (9a/9b sonrası daha anlamlı).
 Spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
 Plan: [`../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
+Üst bar özelleştirme (göster/gizle + sıra; sağ tık):
+[`../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
+plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md).
 
 Derleme: `dotnet build WharfBar.sln`. Ayrıntı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 

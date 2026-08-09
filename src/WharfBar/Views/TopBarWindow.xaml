@@ -1,6 +1,7 @@
 <Window x:Class="WharfBar.Views.TopBarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WharfBar.Views"
         Title="WharfBar"
         WindowStyle="None"
         ResizeMode="NoResize"
@@ -15,8 +16,8 @@
         UseLayoutRounding="True">
 
     <!-- Opaque window, AllowsTransparency off (kills Mica). Windows logo uses a Path (not a
-         font glyph) so Mica / missing MDL2 faces cannot blank it. Flyouts are Popups anchored
-         below the bar — opaque Fluent brushes, no AllowsTransparency+Mica pairing. -->
+         font glyph) so Mica / missing MDL2 faces cannot blank it. Quick Settings flyout is a
+         Popup anchored below the bar — opaque Fluent brushes, no AllowsTransparency+Mica. -->
 
     <Window.Resources>
         <Style TargetType="ToolTip">
@@ -48,17 +49,30 @@
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
         <Style x:Key="StatusLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <Style x:Key="FlyoutChrome" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource ApplicationBackgroundBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource TextFillColorTertiaryBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="14" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
+        <!-- Win11-like clock: time over short date, shared with notification bell. -->
+        <Style x:Key="ClockTimeLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="LineHeight" Value="12" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+        <Style x:Key="ClockDateLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="Segoe UI" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="FontWeight" Value="Normal" />
+            <Setter Property="LineHeight" Value="10" />
+            <Setter Property="TextAlignment" Value="Right" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Opacity" Value="0.72" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
     </Window.Resources>
 
@@ -97,7 +111,7 @@
             </Border>
 
             <!-- Right cluster, left→right toward the edge:
-                 overflow · network · battery · ses · tarih · saat · bildirimler -->
+                 overflow · network · battery · ses · saat/tarih · bildirimler -->
             <StackPanel x:Name="StatusStrip"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
@@ -143,95 +157,48 @@
                                Text="&#xE767;" />
                 </Border>
 
-                <Border x:Name="DateButton" Style="{StaticResource StatusHit}">
+                <Border x:Name="DateTimeButton"
+                        Style="{StaticResource StatusHit}"
+                        Padding="8,2,4,2"
+                        Margin="0">
                     <Border.ToolTip>
-                        <ToolTip Content="Tarih" />
+                        <ToolTip Content="Tarih ve saat" />
                     </Border.ToolTip>
-                    <TextBlock x:Name="DateText"
-                               Style="{StaticResource StatusLabel}"
-                               Text="--" />
-                </Border>
-
-                <Border x:Name="ClockButton" Style="{StaticResource StatusHit}">
-                    <Border.ToolTip>
-                        <ToolTip Content="Saat" />
-                    </Border.ToolTip>
-                    <TextBlock x:Name="ClockText"
-                               Style="{StaticResource StatusLabel}"
-                               FontWeight="SemiBold"
-                               Text="--:--" />
+                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
+                        <TextBlock x:Name="ClockText"
+                                   Style="{StaticResource ClockTimeLabel}"
+                                   Text="--:--" />
+                        <TextBlock x:Name="DateText"
+                                   Style="{StaticResource ClockDateLabel}"
+                                   Text="--" />
+                    </StackPanel>
                 </Border>
 
                 <Border x:Name="NotificationsButton"
                         Style="{StaticResource StatusHit}"
+                        Padding="4,2,6,2"
                         Margin="0">
                     <Border.ToolTip>
                         <ToolTip Content="Bildirimler" />
                     </Border.ToolTip>
-                    <TextBlock Style="{StaticResource StatusGlyph}"
+                    <TextBlock x:Name="NotificationsGlyph"
+                               Style="{StaticResource StatusGlyph}"
+                               VerticalAlignment="Center"
                                Text="&#xEA8F;" />
                 </Border>
             </StackPanel>
 
-            <!-- Top-anchored Fluent flyouts (opaque; Placement=Bottom under the hit target). -->
-            <Popup x:Name="VolumePopup"
+            <!-- Quick Settings (Win11-style): shared by volume + network. Opaque Fluent chrome —
+                 AllowsTransparency stays false (never pair with Mica). -->
+            <Popup x:Name="QuickSettingsPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=VolumeButton}"
                    StaysOpen="False"
                    AllowsTransparency="False"
-                   PopupAnimation="Fade">
-                <Border Style="{StaticResource FlyoutChrome}" MinWidth="260">
-                    <StackPanel>
-                        <TextBlock FontWeight="SemiBold" FontSize="13" Text="Ses" Margin="0,0,0,10" />
-                        <DockPanel LastChildFill="True">
-                            <Button x:Name="MuteButton"
-                                    DockPanel.Dock="Left"
-                                    MinWidth="36"
-                                    Margin="0,0,10,0"
-                                    Padding="6,4"
-                                    Click="OnMuteClick"
-                                    ToolTip="Sessiz" />
-                            <TextBlock x:Name="VolumePercentText"
-                                       DockPanel.Dock="Right"
-                                       Width="36"
-                                       Margin="10,0,0,0"
-                                       VerticalAlignment="Center"
-                                       TextAlignment="Right"
-                                       Text="0%" />
-                            <Slider x:Name="VolumeSlider"
-                                    Minimum="0"
-                                    Maximum="100"
-                                    VerticalAlignment="Center"
-                                    TickFrequency="1"
-                                    IsSnapToTickEnabled="True"
-                                    ValueChanged="OnVolumeSliderChanged" />
-                        </DockPanel>
-                    </StackPanel>
-                </Border>
-            </Popup>
-
-            <Popup x:Name="DateTimePopup"
-                   Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=ClockButton}"
-                   StaysOpen="False"
-                   AllowsTransparency="False"
-                   PopupAnimation="Fade">
-                <Border Style="{StaticResource FlyoutChrome}" MinWidth="280">
-                    <StackPanel>
-                        <TextBlock x:Name="FlyoutClockText"
-                                   FontSize="28"
-                                   FontWeight="SemiBold"
-                                   Text="--:--" />
-                        <TextBlock x:Name="FlyoutDateText"
-                                   FontSize="13"
-                                   Opacity="0.85"
-                                   Margin="0,2,0,12"
-                                   Text="—" />
-                        <Calendar x:Name="FlyoutCalendar"
-                                  SelectionMode="SingleDate"
-                                  IsTodayHighlighted="True" />
-                    </StackPanel>
-                </Border>
+                   PopupAnimation="Fade"
+                   Opened="OnQuickSettingsOpened"
+                   Closed="OnQuickSettingsClosed">
+                <local:QuickSettingsFlyout x:Name="QuickSettingsHost" />
             </Popup>
         </Grid>
     </Border>
