@@ -40,6 +40,12 @@ public partial class TopBarWindow : Window
     private bool _isApplyingPlacement;
     private bool _isFullScreenAppActive;
     private bool _isShutdownHooked;
+    private bool _isRecreateClose;
+    private ExitEventHandler? _onAppExit;
+    private SessionEndingCancelEventHandler? _onSessionEnding;
+    private DispatcherUnhandledExceptionEventHandler? _onDispatcherUnhandled;
+    private EventHandler? _onProcessExit;
+    private UnhandledExceptionEventHandler? _onUnhandledException;
     private QuickSettingsPage _pendingQuickPage = QuickSettingsPage.Main;
     private Dictionary<string, FrameworkElement>? _statusElements;
     private bool _batteryPresent = false;
@@ -50,6 +56,10 @@ public partial class TopBarWindow : Window
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _trayOverflow = new TrayOverflowInvoker(_taskbar);
+
+        // Must be set before InitializeComponent — WPF locks AllowsTransparency after creation.
+        AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(
+            _config.Current.TopBar?.BackgroundMode ?? TopBarBackgroundModes.Mica);
         InitializeComponent();
 
         _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
@@ -87,7 +97,7 @@ public partial class TopBarWindow : Window
         HookShutdownPaths();
 
         _appearance = new WindowAppearance(this, _source.Handle, Backdrop, Corners);
-        _appearance.Apply();
+        ApplyBackgroundAppearance();
 
         _status = new StatusService();
         _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
@@ -200,6 +210,13 @@ public partial class TopBarWindow : Window
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
+        if (_isRecreateClose)
+        {
+            // Services + AppBar already released in PrepareForRecreate; never restore taskbar here.
+            base.OnClosing(e);
+            return;
+        }
+
         CloseFlyouts();
         QuickSettingsHost.Detach();
         _status?.Dispose();
@@ -211,8 +228,28 @@ public partial class TopBarWindow : Window
         _volume?.Dispose();
         _volume = null;
 
-        ReleaseShellState();
+        ReleaseShellState(); // taskbar.Restore + AppBar.Remove
         base.OnClosing(e);
+    }
+
+    /// <summary>
+    /// Tear down for Mica ↔ translucent window recreate. AppBar remove only — no taskbar restore.
+    /// </summary>
+    internal void PrepareForRecreate()
+    {
+        _isRecreateClose = true;
+        UnhookShutdownPaths();
+        CloseFlyouts();
+        QuickSettingsHost.Detach();
+        _status?.Dispose();
+        _status = null;
+        _mixer?.Dispose();
+        _mixer = null;
+        _quick?.Dispose();
+        _quick = null;
+        _volume?.Dispose();
+        _volume = null;
+        _appBar?.Remove();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -493,6 +530,68 @@ public partial class TopBarWindow : Window
         ApplyStatusItemLayout();
     }
 
+    private void ApplyBackgroundAppearance()
+    {
+        if (_appearance is null)
+        {
+            return;
+        }
+
+        TopBarConfig top = _config.Current.TopBar ?? new TopBarConfig();
+        string mode = TopBarBackgroundModes.NormalizeMode(top.BackgroundMode);
+        switch (mode)
+        {
+            case TopBarBackgroundModes.Transparent:
+                _appearance.ApplyTranslucent(null);
+                break;
+            case TopBarBackgroundModes.Tint:
+                _appearance.ApplyTranslucent(TopBarBackgroundModes.ClampOpacity(top.TintOpacity));
+                break;
+            default:
+                _appearance.Apply();
+                break;
+        }
+    }
+
+    private void PersistBackground(string mode, int? opacity = null)
+    {
+        AppConfig cfg = _config.Current;
+        cfg.TopBar ??= new TopBarConfig();
+        cfg.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(mode);
+        if (opacity is not null)
+        {
+            cfg.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(opacity.Value);
+        }
+
+        _config.Save(cfg);
+    }
+
+    private void SetBackgroundMode(string mode)
+    {
+        string normalized = TopBarBackgroundModes.NormalizeMode(mode);
+        bool needTx = TopBarBackgroundModes.NeedsTransparency(normalized);
+        PersistBackground(normalized);
+
+        if (needTx != AllowsTransparency)
+        {
+            ((App)Application.Current).RecreateTopBar();
+            return;
+        }
+
+        ApplyBackgroundAppearance();
+    }
+
+    private void SetTintOpacity(int opacity)
+    {
+        PersistBackground(TopBarBackgroundModes.Tint, opacity);
+        if (AllowsTransparency
+            && TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar.BackgroundMode)
+               == TopBarBackgroundModes.Tint)
+        {
+            _appearance?.ApplyTranslucent(TopBarBackgroundModes.ClampOpacity(opacity));
+        }
+    }
+
     private static void SetPlainToolTip(FrameworkElement element, string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -535,15 +634,64 @@ public partial class TopBarWindow : Window
 
         _isShutdownHooked = true;
 
+        _onAppExit = (_, _) => ReleaseShellState();
+        _onSessionEnding = (_, _) => ReleaseShellState();
+        _onDispatcherUnhandled = (_, _) => ReleaseShellState();
+        _onProcessExit = (_, _) => ReleaseShellState();
+        _onUnhandledException = (_, _) => ReleaseShellState();
+
         if (Application.Current is { } app)
         {
-            app.Exit += (_, _) => ReleaseShellState();
-            app.SessionEnding += (_, _) => ReleaseShellState();
-            app.DispatcherUnhandledException += (_, _) => ReleaseShellState();
+            app.Exit += _onAppExit;
+            app.SessionEnding += _onSessionEnding;
+            app.DispatcherUnhandledException += _onDispatcherUnhandled;
         }
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => ReleaseShellState();
-        AppDomain.CurrentDomain.UnhandledException += (_, _) => ReleaseShellState();
+        AppDomain.CurrentDomain.ProcessExit += _onProcessExit;
+        AppDomain.CurrentDomain.UnhandledException += _onUnhandledException;
+    }
+
+    private void UnhookShutdownPaths()
+    {
+        if (!_isShutdownHooked)
+        {
+            return;
+        }
+
+        if (Application.Current is { } app)
+        {
+            if (_onAppExit is not null)
+            {
+                app.Exit -= _onAppExit;
+            }
+
+            if (_onSessionEnding is not null)
+            {
+                app.SessionEnding -= _onSessionEnding;
+            }
+
+            if (_onDispatcherUnhandled is not null)
+            {
+                app.DispatcherUnhandledException -= _onDispatcherUnhandled;
+            }
+        }
+
+        if (_onProcessExit is not null)
+        {
+            AppDomain.CurrentDomain.ProcessExit -= _onProcessExit;
+        }
+
+        if (_onUnhandledException is not null)
+        {
+            AppDomain.CurrentDomain.UnhandledException -= _onUnhandledException;
+        }
+
+        _onAppExit = null;
+        _onSessionEnding = null;
+        _onDispatcherUnhandled = null;
+        _onProcessExit = null;
+        _onUnhandledException = null;
+        _isShutdownHooked = false;
     }
 
     private void ReleaseShellState()
@@ -647,13 +795,13 @@ public partial class TopBarWindow : Window
             case NativeMethods.WM_THEMECHANGED:
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
-                _appearance?.Refresh();
+                ApplyBackgroundAppearance();
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
-                    _appearance?.Refresh();
+                    ApplyBackgroundAppearance();
                 }
 
                 break;

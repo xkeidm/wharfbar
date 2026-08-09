@@ -15,9 +15,11 @@
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         UseLayoutRounding="True">
 
-    <!-- Opaque window, AllowsTransparency off (kills Mica). Windows logo uses a Path (not a
-         font glyph) so Mica / missing MDL2 faces cannot blank it. Quick Settings flyout is a
-         Popup anchored below the bar — opaque Fluent brushes, no AllowsTransparency+Mica. -->
+    <!-- AllowsTransparency is set in the ctor from TopBar.BackgroundMode (before
+         InitializeComponent) — never put it in XAML. Mica requires false; translucent
+         modes require true; never pair AllowsTransparency=true with Mica. Windows logo
+         uses geometry (not a font glyph) so Mica / missing MDL2 faces cannot blank it.
+         Quick Settings flyout Popup stays opaque Fluent (AllowsTransparency=False). -->
 
     <Window.Resources>
         <Style TargetType="ToolTip">

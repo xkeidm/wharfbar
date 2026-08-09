@@ -52,6 +52,29 @@ public partial class App : Application
         _tray = new TrayIconService();
     }
 
+    /// <summary>
+    /// Rebuilds the top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
+    /// Removes the old AppBar only — does <strong>not</strong> restore the Windows taskbar.
+    /// </summary>
+    internal void RecreateTopBar()
+    {
+        if (_config is null || _taskbar is null)
+        {
+            return;
+        }
+
+        if (MainWindow is not TopBarWindow old)
+        {
+            return;
+        }
+
+        old.PrepareForRecreate();
+        var next = new TopBarWindow(_taskbar, _config);
+        MainWindow = next;
+        next.Show();
+        old.Close();
+    }
+
     protected override void OnExit(ExitEventArgs e)
     {
         _taskbar?.Restore();
