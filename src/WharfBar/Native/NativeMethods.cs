@@ -68,6 +68,54 @@ internal struct SHFILEINFO
     public string szTypeName;
 }
 
+[StructLayout(LayoutKind.Sequential)]
+internal struct INPUT
+{
+    public uint type;
+    public InputUnion U;
+}
+
+/// <summary>
+/// Union must be sized for <see cref="MOUSEINPUT"/> (largest member) so
+/// <see cref="Marshal.SizeOf{T}"/> matches native INPUT (40 bytes on x64, 28 on x86).
+/// </summary>
+[StructLayout(LayoutKind.Explicit)]
+internal struct InputUnion
+{
+    [FieldOffset(0)] public MOUSEINPUT mi;
+    [FieldOffset(0)] public KEYBDINPUT ki;
+    [FieldOffset(0)] public HARDWAREINPUT hi;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct MOUSEINPUT
+{
+    public int dx;
+    public int dy;
+    public uint mouseData;
+    public uint dwFlags;
+    public uint time;
+    public IntPtr dwExtraInfo;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct KEYBDINPUT
+{
+    public ushort wVk;
+    public ushort wScan;
+    public uint dwFlags;
+    public uint time;
+    public IntPtr dwExtraInfo;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct HARDWAREINPUT
+{
+    public uint uMsg;
+    public ushort wParamL;
+    public ushort wParamH;
+}
+
 /// <summary>
 /// Raw Win32 entry points. Kept internal; UI code goes through the wrappers in this namespace.
 /// </summary>
@@ -79,6 +127,21 @@ internal static class NativeMethods
     internal const uint ABM_SETPOS = 0x00000003;
     internal const uint ABM_ACTIVATE = 0x00000006;
     internal const uint ABM_WINDOWPOSCHANGED = 0x00000009;
+    internal const uint ABM_GETSTATE = 0x00000004;
+    internal const uint ABM_SETSTATE = 0x0000000A;
+
+    internal const int ABS_AUTOHIDE = 0x00000001;
+    internal const int ABS_ALWAYSONTOP = 0x00000002;
+
+    internal const int SW_HIDE = 0;
+    internal const int SW_SHOW = 5;
+    internal const int SW_SHOWNA = 8;
+    internal const int SW_RESTORE = 9;
+
+    internal const uint GW_OWNER = 4;
+    internal const int GWL_EXSTYLE = -20;
+    internal const int WS_EX_APPWINDOW = 0x00040000;
+    internal const int WS_EX_TOOLWINDOW = 0x00000080;
 
     internal const uint ABE_LEFT = 0;
     internal const uint ABE_TOP = 1;
@@ -133,6 +196,11 @@ internal static class NativeMethods
     /// <summary>Low word of tray callback lParam carries the mouse message.</summary>
     internal const int NIN_SELECT = 0x0400;
     internal const int NIN_KEYSELECT = 0x0401;
+
+    internal const ushort VK_LWIN = 0x5B;
+    internal const ushort VK_B = 0x42;
+    internal const uint INPUT_KEYBOARD = 1;
+    internal const uint KEYEVENTF_KEYUP = 0x0002;
 
     [DllImport("shell32.dll", SetLastError = false)]
     internal static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
@@ -224,6 +292,43 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern IntPtr FindWindow(string? lpClassName, string? lpWindowName);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern bool IsWindowVisible(IntPtr hWnd);
+
+    internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool IsIconic(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 }
 
 [StructLayout(LayoutKind.Sequential)]
