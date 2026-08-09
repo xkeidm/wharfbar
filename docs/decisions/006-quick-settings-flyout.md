@@ -1,9 +1,9 @@
 # ADR-006: Hızlı ayarlar flyout (ses karıştırıcı + ağ)
 
-**Durum:** Kabul edildi (2026-08-09; karıştırıcı UX güncellemesi aynı gün)  
+**Durum:** Kabul edildi (2026-08-09; [tek-aygıt karıştırıcı UX güncellemesi](../superpowers/specs/2026-08-09-mixer-single-device-design.md) aynı gün)  
 **Tarih:** 2026-08-09  
 **Bağlam:** Üst barda ses ve ethernet/ağ tıklamaları için Win11 Quick Settings benzeri
-panel; EarTrumpet tarzı **çoklu çıkış aygıtı + uygulama sesleri**; ağ seçenekleri
+panel; **tek aygıt + dropdown + uygulama oturumları** (EarTrumpet ilhamı); ağ seçenekleri
 belgelenmiş .NET / WinRT yollarıyla (ADR-005 tepsi aynası yasağı korunur).
 
 ## Karar
@@ -12,43 +12,40 @@ belgelenmiş .NET / WinRT yollarıyla (ADR-005 tepsi aynası yasağı korunur).
 
 | Giriş | Açılış sayfası |
 |-------|----------------|
-| Ses ikonu | Ana (2×3 karo + master slider + karıştırıcı chevron) |
-| Ağ / ethernet ikonu | Ağ sayfası (durum + Ayarlar URI’leri) |
-| Karıştırıcı chevron | Ses karıştırıcı (EarTrumpet düzeni) |
+| Control Center / hızlı ayarlar ikonu | Ana (2×3 karo + master slider + karıştırıcı chevron) |
+| Ses ikonu | Ses karıştırıcı (tek aygıt + dropdown) |
+| Ağ / ethernet ikonu | Ağ sayfası (durum + Ayarlar URI'leri) |
+| Karıştırıcı chevron (flyout içi) | Ses karıştırıcı |
 
 Popup **opak Fluent** (`AllowsTransparency=false`); Mica ile şeffaflık eşleştirilmez
-(ADR-004 / gotcha). **Ayrı bir ses popup’ı yok** — karıştırıcı derinliği QS sayfası
-olarak kalır (aşağıdaki UX notu).
+(ADR-004 / gotcha). **Ayrı bir ses popup'ı yok** — karıştırıcı derinliği QS sayfası
+olarak kalır (aşağıdaki UX notu). Üst bar varsayılan sıra ve `controlCenter` id:
+[`../superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../superpowers/specs/2026-08-09-topbar-status-strip-design.md).
 
-### Ses karıştırıcı (EarTrumpet düzeni)
+### Ses karıştırıcı (tek aygıt + dropdown)
 
-Tek ComboBox + düz oturum listesi yerine:
-
-- Her aktif **render** aygıtı ayrı blok: başlık (ad + daralt/genişlet chevron), master
-  satır (hoparlör ikonu + slider + sayısal %), altında o aygıta bağlı uygulama satırları
-  (ikon + slider + %)
-- Varsayılan aygıt üstte; başlığa tıklayınca `IPolicyConfig.SetDefaultEndpoint`
-- Master seviye: aygıt başına `IAudioEndpointVolume` (varsayılan aygıt `VolumeService` ile
-  senkron)
-- Uygulama oturumları: her aygıtta `IAudioSessionManager2` (`CoreAudioSessions`); ikonlar
-  süreç yolu / `GetIconPath` + `AppIconService` / `SHGetFileInfo` (yoksa MDL2 glif)
+- Üstte **Çıkış cihazı** etiketi + seçili aygıt adı (tıklanınca aktif render
+  listesi; seçim → `IPolicyConfig.SetDefaultEndpoint`)
+- Altında master mute + slider + % (`VolumeService` / varsayılan endpoint)
+- Altında seçili aygıttaki **tüm** uygulama oturumları (ikon + slider + %;
+  `CoreAudioSessions.ListSessionsOnDevice`)
 - Canlı yenileme: flyout mixer sayfası açıkken ~750 ms poll
+- Fluent tema; EarTrumpet mor kopyası yok; ayrı volume popup yok
 
 ### Ağ / hızlı karolar
 
 - Durum: `.NET NetworkInformation` (tepisi okuma yok)
 - Wi-Fi / Bluetooth / uçak: WinRT `Windows.Devices.Radios` (erişim yoksa Settings URI)
 - Yansıt: `Win+P` (`SendInputKeys`)
-- Gece ışığı / enerji tasarrufu: `ms-settings:` URI (doğrudan toggle v1’de yok)
+- Gece ışığı / enerji tasarrufu: `ms-settings:` URI (doğrudan toggle v1'de yok)
 - Ağ sayfası: ethernet/Wi-Fi Settings deep-link
 
 ## Gerekçe
 
-Ayrı ses ve ağ pop-up’ları Win11 dilinden uzaklaşır; tek host hem paylaşımı hem de
+Ayrı ses ve ağ pop-up'ları Win11 dilinden uzaklaşır; tek host hem paylaşımı hem de
 karıştırıcı derinliğini karşılar. Belgelenmemiş tepsi aynası yine yasak; PolicyConfig yalnızca
-varsayılan ses aygıtı için dar kapsamda kabul edilir. EarTrumpet referans ekranları çoklu
-aygıt bloklarını gösterdiği için mixer **sayfa** UI’sı genişletildi; mimari (tek flyout)
-değişmedi.
+varsayılan ses aygıtı için dar kapsamda kabul edilir. Mixer **sayfa** UI'sı tek aygıt +
+dropdown + oturum listesine sadeleştirildi; mimari (tek flyout) değişmedi.
 
 ## Sonuçlar
 

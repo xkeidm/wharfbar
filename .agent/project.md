@@ -11,9 +11,10 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 ## Ürün
 
-- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda gizli/ağ/pil/ses/
-  **saat+tarih+bildirim** (tek Win11 kümesi; tıklanınca native `Win+N`); **Hızlı ayarlar**
-  flyout (ses+ağ, ADR-006); **AppBar** + tepsi hibrit.
+- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
+  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `network` →
+  `battery`; özelleştirilebilir). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
+  `controlCenter` → QS Main; ses → QS Mixer; ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   `config.pinnedApps` seed/fallback.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
@@ -43,7 +44,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 6. **Autostart:** Startup klasörü > Registry Run (`AutostartService` + `AppConfig.autostart`).
 7. **Hit-testing + fullscreen hide** dock’ta uygulandı (stub + `FullscreenState` köprüsü); gerçek auto-hide sonraki faz (tercih Faz 5’te config’te).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
-   (ADR-006); tepsi yalnızca kendi Quit menüsü.
+   (ADR-006; `controlCenter` → Main, volume → Mixer); tepsi yalnızca kendi Quit menüsü.
 
 ## Doküman haritası
 
@@ -71,15 +72,16 @@ tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare k�
 hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
 konumlanma, auto-hide / hit-test stub), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
-(`StatusService`, üst bar sağ şerit; **Segoe MDL2** glifleri + overflow düğmesi), kendi tepsi ikonu + Quit (`TrayIconService`),
+(`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
+`controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
 canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
 `DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
 Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, monitör alt kenarına
 yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
-(ADR-006): ses/ağ ikonundan paylaşılan flyout; EarTrumpet tarzı aygıt blokları + uygulama
-sesleri; ağ durumu / Settings. Henüz yok: dock auto-hide polish (Faz 8).
+(ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
+tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Henüz yok: dock auto-hide polish (Faz 8).
 Öncelikli yapılacaklar: [`context/roadmap.md`](context/roadmap.md).
 Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından Faz 8 auto-hide (9a/9b sonrası daha anlamlı).
 Spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
@@ -87,6 +89,9 @@ Plan: [`../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../d
 Üst bar özelleştirme (göster/gizle + sıra; sağ tık):
 [`../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
 plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md).
+Durum şeridi sırası + `controlCenter` + tek satır saat:
+[`../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
+plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../docs/superpowers/plans/2026-08-09-topbar-status-strip.md).
 
 Derleme: `dotnet build WharfBar.sln`. Ayrıntı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 

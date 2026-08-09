@@ -1,7 +1,8 @@
 # WharfBar — Ses karıştırıcı (tek aygıt + dropdown) tasarımı
 
 **Tarih:** 2026-08-09  
-**Durum:** Onaylandı (kullanıcı 2026-08-09) — uygulama planı henüz yazılmadı.  
+**Durum:** Onaylandı (kullanıcı 2026-08-09) — uygulama planı:
+  [`../plans/2026-08-09-mixer-single-device.md`](../plans/2026-08-09-mixer-single-device.md).  
 **İlgili:** [ADR-006](../../decisions/006-quick-settings-flyout.md),
 [status strip spec](2026-08-09-topbar-status-strip-design.md)
 

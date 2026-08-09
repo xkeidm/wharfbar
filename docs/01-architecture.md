@@ -62,7 +62,7 @@ src/WharfBar/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
-    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (6 sabit id)
+    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (7 sabit id)
     AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
@@ -110,11 +110,11 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `DateTimeButton` + `NotificationsButton` (ayrı; ikisi de Win+N) |
+| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `network` → QS Network |
 | `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
 | `AboutWindow` | Hakkında diyaloğu; shell kaydı yok |
 | `VolumeService` / `AudioEndpointVolume` | Varsayılan render endpoint ses seviyesi / mute (Core Audio) |
-| `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | EarTrumpet tarzı aygıt blokları + uygulama oturum sesleri (ADR-006) |
+| `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | Tek aygıt + dropdown + uygulama oturum sesleri (ADR-006) |
 | `QuickSettingsService` | Ağ detayı, WinRT radyo, Settings URI / Win+P |
 | `NotificationCenterInvoker` | Native bildirim merkezi (`Win+N`) |
 | `AppBar` | `ABM_NEW` / `QUERYPOS` / `SETPOS` / `REMOVE`; `ABN_*` çözümleme; yeniden kayıt |
@@ -240,13 +240,15 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "iconSize": 28
   },
   "topBar": {
+    "statusCatalogVersion": 1,
     "statusItems": [
       "trayOverflow",
-      "network",
-      "battery",
-      "volume",
       "dateTime",
-      "notifications"
+      "notifications",
+      "controlCenter",
+      "volume",
+      "network",
+      "battery"
     ]
   },
   "pinnedApps": [
@@ -262,7 +264,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | Tercih saklanır; gerçek gizleme sonraki faz |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
-| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set. Soft alan (`schemaVersion` 1) |
+| `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow` … `battery`, 7 id). Soft alan (`schemaVersion` 1) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik
