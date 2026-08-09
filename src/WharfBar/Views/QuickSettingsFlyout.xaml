@@ -229,12 +229,16 @@
                     </DockPanel>
                 </Border>
 
-                <ScrollViewer Grid.Row="3"
-                              MaxHeight="320"
-                              VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel x:Name="MixerSessionList" />
-                </ScrollViewer>
+                <StackPanel Grid.Row="3">
+                    <Border BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="0,1,0,0"
+                            Margin="0,0,0,8" />
+                    <ScrollViewer MaxHeight="320"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="MixerSessionList" />
+                    </ScrollViewer>
+                </StackPanel>
             </Grid>
 
             <!-- NETWORK -->

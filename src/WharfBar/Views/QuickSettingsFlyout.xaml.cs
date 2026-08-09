@@ -11,7 +11,6 @@ namespace WharfBar.Views;
 public partial class QuickSettingsFlyout : UserControl
 {
     private readonly AppIconService _icons = new();
-    private readonly HashSet<string> _collapsedDevices = new(StringComparer.Ordinal);
 
     private VolumeService? _volume;
     private AudioMixerService? _mixer;
@@ -142,23 +141,31 @@ public partial class QuickSettingsFlyout : UserControl
         _sessionSliderUpdating = true;
         try
         {
-            MixerDeviceList.Children.Clear();
-            if (snap.Devices.Count == 0)
+            if (snap.Selected is null)
             {
-                MixerDeviceList.Children.Add(new TextBlock
-                {
-                    Text = "Çıkış aygıtı bulunamadı",
-                    Opacity = 0.7,
-                    FontSize = 12,
-                    Margin = new Thickness(0, 4, 0, 0),
-                });
+                SelectedDeviceNameText.Text = "Çıkış aygıtı bulunamadı";
+                DevicePickerButton.IsEnabled = false;
+                MixerMasterSlider.IsEnabled = false;
+                MixerMasterMuteButton.IsEnabled = false;
+                MixerMasterPercentText.Text = "—";
+                MixerSessionList.Children.Clear();
                 return;
             }
 
-            for (int i = 0; i < snap.Devices.Count; i++)
-            {
-                MixerDeviceList.Children.Add(BuildDeviceSection(snap.Devices[i], i));
-            }
+            DevicePickerButton.IsEnabled = snap.Devices.Count > 0;
+            SelectedDeviceNameText.Text = snap.Selected.Name;
+            SelectedDeviceNameText.ToolTip = snap.Selected.Name;
+
+            MixerMasterMuteButton.IsEnabled = true;
+            MixerMasterSlider.IsEnabled = !snap.Selected.IsMuted;
+            MixerMasterMuteButton.Content =
+                snap.Selected.IsMuted || snap.Selected.Percent == 0 ? "\uE74F" : "\uE767";
+            MixerMasterMuteButton.ToolTip = snap.Selected.IsMuted ? "Sesi aç" : "Sessiz";
+            MixerMasterSlider.Value = snap.Selected.Percent;
+            MixerMasterPercentText.Text = snap.Selected.Percent.ToString();
+
+            RebuildDevicePickerList(snap);
+            RebuildSessionList(snap.Sessions);
         }
         finally
         {
@@ -167,137 +174,54 @@ public partial class QuickSettingsFlyout : UserControl
         }
     }
 
-    private UIElement BuildDeviceSection(MixerDeviceSection device, int index)
+    private void RebuildDevicePickerList(MixerSnapshot snap)
     {
-        bool collapsed = _collapsedDevices.Contains(device.DeviceId);
-        Brush? fill = TryFindResource(
-            index % 2 == 0 ? "ControlFillColorDefaultBrush" : "ControlFillColorSecondaryBrush") as Brush
-            ?? Brushes.Transparent;
-
-        var root = new Border
+        DevicePickerList.Children.Clear();
+        foreach (MixerDeviceInfo device in snap.Devices)
         {
-            Background = fill,
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(10, 8, 10, 10),
-            Margin = new Thickness(0, 0, 0, 8),
-            Tag = device.DeviceId,
-        };
-
-        var stack = new StackPanel();
-
-        // Header: device name + expand chevron (click name → set default)
-        var header = new DockPanel { Margin = new Thickness(0, 0, 0, 6), Cursor = Cursors.Hand };
-        var chevron = new Button
-        {
-            Content = collapsed ? "\uE70D" : "\uE70E", // ChevronDown / ChevronUp
-            Style = TryFindResource("QsIconButton") as Style,
-            Tag = device.DeviceId,
-            ToolTip = collapsed ? "Genişlet" : "Daralt",
-            FontSize = 12,
-            Padding = new Thickness(6, 4, 6, 4),
-        };
-        chevron.Click += OnDeviceCollapseClick;
-        DockPanel.SetDock(chevron, Dock.Right);
-
-        var title = new TextBlock
-        {
-            Text = device.Name,
-            FontSize = 12,
-            FontWeight = device.IsDefault ? FontWeights.SemiBold : FontWeights.Normal,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            ToolTip = device.IsDefault
-                ? $"{device.Name} (varsayılan)"
-                : $"{device.Name} — varsayılan yapmak için tıkla",
-        };
-        header.Children.Add(chevron);
-        header.Children.Add(title);
-        header.MouseLeftButtonUp += (_, e) =>
-        {
-            if (e.OriginalSource is DependencyObject src
-                && FindAncestor<Button>(src) is not null)
+            var row = new Border
             {
-                return;
-            }
+                Padding = new Thickness(10, 8, 10, 8),
+                CornerRadius = new CornerRadius(6),
+                Cursor = Cursors.Hand,
+                Tag = device.DeviceId,
+                Background = device.IsDefault
+                    ? TryFindResource("ControlFillColorSecondaryBrush") as Brush
+                        ?? Brushes.Transparent
+                    : Brushes.Transparent,
+            };
 
-            if (!device.IsDefault)
+            row.Child = new TextBlock
             {
-                _mixer?.TrySetDefaultDevice(device.DeviceId);
-            }
-        };
-        stack.Children.Add(header);
-
-        // Master volume row
-        stack.Children.Add(BuildMasterRow(device));
-
-        if (!collapsed)
-        {
-            if (device.Sessions.Count == 0)
-            {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = "Uygulama oturumu yok",
-                    FontSize = 11,
-                    Opacity = 0.55,
-                    Margin = new Thickness(4, 6, 0, 0),
-                });
-            }
-            else
-            {
-                foreach (AudioAppSession session in device.Sessions)
-                {
-                    stack.Children.Add(BuildSessionRow(session));
-                }
-            }
+                Text = device.IsDefault ? $"{device.Name} (varsayılan)" : device.Name,
+                FontSize = 12,
+                FontWeight = device.IsDefault ? FontWeights.SemiBold : FontWeights.Normal,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            row.MouseLeftButtonUp += OnDevicePickerItemClick;
+            DevicePickerList.Children.Add(row);
         }
-
-        root.Child = stack;
-        return root;
     }
 
-    private UIElement BuildMasterRow(MixerDeviceSection device)
+    private void RebuildSessionList(IReadOnlyList<AudioAppSession> sessions)
     {
-        var dock = new DockPanel { Margin = new Thickness(0, 0, 0, 2) };
-
-        var mute = new Button
+        MixerSessionList.Children.Clear();
+        if (sessions.Count == 0)
         {
-            Content = device.IsMuted || device.Percent == 0 ? "\uE74F" : "\uE767",
-            Style = TryFindResource("QsIconButton") as Style,
-            Tag = device.DeviceId,
-            ToolTip = device.IsMuted ? "Sesi aç" : "Sessiz",
-        };
-        mute.Click += OnDeviceMuteClick;
-        DockPanel.SetDock(mute, Dock.Left);
+            MixerSessionList.Children.Add(new TextBlock
+            {
+                Text = "Uygulama oturumu yok",
+                Opacity = 0.55,
+                FontSize = 12,
+                Margin = new Thickness(4, 4, 0, 0),
+            });
+            return;
+        }
 
-        var percent = new TextBlock
+        foreach (AudioAppSession session in sessions)
         {
-            Text = device.Percent.ToString(),
-            Width = 28,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Right,
-            FontSize = 12,
-            Opacity = 0.9,
-        };
-        DockPanel.SetDock(percent, Dock.Right);
-
-        var slider = new Slider
-        {
-            Minimum = 0,
-            Maximum = 100,
-            Value = device.Percent,
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 8, 0),
-            TickFrequency = 1,
-            IsSnapToTickEnabled = true,
-            Tag = device.DeviceId,
-            IsEnabled = !device.IsMuted,
-        };
-        slider.ValueChanged += OnDeviceVolumeChanged;
-
-        dock.Children.Add(mute);
-        dock.Children.Add(percent);
-        dock.Children.Add(slider);
-        return dock;
+            MixerSessionList.Children.Add(BuildSessionRow(session));
+        }
     }
 
     private UIElement BuildSessionRow(AudioAppSession session)
@@ -582,40 +506,43 @@ public partial class QuickSettingsFlyout : UserControl
     private void OnOpenEthernetSettingsClick(object sender, RoutedEventArgs e) =>
         QuickSettingsService.OpenSettingsUri("ms-settings:network-ethernet");
 
-    private void OnDeviceCollapseClick(object sender, RoutedEventArgs e)
+    private void OnDevicePickerClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Button { Tag: string id })
+        e.Handled = true;
+        if (!DevicePickerButton.IsEnabled || _mixer is null)
+        {
+            return;
+        }
+
+        DevicePickerPopup.IsOpen = !DevicePickerPopup.IsOpen;
+    }
+
+    private void OnDevicePickerItemClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string id } || _mixer is null)
         {
             return;
         }
 
         e.Handled = true;
-        if (!_collapsedDevices.Add(id))
+        DevicePickerPopup.IsOpen = false;
+        if (!_mixer.TrySetDefaultDevice(id))
         {
-            _collapsedDevices.Remove(id);
+            RefreshMixer();
         }
-
-        RefreshMixer();
     }
 
-    private void OnDeviceMuteClick(object sender, RoutedEventArgs e)
+    private void OnMixerMasterMuteClick(object sender, RoutedEventArgs e) =>
+        _mixer?.ToggleMasterMute();
+
+    private void OnMixerMasterVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_mixer is null || sender is not Button { Tag: string id })
+        if (_deviceSliderUpdating || _mixer is null)
         {
             return;
         }
 
-        _mixer.TryToggleDeviceMute(id);
-    }
-
-    private void OnDeviceVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (_deviceSliderUpdating || _mixer is null || sender is not Slider { Tag: string id })
-        {
-            return;
-        }
-
-        _mixer.TrySetDevicePercent(id, (int)Math.Round(e.NewValue));
+        _mixer.SetMasterPercent((int)Math.Round(e.NewValue));
     }
 
     private void OnSessionVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
