@@ -16,6 +16,9 @@ internal sealed class AppConfig
     /// <summary><c>system</c>, <c>light</c>, or <c>dark</c>.</summary>
     public string Theme { get; set; } = ThemeSystem;
 
+    /// <summary>When true, applies Windows system accent color to application controls.</summary>
+    public bool UseSystemAccentColor { get; set; } = true;
+
     /// <summary>When true, <see cref="Services.AutostartService"/> keeps a Startup-folder shortcut.</summary>
     public bool Autostart { get; set; } = true;
 
@@ -53,7 +56,7 @@ internal sealed class TopBarConfig
     /// Soft catalog revision (<see cref="AppConfig.SchemaVersion"/> stays 1).
     /// Missing JSON → 0 (pre-<c>controlCenter</c>); current = <see cref="CurrentStatusCatalogVersion"/>.
     /// </summary>
-    internal const int CurrentStatusCatalogVersion = 1;
+    internal const int CurrentStatusCatalogVersion = 2;
 
     /// <summary>
     /// Soft catalog revision. 0 = pre-controlCenter configs (migrated on load).
@@ -71,4 +74,16 @@ internal sealed class TopBarConfig
 
     /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
     public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
+
+    /// <summary>Whether hardware usage metrics (CPU, RAM, GPU) are displayed next to the Windows icon.</summary>
+    public bool ShowSystemStats { get; set; } = true;
+
+    /// <summary>Whether CPU utilization badge is visible when system stats are enabled.</summary>
+    public bool ShowCpuStats { get; set; } = true;
+
+    /// <summary>Whether GPU utilization badge is visible when system stats are enabled.</summary>
+    public bool ShowGpuStats { get; set; } = true;
+
+    /// <summary>Whether RAM utilization badge is visible when system stats are enabled.</summary>
+    public bool ShowRamStats { get; set; } = true;
 }

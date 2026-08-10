@@ -12,6 +12,7 @@ namespace WharfBar.Services;
 internal sealed class TrayIconService : IDisposable
 {
     private const uint QuitCommandId = 1;
+    private const uint SettingsCommandId = 2;
 
     private readonly HwndSource _source;
     private NotifyIconHost? _notifyIcon;
@@ -87,6 +88,8 @@ internal sealed class TrayIconService : IDisposable
 
         try
         {
+            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)SettingsCommandId, "WharfBar Ayarları");
+            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_SEPARATOR, UIntPtr.Zero, string.Empty);
             _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)QuitCommandId, "WharfBar'ı kapat");
 
             // Required so the menu dismisses correctly when clicking away.
@@ -101,7 +104,14 @@ internal sealed class TrayIconService : IDisposable
                 hwnd,
                 IntPtr.Zero);
 
-            if (selected == QuitCommandId)
+            if (selected == SettingsCommandId)
+            {
+                Application.Current?.Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    ((App)Application.Current).ShowSettings();
+                }));
+            }
+            else if (selected == QuitCommandId)
             {
                 Application.Current?.Shutdown();
             }

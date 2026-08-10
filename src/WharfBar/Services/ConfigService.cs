@@ -179,6 +179,7 @@ internal sealed class ConfigService
         if (config.TopBar.StatusCatalogVersion < TopBarConfig.CurrentStatusCatalogVersion)
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);
+            TopBarStatusItemIds.EnsureBrightness(config.TopBar.StatusItems);
             config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
         }
 

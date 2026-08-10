@@ -140,6 +140,7 @@ internal static class NativeMethods
 
     internal const uint GW_OWNER = 4;
     internal const int GWL_EXSTYLE = -20;
+    internal const int WS_EX_TRANSPARENT = 0x00000020;
     internal const int WS_EX_APPWINDOW = 0x00040000;
     internal const int WS_EX_TOOLWINDOW = 0x00000080;
 
@@ -170,7 +171,9 @@ internal static class NativeMethods
 
     internal const uint SWP_NOSIZE = 0x0001;
     internal const uint SWP_NOMOVE = 0x0002;
+    internal const uint SWP_NOZORDER = 0x0004;
     internal const uint SWP_NOACTIVATE = 0x0010;
+    internal const uint SWP_FRAMECHANGED = 0x0020;
     internal const uint SWP_SHOWWINDOW = 0x0040;
 
     internal const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
@@ -192,6 +195,7 @@ internal static class NativeMethods
     internal const int SIIGBF_BIGGERSIZEOK = 0x00000001;
 
     internal const uint MF_STRING = 0x00000000;
+    internal const uint MF_SEPARATOR = 0x00000800;
     internal const uint TPM_RIGHTBUTTON = 0x0002;
     internal const uint TPM_RETURNCMD = 0x0100;
 
@@ -380,6 +384,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern int GetWindowLong(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);

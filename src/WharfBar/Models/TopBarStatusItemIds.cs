@@ -8,6 +8,7 @@ internal static class TopBarStatusItemIds
     internal const string Notifications = "notifications";
     internal const string ControlCenter = "controlCenter";
     internal const string Volume = "volume";
+    internal const string Brightness = "brightness";
     internal const string Network = "network";
     internal const string Battery = "battery";
 
@@ -18,6 +19,7 @@ internal static class TopBarStatusItemIds
         Notifications,
         ControlCenter,
         Volume,
+        Brightness,
         Network,
         Battery,
     ];
@@ -79,6 +81,31 @@ internal static class TopBarStatusItemIds
         else
         {
             items.Add(ControlCenter);
+        }
+    }
+
+    /// <summary>
+    /// Soft migration helper: inserts <see cref="Brightness"/> after <see cref="Volume"/>
+    /// when missing (or appends if volume is absent).
+    /// </summary>
+    internal static void EnsureBrightness(List<string> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Contains(Brightness, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        int volumeIndex = items.FindIndex(static x =>
+            string.Equals(x, Volume, StringComparison.Ordinal));
+        if (volumeIndex >= 0)
+        {
+            items.Insert(volumeIndex + 1, Brightness);
+        }
+        else
+        {
+            items.Add(Brightness);
         }
     }
 

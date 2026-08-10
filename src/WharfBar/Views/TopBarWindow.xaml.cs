@@ -32,9 +32,11 @@ public partial class TopBarWindow : Window
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
     private StatusService? _status;
+    private SystemMonitorService? _systemMonitor;
     private VolumeService? _volume;
     private AudioMixerService? _mixer;
     private QuickSettingsService? _quick;
+    private MonitorBrightnessService? _monitorBrightness;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
@@ -71,6 +73,7 @@ public partial class TopBarWindow : Window
             [TopBarStatusItemIds.Notifications] = NotificationsButton,
             [TopBarStatusItemIds.ControlCenter] = ControlCenterButton,
             [TopBarStatusItemIds.Volume] = VolumeButton,
+            [TopBarStatusItemIds.Brightness] = BrightnessButton,
             [TopBarStatusItemIds.Network] = NetworkButton,
             [TopBarStatusItemIds.Battery] = BatteryGroup,
         };
@@ -106,6 +109,10 @@ public partial class TopBarWindow : Window
         _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
         ApplyStatus(_status.Snapshot);
 
+        _systemMonitor = new SystemMonitorService();
+        _systemMonitor.Changed += (_, _) => ApplySystemStats(_systemMonitor.Snapshot);
+        ApplySystemStats(_systemMonitor.Snapshot);
+
         _volume = new VolumeService();
         _volume.Changed += (_, _) => ApplyVolume(_volume.Snapshot);
         ApplyVolume(_volume.Snapshot);
@@ -113,6 +120,9 @@ public partial class TopBarWindow : Window
         _mixer = new AudioMixerService(_volume);
         _quick = new QuickSettingsService();
         QuickSettingsHost.Attach(_volume, _mixer, _quick);
+
+        _monitorBrightness = new MonitorBrightnessService();
+        BrightnessHost.Attach(_monitorBrightness);
 
         _appBar.Register();
         ApplyPlacement();
@@ -122,6 +132,7 @@ public partial class TopBarWindow : Window
         ControlCenterButton.PreviewMouseLeftButtonUp += OnControlCenterClick;
         NetworkButton.PreviewMouseLeftButtonUp += OnNetworkClick;
         VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
+        BrightnessButton.PreviewMouseLeftButtonUp += OnBrightnessClick;
         DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
         NotificationsButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
     }
@@ -144,6 +155,11 @@ public partial class TopBarWindow : Window
     {
         var about = new AboutWindow { Owner = this };
         about.ShowDialog();
+    }
+
+    private void OnSettingsClick(object sender, RoutedEventArgs e)
+    {
+        ((App)Application.Current).ShowSettings();
     }
 
     private void OnQuitClick(object sender, RoutedEventArgs e)
@@ -213,9 +229,29 @@ public partial class TopBarWindow : Window
             new Action(() => _notifications.TryOpen()));
     }
 
+    private void OnBrightnessClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleBrightnessFlyout();
+    }
+
+    private void ToggleBrightnessFlyout()
+    {
+        if (BrightnessPopup.IsOpen)
+        {
+            BrightnessPopup.IsOpen = false;
+            return;
+        }
+
+        CloseFlyouts();
+        BrightnessHost.Refresh();
+        BrightnessPopup.IsOpen = true;
+    }
+
     private void CloseFlyouts()
     {
         QuickSettingsPopup.IsOpen = false;
+        BrightnessPopup.IsOpen = false;
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -282,12 +318,16 @@ public partial class TopBarWindow : Window
         QuickSettingsHost.Detach();
         _status?.Dispose();
         _status = null;
+        _systemMonitor?.Dispose();
+        _systemMonitor = null;
         _mixer?.Dispose();
         _mixer = null;
         _quick?.Dispose();
         _quick = null;
         _volume?.Dispose();
         _volume = null;
+        _monitorBrightness?.Dispose();
+        _monitorBrightness = null;
     }
 
     protected override void OnClosed(EventArgs e)
@@ -295,6 +335,38 @@ public partial class TopBarWindow : Window
         _source?.RemoveHook(WndProc);
         _source = null;
         base.OnClosed(e);
+    }
+
+    private void ApplySystemStats(SystemStatsSnapshot snapshot)
+    {
+        TopBarConfig? topBarConfig = _config.Current.TopBar;
+        bool showSystemStats = topBarConfig?.ShowSystemStats ?? true;
+
+        if (!showSystemStats)
+        {
+            SystemStatsPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        SystemStatsPanel.Visibility = Visibility.Visible;
+
+        // CPU
+        bool showCpu = topBarConfig?.ShowCpuStats ?? true;
+        CpuStatsHit.Visibility = showCpu ? Visibility.Visible : Visibility.Collapsed;
+        CpuText.Text = snapshot.CpuText;
+        CpuToolTip.Content = snapshot.CpuTooltip;
+
+        // GPU
+        bool showGpu = (topBarConfig?.ShowGpuStats ?? true) && snapshot.IsGpuAvailable;
+        GpuStatsHit.Visibility = showGpu ? Visibility.Visible : Visibility.Collapsed;
+        GpuText.Text = snapshot.GpuText;
+        GpuToolTip.Content = snapshot.GpuTooltip;
+
+        // RAM
+        bool showRam = topBarConfig?.ShowRamStats ?? true;
+        RamStatsHit.Visibility = showRam ? Visibility.Visible : Visibility.Collapsed;
+        RamText.Text = snapshot.RamText;
+        RamToolTip.Content = snapshot.RamTooltip;
     }
 
     private void ApplyStatus(StatusSnapshot snapshot)
@@ -686,6 +758,19 @@ public partial class TopBarWindow : Window
         }
     }
 
+    /// <summary>
+    /// Re-applies all config-driven visuals. Called by settings pages after config is saved.
+    /// </summary>
+    internal void ApplyConfigChanges()
+    {
+        ApplyStatusItemLayout();
+        ApplyBackgroundAppearance();
+        if (_systemMonitor is not null)
+        {
+            ApplySystemStats(_systemMonitor.Snapshot);
+        }
+    }
+
     private void PersistBackground(string mode, int? opacity = null)
     {
         AppConfig cfg = _config.Current;
@@ -769,7 +854,7 @@ public partial class TopBarWindow : Window
         element.ToolTip = new ToolTip
         {
             Content = text,
-            FontFamily = new FontFamily("Segoe UI"),
+            FontFamily = SystemVersion.TextFontFamily,
             FontSize = 12,
         };
     }
@@ -939,7 +1024,11 @@ public partial class TopBarWindow : Window
         {
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
-                Dispatcher.BeginInvoke(new Action(ApplyPlacement));
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    ApplyPlacement();
+                    _monitorBrightness?.RefreshMonitors();
+                }));
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGED:

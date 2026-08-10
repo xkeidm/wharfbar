@@ -445,7 +445,7 @@ public partial class QuickSettingsFlyout : UserControl
         return new TextBlock
         {
             Text = session.IsMuted ? "\uE74F" : "\uE767",
-            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontFamily = SystemVersion.IconFontFamily,
             FontSize = 16,
             Width = 20,
             Height = 20,
@@ -549,7 +549,7 @@ public partial class QuickSettingsFlyout : UserControl
                 Child = new TextBlock
                 {
                     Text = "\uE76C",
-                    FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                    FontFamily = SystemVersion.IconFontFamily,
                     FontSize = 12,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -579,7 +579,7 @@ public partial class QuickSettingsFlyout : UserControl
     private static ToolTip CreateTip(string text) => new()
     {
         Content = text,
-        FontFamily = new FontFamily("Segoe UI"),
+        FontFamily = SystemVersion.TextFontFamily,
         FontSize = 12,
     };
 
