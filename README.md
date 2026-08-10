@@ -4,10 +4,10 @@ Windows için macOS tarzı **üst bar** (saat, durum göstergeleri) ve **dock** 
 
 Öncelik: düşük kaynak tüketimi → Windows Fluent native görünüm → basitlik. macOS marka/ikon dili yok.
 
-> Durum: Geliştirme aşaması. **Faz 1–7 tamamlandı** — üst bar AppBar + Mica, dock overlay,
-> kalıcı JSON config (`%AppData%/WharfBar/config.json`), Startup klasörü autostart,
-> saat / ağ / pil göstergeleri, tepsi Quit menüsü.
-> Sırada: dock auto-hide / hit-test polish (Faz 8).
+> Durum: Geliştirme aşaması. **Faz 1–9 + Parlaklık Kontrolü tamamlandı** — üst bar AppBar + Mica,
+> dock overlay, canlı görev çubuğu / tepsi entegrasyonu (ADR-005), Hızlı Ayarlar flyout (ADR-006),
+> **Monitör Parlaklık Kontrolü** (Monitorian tarzı DDC/CI + WMI hibrit), kalıcı JSON config (`%AppData%/WharfBar/config.json`),
+> Startup klasörü autostart, saat / ağ / pil / ses / parlaklık göstergeleri, tepsi Quit menüsü.
 
 ## Kurulum ve çalıştırma
 
@@ -54,10 +54,10 @@ kapanınca **birebir** geri geliyor, maximize edilmiş pencereler barın altınd
 ```
 WharfBar.sln
 src/WharfBar/
-  Views/     TopBarWindow (saat/durum), DockWindow
-  Native/    AppBar, Dwm, NativeMethods, Display, ShellIcon, PowerStatus, NotifyIconHost
-  Models/    AppConfig, PinnedApp, DemoPinnedApps
-  Services/  ConfigService, StatusService, TrayIconService, WindowAppearance, …
+  Views/     TopBarWindow, DockWindow, QuickSettingsFlyout, BrightnessFlyout, AboutWindow, SettingsWindow
+  Native/    AppBar, Dwm, NativeMethods, Display, ShellIcon, PowerStatus, NotifyIconHost, MonitorNative, …
+  Models/    AppConfig, TopBarStatusItemIds, PinnedApp, DockAppItem, TopBarBackgroundModes
+  Services/  ConfigService, StatusService, MonitorBrightnessService, VolumeService, AudioMixerService, …
   app.manifest                — Per-Monitor V2 DPI
 ```
 
@@ -69,14 +69,16 @@ Ayrıntı: [`docs/01-architecture.md`](docs/01-architecture.md)
 |--------|-----------|
 | Runtime | .NET 8 (`net8.0-windows10.0.19041.0`) |
 | UI | WPF + [WPF-UI](https://github.com/lepoco/wpfui) |
-| Native | Win32 P/Invoke (AppBar, DWM, shell ikonları) |
+| Native | Win32 P/Invoke (AppBar, DWM, shell ikonları, DDC/CI Monitor Configuration, WMI) |
 
 ## Hedefler (v1)
 
 - Ekranın üstünde rezerve edilmiş top bar (AppBar)
-- Altta overlay dock (Topmost + gerekirse auto-hide; AppBar zorunlu değil)
-- Sabitlenmiş klasik masaüstü uygulamaları (`.exe` / `.lnk`)
-- JSON config (`%AppData%/WharfBar/`)
+- Altta overlay dock (Topmost + auto-hide; canlı pin ve çalışan uygulamalar)
+- Monitör parlaklık kontrolü (Monitorian tarzı DDC/CI + laptop WMI hibrit uçan pencere)
+- Win11 tarzı Hızlı Ayarlar flyout (ses karıştırıcı, ağ durumu, sistem ayarları)
+- Sabitlenmiş ve çalışan masaüstü uygulamaları
+- JSON config (`%AppData%/WharfBar/`) ve görsel ayarlar arabirimi
 - Startup klasörü ile otomatik başlatma
 - Per-Monitor V2 DPI awareness
 - Tek örnek (Mutex)
@@ -86,15 +88,15 @@ Ayrıntı: [`docs/01-architecture.md`](docs/01-architecture.md)
 - Çoklu monitör AppBar rezervasyonu
 - UWP / Microsoft Store uygulama ikonları
 - Gerçek sistem tepsisi ikonlarını okuma (Wi-Fi/pil vb. — .NET API ile simülasyon)
-- Windows görev çubuğunu gizleme veya değiştirme
 
 ## Önemli uyarılar
 
 1. **Tray:** `Shell_NotifyIcon` kendi tepsi ikonun içindir; sistem Wi-Fi/pil ikonlarını okumaz.
-2. **Dock:** macOS dock gibi overlay olabilir; üst bar için AppBar, dock için Topmost + auto-hide tercih edilir.
+2. **Dock:** macOS dock gibi overlay’dir; üst bar için AppBar, dock için Topmost + auto-hide tercih edilir.
 3. **Mica:** Önce WPF-UI backdrop; ham DWM Mica ile çakışmadan kaçın. `AllowsTransparency=true` Mica’yı bozar.
 4. **AppBar:** Çıkışta mutlaka `ABM_REMOVE`; explorer çöküşünden sonra yeniden kayıt planlanmalı.
 5. **Autostart:** Registry `Run` yerine **Startup klasörü** tercih edilir.
+6. **Parlaklık:** DDC/CI (masaüstü) ve WMI (laptop) komutları 50ms debounced arka plan kuyruğuyla yürütülür; WPF UI thread kilitlenmez.
 
 Ayrıntılar: [`docs/`](docs/) · Agent bağlamı: [`AGENTS.md`](AGENTS.md) · [`.agent/`](.agent/)
 
@@ -107,7 +109,10 @@ Ayrıntılar: [`docs/`](docs/) · Agent bağlamı: [`AGENTS.md`](AGENTS.md) · [
 5. ✅ Config
 6. ✅ Autostart (Startup klasörü)
 7. ✅ Durum göstergeleri / saat (+ tepsi Quit)
-8. ⬜ Dock auto-hide / hit-test polish
+8. ✅ Dock auto-hide / hit-test polish
+9. ✅ Shell yerine geçme / Canlı Dock (ADR-005)
+10. ✅ Hızlı ayarlar flyout (ADR-006)
+11. ✅ Monitör parlaklık kontrolü (Monitorian entegrasyonu)
 
 Tam sıra ve yapılacaklar: [`docs/03-development-order.md`](docs/03-development-order.md) ·
 [`.agent/context/roadmap.md`](.agent/context/roadmap.md)

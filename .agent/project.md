@@ -12,10 +12,10 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 ## Ürün
 
 - **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
-  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `network` →
+  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `network` →
   `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
-  `controlCenter` → QS Main; ses → QS Mixer; ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
+  `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   `config.pinnedApps` seed/fallback.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
@@ -43,7 +43,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 4. **AppBar:** çıkışta `ABM_REMOVE`; callback’ler; explorer restart sonrası yeniden kayıt; DPI/display handler’lar.
 5. **v1:** UWP ikonları sınırlı (placeholder); görev çubuğu gizleme + restore (ADR-005); tek örnek Mutex.
 6. **Autostart:** Startup klasörü > Registry Run (`AutostartService` + `AppConfig.autostart`).
-7. **Hit-testing + fullscreen hide** dock’ta uygulandı (stub + `FullscreenState` köprüsü); gerçek auto-hide sonraki faz (tercih Faz 5’te config’te).
+7. **Hit-testing + auto-hide** dock’ta uygulandı (`DockHitTest` + `DockAutoHideController`; `FullscreenState` köprüsü). Spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
    (ADR-006; `controlCenter` → Main, volume → Mixer); tepsi yalnızca kendi Quit menüsü.
 
@@ -65,13 +65,13 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 
 ## Mevcut repo durumu
 
-**Faz 1–9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor). Kod kökü
+**Faz 1–9 + Faz 8 kodu çalışma ağacında** (commit + manuel doğrulama bekliyor). Kod kökü
 `src/WharfBar/`, çözüm kökte `WharfBar.sln`. Çalışan: top bar penceresi (DPI-farkında yerleşim),
 AppBar kaydı + garantili `ABM_REMOVE`, `ABN_*` callback’leri, explorer restart sonrası yeniden kayıt,
 tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler
 (`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`, canlı pin/running birleşik UI,
 hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
-konumlanma, auto-hide / hit-test stub), `ConfigService` → `%AppData%/WharfBar/config.json`,
+konumlanma, auto-hide + hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
 (`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
 `controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
@@ -82,11 +82,13 @@ Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, m
 yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
-tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Henüz yok: dock auto-hide polish (Faz 8).
-Öncelikli yapılacaklar: [`context/roadmap.md`](context/roadmap.md).
-Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından Faz 8 auto-hide (9a/9b sonrası daha anlamlı).
-Spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
-Plan: [`../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
+tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. **Monitör Parlaklık Kontrolü:**
+Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
+`BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
+Faz 8 spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
+Faz 8 plan: [`../docs/superpowers/plans/2026-08-10-dock-auto-hide.md`](../docs/superpowers/plans/2026-08-10-dock-auto-hide.md).
+Faz 9 spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+Faz 9 plan: [`../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
 Üst bar özelleştirme (göster/gizle + sıra; sağ tık):
 [`../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
 plan: [`../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md).

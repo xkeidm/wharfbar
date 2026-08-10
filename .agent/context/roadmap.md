@@ -24,20 +24,21 @@
   - **9b** Canlı pin (`TaskbarPinnedAppsSource`) + running (`RunningAppsSource` / `EnumWindows` + AUMID); `DockAppsComposer`
   - **9c** Üst bar overflow düğmesi (`TrayOverflowInvoker` / `Win+B`)
   - Kod çalışma ağacında; kullanıcı commit + 9a/9b/9c manuel UI doğrulaması bekliyor
+- **Faz 8 — Dock auto-hide / hit-test polish ✓ (kod)** — spec:
+  [`../../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md);
+  plan: [`../../docs/superpowers/plans/2026-08-10-dock-auto-hide.md`](../../docs/superpowers/plans/2026-08-10-dock-auto-hide.md)
+  - `DockAutoHideController` — kenar bandı poll, show/hide animasyon, fullscreen bridge
+  - `DockHitTest` — `ApplyInteractive` / `ApplyPassthrough` (`WS_EX_TRANSPARENT`)
+  - Kod çalışma ağacında; manuel doğrulama bekliyor
+- **Monitör Parlaklık Kontrolü (Monitorian Entegrasyonu) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hibrit), `BrightnessFlyout` (TopBar `brightness` simgesi, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu, katalog v2).
 
 ## Yapılacaklar listesi (öncelikli)
 
 ### P0 — Sıradaki uygulama
 
-1. **Faz 9 manuel doğrulama** — commit sonrası 9a/9b/9c UI checklist
-   ([`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 9; plan uçtan uca bölümü)
-
-2. **Faz 8 — Dock auto-hide / hit-test polish** (9a/9b sonrası daha anlamlı)
-   - Kenar proximity → göster / gizle + animasyon
-   - Gizlikte click-through (`WS_EX_TRANSPARENT` / `DockHitTest.ApplyPassthrough`)
-   - `dock.autoHide: false` → her zaman görünür
-   - Fullscreen ile çakışma netliği
-   - Checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 8
+1. **Faz 8 + Faz 9 manuel doğrulama** — commit sonrası UI checklist
+   - Faz 8: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 8 (kenar hover, click-through, fullscreen)
+   - Faz 9: aynı dosya Faz 9; plan uçtan uca bölümü (9a/9b/9c)
 
 ### P1 — Manuel doğrulama (insan gözü; kod yazmadan)
 

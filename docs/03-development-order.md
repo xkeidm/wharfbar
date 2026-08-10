@@ -2,10 +2,12 @@
 
 Önerilen fazlar. Her faz sonunda manuel doğrulama; AppBar kullanan fazlarda çökme sonrası `ABM_REMOVE` / explorer düzeltmesi bilinciyle çalış.
 
-> Faz 1–7 tamamlandı. **Faz 9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor).
-> Sıradaki ürün işi: Faz 9 manuel doğrulama; ardından **Faz 8** (dock auto-hide, 9a/9b sonrası daha anlamlı).
-> Spec: [`superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
-> Plan: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
+> Faz 1–7 tamamlandı. **Faz 8 kodu çalışma ağacında** (manuel doğrulama bekliyor).
+> **Faz 9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor).
+> Faz 8 spec: [`superpowers/specs/2026-08-10-dock-auto-hide-design.md`](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
+> Faz 8 plan: [`superpowers/plans/2026-08-10-dock-auto-hide.md`](superpowers/plans/2026-08-10-dock-auto-hide.md).
+> Faz 9 spec: [`superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+> Faz 9 plan: [`superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md).
 
 ## Faz 0 — Repo / docs ✓
 
@@ -79,18 +81,20 @@
 
 > Tepsi ikonu sistem Wi-Fi/pil ikonlarını **okumaz**; yalnızca WharfBar’ın kendi çıkış menüsüdür.
 
-## Faz 8 — Dock auto-hide / hit-test polish ⬜
+## Faz 8 — Dock auto-hide / hit-test polish ✓ (kod)
 
-> Tercihen **Faz 9a/9b sonrası**: görev çubuğu gizlenince dock alt kenar geometrisi değişir.
+> Tercihen **Faz 9a/9b sonrası** uygulandı: görev çubuğu gizlenince dock alt kenar geometrisi değişir.
+> Spec: [`superpowers/specs/2026-08-10-dock-auto-hide-design.md`](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
+> Plan: [`superpowers/plans/2026-08-10-dock-auto-hide.md`](superpowers/plans/2026-08-10-dock-auto-hide.md).
+> Kod çalışma ağacında; aşağıdaki manuel doğrulama bekliyor.
 
-Config’te `dock.autoHide` zaten saklanıyor; `DockAutoHideController` ve `DockHitTest` stub.
-Bu faz davranışı tamamlar:
+`dock.autoHide` davranışı `DockAutoHideController` + `DockHitTest` ile uygulandı:
 
-- [ ] Fare kenar bandına yaklaşınca dock gösterme; uzaklaşınca gizleme (animasyonlu)
-- [ ] Gizli / daraltılmış halde `WS_EX_TRANSPARENT` (veya eşdeğer) ile tıklamayı alttaki pencereye geçirme
-- [ ] Görünür halde hit-test’i tam etkileşimli tutma (`DockHitTest.ApplyInteractive`)
-- [ ] Fullscreen (`FullscreenState`) ile auto-hide çakışmasını netleştirme
-- [ ] `autoHide: false` iken dock her zaman görünür (mevcut stub davranışıyla uyumlu)
+- [x] Fare kenar bandına yaklaşınca dock gösterme; uzaklaşınca gizleme (animasyonlu)
+- [x] Gizli / daraltılmış halde `WS_EX_TRANSPARENT` ile tıklamayı alttaki pencereye geçirme (`DockHitTest.ApplyPassthrough`)
+- [x] Görünür halde hit-test’i tam etkileşimli tutma (`DockHitTest.ApplyInteractive`)
+- [x] Fullscreen (`FullscreenState`) ile auto-hide çakışmasını netleştirme
+- [x] `autoHide: false` iken dock her zaman görünür
 - [ ] Manuel doğrulama: maximize pencere, oyun/video fullscreen, kenar hover
 
 ## Faz 9 — Shell yerine geçme (canlı dock + tepsi hibrit + görev çubuğu) ✓ (kod)

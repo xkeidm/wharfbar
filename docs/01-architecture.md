@@ -1,6 +1,6 @@
 # 01 — Mimari
 
-> Faz 1–9 kodu çalışma ağacında (commit + 9a/9b/9c manuel doğrulama bekliyor). Aşağıda **mevcut**
+> Faz 1–9 + Faz 8 kodu çalışma ağacında (commit + manuel doğrulama bekliyor). Aşağıda **mevcut**
 > yapı ile **hedef** yapı ayrı ayrı işaretlidir.
 
 ## Stack
@@ -39,10 +39,13 @@ src/WharfBar/
   Views/
     TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; sağ durum/overflow; WndProc
     QuickSettingsFlyout.xaml(.cs) # Win11 tarzı hızlı ayarlar (ses/ağ; ADR-006)
+    BrightnessFlyout.xaml(.cs)  # Monitör parlaklık uçan penceresi (DDC/CI + WMI Monitorian)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
+    SettingsWindow.xaml(.cs)     # Ayarlar ana penceresi (NavigationView)
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
+    MonitorNative.cs            # dxva2.dll (DDC/CI) + user32.dll monitör P/Invoke
     AppBar.cs                   # SHAppBarMessage wrapper; idempotent ABM_REMOVE
     Display.cs                  # birincil monitör sınırları + DPI → fiziksel piksel
     Dwm.cs                      # köşe, immersive dark, backdrop yedek, frame extend
@@ -52,7 +55,7 @@ src/WharfBar/
     TrayOverflowNative.cs       # overflow penceresi / TrayNotifyWnd chevron / Win+B
     WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
-    DockHitTest.cs              # hit-test stub (Faz 4: tam etkileşimli; passthrough ertelendi)
+    DockHitTest.cs              # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
     PowerStatus.cs              # GetSystemPowerStatus sarmalayıcı
     NotifyIconHost.cs           # Shell_NotifyIcon ADD/DELETE (kendi tepsi ikonu)
     AudioEndpointVolume.cs      # master volume / mute (Core Audio)
@@ -62,7 +65,7 @@ src/WharfBar/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
-    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (7 sabit id)
+    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (8 sabit id)
     AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
@@ -74,9 +77,10 @@ src/WharfBar/
     WindowActivationService.cs  # çalışan pencereye odaklama
     FullscreenState.cs          # süreç içi fullscreen sinyali (TopBar → Dock)
     WorkAreaChanged.cs          # AppBar yerleşim sonrası dock yeniden konumlanma olayı
-    DockAutoHideController.cs   # auto-hide stub (Enabled config’ten; davranış Faz 8)
+    DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
+    MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
     QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
@@ -96,23 +100,21 @@ src/WharfBar/
 `dotnet new wpf` şablonundan gelen `MainWindow.xaml(.cs)` silindi; `StartupUri` kaldırılıp
 başlatma `App.OnStartup` içine alındı.
 
-## Sonraki fazlarda eklenecek
-
-```
-src/WharfBar/
-  Services/
-    (dock auto-hide / hit-test polish — Faz 8, tercihen 9a/9b sonrası)
-```
-
-Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
+Dock auto-hide / hit-test (Faz 8) uygulandı — ayrıntı:
+[spec](superpowers/specs/2026-08-10-dock-auto-hide-design.md),
+[plan](superpowers/plans/2026-08-10-dock-auto-hide.md).
+Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 [spec](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
 ## Sorumluluklar
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `network` → QS Network |
+| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `network` → QS Network |
 | `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
+| `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
 | `AboutWindow` | Hakkında diyaloğu; shell kaydı yok |
+| `MonitorBrightnessService` | DDC/CI (masaüstü `dxva2.dll`) + WMI (`WmiMonitorBrightness`) taraması; 50ms debounced arka plan yazma |
+| `MonitorNative` | `dxva2.dll` P/Invoke fonksiyonları + `user32.dll` monitör sorguları |
 | `VolumeService` / `AudioEndpointVolume` | Varsayılan render endpoint ses seviyesi / mute (Core Audio) |
 | `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | Tek aygıt + dropdown + uygulama oturum sesleri (ADR-006) |
 | `QuickSettingsService` | Ağ detayı, WinRT radyo, Settings URI / Win+P |
@@ -136,8 +138,8 @@ Ayrıntı: [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 | `ProcessLauncherService` | Pin tıklamasında `Process.Start` |
 | `FullscreenState` | `TopBarWindow` `ABN_FULLSCREENAPP` → dock gizleme/gösterme |
 | `WorkAreaChanged` | Top bar AppBar yerleşiminden sonra dock’u yeniden konumlandırma |
-| `DockAutoHideController` | Auto-hide stub (`Enabled` config’ten; gerçek davranış sonraki faz) |
-| `DockHitTest` | Hit-test stub; Faz 4 tam etkileşimli, passthrough ertelendi |
+| `DockAutoHideController` | `dock.autoHide` state + kenar bandı poll; show/hide animasyon; fullscreen bridge |
+| `DockHitTest` | `ApplyInteractive` / `ApplyPassthrough` — `WS_EX_TRANSPARENT` toggle |
 | `DemoPinnedApps` | Varsayılan 4 pin — ilk `config.json` seed |
 | `AppConfig` / `DockConfig` | JSON şema (`schemaVersion` 1) |
 | `ConfigService` | JSON oku/yaz; bozuk/uyumsuz şemada `.bak` + varsayılan |
@@ -182,8 +184,6 @@ Uygulanan (Faz 1–9):
 10. Çıkış yolları bağlanır → `ABM_NEW` → yerleşim uygulanır → `WorkAreaChanged.Notify`
 11. Çıkış: **görev çubuğu restore** (`TaskbarVisibilityService.Restore`) → tray dispose → dock kapat
     → `ABM_REMOVE` (idempotent; `ReleaseShellState` sırası: restore önce, sonra remove)
-
-Sonraki faz: Faz 8 dock auto-hide polish (tercihen 9a/9b sonrası).
 
 ### Yerleşim hesabı (fiziksel piksel)
 
@@ -264,7 +264,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `schemaVersion` | Zorunlu; yalnızca `1` kabul. Diğer değer → `.bak` + varsayılan |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
-| `dock.autoHide` | Tercih saklanır; gerçek gizleme sonraki faz |
+| `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |

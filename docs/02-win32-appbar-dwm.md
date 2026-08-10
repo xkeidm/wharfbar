@@ -171,7 +171,9 @@ kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
 
 ## i) Hit-testing (dock / overlay)
 
-Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test / `WS_EX_TRANSPARENT` veya benzeri stratejiler planlanmalı. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
+Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test stratejileri gerekir. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
+
+**Faz 8 (uygulandı):** `DockHitTest` görünür / gösteriliyor durumda `ApplyInteractive` (`WS_EX_TRANSPARENT` temiz); gizli veya off-screen animasyonda `ApplyPassthrough` (`WS_EX_TRANSPARENT` set) — tıklama alttaki pencereye geçer. `DockAutoHideController` kenar bandı poll + slide animasyonu yönetir. Ayrıntı: [dock auto-hide spec](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 
 ---
 
