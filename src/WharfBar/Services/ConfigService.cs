@@ -66,14 +66,16 @@ internal sealed class ConfigService
             }
 
             double originalIconSize = loaded.Dock?.IconSize ?? DockConfig.DefaultIconSize;
+            int originalCatalogVersion = loaded.TopBar?.StatusCatalogVersion ?? 0;
             Current = Normalize(loaded);
 
             bool statusChanged = topBarKeyMissing || !StatusItemsEqual(
                 loaded.TopBar?.StatusItems,
                 Current.TopBar.StatusItems);
+            bool catalogChanged = Current.TopBar.StatusCatalogVersion != originalCatalogVersion;
             bool iconChanged = Math.Abs(Current.Dock.IconSize - originalIconSize) > 0.01;
 
-            if (iconChanged || statusChanged)
+            if (iconChanged || statusChanged || catalogChanged)
             {
                 Save(Current);
             }
@@ -127,6 +129,7 @@ internal sealed class ConfigService
             PinnedApps = DemoPinnedApps.All.Select(static a => new PinnedApp(a.Path, a.Args, a.Label)).ToList(),
             TopBar = new TopBarConfig
             {
+                StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion,
                 StatusItems = TopBarStatusItemIds.DefaultOrder.ToList(),
                 BackgroundMode = TopBarBackgroundModes.Mica,
                 TintOpacity = TopBarBackgroundModes.DefaultOpacity,
@@ -173,6 +176,11 @@ internal sealed class ConfigService
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
+        if (config.TopBar.StatusCatalogVersion < TopBarConfig.CurrentStatusCatalogVersion)
+        {
+            TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);
+            config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
+        }
 
         // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
         // Other values inside Min–Max are preserved.

@@ -83,9 +83,13 @@ internal sealed class WindowAppearance
         ClearSystemBackdrop();
         IsBackdropActive = false;
 
+        // Must assign a true local value — SetCurrentValue keeps the XAML
+        // DynamicResource (ApplicationBackgroundBrush) as the source, so
+        // ApplicationThemeManager.Apply re-resolves it to opaque light/dark
+        // and transparent/tint look solid white (or dark gray).
         if (tintOpacity is null)
         {
-            _window.SetCurrentValue(Control.BackgroundProperty, Brushes.Transparent);
+            _window.Background = Brushes.Transparent;
             return;
         }
 
@@ -96,7 +100,7 @@ internal sealed class WindowAppearance
             : Color.FromRgb(0xFA, 0xFA, 0xFA);
         var brush = new SolidColorBrush(Color.FromArgb(a, baseColor.R, baseColor.G, baseColor.B));
         brush.Freeze();
-        _window.SetCurrentValue(Control.BackgroundProperty, brush);
+        _window.Background = brush;
     }
 
     /// <summary>Call when the system reports a theme or colourization change.</summary>

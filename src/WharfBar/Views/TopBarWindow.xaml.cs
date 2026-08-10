@@ -67,11 +67,12 @@ public partial class TopBarWindow : Window
         _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
         {
             [TopBarStatusItemIds.TrayOverflow] = TrayOverflowButton,
-            [TopBarStatusItemIds.Network] = NetworkButton,
-            [TopBarStatusItemIds.Battery] = BatteryGroup,
-            [TopBarStatusItemIds.Volume] = VolumeButton,
             [TopBarStatusItemIds.DateTime] = DateTimeButton,
             [TopBarStatusItemIds.Notifications] = NotificationsButton,
+            [TopBarStatusItemIds.ControlCenter] = ControlCenterButton,
+            [TopBarStatusItemIds.Volume] = VolumeButton,
+            [TopBarStatusItemIds.Network] = NetworkButton,
+            [TopBarStatusItemIds.Battery] = BatteryGroup,
         };
         ApplyStatusItemLayout();
         StatusStrip.MouseRightButtonUp += OnStatusStripRightClick;
@@ -118,6 +119,7 @@ public partial class TopBarWindow : Window
 
         TrayOverflowButton.PreviewMouseLeftButtonUp += OnTrayOverflowClick;
         AppMenuButton.PreviewMouseLeftButtonUp += OnAppMenuClick;
+        ControlCenterButton.PreviewMouseLeftButtonUp += OnControlCenterClick;
         NetworkButton.PreviewMouseLeftButtonUp += OnNetworkClick;
         VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
         DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
@@ -162,6 +164,12 @@ public partial class TopBarWindow : Window
     {
         e.Handled = true;
         ToggleQuickSettings(QuickSettingsPage.Mixer, VolumeButton);
+    }
+
+    private void OnControlCenterClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleQuickSettings(QuickSettingsPage.Main, ControlCenterButton);
     }
 
     private void OnNetworkClick(object sender, MouseButtonEventArgs e)
@@ -292,7 +300,6 @@ public partial class TopBarWindow : Window
     private void ApplyStatus(StatusSnapshot snapshot)
     {
         ClockText.Text = snapshot.ClockText;
-        DateText.Text = snapshot.DateText;
         SetPlainToolTip(DateTimeButton, snapshot.ClockTooltip);
 
         NetworkGlyph.Text = snapshot.NetworkKind switch
@@ -331,7 +338,8 @@ public partial class TopBarWindow : Window
             string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
             SetPlainToolTip(VolumeButton, tip);
         }
-        else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton))
+        else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton)
+            || ReferenceEquals(QuickSettingsPopup.PlacementTarget, ControlCenterButton))
         {
             QuickSettingsPopup.IsOpen = false;
         }
@@ -545,11 +553,12 @@ public partial class TopBarWindow : Window
     private static string StatusItemHeader(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
-        TopBarStatusItemIds.Network => "Ağ",
-        TopBarStatusItemIds.Battery => "Pil",
-        TopBarStatusItemIds.Volume => "Ses",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",
+        TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
+        TopBarStatusItemIds.Volume => "Ses",
+        TopBarStatusItemIds.Network => "Ağ",
+        TopBarStatusItemIds.Battery => "Pil",
         _ => id,
     };
 

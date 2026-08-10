@@ -56,8 +56,12 @@
     plan:
     [`../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md)
     (kod landed; manuel UI checklist bekliyor; ayrı Control Center yok; ADR-005 tepsi aynası yok; sağ tık menü)
+8c. **Üst bar durum şeridi sırası + `controlCenter` + tek satır saat** ✓ (kod) —
+    [`../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
+    plan: [`../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md)
+    (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manuel UI checklist)
 9. Hızlı ayarlar cila: gerçek Gece ışığı / Enerji tasarrufu toggle; oturum ikonları; Wi-Fi SSID listesi
-   (8b’den sonra; panel = mevcut ADR-006)
+   (8b/8c sonrası; panel = mevcut ADR-006)
 10. İkincil monitör / work-area stratejisi
 11. UWP/Store ikonları (tam yol)
 12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)

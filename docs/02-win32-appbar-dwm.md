@@ -84,12 +84,12 @@ Top bar göstergeleri için:
 - **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
-sağ küme `gizli · ağ · pil · ses · saat/tarih+bildirim`. Saat/tarih: Win11 tarzı üst üste
-(kısa saat + kısa tarih, Segoe UI) + zil glifi; **tek tıklama hedefi** native Notification
-Center (`Win+N` — takvim + bildirimler birlikte; ayrı takvim `Popup` yok; ADR-005 aynası yok).
-Ses + ağ: paylaşılan **Hızlı ayarlar** flyout (ADR-006) — master / çıkış aygıtı / uygulama
-oturumları (`CoreAudio*`) + ağ durumu / Settings URI / WinRT radyo; opak Fluent `Popup`
-(`AllowsTransparency=false`).
+sağ küme varsayılan LTR `gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
+(`topBar.statusItems`; özelleştirilebilir). Saat/tarih: tek satır `tr-TR` birleşik etiket
+(örn. `9 Ağu Paz 21:57`, Segoe UI) + zil glifi; ikisi de native Notification Center
+(`Win+N` — takvim + bildirimler; ayrı takvim `Popup` yok; ADR-005 aynası yok).
+`controlCenter` → QS **Main**; ses → QS **Mixer**; ağ → QS **Network** — paylaşılan
+**Hızlı ayarlar** flyout (ADR-006); opak Fluent `Popup` (`AllowsTransparency=false`).
 
 **Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
 `TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,

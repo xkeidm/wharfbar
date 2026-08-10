@@ -164,21 +164,20 @@ internal sealed class StatusService : IDisposable
             batteryTip);
     }
 
+    private static readonly CultureInfo ClockCulture = CultureInfo.GetCultureInfo("tr-TR");
+
     private static (string Text, string Tooltip) FormatClock(DateTime now)
     {
-        CultureInfo culture = CultureInfo.CurrentCulture;
-        string text = now.ToString("t", culture);
-        string tip = now.ToString("f", culture);
+        // Single-line strip: "9 Ağu Paz 21:57" (Turkish abbreviated month + weekday + time).
+        string text = now.ToString("d MMM ddd HH:mm", ClockCulture);
+        string tip = now.ToString("f", ClockCulture);
         return (text, tip);
     }
 
     private static (string Text, string Tooltip) FormatDate(DateTime now)
     {
-        CultureInfo culture = CultureInfo.CurrentCulture;
-        // Win11 taskbar-style short date under the time ("9.08.2026" / "8/9/2026").
-        string text = now.ToString("d", culture);
-        string tip = now.ToString("D", culture);
-        return (text, tip);
+        // Combined into ClockText; fields kept for StatusSnapshot shape.
+        return (string.Empty, now.ToString("D", ClockCulture));
     }
 
     private static (bool Online, NetworkKind Kind, string Tooltip) ReadNetwork()

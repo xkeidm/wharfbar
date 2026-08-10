@@ -56,24 +56,13 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <!-- Win11-like clock: time over short date, shared with notification bell. -->
-        <Style x:Key="ClockTimeLabel" TargetType="TextBlock">
+        <!-- Single-line clock+date (tr-TR abbreviations); sits beside notification bell. -->
+        <Style x:Key="ClockCombinedLabel" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI" />
-            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="FontWeight" Value="Normal" />
-            <Setter Property="LineHeight" Value="12" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
-        </Style>
-        <Style x:Key="ClockDateLabel" TargetType="TextBlock">
-            <Setter Property="FontFamily" Value="Segoe UI" />
-            <Setter Property="FontSize" Value="9" />
-            <Setter Property="FontWeight" Value="Normal" />
-            <Setter Property="LineHeight" Value="10" />
-            <Setter Property="TextAlignment" Value="Right" />
-            <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Opacity" Value="0.72" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
     </Window.Resources>
@@ -112,8 +101,8 @@
                 </Viewbox>
             </Border>
 
-            <!-- Right cluster, left→right toward the edge:
-                 overflow · network · battery · ses · saat/tarih · bildirimler -->
+            <!-- Right cluster (runtime order from config; default LTR):
+                 overflow · dateTime · notifications · controlCenter · volume · network · battery -->
             <StackPanel x:Name="StatusStrip"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
@@ -126,6 +115,49 @@
                     <TextBlock x:Name="TrayOverflowGlyph"
                                Style="{StaticResource StatusGlyph}"
                                Text="&#xE70E;" />
+                </Border>
+
+                <Border x:Name="DateTimeButton"
+                        Style="{StaticResource StatusHit}"
+                        Padding="8,2,4,2"
+                        Margin="0">
+                    <Border.ToolTip>
+                        <ToolTip Content="Tarih ve saat" />
+                    </Border.ToolTip>
+                    <TextBlock x:Name="ClockText"
+                               Style="{StaticResource ClockCombinedLabel}"
+                               Text="--" />
+                </Border>
+
+                <Border x:Name="NotificationsButton"
+                        Style="{StaticResource StatusHit}"
+                        Padding="4,2,6,2"
+                        Margin="0">
+                    <Border.ToolTip>
+                        <ToolTip Content="Bildirimler" />
+                    </Border.ToolTip>
+                    <TextBlock x:Name="NotificationsGlyph"
+                               Style="{StaticResource StatusGlyph}"
+                               VerticalAlignment="Center"
+                               Text="&#xEA8F;" />
+                </Border>
+
+                <Border x:Name="ControlCenterButton" Style="{StaticResource StatusHit}">
+                    <Border.ToolTip>
+                        <ToolTip Content="Hızlı ayarlar" />
+                    </Border.ToolTip>
+                    <TextBlock x:Name="ControlCenterGlyph"
+                               Style="{StaticResource StatusGlyph}"
+                               Text="&#xE9CE;" />
+                </Border>
+
+                <Border x:Name="VolumeButton" Style="{StaticResource StatusHit}">
+                    <Border.ToolTip>
+                        <ToolTip Content="Ses" />
+                    </Border.ToolTip>
+                    <TextBlock x:Name="VolumeGlyph"
+                               Style="{StaticResource StatusGlyph}"
+                               Text="&#xE767;" />
                 </Border>
 
                 <Border x:Name="NetworkButton" Style="{StaticResource StatusHit}">
@@ -149,52 +181,13 @@
                                Margin="2,0,0,0"
                                Text="" />
                 </StackPanel>
-
-                <Border x:Name="VolumeButton" Style="{StaticResource StatusHit}">
-                    <Border.ToolTip>
-                        <ToolTip Content="Ses" />
-                    </Border.ToolTip>
-                    <TextBlock x:Name="VolumeGlyph"
-                               Style="{StaticResource StatusGlyph}"
-                               Text="&#xE767;" />
-                </Border>
-
-                <Border x:Name="DateTimeButton"
-                        Style="{StaticResource StatusHit}"
-                        Padding="8,2,4,2"
-                        Margin="0">
-                    <Border.ToolTip>
-                        <ToolTip Content="Tarih ve saat" />
-                    </Border.ToolTip>
-                    <StackPanel Orientation="Vertical" VerticalAlignment="Center">
-                        <TextBlock x:Name="ClockText"
-                                   Style="{StaticResource ClockTimeLabel}"
-                                   Text="--:--" />
-                        <TextBlock x:Name="DateText"
-                                   Style="{StaticResource ClockDateLabel}"
-                                   Text="--" />
-                    </StackPanel>
-                </Border>
-
-                <Border x:Name="NotificationsButton"
-                        Style="{StaticResource StatusHit}"
-                        Padding="4,2,6,2"
-                        Margin="0">
-                    <Border.ToolTip>
-                        <ToolTip Content="Bildirimler" />
-                    </Border.ToolTip>
-                    <TextBlock x:Name="NotificationsGlyph"
-                               Style="{StaticResource StatusGlyph}"
-                               VerticalAlignment="Center"
-                               Text="&#xEA8F;" />
-                </Border>
             </StackPanel>
 
-            <!-- Quick Settings (Win11-style): shared by volume + network. Opaque Fluent chrome —
-                 AllowsTransparency stays false (never pair with Mica). -->
+            <!-- Quick Settings (Win11-style): shared by controlCenter / volume / network.
+                 Opaque Fluent chrome — AllowsTransparency stays false (never pair with Mica). -->
             <Popup x:Name="QuickSettingsPopup"
                    Placement="Bottom"
-                   PlacementTarget="{Binding ElementName=VolumeButton}"
+                   PlacementTarget="{Binding ElementName=ControlCenterButton}"
                    StaysOpen="False"
                    AllowsTransparency="False"
                    PopupAnimation="Fade"

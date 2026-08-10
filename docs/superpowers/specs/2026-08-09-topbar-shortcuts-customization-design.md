@@ -96,12 +96,15 @@ Enerji tasarrufu + master slider + mixer chevron.
 **Dahil**
 
 - `AppConfig` altında `topBar.statusItems: string[]` (id sırası = görünen sıra).
-- Desteklenen id’ler (sabit katalog): `trayOverflow`, `network`, `battery`, `volume`,
-  `dateTime`, `notifications`.
-- Varsayılan = bugünkü tam set (geriye uyumlu).
+- Desteklenen id’ler (sabit katalog): `trayOverflow`, `dateTime`, `notifications`,
+  `controlCenter`, `volume`, `network`, `battery`.
+  Güncel sıra / tıklama:
+  [`2026-08-09-topbar-status-strip-design.md`](2026-08-09-topbar-status-strip-design.md).
+- Varsayılan = status-strip tasarımındaki tam set.
 - Pil yokken zaten collapse — özelleştirmeden bağımsız kalır.
 - Düzenleme UI: durum şeridinde sağ tık → öğe işaretli menü (+ sıra).
-- `schemaVersion` 1’de soft alan; yoksa varsayılan.
+- `schemaVersion` 1’de soft alan; yoksa varsayılan. `statusCatalogVersion` 0→1:
+  eksik `controlCenter` migrate.
 
 **Hariç (sonra / asla)**
 
