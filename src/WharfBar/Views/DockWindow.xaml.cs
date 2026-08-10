@@ -39,6 +39,7 @@ public partial class DockWindow : Window
 
     private const double HoverScale = 1.12d;
     private const int HoverDurationMs = 140;
+    private const int AutoHideAnimMs = 200;
     private const double MinWidthDip = 180d;
 
     private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
@@ -58,6 +59,28 @@ public partial class DockWindow : Window
     private WindowActivationService? _activation;
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
+    private bool _isAnimatingY;
+    private int _lastPlacementX;
+    private int _lastPlacementWidthPx;
+    private int _lastPlacementHeightPx;
+
+    private static readonly DependencyProperty AnimYOffsetProperty =
+        DependencyProperty.Register(
+            nameof(AnimYOffset),
+            typeof(double),
+            typeof(DockWindow),
+            new PropertyMetadata(0d, OnAnimYOffsetChanged));
+
+    private double AnimYOffset
+    {
+        get => (double)GetValue(AnimYOffsetProperty);
+        set => SetValue(AnimYOffsetProperty, value);
+    }
+
+    private static void OnAnimYOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        ((DockWindow)d).SetWindowY((int)Math.Round((double)e.NewValue));
+    }
 
     internal DockWindow(AppConfig config)
     {
@@ -75,7 +98,7 @@ public partial class DockWindow : Window
             + _iconSizeDip
             + RunningDotGapDip
             + RunningDotSizeDip;
-        _autoHide = new DockAutoHideController(config.Dock.AutoHide);
+        _autoHide = new DockAutoHideController(config.Dock.AutoHide, Dispatcher);
 
         // Keep XAML padding in sync with the height budget used by SetWindowPos.
         Surface.Padding = new Thickness(
@@ -83,6 +106,38 @@ public partial class DockWindow : Window
             VerticalPaddingDip,
             HorizontalPaddingDip,
             VerticalPaddingDip);
+    }
+
+    /// <summary>
+    /// Re-applies config-driven settings (e.g. auto-hide behavior).
+    /// </summary>
+    internal void ApplyConfigChanges()
+    {
+        bool wasEnabled = _autoHide.Enabled;
+        _autoHide.SetEnabled(_config.Dock.AutoHide);
+
+        if (_source is null)
+        {
+            return;
+        }
+
+        IntPtr hwnd = _source.Handle;
+        if (_config.Dock.AutoHide)
+        {
+            _autoHide.Start(BuildEdgeProbe);
+            if (!wasEnabled && TryGetPlacementGeometry(out PlacementGeometry geo))
+            {
+                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                DockHitTest.ApplyPassthrough(hwnd);
+                _autoHide.AssumeHidden();
+            }
+        }
+        else
+        {
+            CancelYAnimation();
+            DockHitTest.ApplyInteractive(hwnd);
+            ApplyPlacement();
+        }
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -114,10 +169,17 @@ public partial class DockWindow : Window
         _composer.Changed += OnComposerChanged;
         RebuildStrip();
 
-        // Preference is live from config; proximity hide remains a no-op until a later phase.
+        _autoHide.Changed += OnAutoHideChanged;
         if (_autoHide.Enabled)
         {
-            _autoHide.Show();
+            if (TryGetPlacementGeometry(out PlacementGeometry geo))
+            {
+                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                DockHitTest.ApplyPassthrough(hwnd);
+                _autoHide.AssumeHidden();
+            }
+
+            _autoHide.Start(BuildEdgeProbe);
         }
 
         if (FullscreenState.Instance.IsFullscreen)
@@ -143,6 +205,9 @@ public partial class DockWindow : Window
         _runningSource?.Dispose();
         _runningSource = null;
         _activation = null;
+
+        _autoHide.Changed -= OnAutoHideChanged;
+        _autoHide.Dispose();
 
         _source?.RemoveHook(WndProc);
         _source = null;
@@ -270,43 +335,213 @@ public partial class DockWindow : Window
             return;
         }
 
+        if (!TryGetPlacementGeometry(out PlacementGeometry geo))
+        {
+            return;
+        }
+
         _isApplyingPlacement = true;
         try
         {
-            uint dpi = Display.GetDpi(hwnd);
-            int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
-            int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-            RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
-
-            if (monitor.Width <= 0 || heightPx <= 0)
-            {
-                return;
-            }
-
-            int widthPx = MeasureDesiredWidthPx(dpi);
-            int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
-            widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
-
-            int x = monitor.Left + (monitor.Width - widthPx) / 2;
-            int y = monitor.Bottom - heightPx - bottomGapPx;
-
-            IntPtr insertAfter = _isFullscreenHidden
-                ? NativeMethods.HWND_BOTTOM
-                : NativeMethods.HWND_TOPMOST;
-
-            NativeMethods.SetWindowPos(
-                hwnd,
-                insertAfter,
-                x,
-                y,
-                widthPx,
-                heightPx,
-                NativeMethods.SWP_NOACTIVATE);
+            int y = ResolvePlacementY(geo);
+            SetWindowRect(geo.X, y, geo.WidthPx, geo.HeightPx);
         }
         finally
         {
             _isApplyingPlacement = false;
         }
+    }
+
+    private int ResolvePlacementY(PlacementGeometry geo)
+    {
+        if (_autoHide.Enabled && _isAnimatingY && _source is not null
+            && NativeMethods.GetWindowRect(_source.Handle, out RECT rect))
+        {
+            return rect.Top;
+        }
+
+        if (_autoHide.Enabled)
+        {
+            return _autoHide.State is DockAutoHideVisualState.Hidden or DockAutoHideVisualState.Hiding
+                ? geo.HiddenY
+                : geo.VisibleY;
+        }
+
+        return geo.VisibleY;
+    }
+
+    private bool TryGetPlacementGeometry(out PlacementGeometry geo)
+    {
+        geo = default;
+        if (_source is null)
+        {
+            return false;
+        }
+
+        IntPtr hwnd = _source.Handle;
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        uint dpi = Display.GetDpi(hwnd);
+        int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
+        int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
+        RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
+
+        if (monitor.Width <= 0 || heightPx <= 0)
+        {
+            return false;
+        }
+
+        int widthPx = MeasureDesiredWidthPx(dpi);
+        int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
+        widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
+
+        int x = monitor.Left + (monitor.Width - widthPx) / 2;
+        int visibleY = monitor.Bottom - heightPx - bottomGapPx;
+        int hiddenY = monitor.Bottom;
+
+        geo = new PlacementGeometry(x, visibleY, hiddenY, widthPx, heightPx);
+        return true;
+    }
+
+    private EdgeProbeContext BuildEdgeProbe()
+    {
+        IntPtr hwnd = _source!.Handle;
+        uint dpi = Display.GetDpi(hwnd);
+        RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
+        int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
+        int widthPx = MeasureDesiredWidthPx(dpi);
+        int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
+        widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
+
+        int x = monitor.Left + (monitor.Width - widthPx) / 2;
+        int yVisible = monitor.Bottom - heightPx;
+
+        return new EdgeProbeContext(
+            monitor.Left,
+            monitor.Top,
+            monitor.Right,
+            monitor.Bottom,
+            x,
+            yVisible,
+            x + widthPx,
+            yVisible + heightPx,
+            dpi);
+    }
+
+    private void OnAutoHideChanged(object? sender, EventArgs e)
+    {
+        if (_source is null || !_autoHide.Enabled)
+        {
+            return;
+        }
+
+        IntPtr hwnd = _source.Handle;
+        if (!TryGetPlacementGeometry(out PlacementGeometry geo))
+        {
+            return;
+        }
+
+        switch (_autoHide.State)
+        {
+            case DockAutoHideVisualState.Showing:
+                DockHitTest.ApplyInteractive(hwnd);
+                AnimateYTo(geo.VisibleY);
+                break;
+            case DockAutoHideVisualState.Hiding:
+                DockHitTest.ApplyPassthrough(hwnd);
+                AnimateYTo(geo.HiddenY);
+                break;
+            case DockAutoHideVisualState.Visible:
+                CancelYAnimation();
+                SetWindowRect(geo.X, geo.VisibleY, geo.WidthPx, geo.HeightPx);
+                DockHitTest.ApplyInteractive(hwnd);
+                break;
+            case DockAutoHideVisualState.Hidden:
+                CancelYAnimation();
+                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                DockHitTest.ApplyPassthrough(hwnd);
+                break;
+        }
+    }
+
+    private void AnimateYTo(int targetY)
+    {
+        if (_source is null || !TryGetPlacementGeometry(out PlacementGeometry geo))
+        {
+            return;
+        }
+
+        IntPtr hwnd = _source.Handle;
+        if (!NativeMethods.GetWindowRect(hwnd, out RECT rect))
+        {
+            return;
+        }
+
+        int fromY = rect.Top;
+        SetWindowRect(geo.X, fromY, geo.WidthPx, geo.HeightPx);
+
+        if (fromY == targetY)
+        {
+            OnYAnimationCompleted();
+            return;
+        }
+
+        CancelYAnimation();
+        _isAnimatingY = true;
+        AnimYOffset = fromY;
+
+        var anim = new DoubleAnimation(fromY, targetY, TimeSpan.FromMilliseconds(AutoHideAnimMs))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+        anim.Completed += (_, _) =>
+        {
+            _isAnimatingY = false;
+            SetWindowY(targetY);
+            OnYAnimationCompleted();
+        };
+        BeginAnimation(AnimYOffsetProperty, anim);
+    }
+
+    private void CancelYAnimation()
+    {
+        BeginAnimation(AnimYOffsetProperty, null);
+        _isAnimatingY = false;
+    }
+
+    private void OnYAnimationCompleted() => _autoHide.NotifyAnimationCompleted();
+
+    private void SetWindowY(int y) =>
+        SetWindowRect(_lastPlacementX, y, _lastPlacementWidthPx, _lastPlacementHeightPx);
+
+    private void SetWindowRect(int x, int y, int widthPx, int heightPx)
+    {
+        if (_source is null)
+        {
+            return;
+        }
+
+        _lastPlacementX = x;
+        _lastPlacementWidthPx = widthPx;
+        _lastPlacementHeightPx = heightPx;
+
+        IntPtr hwnd = _source.Handle;
+        IntPtr insertAfter = _isFullscreenHidden
+            ? NativeMethods.HWND_BOTTOM
+            : NativeMethods.HWND_TOPMOST;
+
+        NativeMethods.SetWindowPos(
+            hwnd,
+            insertAfter,
+            x,
+            y,
+            widthPx,
+            heightPx,
+            NativeMethods.SWP_NOACTIVATE);
     }
 
     private int MeasureDesiredWidthPx(uint dpi)
@@ -315,13 +550,18 @@ public partial class DockWindow : Window
         return Display.DipToPixels(Surface.DesiredSize.Width, dpi);
     }
 
-    private void OnWorkAreaChanged(object? sender, EventArgs e) => ApplyPlacement();
+    private void OnWorkAreaChanged(object? sender, EventArgs e)
+    {
+        CancelYAnimation();
+        ApplyPlacement();
+    }
 
     private void OnFullscreenChanged(object? sender, EventArgs e)
     {
         if (FullscreenState.Instance.IsFullscreen)
         {
             _isFullscreenHidden = true;
+            _autoHide.NotifyFullscreen(true);
             Visibility = Visibility.Collapsed;
             return;
         }
@@ -334,6 +574,9 @@ public partial class DockWindow : Window
             return;
         }
 
+        DockHitTest.ApplyInteractive(_source.Handle);
+        _autoHide.NotifyFullscreen(false);
+
         NativeMethods.SetWindowPos(
             _source.Handle,
             NativeMethods.HWND_TOPMOST,
@@ -343,6 +586,7 @@ public partial class DockWindow : Window
             0,
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
 
+        CancelYAnimation();
         ApplyPlacement();
     }
 
@@ -352,7 +596,11 @@ public partial class DockWindow : Window
         {
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
-                Dispatcher.BeginInvoke(new Action(ApplyPlacement));
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    CancelYAnimation();
+                    ApplyPlacement();
+                }));
                 break;
 
             case NativeMethods.WM_THEMECHANGED:
@@ -378,4 +626,11 @@ public partial class DockWindow : Window
         return lParam != IntPtr.Zero
             && string.Equals(Marshal.PtrToStringUni(lParam), "ImmersiveColorSet", StringComparison.Ordinal);
     }
+
+    private readonly record struct PlacementGeometry(
+        int X,
+        int VisibleY,
+        int HiddenY,
+        int WidthPx,
+        int HeightPx);
 }

@@ -1,22 +1,55 @@
 namespace WharfBar.Native;
 
 /// <summary>
-/// Placeholder for future edge-band / WS_EX_TRANSPARENT hit-testing used by auto-hide.
-/// Faz 4 keeps the dock fully interactive — do not call SetWindowLong to strip hit-testing.
+/// Edge-band auto-hide hit-testing: clear or set WS_EX_TRANSPARENT for click-through.
 /// </summary>
 internal static class DockHitTest
 {
-    /// <summary>Reserved. No-op until auto-hide is enabled.</summary>
     internal static void ApplyInteractive(IntPtr hwnd)
     {
-        _ = hwnd;
-        // Future: ensure WS_EX_TRANSPARENT is cleared so clicks reach the dock.
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
+        {
+            return;
+        }
+
+        int ex = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+        int cleared = ex & ~NativeMethods.WS_EX_TRANSPARENT;
+        if (cleared != ex)
+        {
+            NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, cleared);
+            NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE
+                | NativeMethods.SWP_NOSIZE
+                | NativeMethods.SWP_NOZORDER
+                | NativeMethods.SWP_NOACTIVATE
+                | NativeMethods.SWP_FRAMECHANGED);
+        }
     }
 
-    /// <summary>Reserved. No-op until auto-hide is enabled.</summary>
     internal static void ApplyPassthrough(IntPtr hwnd)
     {
-        _ = hwnd;
-        // Future: set WS_EX_TRANSPARENT while the dock is hidden/collapsed for click-through.
+        if (hwnd == IntPtr.Zero || !NativeMethods.IsWindow(hwnd))
+        {
+            return;
+        }
+
+        int ex = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+        int with = ex | NativeMethods.WS_EX_TRANSPARENT;
+        if (with != ex)
+        {
+            NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, with);
+            NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE
+                | NativeMethods.SWP_NOSIZE
+                | NativeMethods.SWP_NOZORDER
+                | NativeMethods.SWP_NOACTIVATE
+                | NativeMethods.SWP_FRAMECHANGED);
+        }
     }
 }
