@@ -1,0 +1,94 @@
+<Page x:Class="WharfBar.Views.Pages.DockPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Dock"
+      Background="Transparent">
+
+    <Page.Resources>
+        <Style x:Key="PowerToysCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32,24,32,32">
+        <StackPanel MaxWidth="850" HorizontalAlignment="Left">
+
+            <!-- Page Title -->
+            <TextBlock Text="Dock" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+
+            <!-- Davranış Section -->
+            <TextBlock Text="Davranış" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Pin24" FontSize="20"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+                                   
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Otomatik Gizle" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Dock'u fare imleci yaklaşmadığında otomatik olarak ekran altından gizleyin"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                    
+                    <ui:ToggleSwitch x:Name="AutoHideToggle"
+                                    Grid.Column="2"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
+            <!-- Görünüm Section -->
+            <TextBlock Text="Görünüm" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Apps24" FontSize="20"
+                                       Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                        <TextBlock Grid.Column="1" Text="Simge Boyutu" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                        
+                        <TextBlock x:Name="IconSizeLabel" Grid.Column="2" Text="28 DIP"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                    </Grid>
+                    
+                    <Slider x:Name="IconSizeSlider" Grid.Row="1"
+                            Minimum="16" Maximum="36"
+                            IsSnapToTickEnabled="True" TickFrequency="1"
+                            Margin="36,12,0,4"
+                            ValueChanged="OnIconSizeChanged" />
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

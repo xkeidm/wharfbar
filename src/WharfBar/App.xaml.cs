@@ -1,4 +1,4 @@
-﻿using System.Windows;
+using System.Windows;
 using WharfBar.Models;
 using WharfBar.Services;
 using WharfBar.Views;
@@ -13,6 +13,32 @@ public partial class App : Application
     private DockWindow? _dock;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
+    private SettingsWindow? _settings;
+
+    /// <summary>Exposes the configuration service for settings pages.</summary>
+    internal ConfigService? Config => _config;
+
+    /// <summary>Exposes the dock window for settings-driven updates.</summary>
+    internal DockWindow? DockView => _dock;
+
+    /// <summary>The currently active <see cref="TopBarWindow"/> (same as <see cref="MainWindow"/>).</summary>
+    internal TopBarWindow? TopBar => MainWindow as TopBarWindow;
+
+    /// <summary>
+    /// Opens the settings window or activates it if already open.
+    /// </summary>
+    internal void ShowSettings()
+    {
+        if (_settings is not null)
+        {
+            _settings.Activate();
+            return;
+        }
+
+        _settings = new SettingsWindow();
+        _settings.Closed += (_, _) => _settings = null;
+        _settings.Show();
+    }
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -26,6 +52,9 @@ public partial class App : Application
 
         base.OnStartup(e);
 
+        Resources["AppTextFontFamily"] = SystemVersion.TextFontFamily;
+        Resources["AppIconFontFamily"] = SystemVersion.IconFontFamily;
+
         _config = new ConfigService();
         AppConfig config = _config.LoadOrCreate();
 
@@ -37,6 +66,10 @@ public partial class App : Application
         // never flashes the wrong palette.
         AppThemePreference.Mode = config.Theme;
         ApplicationThemeManager.Apply(AppThemePreference.Resolve());
+        if (config.UseSystemAccentColor)
+        {
+            ApplicationAccentColorManager.ApplySystemAccent();
+        }
 
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
@@ -116,6 +149,9 @@ public partial class App : Application
 
         _tray?.Dispose();
         _tray = null;
+
+        _settings?.Close();
+        _settings = null;
 
         _dock?.Close();
         _dock = null;

@@ -1,4 +1,4 @@
-﻿<Application x:Class="WharfBar.App"
+<Application x:Class="WharfBar.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml">
@@ -9,6 +9,17 @@
                 <ui:ThemesDictionary Theme="Dark" />
                 <ui:ControlsDictionary />
             </ResourceDictionary.MergedDictionaries>
+
+            <!-- Font resources dynamically assigned on OS detection (Win11: Segoe UI Variable / Segoe Fluent Icons, Win10: Segoe UI / Segoe MDL2 Assets) -->
+            <FontFamily x:Key="AppTextFontFamily">Segoe UI Variable, Segoe UI</FontFamily>
+            <FontFamily x:Key="AppIconFontFamily">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+
+            <Style TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            </Style>
+            <Style TargetType="{x:Type Control}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

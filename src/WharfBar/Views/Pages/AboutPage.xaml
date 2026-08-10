@@ -1,0 +1,100 @@
+<Page x:Class="WharfBar.Views.Pages.AboutPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Hakkında"
+      Background="Transparent">
+
+    <Page.Resources>
+        <Style x:Key="PowerToysCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32,24,32,32">
+        <StackPanel MaxWidth="850" HorizontalAlignment="Left">
+
+            <!-- Page Title -->
+            <TextBlock Text="Hakkında" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+
+            <!-- App Hero Card -->
+            <Border Style="{StaticResource PowerToysCard}" Padding="20,18" Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal">
+                    <Viewbox Width="44" Height="44" Stretch="Uniform"
+                             VerticalAlignment="Center" Margin="0,0,18,0">
+                        <Canvas Width="11" Height="11">
+                            <Rectangle Canvas.Left="0" Canvas.Top="0" Width="5" Height="5"
+                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                            <Rectangle Canvas.Left="6" Canvas.Top="0" Width="5" Height="5"
+                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                            <Rectangle Canvas.Left="0" Canvas.Top="6" Width="5" Height="5"
+                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                            <Rectangle Canvas.Left="6" Canvas.Top="6" Width="5" Height="5"
+                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                        </Canvas>
+                    </Viewbox>
+                    <StackPanel VerticalAlignment="Center">
+                        <TextBlock Text="WharfBar" FontSize="22" FontWeight="Bold" />
+                        <TextBlock x:Name="VersionText" Text="Sürüm —"
+                                   FontSize="13" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,0" />
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20">
+                    Windows'ta macOS tarzı üst bar ve dock. Fluent / Mica görünüm;
+                    görev çubuğu yerine geçen hibrit tepsi.
+                </TextBlock>
+            </Border>
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Document24" FontSize="18"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="1" Text="Lisans" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                    
+                    <TextBlock Grid.Column="2" Text="MIT Lisans" FontSize="13"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Desktop24" FontSize="18"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <TextBlock Grid.Column="1" Text="Platform" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                    
+                    <TextBlock x:Name="PlatformText" Grid.Column="2" Text=".NET 8 — Windows"
+                               FontSize="13"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

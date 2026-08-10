@@ -1,0 +1,157 @@
+<Page x:Class="WharfBar.Views.Pages.AppearancePage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+      Title="Görünüm"
+      Background="Transparent">
+
+    <Page.Resources>
+        <Style x:Key="PowerToysCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32,24,32,32">
+        <StackPanel MaxWidth="850" HorizontalAlignment="Left">
+
+            <!-- Page Title -->
+            <TextBlock Text="Görünüm" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+
+            <!-- Tema ve Renk Stili -->
+            <TextBlock Text="Tema ve Renkler" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+
+            <!-- Vurgu Rengi Seçimi -->
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Color24" FontSize="20"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+                                   
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Vurgu Rengi Stili" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Pencere ve kontrollerde Windows sistem vurgu rengi mi yoksa sabit tema modu mu kullanılsın?"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                    
+                    <ComboBox x:Name="AccentStyleCombo"
+                              Grid.Column="2"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Width="190"
+                              SelectionChanged="OnAccentStyleChanged">
+                        <ComboBoxItem Content="Sistem Vurgu Rengi" />
+                        <ComboBoxItem Content="Sabit Tema Modu" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Uygulama Teması -->
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:SymbolIcon Grid.Column="0" Symbol="DarkTheme24" FontSize="20"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+                                   
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Uygulama Teması" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Açık, koyu veya Windows sistem varsayılan temasını kullanın"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                    
+                    <ComboBox x:Name="ThemeCombo"
+                              Grid.Column="2"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Width="190"
+                              SelectionChanged="OnThemeChanged">
+                        <ComboBoxItem Content="Sistem varsayılanı" />
+                        <ComboBoxItem Content="Açık Mod" />
+                        <ComboBoxItem Content="Koyu Mod" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Üst Çubuk Arka Planı -->
+            <TextBlock Text="Üst Çubuk Arka Planı" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Eye24" FontSize="20"
+                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+                                   
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Arka Plan Modu" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Üst barın bulanıklık ve saydamlık efektini ayarlayın"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+                    
+                    <ComboBox x:Name="BackgroundCombo"
+                              Grid.Column="2"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Width="190"
+                              SelectionChanged="OnBackgroundModeChanged">
+                        <ComboBoxItem Content="Mica (Bulanık)" />
+                        <ComboBoxItem Content="Saydam (Transparent)" />
+                        <ComboBoxItem Content="Renkli (Tint)" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <Border x:Name="OpacityCard" Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="Arka Plan Opaklığı" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                        <TextBlock x:Name="OpacityLabel" Grid.Column="1" Text="40%"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                    </Grid>
+                    <Slider x:Name="OpacitySlider" Grid.Row="1"
+                            Minimum="0" Maximum="100"
+                            IsSnapToTickEnabled="True" TickFrequency="1"
+                            Margin="0,12,0,4"
+                            ValueChanged="OnOpacityChanged" />
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>
