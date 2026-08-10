@@ -566,7 +566,7 @@ internal static class CoreAudioSessions
     }
 
     [ComImport]
-    [Guid("0BD7A1BE-7A1A-44DB-8393-6C0000C10000")]
+    [Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceCollection
     {
@@ -617,8 +617,14 @@ internal static class CoreAudioSessions
         int UnregisterSessionNotification(IntPtr sessionNotification);
     }
 
+    /// <summary>
+    /// Windows returns an enumerator whose vtable is <c>IAudioSessionEnumerator</c> but
+    /// <c>QueryInterface(E2F5BB11-…)</c> fails with <c>E_NOINTERFACE</c>. Tagging the
+    /// ComImport with the IUnknown IID lets the marshaller wrap the pointer; GetCount /
+    /// GetSession then call through the real enumerator vtable (verified on Win11).
+    /// </summary>
     [ComImport]
-    [Guid("E2F5BB11-0570-40CA-ACDD-3AA01232CE87")]
+    [Guid("00000000-0000-0000-C000-000000000046")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IAudioSessionEnumerator
     {

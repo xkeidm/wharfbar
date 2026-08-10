@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using WharfBar.Native;
@@ -18,11 +19,36 @@ public partial class QuickSettingsFlyout : UserControl
     private bool _masterSliderUpdating;
     private bool _sessionSliderUpdating;
     private bool _deviceSliderUpdating;
+    private bool _devicePickerExpanded;
+    private int _activeSessionDrags;
+    private bool _masterDragging;
     private QuickSettingsPage _page = QuickSettingsPage.Main;
+
+    private sealed class SessionRowState
+    {
+        internal required string SessionInstanceId { get; init; }
+        internal bool IsMuted { get; set; }
+        internal required string DisplayName { get; set; }
+        internal required Slider Slider { get; init; }
+        internal required TextBlock PercentText { get; init; }
+        internal required FrameworkElement IconHost { get; init; }
+    }
 
     public QuickSettingsFlyout()
     {
         InitializeComponent();
+        MixerMasterSlider.AddHandler(
+            Thumb.DragStartedEvent,
+            new DragStartedEventHandler((_, _) => _masterDragging = true),
+            handledEventsToo: true);
+        MixerMasterSlider.AddHandler(
+            Thumb.DragCompletedEvent,
+            new DragCompletedEventHandler((_, _) =>
+            {
+                _masterDragging = false;
+                _mixer?.RefreshNow();
+            }),
+            handledEventsToo: true);
     }
 
     internal void Attach(VolumeService volume, AudioMixerService mixer, QuickSettingsService quick)
@@ -71,6 +97,7 @@ public partial class QuickSettingsFlyout : UserControl
         }
         else
         {
+            SetDevicePickerExpanded(false);
             _mixer?.StopPolling();
         }
 
@@ -90,6 +117,7 @@ public partial class QuickSettingsFlyout : UserControl
 
     internal void OnFlyoutClosed()
     {
+        SetDevicePickerExpanded(false);
         _mixer?.StopPolling();
         _quick?.StopPolling();
     }
@@ -146,6 +174,7 @@ public partial class QuickSettingsFlyout : UserControl
                 SelectedDeviceNameText.Text = "Çıkış aygıtı bulunamadı";
                 SelectedDeviceNameText.ToolTip = null;
                 DevicePickerButton.IsEnabled = false;
+                SetDevicePickerExpanded(false);
                 DevicePickerList.Children.Clear();
                 MixerMasterSlider.IsEnabled = false;
                 MixerMasterMuteButton.IsEnabled = false;
@@ -163,11 +192,18 @@ public partial class QuickSettingsFlyout : UserControl
             MixerMasterMuteButton.Content =
                 snap.Selected.IsMuted || snap.Selected.Percent == 0 ? "\uE74F" : "\uE767";
             MixerMasterMuteButton.ToolTip = snap.Selected.IsMuted ? "Sesi aç" : "Sessiz";
-            MixerMasterSlider.Value = snap.Selected.Percent;
-            MixerMasterPercentText.Text = snap.Selected.Percent.ToString();
+            if (!_masterDragging && !MixerMasterSlider.IsMouseCaptureWithin)
+            {
+                MixerMasterSlider.Value = snap.Selected.Percent;
+                MixerMasterPercentText.Text = snap.Selected.Percent.ToString();
+            }
 
             RebuildDevicePickerList(snap);
-            RebuildSessionList(snap.Sessions);
+            // Never tear down session sliders mid-drag — that made app volume bars unusable.
+            if (_activeSessionDrags == 0)
+            {
+                SyncSessionList(snap.Sessions);
+            }
         }
         finally
         {
@@ -205,11 +241,18 @@ public partial class QuickSettingsFlyout : UserControl
         }
     }
 
-    private void RebuildSessionList(IReadOnlyList<AudioAppSession> sessions)
+    private void SyncSessionList(IReadOnlyList<AudioAppSession> sessions)
     {
-        MixerSessionList.Children.Clear();
         if (sessions.Count == 0)
         {
+            if (MixerSessionList.Children.Count == 1
+                && MixerSessionList.Children[0] is TextBlock empty
+                && empty.Text == "Uygulama oturumu yok")
+            {
+                return;
+            }
+
+            MixerSessionList.Children.Clear();
             MixerSessionList.Children.Add(new TextBlock
             {
                 Text = "Uygulama oturumu yok",
@@ -220,33 +263,72 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
+        if (TryUpdateSessionRowsInPlace(sessions))
+        {
+            return;
+        }
+
+        MixerSessionList.Children.Clear();
         foreach (AudioAppSession session in sessions)
         {
             MixerSessionList.Children.Add(BuildSessionRow(session));
         }
     }
 
+    private bool TryUpdateSessionRowsInPlace(IReadOnlyList<AudioAppSession> sessions)
+    {
+        if (MixerSessionList.Children.Count != sessions.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            if (MixerSessionList.Children[i] is not DockPanel { Tag: SessionRowState state }
+                || !string.Equals(
+                    state.SessionInstanceId,
+                    sessions[i].SessionInstanceId,
+                    StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        for (int i = 0; i < sessions.Count; i++)
+        {
+            ApplySessionToRow((DockPanel)MixerSessionList.Children[i], sessions[i]);
+        }
+
+        return true;
+    }
+
+    private void ApplySessionToRow(DockPanel dock, AudioAppSession session)
+    {
+        if (dock.Tag is not SessionRowState state)
+        {
+            return;
+        }
+
+        state.IsMuted = session.IsMuted;
+        if (!string.Equals(state.DisplayName, session.DisplayName, StringComparison.Ordinal))
+        {
+            state.DisplayName = session.DisplayName;
+            SetSessionIconTip(state.IconHost, session.DisplayName);
+        }
+
+        state.PercentText.Text = session.IsMuted ? "—" : session.Percent.ToString();
+        state.Slider.IsEnabled = !session.IsMuted;
+        state.Slider.Opacity = session.IsMuted ? 0.45 : 1;
+
+        if (!state.Slider.IsMouseCaptureWithin && _activeSessionDrags == 0)
+        {
+            // Caller (RefreshMixer) already holds _sessionSliderUpdating; do not clear it here.
+            state.Slider.Value = session.Percent;
+        }
+    }
+
     private UIElement BuildSessionRow(AudioAppSession session)
     {
-        var dock = new DockPanel
-        {
-            Margin = new Thickness(0, 6, 0, 0),
-            Tag = session.SessionInstanceId,
-        };
-
-        FrameworkElement leading = BuildSessionIcon(session);
-        leading.Margin = new Thickness(2, 0, 0, 0);
-        DockPanel.SetDock(leading, Dock.Left);
-
-        // Mute on icon click
-        leading.Cursor = Cursors.Hand;
-        leading.MouseLeftButtonUp += (_, e) =>
-        {
-            e.Handled = true;
-            _mixer?.TrySetSessionMuted(session.SessionInstanceId, !session.IsMuted);
-        };
-        leading.ToolTip = session.DisplayName;
-
         var percent = new TextBlock
         {
             Text = session.IsMuted ? "—" : session.Percent.ToString(),
@@ -267,16 +349,79 @@ public partial class QuickSettingsFlyout : UserControl
             Margin = new Thickness(8, 0, 8, 0),
             TickFrequency = 1,
             IsSnapToTickEnabled = true,
-            Tag = session.SessionInstanceId,
             IsEnabled = !session.IsMuted,
             Opacity = session.IsMuted ? 0.45 : 1,
         };
-        slider.ValueChanged += OnSessionVolumeChanged;
 
-        dock.Children.Add(leading);
+        // Hit target larger than 20px icon; Segoe UI tip (MDL2 TextBlock must not own the tip).
+        var iconHost = new Border
+        {
+            Width = 28,
+            Height = 28,
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = BuildSessionIcon(session),
+        };
+        DockPanel.SetDock(iconHost, Dock.Left);
+        SetSessionIconTip(iconHost, session.DisplayName);
+
+        var state = new SessionRowState
+        {
+            SessionInstanceId = session.SessionInstanceId,
+            IsMuted = session.IsMuted,
+            DisplayName = session.DisplayName,
+            Slider = slider,
+            PercentText = percent,
+            IconHost = iconHost,
+        };
+        slider.Tag = state;
+        slider.ValueChanged += OnSessionVolumeChanged;
+        slider.AddHandler(
+            Thumb.DragStartedEvent,
+            new DragStartedEventHandler(OnSessionSliderDragStarted),
+            handledEventsToo: true);
+        slider.AddHandler(
+            Thumb.DragCompletedEvent,
+            new DragCompletedEventHandler(OnSessionSliderDragCompleted),
+            handledEventsToo: true);
+
+        var dock = new DockPanel
+        {
+            Margin = new Thickness(0, 6, 0, 0),
+            Tag = state,
+        };
+
+        // Mute on icon click — read live mute from row state (in-place updates).
+        iconHost.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            if (dock.Tag is not SessionRowState row)
+            {
+                return;
+            }
+
+            _mixer?.TrySetSessionMuted(row.SessionInstanceId, !row.IsMuted);
+        };
+
+        dock.Children.Add(iconHost);
         dock.Children.Add(percent);
         dock.Children.Add(slider);
         return dock;
+    }
+
+    private static void SetSessionIconTip(FrameworkElement host, string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            host.ToolTip = null;
+            return;
+        }
+
+        host.ToolTip = CreateTip(displayName);
+        ToolTipService.SetInitialShowDelay(host, 250);
+        ToolTipService.SetShowDuration(host, 8000);
+        ToolTipService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Top);
     }
 
     private FrameworkElement BuildSessionIcon(AudioAppSession session)
@@ -290,7 +435,9 @@ public partial class QuickSettingsFlyout : UserControl
                 Width = 20,
                 Height = 20,
                 Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false,
             };
         }
 
@@ -304,6 +451,7 @@ public partial class QuickSettingsFlyout : UserControl
             TextAlignment = TextAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Opacity = 0.85,
+            IsHitTestVisible = false,
         };
     }
 
@@ -500,7 +648,7 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
-        DevicePickerPopup.IsOpen = !DevicePickerPopup.IsOpen;
+        SetDevicePickerExpanded(!_devicePickerExpanded);
     }
 
     private void OnDevicePickerItemClick(object sender, MouseButtonEventArgs e)
@@ -511,11 +659,19 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         e.Handled = true;
-        DevicePickerPopup.IsOpen = false;
+        SetDevicePickerExpanded(false);
         if (!_mixer.TrySetDefaultDevice(id))
         {
             RefreshMixer();
         }
+    }
+
+    private void SetDevicePickerExpanded(bool expanded)
+    {
+        _devicePickerExpanded = expanded;
+        DevicePickerPanel.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+        // Chevron down (E70D) when collapsed; chevron up (E70E) when open.
+        DevicePickerChevron.Text = expanded ? "\uE70E" : "\uE70D";
     }
 
     private void OnMixerMasterMuteClick(object sender, RoutedEventArgs e) =>
@@ -533,13 +689,33 @@ public partial class QuickSettingsFlyout : UserControl
         MixerMasterPercentText.Text = percent.ToString();
     }
 
+    private void OnSessionSliderDragStarted(object sender, DragStartedEventArgs e) =>
+        _activeSessionDrags++;
+
+    private void OnSessionSliderDragCompleted(object sender, DragCompletedEventArgs e)
+    {
+        _activeSessionDrags = Math.Max(0, _activeSessionDrags - 1);
+        if (_activeSessionDrags == 0)
+        {
+            _mixer?.RefreshNow();
+        }
+    }
+
     private void OnSessionVolumeChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (_sessionSliderUpdating || _mixer is null || sender is not Slider { Tag: string id })
+        if (_sessionSliderUpdating
+            || _mixer is null
+            || sender is not Slider { Tag: SessionRowState state })
         {
             return;
         }
 
-        _mixer.TrySetSessionPercent(id, (int)Math.Round(e.NewValue));
+        int percent = (int)Math.Round(e.NewValue);
+        // Apply Core Audio without raising Changed — rebuilding the list mid-drag tore down
+        // the Slider and made app volume bars feel broken.
+        if (_mixer.TrySetSessionPercent(state.SessionInstanceId, percent, refreshUi: false))
+        {
+            state.PercentText.Text = percent.ToString();
+        }
     }
 }

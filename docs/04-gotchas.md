@@ -6,7 +6,7 @@
 | Shell/explorer restart → AppBar kaybı | Yeniden kayıt stratejisi (shell mesajı / sağlık kontrolü) |
 | `AllowsTransparency=true` + Mica | Asla birlikte kullanma; WPF-UI backdrop veya opak + DWM extend; hızlı ayarlar Popup da opak |
 | Hızlı ayarlar / PolicyConfig | Varsayılan ses aygıtı için `IPolicyConfig` (ADR-006); tepsi RPM değil |
-| Ses karıştırıcı | Tek seçili çıkış aygıtı + dropdown ile varsayılan değiştirme; master `IAudioEndpointVolume` + oturum listesi; oturum ikonu süreç yolu yoksa MDL2; UWP ikonları sınırlı (ADR-006) |
+| Ses karıştırıcı | Tek seçili çıkış aygıtı + satır içi expander ile varsayılan değiştirme (QS `Popup` içinde iç içe `Popup` kullanma — odak kaçar, liste görünmez); master `IAudioEndpointVolume` + oturum listesi; `IMMDeviceCollection` IID `…8397-CC5392387B5E`; `IAudioSessionEnumerator` ComImport’u IUnknown IID ile sar (resmi IID QI `E_NOINTERFACE` verir, vtable yine enumerator); oturum slider sürüklerken satırları yeniden kurma (poll/`Changed` mid-drag UI’yi yıkıyordu); oturum ikonu süreç yolu yoksa MDL2; UWP ikonları sınırlı (ADR-006) |
 | WPF-UI backdrop + ham DWM aynı anda | Önce WPF-UI; ham DWM’yi yedek tut |
 | `WindowChrome` / caption + 30 DIP şerit | Caption min-height ~39 px; `WindowStyle=None` + frame extend (ADR-004) |
 | `SystemThemeWatcher` istenen backdrop’u ezer | Watcher varsayılan Mica basar; tema mesajlarını `WindowAppearance.Refresh` ile işle |
@@ -38,6 +38,7 @@
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
 | Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
 | Translucent üst bar / Mica geçişi | `AllowsTransparency` ctor'da; Mica↔translucent = TopBar recreate; recreate'de **taskbar restore yok**, yalnız `ABM_REMOVE`+yeni `ABM_NEW`; Mica+`AllowsTransparency` yasak |
+| Translucent bar bembeyaz / opak | XAML `Background={DynamicResource ApplicationBackgroundBrush}`; `SetCurrentValue` kaynağı silmez → tema `Apply` opak fırçayı geri yazar. Translucent’ta yerel `Background = …` ata |
 
 ## Geliştirme ipucu
 

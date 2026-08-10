@@ -35,8 +35,9 @@ Yukarıdan aşağı:
 
 1. **Başlık** — geri düğmesi + “Ses karıştırıcı” (Main’e dönüş)
 2. **Çıkış cihazı** — küçük etiket; altında seçili aygıt adı + chevron.
-   Kapalı: yalnızca seçili aygıt. Açık: aktif render aygıtları listesi; seçim →
-   sistem default
+   Kapalı: yalnızca seçili aygıt. Açık: aktif render aygıtları **satır içi
+   expander** ile listelenir (QS flyout zaten bir `Popup`; iç içe ikinci
+   `Popup` odak kaçırıp listeyi göstermez); seçim → sistem default
 3. **Master satır** — mute ikonu + slider + sayısal % (varsayılan aygıt =
    `VolumeService` ile senkron)
 4. İnce ayırıcı

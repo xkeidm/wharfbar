@@ -68,14 +68,27 @@ internal sealed class AudioMixerService : IDisposable
         return true;
     }
 
-    internal bool TrySetSessionPercent(string sessionInstanceId, int percent)
+    /// <param name="refreshUi">
+    /// When false, applies Core Audio only and updates <see cref="Snapshot"/> without
+    /// raising <see cref="Changed"/> — used while a session slider is being dragged so the
+    /// flyout does not rebuild rows mid-gesture.
+    /// </param>
+    internal bool TrySetSessionPercent(string sessionInstanceId, int percent, bool refreshUi = true)
     {
         if (!CoreAudioSessions.TrySetSessionVolume(sessionInstanceId, percent / 100f))
         {
             return false;
         }
 
-        Refresh();
+        if (refreshUi)
+        {
+            Refresh();
+        }
+        else
+        {
+            Snapshot = Read();
+        }
+
         return true;
     }
 
@@ -89,6 +102,8 @@ internal sealed class AudioMixerService : IDisposable
         Refresh();
         return true;
     }
+
+    internal void RefreshNow() => Refresh();
 
     public void Dispose()
     {

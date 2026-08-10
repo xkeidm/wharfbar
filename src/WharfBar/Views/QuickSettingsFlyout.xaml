@@ -152,51 +152,48 @@
                                Text="Ses karıştırıcı" />
                 </DockPanel>
 
+                <!-- Inline expander (not nested Popup): parent QS Popup is StaysOpen=False;
+                     a child Popup steals focus and never shows the device list reliably. -->
                 <StackPanel Grid.Row="1" Margin="0,0,0,10">
                     <TextBlock FontSize="11"
                                Opacity="0.7"
                                Margin="2,0,0,4"
                                Text="Çıkış cihazı" />
-                    <Grid>
-                        <Border x:Name="DevicePickerButton"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                CornerRadius="8"
-                                Padding="12,10"
-                                Cursor="Hand"
-                                MouseLeftButtonUp="OnDevicePickerClick">
-                            <DockPanel>
-                                <TextBlock DockPanel.Dock="Right"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="12"
-                                           VerticalAlignment="Center"
-                                           Opacity="0.8"
-                                           Text="&#xE70D;" />
-                                <TextBlock x:Name="SelectedDeviceNameText"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis"
-                                           VerticalAlignment="Center"
-                                           Text="—" />
-                            </DockPanel>
-                        </Border>
-                        <Popup x:Name="DevicePickerPopup"
-                               PlacementTarget="{Binding ElementName=DevicePickerButton}"
-                               Placement="Bottom"
-                               StaysOpen="False"
-                               AllowsTransparency="False">
-                            <Border Background="{DynamicResource ApplicationBackgroundBrush}"
-                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    MinWidth="{Binding ActualWidth, ElementName=DevicePickerButton}"
-                                    MaxHeight="220"
-                                    Padding="4">
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                    <StackPanel x:Name="DevicePickerList" />
-                                </ScrollViewer>
-                            </Border>
-                        </Popup>
-                    </Grid>
+                    <Border x:Name="DevicePickerButton"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            CornerRadius="8"
+                            Padding="12,10"
+                            Cursor="Hand"
+                            MouseLeftButtonUp="OnDevicePickerClick">
+                        <DockPanel>
+                            <TextBlock x:Name="DevicePickerChevron"
+                                       DockPanel.Dock="Right"
+                                       FontFamily="Segoe MDL2 Assets"
+                                       FontSize="12"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.8"
+                                       Text="&#xE70D;" />
+                            <TextBlock x:Name="SelectedDeviceNameText"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"
+                                       Text="—" />
+                        </DockPanel>
+                    </Border>
+                    <Border x:Name="DevicePickerPanel"
+                            Margin="0,6,0,0"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="4"
+                            MaxHeight="220"
+                            Visibility="Collapsed">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel x:Name="DevicePickerList" />
+                        </ScrollViewer>
+                    </Border>
                 </StackPanel>
 
                 <Border Grid.Row="2"

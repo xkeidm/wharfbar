@@ -65,52 +65,41 @@ internal static class CoreAudioDevices
             }
 
             if (enumerator.EnumAudioEndpoints(EDataFlowRender, DeviceStateActive, out collection)
-                != NativeMethods.S_OK
-                || collection is null)
+                == NativeMethods.S_OK
+                && collection is not null
+                && collection.GetCount(out uint count) == NativeMethods.S_OK)
             {
-                return list;
-            }
-
-            if (collection.GetCount(out uint count) != NativeMethods.S_OK)
-            {
-                return list;
-            }
-
-            for (uint i = 0; i < count; i++)
-            {
-                if (collection.Item(i, out IMMDevice? device) != NativeMethods.S_OK || device is null)
+                for (uint i = 0; i < count; i++)
                 {
-                    continue;
-                }
-
-                try
-                {
-                    if (device.GetId(out string? id) != NativeMethods.S_OK || string.IsNullOrEmpty(id))
+                    if (collection.Item(i, out IMMDevice? device) != NativeMethods.S_OK || device is null)
                     {
                         continue;
                     }
 
-                    string name = TryGetFriendlyName(device) ?? id;
-                    int percent = 100;
-                    bool muted = false;
-                    if (AudioEndpointVolume.TryGetScalarForDevice(id, out float level, out muted))
+                    try
                     {
-                        percent = Math.Clamp(
-                            (int)Math.Round(level * 100f, MidpointRounding.AwayFromZero),
-                            0,
-                            100);
+                        TryAddDevice(device, defaultId, list);
                     }
+                    finally
+                    {
+                        Marshal.ReleaseComObject(device);
+                    }
+                }
+            }
 
-                    list.Add(new AudioOutputDevice(
-                        id,
-                        name,
-                        string.Equals(id, defaultId, StringComparison.Ordinal),
-                        percent,
-                        muted));
+            // If enum failed but the default endpoint is available (VolumeService path works),
+            // still surface one block so the mixer is usable.
+            if (list.Count == 0 && !string.IsNullOrEmpty(defaultId)
+                && enumerator.GetDevice(defaultId, out IMMDevice? fallback) == NativeMethods.S_OK
+                && fallback is not null)
+            {
+                try
+                {
+                    TryAddDevice(fallback, defaultId, list);
                 }
                 finally
                 {
-                    Marshal.ReleaseComObject(device);
+                    Marshal.ReleaseComObject(fallback);
                 }
             }
         }
@@ -172,6 +161,32 @@ internal static class CoreAudioDevices
                 Marshal.ReleaseComObject(policyObj);
             }
         }
+    }
+
+    private static void TryAddDevice(IMMDevice device, string? defaultId, List<AudioOutputDevice> list)
+    {
+        if (device.GetId(out string? id) != NativeMethods.S_OK || string.IsNullOrEmpty(id))
+        {
+            return;
+        }
+
+        string name = TryGetFriendlyName(device) ?? id;
+        int percent = 100;
+        bool muted = false;
+        if (AudioEndpointVolume.TryGetScalarForDevice(id, out float level, out muted))
+        {
+            percent = Math.Clamp(
+                (int)Math.Round(level * 100f, MidpointRounding.AwayFromZero),
+                0,
+                100);
+        }
+
+        list.Add(new AudioOutputDevice(
+            id,
+            name,
+            string.Equals(id, defaultId, StringComparison.Ordinal),
+            percent,
+            muted));
     }
 
     private static string? TryGetFriendlyName(IMMDevice device)
@@ -279,10 +294,13 @@ internal static class CoreAudioDevices
 
         [PreserveSig]
         int GetDefaultAudioEndpoint(int dataFlow, int role, out IMMDevice ppEndpoint);
+
+        [PreserveSig]
+        int GetDevice([MarshalAs(UnmanagedType.LPWStr)] string pwstrId, out IMMDevice ppDevice);
     }
 
     [ComImport]
-    [Guid("0BD7A1BE-7A1A-44DB-8393-6C0000C10000")]
+    [Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceCollection
     {
