@@ -349,6 +349,7 @@ public partial class QuickSettingsFlyout : UserControl
             Margin = new Thickness(8, 0, 8, 0),
             TickFrequency = 1,
             IsSnapToTickEnabled = true,
+            IsMoveToPointEnabled = true,
             IsEnabled = !session.IsMuted,
             Opacity = session.IsMuted ? 0.45 : 1,
         };

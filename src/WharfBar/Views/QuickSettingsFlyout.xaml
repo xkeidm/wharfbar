@@ -107,6 +107,7 @@
                                 Margin="8,0"
                                 TickFrequency="1"
                                 IsSnapToTickEnabled="True"
+                                IsMoveToPointEnabled="True"
                                 ValueChanged="OnMasterVolumeChanged" />
                     </DockPanel>
                 </Border>
@@ -222,6 +223,7 @@
                                 Margin="8,0"
                                 TickFrequency="1"
                                 IsSnapToTickEnabled="True"
+                                IsMoveToPointEnabled="True"
                                 ValueChanged="OnMixerMasterVolumeChanged" />
                     </DockPanel>
                 </Border>
