@@ -31,6 +31,7 @@
   - `DockHitTest` — `ApplyInteractive` / `ApplyPassthrough` (`WS_EX_TRANSPARENT`)
   - Kod çalışma ağacında; manuel doğrulama bekliyor
 - **Monitör Parlaklık Kontrolü (Monitorian Entegrasyonu) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hibrit), `BrightnessFlyout` (TopBar `brightness` simgesi, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu, katalog v2).
+- **Dock Sağ Tık Bağlam Menüsü & Düzen Polish ✓** — `DockWindow` sağ tık bağlam menüsü (Uygulama İkonu/Adı başlık kartı, Dock'a Sabitle/Kaldır dinamik kısayol senkronizasyonu, Görevi Sonlandır `Process.Kill`, Pencereyi Kapat `WM_CLOSE`, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere), %100 ekran genişliği desteği ve `ScrollViewer` + `PreviewMouseWheel` yatay kaydırma entegrasyonu.
 
 ## Yapılacaklar listesi (öncelikli)
 

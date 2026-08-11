@@ -53,6 +53,7 @@ src/WharfBar/
     TaskbarNative.cs            # Shell_TrayWnd + ABM_GETSTATE/SETSTATE sarmalayıcı
     SendInputKeys.cs            # Win+B / Win+N / Win+P / Space / Enter
     TrayOverflowNative.cs       # overflow penceresi / TrayNotifyWnd chevron / Win+B
+    TrayIconNative.cs           # Win11 UIA NotifyItemIcon tarama + tık (ADR-007)
     WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
@@ -65,7 +66,7 @@ src/WharfBar/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
-    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (8 sabit id)
+    TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize (mirroredTray dahil)
     AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
@@ -74,7 +75,7 @@ src/WharfBar/
     ConfigService.cs            # %AppData%/WharfBar/config.json oku/yaz
     AppIconService.cs           # ShellIcon → WPF ImageSource (DPI boyutlu)
     ProcessLauncherService.cs   # Process.Start launcher
-    WindowActivationService.cs  # çalışan pencereye odaklama
+    WindowActivationService.cs  # odaklama / tekrar tıklamada minimize toggle
     FullscreenState.cs          # süreç içi fullscreen sinyali (TopBar → Dock)
     WorkAreaChanged.cs          # AppBar yerleşim sonrası dock yeniden konumlanma olayı
     DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
@@ -85,6 +86,7 @@ src/WharfBar/
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
     QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
+    TrayIconMirrorService.cs    # 3. parti tepsi aynası (UIA + peek; ADR-007)
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
     RunningAppsSource.cs        # EnumWindows + AUMID gruplama
@@ -125,14 +127,15 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
-| `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek; Mica + yuvarlak köşe; AppBar yok |
+| `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek; sağ tık bağlam menüsü (Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici çalıştır, Dosya konumunu aç, Yeni pencere); %100 ekran genişliği & yatay ScrollViewer kaydırma; Mica + yuvarlak köşe; AppBar yok |
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` gizle; çıkışta restore |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar` `.lnk` tarama; değişiklik watcher |
 | `RunningAppsSource` | `EnumWindows` + AUMID ile çalışan uygulama gruplama |
-| `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi; `pinnedApps` fallback |
-| `ShortcutResolver` | `.lnk` hedef yol / args çözümleme |
-| `WindowActivationService` | Çalışan pencereye odaklama |
+| `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi (Sabitler solda, sabit olmayan çalışanlar ayırıcı ile sağda); `pinnedApps` fallback |
+| `ShortcutResolver` | `.lnk` hedef yol / args çözümleme ve dinamik `.lnk` kısayolu oluşturma |
+| `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |
 | `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
+| `TrayIconMirrorService` | Win11 UIA `NotifyItemIcon` aynası (ADR-007); peek + `BitBlt` ikon; tık → Invoke / mouse |
 | `ShellIcon` | `IShellItemImageFactory` (DPI px) + `SHGetFileInfo` yedek; ikon / bitmap destroy |
 | `AppIconService` | `ShellIcon` → WPF `ImageSource` (boyut önbellek anahtarlı) |
 | `ProcessLauncherService` | Pin tıklamasında `Process.Start` |
@@ -245,10 +248,12 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "statusCatalogVersion": 1,
     "statusItems": [
       "trayOverflow",
+      "mirroredTray",
       "dateTime",
       "notifications",
       "controlCenter",
       "volume",
+      "brightness",
       "network",
       "battery"
     ]
@@ -269,7 +274,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |
-| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow` … `battery`, 7 id). Soft alan (`schemaVersion` 1) |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, `mirroredTray`, … `battery`). Soft alan (`schemaVersion` 1) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

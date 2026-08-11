@@ -17,7 +17,9 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
-  `config.pinnedApps` seed/fallback.
+  sabitlenen uygulamalar solda, sabit olmayan çalışanlar sağda (ayırıcı çizgi ile ayrılmış);
+  sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere);
+  `config.pinnedApps` seed/fallback + dinamik kısayol oluşturma/silme.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **v1 monitör:** Yalnızca **birincil** monitör.
 - **Global menü yok** — top bar File/Edit benzeri uygulama menüsü taşımaz.

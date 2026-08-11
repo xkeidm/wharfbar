@@ -136,13 +136,21 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
 
 **Seçilen hide yolu (plan):**
 
-1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + `FindWindow("Shell_TrayWnd")` +
-   `IsWindowVisible` — restore için saklanır.
-2. **Gizleme:** `ShowWindow(Shell_TrayWnd, SW_HIDE)` — birincil görev çubuğu penceresini gizler.
-3. **Geri yükleme:** önce `ShowWindow` ile kayıtlı görünürlük, ardından `ABM_SETSTATE` ile kayıtlı
-   auto-hide durumu.
-4. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
-5. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
+1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + birincil `SPI_GETWORKAREA` +
+   `FindWindow("Shell_TrayWnd")` — restore için saklanır.
+2. **Gizleme:** `ShowWindow(Shell_TrayWnd, SW_HIDE)` + `ABM_SETSTATE(ABS_AUTOHIDE)` +
+   `SPI_SETWORKAREA` (üst/sol/sağ korunur; alt = monitör kenarı). Yalnızca `SW_HIDE`
+   görev çubuğunu görsel olarak gizler ama AppBar rezervasyonunu bırakır — maximize
+   pencereler altta phantom şerit bırakır.
+3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
+   `TaskbarVisibilityService.EnsureWorkAreaExpanded()` yeniden uygular.
+4. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
+   `SPI_SETWORKAREA(baseline work area)`.
+5. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
+6. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
+
+v1: yalnızca birincil monitör work area. Çoklu monitör `SPI_SETWORKAREA` ayrı onay
+(boundaries “önce sor”).
 
 Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
@@ -155,6 +163,11 @@ kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
 `GetCurrentProcessExplicitAppUserModelID` (`AppUserModelId.cs`). WharfBar kendi pencereleri
 (`ShowInTaskbar=false`) için `Process.MainWindowHandle` güvenilmez — odaklama
 `WindowActivationService` + `EnumWindows` + PID filtresi ile yapılır.
+
+Dock ikon tıklaması (görev çubuğu benzeri toggle): minimized → `SW_RESTORE` + `SetForegroundWindow`;
+arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada odağı çalabileceği için
+`PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
+“önde” sayılır (Electron vb. alt pencereler).
 
 ---
 
