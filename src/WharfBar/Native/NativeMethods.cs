@@ -135,6 +135,7 @@ internal static class NativeMethods
 
     internal const int SW_HIDE = 0;
     internal const int SW_SHOW = 5;
+    internal const int SW_MINIMIZE = 6;
     internal const int SW_SHOWNA = 8;
     internal const int SW_RESTORE = 9;
 
@@ -163,6 +164,7 @@ internal static class NativeMethods
     internal const int WM_DPICHANGED = 0x02E0;
     internal const int WM_THEMECHANGED = 0x031A;
     internal const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
+    internal const uint WM_CLOSE = 0x0010;
 
     internal static readonly IntPtr HWND_TOP = new(0);
     internal static readonly IntPtr HWND_BOTTOM = new(1);
@@ -177,6 +179,18 @@ internal static class NativeMethods
     internal const uint SWP_SHOWWINDOW = 0x0040;
 
     internal const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
+
+    /// <summary>Primary-monitor work area (SPI). Pair with <see cref="SPI_SETWORKAREA"/>.</summary>
+    internal const uint SPI_GETWORKAREA = 0x0030;
+
+    /// <summary>
+    /// Sets work area for the monitor containing the RECT. Used after <c>SW_HIDE</c> on
+    /// <c>Shell_TrayWnd</c>, which does not release the taskbar AppBar reservation by itself.
+    /// </summary>
+    internal const uint SPI_SETWORKAREA = 0x002F;
+
+    internal const uint SPIF_UPDATEINIFILE = 0x0001;
+    internal const uint SPIF_SENDCHANGE = 0x0002;
 
     internal const int S_OK = 0;
 
@@ -331,6 +345,9 @@ internal static class NativeMethods
         IntPtr hWnd,
         IntPtr prcRect);
 
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetForegroundWindow();
+
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -363,8 +380,19 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool AllowSetForegroundWindow(int dwProcessId);
 
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetDesktopWindow();
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(
+        uint uiAction,
+        uint uiParam,
+        ref RECT pvParam,
+        uint fWinIni);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool IsWindowVisible(IntPtr hWnd);
