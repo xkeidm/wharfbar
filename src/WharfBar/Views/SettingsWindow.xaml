@@ -12,18 +12,30 @@
         WindowBackdropType="Mica"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
+    <ui:FluentWindow.Resources>
+        <!-- Frame-hosted pages inherit accent Foreground from NavigationView; pin body text. -->
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+    </ui:FluentWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <ui:TitleBar Grid.Row="0" Title="WharfBar Ayarları" Padding="12,6,12,6" />
+        <ui:TitleBar Grid.Row="0"
+                     Title="WharfBar Ayarları"
+                     Padding="12,6,12,6"
+                     Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
         <ui:NavigationView x:Name="NavView" Grid.Row="1"
                            PaneDisplayMode="Left"
                            IsBackButtonVisible="Collapsed"
-                           OpenPaneLength="240">
+                           OpenPaneLength="240"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
             <ui:NavigationView.MenuItems>
                 <ui:NavigationViewItem Content="Genel"

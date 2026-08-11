@@ -1,5 +1,7 @@
 using System.Windows;
+using System.Windows.Interop;
 using WharfBar.Models;
+using WharfBar.Native;
 using WharfBar.Services;
 using WharfBar.Views;
 using Wpf.Ui.Appearance;
@@ -26,18 +28,44 @@ public partial class App : Application
 
     /// <summary>
     /// Opens the settings window or activates it if already open.
+    /// Surfaces reliably despite Topmost bar/dock and tray-menu foreground lock.
     /// </summary>
     internal void ShowSettings()
     {
-        if (_settings is not null)
+        if (_settings is null)
         {
-            _settings.Activate();
-            return;
+            _settings = new SettingsWindow();
+            _settings.Closed += (_, _) => _settings = null;
+            _settings.Show();
+        }
+        else
+        {
+            if (_settings.WindowState == WindowState.Minimized)
+            {
+                _settings.WindowState = WindowState.Normal;
+            }
+
+            _settings.Show();
         }
 
-        _settings = new SettingsWindow();
-        _settings.Closed += (_, _) => _settings = null;
-        _settings.Show();
+        BringSettingsToFront(_settings);
+    }
+
+    private static void BringSettingsToFront(SettingsWindow settings)
+    {
+        // TopBar + Dock are Topmost; a brief Topmost pulse lifts settings above them
+        // without permanently stealing z-order from the shell overlays.
+        settings.Topmost = true;
+        _ = settings.Activate();
+        _ = settings.Focus();
+        settings.Topmost = false;
+
+        IntPtr hwnd = new WindowInteropHelper(settings).EnsureHandle();
+        if (hwnd != IntPtr.Zero)
+        {
+            _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+            _ = NativeMethods.SetForegroundWindow(hwnd);
+        }
     }
 
     protected override void OnStartup(StartupEventArgs e)
@@ -80,6 +108,10 @@ public partial class App : Application
 
         _dock = new DockWindow(config);
         _dock.Show();
+
+        // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which
+        // RestoreContentBackground on MainWindow — re-assert top bar translucent/mica.
+        topBar.ApplyConfigChanges();
 
         // Own tray icon only (quit menu). Not reading system status tray icons.
         _tray = new TrayIconService();

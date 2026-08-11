@@ -20,6 +20,22 @@
             <Style TargetType="{x:Type Control}">
                 <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
             </Style>
+
+            <!-- Keep WPF-UI Fluent templates (UiContextMenu / UiMenuItem). A local Style
+                 without BasedOn replaces them with Aero2 chrome — light SystemColors icon
+                 gutter on a dark menu body, so themed SymbolIcon glyphs vanish. -->
+            <Style TargetType="{x:Type ContextMenu}" BasedOn="{StaticResource UiContextMenu}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <Style TargetType="{x:Type MenuItem}" BasedOn="{StaticResource UiMenuItem}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
+            <Style TargetType="{x:Type ui:MenuItem}" BasedOn="{StaticResource WpfUiMenuItem}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

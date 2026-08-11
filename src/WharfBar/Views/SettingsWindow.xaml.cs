@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Threading;
 using WharfBar.Views.Pages;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -16,13 +17,16 @@ public partial class SettingsWindow : FluentWindow
     public SettingsWindow()
     {
         InitializeComponent();
-        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: true);
+        // updateAccents: false — accent remapping was painting page body text blue.
+        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: false);
         Loaded += OnLoaded;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // Navigate to the first page automatically.
-        NavView.Navigate(typeof(GeneralPage));
+        // Defer until NavigationView finishes measuring its content presenter.
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Loaded,
+            new Action(() => NavView.Navigate(typeof(GeneralPage))));
     }
 }

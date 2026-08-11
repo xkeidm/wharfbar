@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using WharfBar.Models;
 using WharfBar.Native;
@@ -29,6 +30,14 @@ internal sealed class WindowAppearance
     private readonly WindowBackdropType _backdrop;
     private readonly DwmCornerPreference _corners;
 
+    /// <summary>
+    /// Raised when <see cref="ApplicationThemeManager.Apply"/> has rewritten
+    /// <see cref="Application.MainWindow"/> chrome (WPF-UI
+    /// <c>RestoreContentBackground</c> → opaque <see cref="SystemColors.WindowColor"/>).
+    /// Top bar re-applies translucent/mica after Dock (or any secondary window) theme Apply.
+    /// </summary>
+    internal static event Action? MainWindowChromeClobbered;
+
     internal WindowAppearance(
         Window window,
         IntPtr hwnd,
@@ -53,6 +62,7 @@ internal sealed class WindowAppearance
         // Swaps the theme resource dictionaries. Passing our backdrop explicitly keeps WPF-UI
         // from force-applying its default one to Application.MainWindow.
         ApplicationThemeManager.Apply(theme, _backdrop, updateAccent: false);
+        RaiseMainWindowChromeClobberedIfNeeded();
 
         // Plain Window (not FluentWindow) does not always get this from WPF-UI; set it so the
         // system backdrop tints with light/dark correctly.
@@ -83,13 +93,13 @@ internal sealed class WindowAppearance
         ClearSystemBackdrop();
         IsBackdropActive = false;
 
-        // Must assign a true local value — SetCurrentValue keeps the XAML
-        // DynamicResource (ApplicationBackgroundBrush) as the source, so
-        // ApplicationThemeManager.Apply re-resolves it to opaque light/dark
-        // and transparent/tint look solid white (or dark gray).
+        // ApplicationThemeManager.Apply → RemoveBackdrop → RestoreContentBackground sets
+        // CompositionTarget.BackgroundColor = SystemColors.WindowColor (opaque white/gray)
+        // and an opaque Window.Background. Local brush alone is not enough for layered
+        // windows — composition target must be Transparent too.
         if (tintOpacity is null)
         {
-            _window.Background = Brushes.Transparent;
+            SetLayeredWindowBackground(Brushes.Transparent);
             return;
         }
 
@@ -100,12 +110,42 @@ internal sealed class WindowAppearance
             : Color.FromRgb(0xFA, 0xFA, 0xFA);
         var brush = new SolidColorBrush(Color.FromArgb(a, baseColor.R, baseColor.G, baseColor.B));
         brush.Freeze();
-        _window.Background = brush;
+        SetLayeredWindowBackground(brush);
     }
 
     /// <summary>Call when the system reports a theme or colourization change.</summary>
     internal void Refresh() => Apply();
 
+    private void RaiseMainWindowChromeClobberedIfNeeded()
+    {
+        Window? main = Application.Current?.MainWindow;
+        if (main is null || ReferenceEquals(main, _window) || !main.AllowsTransparency)
+        {
+            return;
+        }
+
+        MainWindowChromeClobbered?.Invoke();
+    }
+
+    /// <summary>
+    /// Layered (<c>AllowsTransparency</c>) windows need both WPF Background and
+    /// <see cref="HwndSource.CompositionTarget"/> clear of opaque fill.
+    /// </summary>
+    private void SetLayeredWindowBackground(Brush brush)
+    {
+        _window.Background = brush;
+
+        if (_hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        HwndSource? source = HwndSource.FromHwnd(_hwnd);
+        if (source?.CompositionTarget is not null)
+        {
+            source.CompositionTarget.BackgroundColor = Colors.Transparent;
+        }
+    }
     private bool TryApplyBackdrop()
     {
         if (_hwnd == IntPtr.Zero || !WindowBackdrop.IsSupported(_backdrop) || !Dwm.IsCompositionEnabled())

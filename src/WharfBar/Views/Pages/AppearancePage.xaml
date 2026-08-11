@@ -6,6 +6,10 @@
       Background="Transparent">
 
     <Page.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
         <Style x:Key="PowerToysCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -142,7 +146,8 @@
                         <TextBlock Grid.Column="0" Text="Arka Plan Opaklığı" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
                         <TextBlock x:Name="OpacityLabel" Grid.Column="1" Text="40%"
                                    HorizontalAlignment="Right" VerticalAlignment="Center"
-                                   FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </Grid>
                     <Slider x:Name="OpacitySlider" Grid.Row="1"
                             Minimum="0" Maximum="100"

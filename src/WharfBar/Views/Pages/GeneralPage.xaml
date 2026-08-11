@@ -6,6 +6,10 @@
       Background="Transparent">
 
     <Page.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
         <Style x:Key="PowerToysCard" TargetType="Border">
             <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
@@ -69,7 +73,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     
-                    <ui:SymbolIcon Grid.Column="0" Symbol="Meter24" FontSize="20"
+                    <ui:SymbolIcon Grid.Column="0" Symbol="DataUsage24" FontSize="20"
                                    Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
                                    
@@ -96,7 +100,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     
-                    <ui:SymbolIcon Grid.Column="0" Symbol="Cpu24" FontSize="16"
+                    <ui:SymbolIcon Grid.Column="0" Symbol="DeveloperBoard24" FontSize="16"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
                                    
@@ -138,7 +142,7 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     
-                    <ui:SymbolIcon Grid.Column="0" Symbol="Memory24" FontSize="16"
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Server24" FontSize="16"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    VerticalAlignment="Center" Margin="0,0,12,0" />
                                    
