@@ -27,14 +27,7 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="8,6" />
         </Style>
-        <Style TargetType="ContextMenu">
-            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
-        <Style TargetType="MenuItem">
-            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
-            <Setter Property="FontSize" Value="12" />
-        </Style>
+        <!-- ContextMenu / MenuItem: App.xaml BasedOn WPF-UI (do not redefine without BasedOn). -->
         <Style x:Key="StatusHit" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="6,2" />
@@ -189,6 +182,38 @@
                                Style="{StaticResource StatusGlyph}"
                                Text="&#xE70E;" />
                 </Border>
+
+                <ItemsControl x:Name="MirroredTrayPanel"
+                              Margin="0,0,4,0"
+                              VerticalAlignment="Center">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal" />
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <!-- StatusHit: Padding 6,2 + Margin 0,0,4,0 — same hit spacing as volume/network. -->
+                            <Border Style="{StaticResource StatusHit}"
+                                    ToolTipService.InitialShowDelay="400"
+                                    MouseLeftButtonUp="OnMirroredTrayIconLeftClick"
+                                    MouseRightButtonUp="OnMirroredTrayIconRightClick">
+                                <Border.ToolTip>
+                                    <ToolTip Content="{Binding Title}" />
+                                </Border.ToolTip>
+                                <Image Source="{Binding IconSource}"
+                                       Width="16"
+                                       Height="16"
+                                       Stretch="Uniform"
+                                       SnapsToDevicePixels="True"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center" />
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
 
                 <Border x:Name="DateTimeButton"
                         Style="{StaticResource StatusHit}"

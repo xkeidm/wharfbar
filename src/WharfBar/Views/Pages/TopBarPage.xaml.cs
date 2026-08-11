@@ -81,6 +81,7 @@ public partial class TopBarPage : Page
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 14,
             FontWeight = FontWeights.Medium,
+            Foreground = (Brush)FindResource("TextFillColorPrimaryBrush"),
         };
         checkBox.Checked += OnStatusToggled;
         checkBox.Unchecked += OnStatusToggled;
@@ -193,6 +194,7 @@ public partial class TopBarPage : Page
     private static SymbolRegular StatusItemSymbol(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => SymbolRegular.ChevronUp24,
+        TopBarStatusItemIds.MirroredTray => SymbolRegular.Apps24,
         TopBarStatusItemIds.DateTime => SymbolRegular.Clock24,
         TopBarStatusItemIds.Notifications => SymbolRegular.Alert24,
         TopBarStatusItemIds.ControlCenter => SymbolRegular.Settings24,
@@ -206,6 +208,7 @@ public partial class TopBarPage : Page
     private static string StatusItemName(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
+        TopBarStatusItemIds.MirroredTray => "Sistem tepsi ikonları",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",
         TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",

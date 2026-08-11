@@ -180,6 +180,7 @@ internal sealed class ConfigService
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);
             TopBarStatusItemIds.EnsureBrightness(config.TopBar.StatusItems);
+            TopBarStatusItemIds.EnsureMirroredTray(config.TopBar.StatusItems);
             config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
         }
 

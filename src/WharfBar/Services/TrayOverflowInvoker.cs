@@ -18,13 +18,15 @@ internal sealed class TrayOverflowInvoker
 
     private readonly TaskbarVisibilityService _taskbar;
     private readonly Dispatcher _dispatcher;
+    private readonly Action? _onVisiblePeek;
     private DispatcherTimer? _rehideTimer;
     private DateTime _peekStartedUtc;
     private int _busy; // 0 = idle
 
-    internal TrayOverflowInvoker(TaskbarVisibilityService taskbar)
+    internal TrayOverflowInvoker(TaskbarVisibilityService taskbar, Action? onVisiblePeek = null)
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
+        _onVisiblePeek = onVisiblePeek;
         _dispatcher = System.Windows.Application.Current?.Dispatcher
             ?? Dispatcher.CurrentDispatcher;
     }
@@ -47,10 +49,12 @@ internal sealed class TrayOverflowInvoker
         try
         {
             // Shell ignores Win+B / chevron activation while the tray HWND is SW_HIDE.
-            peeked = _taskbar.BeginTrayPeek();
+            peeked = _taskbar.BeginTrayPeek(stealth: false);
             if (peeked)
             {
                 Thread.Sleep(PeekSettle);
+                // Capture mirrored tray icons while the real taskbar is on-screen.
+                _dispatcher.BeginInvoke(() => _onVisiblePeek?.Invoke());
             }
 
             bool opened = TrayOverflowNative.TryOpen();

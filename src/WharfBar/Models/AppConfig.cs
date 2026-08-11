@@ -56,7 +56,7 @@ internal sealed class TopBarConfig
     /// Soft catalog revision (<see cref="AppConfig.SchemaVersion"/> stays 1).
     /// Missing JSON → 0 (pre-<c>controlCenter</c>); current = <see cref="CurrentStatusCatalogVersion"/>.
     /// </summary>
-    internal const int CurrentStatusCatalogVersion = 2;
+    internal const int CurrentStatusCatalogVersion = 3;
 
     /// <summary>
     /// Soft catalog revision. 0 = pre-controlCenter configs (migrated on load).
