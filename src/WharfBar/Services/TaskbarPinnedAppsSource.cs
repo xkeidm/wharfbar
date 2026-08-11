@@ -115,7 +115,7 @@ internal sealed class TaskbarPinnedAppsSource : IDisposable
         Refresh();
     }
 
-    private static string GetTaskBarPinnedDirectory() =>
+    internal static string GetTaskBarPinnedDirectory() =>
         Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             @"Microsoft\Internet Explorer\Quick Launch\User Pinned\TaskBar");

@@ -13,16 +13,26 @@
         UseLayoutRounding="True"
         AllowsTransparency="False">
 
+    <!-- ContextMenu / MenuItem styles live in App.xaml (BasedOn WPF-UI) so Fluent
+         templates are not replaced by Aero2's light icon gutter. -->
+
     <Border x:Name="Surface"
             Padding="12,6"
             Background="Transparent"
             CornerRadius="8">
-        <ItemsControl x:Name="Pins">
-            <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" />
-                </ItemsPanelTemplate>
-            </ItemsControl.ItemsPanel>
-        </ItemsControl>
+        <ScrollViewer x:Name="DockScrollViewer"
+                      HorizontalScrollBarVisibility="Hidden"
+                      VerticalScrollBarVisibility="Disabled"
+                      Focusable="False"
+                      CanContentScroll="False"
+                      PreviewMouseWheel="OnDockScrollViewerPreviewMouseWheel">
+            <ItemsControl x:Name="Pins">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </ScrollViewer>
     </Border>
 </Window>

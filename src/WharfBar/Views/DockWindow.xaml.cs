@@ -1,3 +1,6 @@
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -9,6 +12,9 @@ using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
 using Wpf.Ui.Controls;
+
+using MenuItem = Wpf.Ui.Controls.MenuItem;
+using TextBlock = Wpf.Ui.Controls.TextBlock;
 
 namespace WharfBar.Views;
 
@@ -46,8 +52,8 @@ public partial class DockWindow : Window
     private const DwmCornerPreference Corners = DwmCornerPreference.Round;
 
     private readonly AppConfig _config;
-    private readonly double _iconSizeDip;
-    private readonly double _dockHeightDip;
+    private double _iconSizeDip;
+    private double _dockHeightDip;
     private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
     private WindowAppearance? _appearance;
@@ -109,10 +115,12 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Re-applies config-driven settings (e.g. auto-hide behavior).
+    /// Re-applies config-driven settings (icon size, auto-hide).
     /// </summary>
     internal void ApplyConfigChanges()
     {
+        ApplyIconSizeFromConfig();
+
         bool wasEnabled = _autoHide.Enabled;
         _autoHide.SetEnabled(_config.Dock.AutoHide);
 
@@ -131,12 +139,47 @@ public partial class DockWindow : Window
                 DockHitTest.ApplyPassthrough(hwnd);
                 _autoHide.AssumeHidden();
             }
+            else if (wasEnabled)
+            {
+                // Icon size / height may have changed while auto-hide stays on.
+                ApplyPlacement();
+            }
         }
         else
         {
             CancelYAnimation();
             DockHitTest.ApplyInteractive(hwnd);
             ApplyPlacement();
+        }
+    }
+
+    private void ApplyIconSizeFromConfig()
+    {
+        double next = Math.Clamp(
+            _config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : _config.Dock.IconSize,
+            DockConfig.MinIconSize,
+            DockConfig.MaxIconSize);
+
+        if (Math.Abs(next - _iconSizeDip) < 0.01)
+        {
+            return;
+        }
+
+        _iconSizeDip = next;
+        _dockHeightDip = VerticalPaddingDip * 2
+            + _iconSizeDip
+            + RunningDotGapDip
+            + RunningDotSizeDip;
+
+        Surface.Padding = new Thickness(
+            HorizontalPaddingDip,
+            VerticalPaddingDip,
+            HorizontalPaddingDip,
+            VerticalPaddingDip);
+
+        if (_composer is not null)
+        {
+            RebuildStrip();
         }
     }
 
@@ -273,6 +316,8 @@ public partial class DockWindow : Window
 
         image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
         image.MouseLeave += (_, _) => AnimateScale(transform, 1.0);
+        // Capture foreground before the dock may become the active window on click.
+        image.PreviewMouseLeftButtonDown += (_, _) => _activation!.CaptureForegroundHint();
         image.MouseLeftButtonUp += (_, _) => _activation!.LaunchOrActivate(item, _launcher);
 
         var stack = new StackPanel
@@ -296,7 +341,246 @@ public partial class DockWindow : Window
             Visibility = item.IsRunning ? Visibility.Visible : Visibility.Hidden,
         };
         stack.Children.Add(dot);
+        stack.ContextMenu = BuildContextMenuForApp(item);
         return stack;
+    }
+
+    private ContextMenu BuildContextMenuForApp(DockAppItem item)
+    {
+        var menu = new ContextMenu();
+
+        // 1. Header (App Icon + App Name)
+        int sizePx = ResolveIconPixelSize();
+        var headerItem = new MenuItem
+        {
+            IsEnabled = false,
+            Focusable = false,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Padding = new Thickness(6, 4, 8, 4),
+        };
+        var headerStack = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        var headerIcon = new System.Windows.Controls.Image
+        {
+            Width = 18,
+            Height = 18,
+            Stretch = Stretch.Uniform,
+            Source = string.IsNullOrWhiteSpace(item.Path)
+                ? _icons.GetIcon(string.Empty, sizePx)
+                : _icons.GetIcon(item.Path, sizePx),
+            Margin = new Thickness(0, 0, 8, 0),
+        };
+        RenderOptions.SetBitmapScalingMode(headerIcon, BitmapScalingMode.HighQuality);
+        var headerText = new TextBlock
+        {
+            Text = item.Label,
+            FontWeight = FontWeights.SemiBold,
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = (Brush)FindResource("TextFillColorPrimaryBrush"),
+        };
+        headerStack.Children.Add(headerIcon);
+        headerStack.Children.Add(headerText);
+        headerItem.Header = headerStack;
+        menu.Items.Add(headerItem);
+        menu.Items.Add(new Separator());
+
+        // 2. Pin / Unpin
+        var pinItem = new MenuItem
+        {
+            Header = item.IsPinned ? "Dock'tan kaldır" : "Dock'a sabitle",
+            Icon = CreateMenuIcon(item.IsPinned ? SymbolRegular.PinOff24 : SymbolRegular.Pin24),
+        };
+        pinItem.Click += (_, _) => TogglePin(item);
+        menu.Items.Add(pinItem);
+
+        // 3. Görevi sonlandır (Force Quit)
+        var forceQuitItem = new MenuItem
+        {
+            Header = "Görevi sonlandır",
+            Icon = CreateMenuIcon(SymbolRegular.DismissCircle24),
+            IsEnabled = item.IsRunning && item.MainWindowHandle != IntPtr.Zero,
+        };
+        forceQuitItem.Click += (_, _) => ForceQuitApp(item);
+        menu.Items.Add(forceQuitItem);
+
+        // 4. Pencereyi kapat (Close Window)
+        var closeItem = new MenuItem
+        {
+            Header = "Pencereyi kapat",
+            Icon = CreateMenuIcon(SymbolRegular.Dismiss24),
+            IsEnabled = item.IsRunning && item.MainWindowHandle != IntPtr.Zero,
+        };
+        closeItem.Click += (_, _) => CloseAppWindow(item);
+        menu.Items.Add(closeItem);
+
+        // 5. Additional actions if path exists
+        if (!string.IsNullOrWhiteSpace(item.Path) && File.Exists(item.Path))
+        {
+            menu.Items.Add(new Separator());
+
+            var runAdminItem = new MenuItem
+            {
+                Header = "Yönetici olarak çalıştır",
+                Icon = CreateMenuIcon(SymbolRegular.Shield24),
+            };
+            runAdminItem.Click += (_, _) => _launcher.LaunchAsAdmin(item.Path, item.Args);
+            menu.Items.Add(runAdminItem);
+
+            var openFolderItem = new MenuItem
+            {
+                Header = "Dosya konumunu aç",
+                Icon = CreateMenuIcon(SymbolRegular.Folder24),
+            };
+            openFolderItem.Click += (_, _) => OpenFileLocation(item.Path);
+            menu.Items.Add(openFolderItem);
+
+            var newInstanceItem = new MenuItem
+            {
+                Header = "Yeni pencere aç",
+                Icon = CreateMenuIcon(SymbolRegular.Add24),
+            };
+            newInstanceItem.Click += (_, _) => _launcher.Launch(item.Path, item.Args);
+            menu.Items.Add(newInstanceItem);
+        }
+
+        return menu;
+    }
+
+    private static SymbolIcon CreateMenuIcon(SymbolRegular symbol) =>
+        new(symbol) { FontSize = 16 };
+
+    private static void ForceQuitApp(DockAppItem item)
+    {
+        if (item.MainWindowHandle == IntPtr.Zero)
+        {
+            return;
+        }
+
+        try
+        {
+            NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
+            if (pid > 0)
+            {
+                using var proc = Process.GetProcessById((int)pid);
+                proc.Kill(entireProcessTree: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar force quit failed for {item.Label}: {ex.Message}");
+        }
+    }
+
+    private static void CloseAppWindow(DockAppItem item)
+    {
+        if (item.MainWindowHandle != IntPtr.Zero)
+        {
+            NativeMethods.PostMessage(item.MainWindowHandle, NativeMethods.WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+        }
+    }
+
+    private static void OpenFileLocation(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            Process.Start("explorer.exe", $"/select,\"{path}\"");
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar open file location failed: {ex.Message}");
+        }
+    }
+
+    private void TogglePin(DockAppItem item)
+    {
+        if (string.IsNullOrWhiteSpace(item.Path))
+        {
+            return;
+        }
+
+        string pinnedDir = TaskbarPinnedAppsSource.GetTaskBarPinnedDirectory();
+
+        if (item.IsPinned)
+        {
+            try
+            {
+                if (Directory.Exists(pinnedDir))
+                {
+                    foreach (string lnk in Directory.EnumerateFiles(pinnedDir, "*.lnk"))
+                    {
+                        if (ShortcutResolver.TryResolve(lnk, out string target, out _, out _)
+                            && string.Equals(target, item.Path, StringComparison.OrdinalIgnoreCase))
+                        {
+                            File.Delete(lnk);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar unpin shortcut delete failed: {ex.Message}");
+            }
+
+            _config.PinnedApps.RemoveAll(p => string.Equals(p.Path, item.Path, StringComparison.OrdinalIgnoreCase));
+        }
+        else
+        {
+            try
+            {
+                Directory.CreateDirectory(pinnedDir);
+                string safeLabel = SanitizeFileName(item.Label);
+                string lnkPath = Path.Combine(pinnedDir, $"{safeLabel}.lnk");
+                ShortcutResolver.TryCreateShortcut(lnkPath, item.Path, item.Args);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar pin shortcut create failed: {ex.Message}");
+            }
+
+            if (!_config.PinnedApps.Any(p => string.Equals(p.Path, item.Path, StringComparison.OrdinalIgnoreCase)))
+            {
+                _config.PinnedApps.Add(new PinnedApp(item.Path, item.Args, item.Label));
+            }
+        }
+
+        var configService = (Application.Current as App)?.Config ?? new ConfigService();
+        configService.Save(_config);
+        _pinSource?.Refresh();
+    }
+
+    private static string SanitizeFileName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return "AppShortcut";
+        }
+
+        char[] invalid = Path.GetInvalidFileNameChars();
+        char[] cleaned = name.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
+        string result = new string(cleaned).Trim();
+        return string.IsNullOrWhiteSpace(result) ? "AppShortcut" : result;
+    }
+
+    private void OnDockScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is ScrollViewer sv)
+        {
+            if (e.Delta < 0)
+            {
+                sv.LineRight();
+            }
+            else
+            {
+                sv.LineLeft();
+            }
+
+            e.Handled = true;
+        }
     }
 
     private int ResolveIconPixelSize()
