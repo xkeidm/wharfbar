@@ -48,6 +48,8 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 7. **Hit-testing + auto-hide** dock’ta uygulandı (`DockHitTest` + `DockAutoHideController`; `FullscreenState` köprüsü). Spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
    (ADR-006; `controlCenter` → Main, volume → Mixer); tepsi yalnızca kendi Quit menüsü.
+   Üst bar sol küme: CPU/GPU/RAM (`SystemMonitorService`); alan yerleşimi `bar`/`tooltip`/`hidden`
+   (GHz: `CallNtPowerInformation`, VRAM: DXGI).
 
 ## Doküman haritası
 
@@ -75,7 +77,8 @@ tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare k�
 hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
 konumlanma, auto-hide + hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
-(`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
+(`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; CPU/GPU/RAM rozetleri GHz/GB
+yerleşimi — `SystemMonitorService`, `SystemStatsFormatter`; **Segoe MDL2** glifleri + overflow +
 `controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
 canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
