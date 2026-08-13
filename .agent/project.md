@@ -76,9 +76,8 @@ tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare k�
 (`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`, canlı pin/running birleşik UI,
 hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
 konumlanma, auto-hide + hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
-`AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
-(`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; CPU/GPU/RAM rozetleri GHz/GB
-yerleşimi — `SystemMonitorService`, `SystemStatsFormatter`; **Segoe MDL2** glifleri + overflow +
+`AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), sol küme CPU/GPU/RAM rozetleri (Windows logo yanında; GHz/GB yerleşimi — `SystemMonitorService`, `SystemStatsFormatter`), saat + ağ + pil
+(`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
 `controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
 canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
