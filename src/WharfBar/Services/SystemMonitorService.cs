@@ -89,9 +89,10 @@ internal sealed class SystemMonitorService : IDisposable
         int gpuPercent = ReadGpuUsage();
         bool isGpuUsageAvailable = gpuPercent >= 0;
 
+        double? cpuGhz = SystemInfoNative.TryReadCpuGhz();
         return new SystemStatsSnapshot(
             cpuPercent,
-            CpuGhz: null,
+            cpuGhz,
             ramPercent,
             usedGb,
             totalGb,
