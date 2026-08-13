@@ -91,7 +91,7 @@ Donanım rozetleri (sol küme, `SystemMonitorService`):
 - CPU GHz: `powrprof!CallNtPowerInformation` (`ProcessorInformation` = 11), çekirdek `CurrentMhz` ortalaması
 - RAM: `GlobalMemoryStatusEx`
 - GPU `%`: `GPU Engine` performans sayaçları (`engtype_3D`)
-- GPU VRAM: `CreateDXGIFactory1` + `IDXGIAdapter3.QueryVideoMemoryInfo` (local); Basic Render atlanır
+- GPU VRAM: toplam DXGI `DedicatedVideoMemory` (0 ise `Budget`); kullanılan `GPU Adapter Memory` / `Dedicated Usage` (adaptör LUID). `QueryVideoMemoryInfo.CurrentUsage` süreç bazlıdır, kullanılmaz.
 - Yerleşim: `topBar.*Placement` (`bar` / `tooltip` / `hidden`); biçim `SystemStatsFormatter`
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);

@@ -85,51 +85,58 @@ internal static class SystemInfoNative
 
     internal static double? TryReadCpuGhz()
     {
-        GetSystemInfo(out SYSTEM_INFO sys);
-        int count = (int)sys.dwNumberOfProcessors;
-        if (count <= 0)
-        {
-            return null;
-        }
-
-        int size = Marshal.SizeOf<PROCESSOR_POWER_INFORMATION>();
-        IntPtr buffer = Marshal.AllocHGlobal(checked(size * count));
         try
         {
-            uint status = CallNtPowerInformation(
-                ProcessorInformation,
-                IntPtr.Zero,
-                0,
-                buffer,
-                (uint)(size * count));
-            if (status != 0)
+            GetSystemInfo(out SYSTEM_INFO sys);
+            int count = (int)sys.dwNumberOfProcessors;
+            if (count <= 0)
             {
                 return null;
             }
 
-            double sum = 0;
-            int n = 0;
-            for (int i = 0; i < count; i++)
+            int size = Marshal.SizeOf<PROCESSOR_POWER_INFORMATION>();
+            IntPtr buffer = Marshal.AllocHGlobal(checked(size * count));
+            try
             {
-                PROCESSOR_POWER_INFORMATION info = Marshal.PtrToStructure<PROCESSOR_POWER_INFORMATION>(
-                    buffer + (i * size));
-                if (info.CurrentMhz > 0)
+                uint status = CallNtPowerInformation(
+                    ProcessorInformation,
+                    IntPtr.Zero,
+                    0,
+                    buffer,
+                    (uint)(size * count));
+                if (status != 0)
                 {
-                    sum += info.CurrentMhz;
-                    n++;
+                    return null;
                 }
-            }
 
-            if (n == 0)
+                double sum = 0;
+                int n = 0;
+                for (int i = 0; i < count; i++)
+                {
+                    PROCESSOR_POWER_INFORMATION info = Marshal.PtrToStructure<PROCESSOR_POWER_INFORMATION>(
+                        buffer + (i * size));
+                    if (info.CurrentMhz > 0)
+                    {
+                        sum += info.CurrentMhz;
+                        n++;
+                    }
+                }
+
+                if (n == 0)
+                {
+                    return null;
+                }
+
+                return (sum / n) / 1000.0;
+            }
+            finally
             {
-                return null;
+                Marshal.FreeHGlobal(buffer);
             }
-
-            return (sum / n) / 1000.0;
         }
-        finally
+        catch
         {
-            Marshal.FreeHGlobal(buffer);
+            return null;
         }
     }
 }

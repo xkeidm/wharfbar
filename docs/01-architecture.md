@@ -59,7 +59,7 @@ src/WharfBar/
     DockHitTest.cs              # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
     PowerStatus.cs              # GetSystemPowerStatus sarmalayıcı
     SystemInfoNative.cs         # GetSystemTimes, GlobalMemoryStatusEx, CallNtPowerInformation
-    DxgiAdapterMemory.cs        # DXGI dedicated VRAM (IDXGIAdapter3)
+    DxgiAdapterMemory.cs        # DXGI dedicated/Budget toplam VRAM
     NotifyIconHost.cs           # Shell_NotifyIcon ADD/DELETE (kendi tepsi ikonu)
     AudioEndpointVolume.cs      # master volume / mute (Core Audio)
     CoreAudioDevices.cs         # render aygıt listesi + varsayılan seçimi
@@ -155,7 +155,7 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
 | `SystemMonitorService` | CPU `%`/`GHz`, RAM, GPU `%`/VRAM ham snapshot; 1.5 sn poll |
 | `SystemStatsFormatter` | `StatPlacement` + snapshot → rozet metni |
-| `DxgiAdapterMemory` | DXGI local segment VRAM |
+| `DxgiAdapterMemory` | DXGI dedicated/Budget toplam VRAM (kullanılan: `GPU Adapter Memory` sayacı) |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
 

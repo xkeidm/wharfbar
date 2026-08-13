@@ -13,113 +13,131 @@ internal static class DxgiAdapterMemory
     private const int CoENotInitialized = unchecked((int)0x800401F0);
     private const double BytesPerGb = 1024.0 * 1024.0 * 1024.0;
 
-    internal static bool TryReadDedicated(out double usedGb, out double totalGb)
+    /// <summary>
+    /// Adapter-wide dedicated size (not this process). Used bytes come from
+    /// <c>GPU Adapter Memory</c> counters — <c>QueryVideoMemoryInfo.CurrentUsage</c>
+    /// is per-process WDDM budget and is ~0 without a D3D device.
+    /// </summary>
+    internal static bool TryReadTotal(out double totalGb, out long adapterLuid)
     {
-        usedGb = 0;
         totalGb = 0;
-        bool didInit = false;
-        int hr = CreateDXGIFactory1(in Factory1Iid, out IDXGIFactory1? factory);
-        if (hr == CoENotInitialized)
-        {
-            _ = CoInitializeEx(IntPtr.Zero, CoInitMultithreaded);
-            didInit = true;
-            hr = CreateDXGIFactory1(in Factory1Iid, out factory);
-        }
-
+        adapterLuid = 0;
         try
         {
-            if (hr != NativeMethods.S_OK || factory is null)
+            bool didInit = false;
+            int hr = CreateDXGIFactory1(in Factory1Iid, out IDXGIFactory1? factory);
+            if (hr == CoENotInitialized)
             {
-                return false;
+                int initHr = CoInitializeEx(IntPtr.Zero, CoInitMultithreaded);
+                didInit = initHr == NativeMethods.S_OK || initHr == 1;
+                hr = CreateDXGIFactory1(in Factory1Iid, out factory);
             }
 
-            nuint bestDedicated = 0;
-            double bestUsed = 0;
-            double bestTotal = 0;
-            bool found = false;
-
-            for (uint i = 0; ; i++)
+            try
             {
-                int enumHr = factory.EnumAdapters1(i, out IDXGIAdapter1? adapter1);
-                if (enumHr != NativeMethods.S_OK || adapter1 is null)
+                if (hr != NativeMethods.S_OK || factory is null)
                 {
-                    break;
+                    return false;
                 }
 
-                try
+                nuint bestDedicated = 0;
+                double bestTotal = 0;
+                long bestLuid = 0;
+                bool found = false;
+
+                for (uint i = 0; ; i++)
                 {
-                    if (adapter1.GetDesc1(out DXGI_ADAPTER_DESC1 desc) != NativeMethods.S_OK)
+                    int enumHr = factory.EnumAdapters1(i, out IDXGIAdapter1? adapter1);
+                    if (enumHr != NativeMethods.S_OK || adapter1 is null)
                     {
-                        continue;
+                        break;
                     }
 
-                    if ((desc.Flags & DxgiAdapterFlagSoftware) != 0
-                        || desc.Description.Contains("Microsoft Basic Render Driver", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-
-                    IntPtr unk = Marshal.GetIUnknownForObject(adapter1);
-                    Guid iid = Adapter3Iid;
-                    int qi = Marshal.QueryInterface(unk, ref iid, out IntPtr adapter3Ptr);
-                    Marshal.Release(unk);
-                    if (qi != NativeMethods.S_OK || adapter3Ptr == IntPtr.Zero)
-                    {
-                        continue;
-                    }
-
-                    IDXGIAdapter3 adapter3 = (IDXGIAdapter3)Marshal.GetObjectForIUnknown(adapter3Ptr);
-                    Marshal.Release(adapter3Ptr);
                     try
                     {
-                        if (adapter3.QueryVideoMemoryInfo(0, DxgiMemorySegmentGroupLocal, out DXGI_QUERY_VIDEO_MEMORY_INFO mem)
-                            != NativeMethods.S_OK)
+                        if (adapter1.GetDesc1(out DXGI_ADAPTER_DESC1 desc) != NativeMethods.S_OK)
+                        {
+                            continue;
+                        }
+
+                        if ((desc.Flags & DxgiAdapterFlagSoftware) != 0
+                            || desc.Description.Contains("Microsoft Basic Render Driver", StringComparison.OrdinalIgnoreCase))
                         {
                             continue;
                         }
 
                         nuint dedicated = desc.DedicatedVideoMemory;
-                        if (dedicated >= bestDedicated)
+                        double dedicatedGb = dedicated / BytesPerGb;
+                        double budgetGb = 0;
+
+                        IntPtr unk = Marshal.GetIUnknownForObject(adapter1);
+                        Guid iid = Adapter3Iid;
+                        int qi = Marshal.QueryInterface(unk, ref iid, out IntPtr adapter3Ptr);
+                        Marshal.Release(unk);
+                        if (qi == NativeMethods.S_OK && adapter3Ptr != IntPtr.Zero)
                         {
-                            bestDedicated = dedicated;
-                            double dedicatedGb = dedicated / BytesPerGb;
-                            double budgetGb = mem.Budget / BytesPerGb;
-                            bestUsed = mem.CurrentUsage / BytesPerGb;
-                            bestTotal = dedicatedGb > 0 ? dedicatedGb : budgetGb;
-                            found = bestTotal > 0;
+                            IDXGIAdapter3 adapter3 = (IDXGIAdapter3)Marshal.GetObjectForIUnknown(adapter3Ptr);
+                            Marshal.Release(adapter3Ptr);
+                            try
+                            {
+                                if (adapter3.QueryVideoMemoryInfo(
+                                        0,
+                                        DxgiMemorySegmentGroupLocal,
+                                        out DXGI_QUERY_VIDEO_MEMORY_INFO mem) == NativeMethods.S_OK)
+                                {
+                                    budgetGb = mem.Budget / BytesPerGb;
+                                }
+                            }
+                            finally
+                            {
+                                Marshal.ReleaseComObject(adapter3);
+                            }
                         }
+
+                        double total = dedicatedGb > 0 ? dedicatedGb : budgetGb;
+                        if (total <= 0 || dedicated < bestDedicated)
+                        {
+                            continue;
+                        }
+
+                        bestDedicated = dedicated;
+                        bestTotal = total;
+                        bestLuid = desc.AdapterLuid;
+                        found = true;
                     }
                     finally
                     {
-                        Marshal.ReleaseComObject(adapter3);
+                        Marshal.ReleaseComObject(adapter1);
                     }
                 }
-                finally
+
+                if (!found)
                 {
-                    Marshal.ReleaseComObject(adapter1);
+                    return false;
+                }
+
+                totalGb = bestTotal;
+                adapterLuid = bestLuid;
+                return true;
+            }
+            finally
+            {
+                if (factory is not null)
+                {
+                    Marshal.ReleaseComObject(factory);
+                }
+
+                if (didInit)
+                {
+                    CoUninitialize();
                 }
             }
-
-            if (!found)
-            {
-                return false;
-            }
-
-            usedGb = bestUsed;
-            totalGb = bestTotal;
-            return true;
         }
-        finally
+        catch
         {
-            if (factory is not null)
-            {
-                Marshal.ReleaseComObject(factory);
-            }
-
-            if (didInit)
-            {
-                CoUninitialize();
-            }
+            totalGb = 0;
+            adapterLuid = 0;
+            return false;
         }
     }
 

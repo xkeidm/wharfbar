@@ -32,6 +32,7 @@ internal sealed class SystemMonitorService : IDisposable
     private bool _hasPrevCpuTime;
     private bool _disposed;
     private bool _gpuCounterFailed;
+    private bool _vramCounterFailed;
 
     internal SystemMonitorService()
     {
@@ -90,7 +91,7 @@ internal sealed class SystemMonitorService : IDisposable
         bool isGpuUsageAvailable = gpuPercent >= 0;
 
         double? cpuGhz = SystemInfoNative.TryReadCpuGhz();
-        bool vramOk = DxgiAdapterMemory.TryReadDedicated(out double vramUsed, out double vramTotal);
+        bool vramOk = TryReadVram(out double vramUsed, out double vramTotal);
         return new SystemStatsSnapshot(
             cpuPercent,
             cpuGhz,
@@ -192,6 +193,70 @@ internal sealed class SystemMonitorService : IDisposable
         {
             _gpuCounterFailed = true;
             return -1;
+        }
+    }
+
+    private bool TryReadVram(out double usedGb, out double totalGb)
+    {
+        usedGb = 0;
+        totalGb = 0;
+        if (!DxgiAdapterMemory.TryReadTotal(out totalGb, out long adapterLuid) || totalGb <= 0)
+        {
+            return false;
+        }
+
+        return TryReadDedicatedUsageGb(adapterLuid, out usedGb);
+    }
+
+    private bool TryReadDedicatedUsageGb(long adapterLuid, out double usedGb)
+    {
+        usedGb = 0;
+        if (_vramCounterFailed)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!PerformanceCounterCategory.Exists("GPU Adapter Memory"))
+            {
+                _vramCounterFailed = true;
+                return false;
+            }
+
+            var category = new PerformanceCounterCategory("GPU Adapter Memory");
+            uint low = (uint)((ulong)adapterLuid & 0xFFFFFFFFu);
+            uint high = (uint)((ulong)adapterLuid >> 32);
+            string tokenA = $"luid_0x{high:X8}_0x{low:X8}_";
+            string tokenB = $"luid_0x{low:X8}_0x{high:X8}_";
+
+            float sum = 0;
+            int matched = 0;
+            foreach (string instance in category.GetInstanceNames())
+            {
+                if (!instance.Contains(tokenA, StringComparison.OrdinalIgnoreCase)
+                    && !instance.Contains(tokenB, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                using var counter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", instance);
+                sum += counter.NextValue();
+                matched++;
+            }
+
+            if (matched == 0)
+            {
+                return false;
+            }
+
+            usedGb = sum / (1024.0 * 1024.0 * 1024.0);
+            return true;
+        }
+        catch
+        {
+            _vramCounterFailed = true;
+            return false;
         }
     }
 

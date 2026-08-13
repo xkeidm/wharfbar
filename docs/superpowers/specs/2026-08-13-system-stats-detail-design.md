@@ -156,16 +156,18 @@ Yeni paket yok; `AllowUnsafeBlocks` yok. Tampon: yönetilen `PROCESSOR_POWER_INF
 
 **GPU kullanımı:** mevcut `GPU Engine` / `engtype_3D` sayaçları (değişmez).
 
-**GPU VRAM:** DXGI, paket yok.
+**GPU VRAM:** DXGI (toplam) + `GPU Adapter Memory` sayacı (kullanılan); paket yok.
 
 - `IDXGIFactory1` oluştur; adaptörleri enumera et.
 - `DXGI_ADAPTER_FLAG_SOFTWARE` ve “Microsoft Basic Render Driver” atlanır.
-- `IDXGIAdapter3.QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL)`.
-- Kullanılan = `CurrentUsage`; toplam = `DXGI_ADAPTER_DESC.DedicatedVideoMemory`
-  (0 ise `Budget`).
+- Toplam = `DXGI_ADAPTER_DESC.DedicatedVideoMemory` (0 ise `QueryVideoMemoryInfo` `Budget`).
+- Kullanılan = `GPU Adapter Memory` / `Dedicated Usage` (seçilen adaptör LUID).
+  `QueryVideoMemoryInfo.CurrentUsage` bu sürecin WDDM bütçesidir; D3D aygıtı
+  olmadan ~0 kalır, **kullanılmaz**.
 - Birden fazla adaptör: **en büyük `DedicatedVideoMemory`** seçilir.
 - GPU `%` hâlâ tüm 3D motor örneklerinin toplamıdır (adaptör filtresi yok, mevcut davranış).
-- DXGI veya VRAM 0/`E_FAIL` → `IsGpuVramAvailable = false`; GPU `%` bağımsızdır.
+- DXGI toplam veya sayaç yok/`E_FAIL` → `IsGpuVramAvailable = false`; GPU `%` bağımsızdır.
+- GHz / DXGI / VRAM sayacı istisnası CPU `%` ve RAM poll’unu düşürmez.
 
 Poll DXGI ve GHz’i UI thread dışında okur (mevcut `Task.Run`). DXGI COM aynı arka plan
 işinde. `CreateDXGIFactory1` `CO_E_NOTINITIALIZED` dönerse o iş parçacığında bir kez
