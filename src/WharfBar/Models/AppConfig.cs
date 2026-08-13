@@ -86,4 +86,11 @@ internal sealed class TopBarConfig
 
     /// <summary>Whether RAM utilization badge is visible when system stats are enabled.</summary>
     public bool ShowRamStats { get; set; } = true;
+
+    public string CpuPercentPlacement { get; set; } = StatPlacement.Bar;
+    public string CpuGhzPlacement { get; set; } = StatPlacement.Tooltip;
+    public string RamPercentPlacement { get; set; } = StatPlacement.Bar;
+    public string RamUsedTotalPlacement { get; set; } = StatPlacement.Tooltip;
+    public string GpuPercentPlacement { get; set; } = StatPlacement.Bar;
+    public string GpuVramPlacement { get; set; } = StatPlacement.Tooltip;
 }
