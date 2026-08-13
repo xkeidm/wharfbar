@@ -137,10 +137,10 @@ internal static class DxgiAdapterMemory
     [StructLayout(LayoutKind.Sequential)]
     private struct DXGI_QUERY_VIDEO_MEMORY_INFO
     {
-        public ulong AvailableForReservation;
-        public ulong CurrentUsage;
-        public ulong CurrentReservation;
         public ulong Budget;
+        public ulong CurrentUsage;
+        public ulong AvailableForReservation;
+        public ulong CurrentReservation;
     }
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
