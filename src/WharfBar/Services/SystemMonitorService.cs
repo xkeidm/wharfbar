@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Windows.Threading;
 using WharfBar.Native;
 
@@ -8,17 +7,15 @@ namespace WharfBar.Services;
 /// <summary>Immutable snapshot of hardware resource usage (CPU, RAM, GPU).</summary>
 internal sealed record SystemStatsSnapshot(
     int CpuPercent,
-    string CpuText,
-    string CpuTooltip,
+    double? CpuGhz,
     int RamPercent,
     double UsedRamGb,
     double TotalRamGb,
-    string RamText,
-    string RamTooltip,
+    bool IsGpuUsageAvailable,
     int GpuPercent,
-    string GpuText,
-    string GpuTooltip,
-    bool IsGpuAvailable);
+    bool IsGpuVramAvailable,
+    double? GpuUsedVramGb,
+    double? GpuTotalVramGb);
 
 /// <summary>
 /// Periodically monitors CPU, RAM, and GPU resource utilization using lightweight Win32 APIs
@@ -87,42 +84,22 @@ internal sealed class SystemMonitorService : IDisposable
 
     private SystemStatsSnapshot BuildSnapshot()
     {
-        // 1. CPU Usage via GetSystemTimes
         int cpuPercent = ReadCpuUsage();
-        string cpuText = $"{cpuPercent}%";
-        string cpuTooltip = $"CPU Kullanımı: %{cpuPercent}";
-
-        // 2. RAM Usage via GlobalMemoryStatusEx
         (int ramPercent, double usedGb, double totalGb) = ReadRamUsage();
-        string ramText = $"{ramPercent}%";
-        string ramTooltip = string.Format(
-            CultureInfo.CurrentCulture,
-            "RAM Kullanımı: %{0} ({1:F1} GB / {2:F1} GB)",
-            ramPercent,
-            usedGb,
-            totalGb);
-
-        // 3. GPU Usage via PerformanceCounters
         int gpuPercent = ReadGpuUsage();
-        bool isGpuAvailable = gpuPercent >= 0;
-        string gpuText = isGpuAvailable ? $"{gpuPercent}%" : "N/A";
-        string gpuTooltip = isGpuAvailable
-            ? $"GPU Kullanımı: %{gpuPercent}"
-            : "GPU Kullanımı: Kullanılamıyor";
+        bool isGpuUsageAvailable = gpuPercent >= 0;
 
         return new SystemStatsSnapshot(
             cpuPercent,
-            cpuText,
-            cpuTooltip,
+            CpuGhz: null,
             ramPercent,
             usedGb,
             totalGb,
-            ramText,
-            ramTooltip,
-            gpuPercent,
-            gpuText,
-            gpuTooltip,
-            isGpuAvailable);
+            isGpuUsageAvailable,
+            isGpuUsageAvailable ? gpuPercent : 0,
+            IsGpuVramAvailable: false,
+            GpuUsedVramGb: null,
+            GpuTotalVramGb: null);
     }
 
     private int ReadCpuUsage()
@@ -218,15 +195,13 @@ internal sealed class SystemMonitorService : IDisposable
 
     private static SystemStatsSnapshot BuildEmptySnapshot() => new(
         0,
-        "0%",
-        "CPU",
+        null,
         0,
         0,
         0,
-        "0%",
-        "RAM",
-        -1,
-        "N/A",
-        "GPU",
-        false);
+        false,
+        0,
+        false,
+        null,
+        null);
 }
