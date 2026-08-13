@@ -90,6 +90,7 @@ internal sealed class SystemMonitorService : IDisposable
         bool isGpuUsageAvailable = gpuPercent >= 0;
 
         double? cpuGhz = SystemInfoNative.TryReadCpuGhz();
+        bool vramOk = DxgiAdapterMemory.TryReadDedicated(out double vramUsed, out double vramTotal);
         return new SystemStatsSnapshot(
             cpuPercent,
             cpuGhz,
@@ -98,9 +99,9 @@ internal sealed class SystemMonitorService : IDisposable
             totalGb,
             isGpuUsageAvailable,
             isGpuUsageAvailable ? gpuPercent : 0,
-            IsGpuVramAvailable: false,
-            GpuUsedVramGb: null,
-            GpuTotalVramGb: null);
+            vramOk,
+            vramOk ? vramUsed : null,
+            vramOk ? vramTotal : null);
     }
 
     private int ReadCpuUsage()
