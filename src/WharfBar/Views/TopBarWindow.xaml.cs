@@ -32,7 +32,6 @@ public partial class TopBarWindow : Window
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
     private StatusService? _status;
-    private SystemMonitorService? _systemMonitor;
     private VolumeService? _volume;
     private AudioMixerService? _mixer;
     private QuickSettingsService? _quick;
@@ -117,10 +116,6 @@ public partial class TopBarWindow : Window
         _status = new StatusService();
         _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
         ApplyStatus(_status.Snapshot);
-
-        _systemMonitor = new SystemMonitorService();
-        _systemMonitor.Changed += (_, _) => ApplySystemStats(_systemMonitor.Snapshot);
-        ApplySystemStats(_systemMonitor.Snapshot);
 
         _volume = new VolumeService();
         _volume.Changed += (_, _) => ApplyVolume(_volume.Snapshot);
@@ -333,8 +328,6 @@ public partial class TopBarWindow : Window
         QuickSettingsHost.Detach();
         _status?.Dispose();
         _status = null;
-        _systemMonitor?.Dispose();
-        _systemMonitor = null;
         _mixer?.Dispose();
         _mixer = null;
         _quick?.Dispose();
@@ -366,31 +359,6 @@ public partial class TopBarWindow : Window
         _source?.RemoveHook(WndProc);
         _source = null;
         base.OnClosed(e);
-    }
-
-    private void ApplySystemStats(SystemStatsSnapshot snapshot)
-    {
-        TopBarConfig topBarConfig = _config.Current.TopBar ?? new TopBarConfig();
-        SystemStatsDisplay display = SystemStatsFormatter.Format(snapshot, topBarConfig);
-
-        bool any = display.CpuVisible || display.GpuVisible || display.RamVisible;
-        SystemStatsPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
-        if (!any)
-        {
-            return;
-        }
-
-        CpuStatsHit.Visibility = display.CpuVisible ? Visibility.Visible : Visibility.Collapsed;
-        CpuText.Text = display.CpuBarText;
-        CpuToolTip.Content = display.CpuTooltip;
-
-        GpuStatsHit.Visibility = display.GpuVisible ? Visibility.Visible : Visibility.Collapsed;
-        GpuText.Text = display.GpuBarText;
-        GpuToolTip.Content = display.GpuTooltip;
-
-        RamStatsHit.Visibility = display.RamVisible ? Visibility.Visible : Visibility.Collapsed;
-        RamText.Text = display.RamBarText;
-        RamToolTip.Content = display.RamTooltip;
     }
 
     private void ApplyStatus(StatusSnapshot snapshot)
@@ -825,10 +793,6 @@ public partial class TopBarWindow : Window
     {
         ApplyStatusItemLayout();
         ApplyBackgroundAppearance();
-        if (_systemMonitor is not null)
-        {
-            ApplySystemStats(_systemMonitor.Snapshot);
-        }
     }
 
     private void PersistBackground(string mode, int? opacity = null)

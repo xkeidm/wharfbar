@@ -74,23 +74,4 @@ internal sealed class TopBarConfig
 
     /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
     public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
-
-    /// <summary>Whether hardware usage metrics (CPU, RAM, GPU) are displayed next to the Windows icon.</summary>
-    public bool ShowSystemStats { get; set; } = true;
-
-    /// <summary>Whether CPU utilization badge is visible when system stats are enabled.</summary>
-    public bool ShowCpuStats { get; set; } = true;
-
-    /// <summary>Whether GPU utilization badge is visible when system stats are enabled.</summary>
-    public bool ShowGpuStats { get; set; } = true;
-
-    /// <summary>Whether RAM utilization badge is visible when system stats are enabled.</summary>
-    public bool ShowRamStats { get; set; } = true;
-
-    public string CpuPercentPlacement { get; set; } = StatPlacement.Bar;
-    public string CpuGhzPlacement { get; set; } = StatPlacement.Tooltip;
-    public string RamPercentPlacement { get; set; } = StatPlacement.Bar;
-    public string RamUsedTotalPlacement { get; set; } = StatPlacement.Tooltip;
-    public string GpuPercentPlacement { get; set; } = StatPlacement.Bar;
-    public string GpuVramPlacement { get; set; } = StatPlacement.Tooltip;
 }

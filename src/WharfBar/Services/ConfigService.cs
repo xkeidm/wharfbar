@@ -175,18 +175,6 @@ internal sealed class ConfigService
         config.TopBar ??= new TopBarConfig();
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
-        config.TopBar.CpuPercentPlacement = StatPlacement.Normalize(
-            config.TopBar.CpuPercentPlacement, StatPlacement.Bar);
-        config.TopBar.CpuGhzPlacement = StatPlacement.Normalize(
-            config.TopBar.CpuGhzPlacement, StatPlacement.Tooltip);
-        config.TopBar.RamPercentPlacement = StatPlacement.Normalize(
-            config.TopBar.RamPercentPlacement, StatPlacement.Bar);
-        config.TopBar.RamUsedTotalPlacement = StatPlacement.Normalize(
-            config.TopBar.RamUsedTotalPlacement, StatPlacement.Tooltip);
-        config.TopBar.GpuPercentPlacement = StatPlacement.Normalize(
-            config.TopBar.GpuPercentPlacement, StatPlacement.Bar);
-        config.TopBar.GpuVramPlacement = StatPlacement.Normalize(
-            config.TopBar.GpuVramPlacement, StatPlacement.Tooltip);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
         if (config.TopBar.StatusCatalogVersion < TopBarConfig.CurrentStatusCatalogVersion)
         {
