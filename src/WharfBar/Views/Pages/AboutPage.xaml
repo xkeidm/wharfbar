@@ -33,13 +33,13 @@
                              VerticalAlignment="Center" Margin="0,0,18,0">
                         <Canvas Width="11" Height="11">
                             <Rectangle Canvas.Left="0" Canvas.Top="0" Width="5" Height="5"
-                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}" />
                             <Rectangle Canvas.Left="6" Canvas.Top="0" Width="5" Height="5"
-                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}" />
                             <Rectangle Canvas.Left="0" Canvas.Top="6" Width="5" Height="5"
-                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}" />
                             <Rectangle Canvas.Left="6" Canvas.Top="6" Width="5" Height="5"
-                                       Fill="{DynamicResource SystemAccentColorPrimaryBrush}" />
+                                       Fill="{DynamicResource AccentFillColorDefaultBrush}" />
                         </Canvas>
                     </Viewbox>
                     <StackPanel VerticalAlignment="Center">
@@ -67,7 +67,7 @@
                     </Grid.ColumnDefinitions>
 
                     <ui:SymbolIcon Grid.Column="0" Symbol="Document24" FontSize="18"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <TextBlock Grid.Column="1" Text="Lisans" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
@@ -87,7 +87,7 @@
                     </Grid.ColumnDefinitions>
 
                     <ui:SymbolIcon Grid.Column="0" Symbol="Desktop24" FontSize="18"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <TextBlock Grid.Column="1" Text="Platform" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />

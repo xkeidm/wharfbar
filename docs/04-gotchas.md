@@ -44,6 +44,7 @@
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
 | Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
 | Translucent üst bar / Mica geçişi | `AllowsTransparency` ctor'da; Mica↔translucent = TopBar recreate; recreate'de **taskbar restore yok**, yalnız `ABM_REMOVE`+yeni `ABM_NEW`; Mica+`AllowsTransparency` yasak |
+| Accent rengi ikonlar sabit mavi | WPF-UI 4.3.0 `SystemAccentColorPrimaryBrush` **statiktir** (#0067C0 mavi) ve `ApplySystemAccent` hiç güncellemez (yalnızca `SystemAccentColorPrimary` Color, `SystemAccentBrush`, `AccentFillColorDefaultBrush` güncellenir). Accent rengi ikonlar için `AccentFillColorDefaultBrush` kullan. ResourceDictionary içinde `Color="{DynamicResource …}"` brush accent değişimini takip etmez (DynamicResource bir kez çözülür); güncellenen key = `ApplySystemAccent`'in **değiştirdiği** brush kaynakları (`AccentFillColorDefaultBrush` vb.). XAML-only değişiklikte incremental build BAML'ı üretmeyebilir — geçici `.cs` değişikliği ile tam rebuild tetikle |
 
 ## Geliştirme ipucu
 

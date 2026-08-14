@@ -66,7 +66,7 @@ public partial class TopBarPage : Page
         {
             Symbol = StatusItemSymbol(id),
             FontSize = 18,
-            Foreground = (Brush)FindResource(isChecked ? "SystemAccentColorPrimaryBrush" : "TextFillColorSecondaryBrush"),
+            Foreground = (Brush)FindResource(isChecked ? "AccentFillColorDefaultBrush" : "TextFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 16, 0),
         };
@@ -194,7 +194,6 @@ public partial class TopBarPage : Page
     private static SymbolRegular StatusItemSymbol(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => SymbolRegular.ChevronUp24,
-        TopBarStatusItemIds.MirroredTray => SymbolRegular.Apps24,
         TopBarStatusItemIds.DateTime => SymbolRegular.Clock24,
         TopBarStatusItemIds.Notifications => SymbolRegular.Alert24,
         TopBarStatusItemIds.ControlCenter => SymbolRegular.Settings24,
@@ -208,7 +207,6 @@ public partial class TopBarPage : Page
     private static string StatusItemName(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
-        TopBarStatusItemIds.MirroredTray => "Sistem tepsi ikonları",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",
         TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",

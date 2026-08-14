@@ -37,4 +37,7 @@ Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü
 - Değişiklikler anında config'e yazılır (`ConfigService.Save`) ve top bar'a
   `ApplyConfigChanges` ile canlı uygulanır.
 - Sayfalar `PowerToysCard` stilinde kartlar kullanır (Fluent `CardBackgroundFillColorDefaultBrush`).
+- Kart başlık ikonları / Windows logosu accent renginde: `AccentFillColorDefaultBrush`
+  (WPF-UI 4.3.0'un `SystemAccentColorPrimaryBrush`'ı sabit mavidir ve accent uygulanınca güncellenmez —
+  accent rengi ikonlar için kullanmayın; detay: `docs/04-gotchas.md`).
 - Durum öğesi listesi boşaltılamaz: son öğe gizlenirse `dateTime` otomatik eklenir.

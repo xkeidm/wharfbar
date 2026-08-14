@@ -40,7 +40,7 @@
                     </Grid.ColumnDefinitions>
                     
                     <ui:SymbolIcon Grid.Column="0" Symbol="Color24" FontSize="20"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
                                    
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
@@ -72,7 +72,7 @@
                     </Grid.ColumnDefinitions>
                     
                     <ui:SymbolIcon Grid.Column="0" Symbol="DarkTheme24" FontSize="20"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
                                    
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
@@ -108,7 +108,7 @@
                     </Grid.ColumnDefinitions>
                     
                     <ui:SymbolIcon Grid.Column="0" Symbol="Eye24" FontSize="20"
-                                   Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
                                    
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
