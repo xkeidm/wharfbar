@@ -14,7 +14,7 @@
 | Kenar şeritte yuvarlak DWM köşe | DWM dört köşeyi birden yuvarlar; üst bar `DONOTROUND` |
 | DPI değişimi / monitör tak-çıkar | Per-Monitor V2 + `WM_DPICHANGED` + display handlers + AppBar yeniden SETPOS |
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
-| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Overflow: native `Win+B`/chevron (ADR-005). Deneysel ayna: `TrayIconMirrorService` (ADR-007) — arka plan peek yok (cloak başka süreçte başarısız; UIA taraması görev çubuğunu saniyelerce gösterir). İkon `BitBlt` yalnızca overflow/tıklama peek’inde. `ToolbarWindow32`/RPM yok. |
+| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Overflow: native `Win+B`/chevron (ADR-005). Tepsi ikon aynalaması (UIA/BitBlt) kaldırıldı. `ToolbarWindow32`/RPM yok. |
 | WPF-UI `SymbolRegular` XAML’de yok | Örn. `Meter24` yok → Ayarlar `GeneralPage` parse patlar, süreç ölür. Paketteki enum adını doğrula (`DataUsage24` vb.) |
 | Üst barda yalnızca saat görünmesi | WPF-UI `SymbolIcon` Mica AppBar’da boş kalabiliyor; durum/overflow için Segoe MDL2 `TextBlock` kullan |
 | Sol Windows logosu görünmüyor | MDL2 `E782` bazı yüzlerde boş; 4 kare `Rectangle`/`Viewbox` çiz (font bağımsız) |

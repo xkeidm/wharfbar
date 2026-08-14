@@ -36,7 +36,6 @@ public partial class TopBarWindow : Window
     private AudioMixerService? _mixer;
     private QuickSettingsService? _quick;
     private MonitorBrightnessService? _monitorBrightness;
-    private TrayIconMirrorService? _trayMirror;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
@@ -56,7 +55,6 @@ public partial class TopBarWindow : Window
     private Dictionary<string, FrameworkElement>? _statusElements;
     private bool _batteryPresent = false;
     private bool _volumeAvailable = true;
-    private bool _mirroredTrayHasItems;
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
@@ -64,8 +62,7 @@ public partial class TopBarWindow : Window
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         _config = config ?? throw new ArgumentNullException(nameof(config));
-        // Callback reads _trayMirror at invoke time (set in OnSourceInitialized).
-        _trayOverflow = new TrayOverflowInvoker(_taskbar, () => _trayMirror?.PollWhilePeeked());
+        _trayOverflow = new TrayOverflowInvoker(_taskbar);
 
         // Must be set before InitializeComponent — WPF locks AllowsTransparency after creation.
         AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(
@@ -75,7 +72,6 @@ public partial class TopBarWindow : Window
         _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
         {
             [TopBarStatusItemIds.TrayOverflow] = TrayOverflowButton,
-            [TopBarStatusItemIds.MirroredTray] = MirroredTrayPanel,
             [TopBarStatusItemIds.DateTime] = DateTimeButton,
             [TopBarStatusItemIds.Notifications] = NotificationsButton,
             [TopBarStatusItemIds.ControlCenter] = ControlCenterButton,
@@ -127,11 +123,6 @@ public partial class TopBarWindow : Window
 
         _monitorBrightness = new MonitorBrightnessService();
         BrightnessHost.Attach(_monitorBrightness);
-
-        _trayMirror = new TrayIconMirrorService(_taskbar);
-        _trayMirror.Changed += (_, _) => ApplyMirroredTray(_trayMirror.Snapshot);
-        UpdateTrayMirrorEnabled();
-        ApplyMirroredTray(_trayMirror.Snapshot);
 
         _appBar.Register();
         ApplyPlacement();
@@ -336,8 +327,6 @@ public partial class TopBarWindow : Window
         _volume = null;
         _monitorBrightness?.Dispose();
         _monitorBrightness = null;
-        _trayMirror?.Dispose();
-        _trayMirror = null;
     }
 
     private void OnMainWindowChromeClobbered()
@@ -411,39 +400,6 @@ public partial class TopBarWindow : Window
         ApplyStatusItemLayout();
     }
 
-    private void ApplyMirroredTray(TrayIconMirrorSnapshot snapshot)
-    {
-        MirroredTrayPanel.ItemsSource = snapshot.Items;
-        _mirroredTrayHasItems = snapshot.Items.Count > 0;
-        ApplyStatusItemLayout();
-    }
-
-    private void UpdateTrayMirrorEnabled()
-    {
-        IReadOnlyList<string> order = TopBarStatusItemIds.Normalize(
-            _config.Current.TopBar?.StatusItems);
-        bool enabled = order.Contains(TopBarStatusItemIds.MirroredTray, StringComparer.Ordinal);
-        _trayMirror?.SetEnabled(enabled);
-    }
-
-    private void OnMirroredTrayIconLeftClick(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        if (sender is FrameworkElement { DataContext: TrayIconItem item })
-        {
-            _trayMirror?.ForwardClick(item, isRightClick: false);
-        }
-    }
-
-    private void OnMirroredTrayIconRightClick(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        if (sender is FrameworkElement { DataContext: TrayIconItem item })
-        {
-            _trayMirror?.ForwardClick(item, isRightClick: true);
-        }
-    }
-
     private void ApplyStatusItemLayout()
     {
         if (_statusElements is null)
@@ -470,7 +426,6 @@ public partial class TopBarWindow : Window
             {
                 TopBarStatusItemIds.Battery => _batteryPresent,
                 TopBarStatusItemIds.Volume => _volumeAvailable,
-                TopBarStatusItemIds.MirroredTray => _mirroredTrayHasItems,
                 _ => true,
             };
             el.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
@@ -651,7 +606,6 @@ public partial class TopBarWindow : Window
     private static string StatusItemHeader(string id) => id switch
     {
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
-        TopBarStatusItemIds.MirroredTray => "Sistem tepsi ikonları",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",
         TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
@@ -759,7 +713,6 @@ public partial class TopBarWindow : Window
         cfg.TopBar ??= new TopBarConfig();
         cfg.TopBar.StatusItems = TopBarStatusItemIds.Normalize(items);
         _config.Save(cfg);
-        UpdateTrayMirrorEnabled();
         ApplyStatusItemLayout();
     }
 

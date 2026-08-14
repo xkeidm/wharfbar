@@ -4,7 +4,6 @@ namespace WharfBar.Models;
 internal static class TopBarStatusItemIds
 {
     internal const string TrayOverflow = "trayOverflow";
-    internal const string MirroredTray = "mirroredTray";
     internal const string DateTime = "dateTime";
     internal const string Notifications = "notifications";
     internal const string ControlCenter = "controlCenter";
@@ -16,7 +15,6 @@ internal static class TopBarStatusItemIds
     internal static readonly IReadOnlyList<string> DefaultOrder =
     [
         TrayOverflow,
-        MirroredTray,
         DateTime,
         Notifications,
         ControlCenter,
@@ -108,31 +106,6 @@ internal static class TopBarStatusItemIds
         else
         {
             items.Add(Brightness);
-        }
-    }
-
-    /// <summary>
-    /// Soft migration helper: inserts <see cref="MirroredTray"/> after <see cref="TrayOverflow"/>
-    /// when missing (or appends if overflow is absent).
-    /// </summary>
-    internal static void EnsureMirroredTray(List<string> items)
-    {
-        ArgumentNullException.ThrowIfNull(items);
-
-        if (items.Contains(MirroredTray, StringComparer.Ordinal))
-        {
-            return;
-        }
-
-        int overflowIndex = items.FindIndex(static x =>
-            string.Equals(x, TrayOverflow, StringComparison.Ordinal));
-        if (overflowIndex >= 0)
-        {
-            items.Insert(overflowIndex + 1, MirroredTray);
-        }
-        else
-        {
-            items.Insert(0, MirroredTray);
         }
     }
 

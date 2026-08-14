@@ -18,15 +18,13 @@ internal sealed class TrayOverflowInvoker
 
     private readonly TaskbarVisibilityService _taskbar;
     private readonly Dispatcher _dispatcher;
-    private readonly Action? _onVisiblePeek;
     private DispatcherTimer? _rehideTimer;
     private DateTime _peekStartedUtc;
     private int _busy; // 0 = idle
 
-    internal TrayOverflowInvoker(TaskbarVisibilityService taskbar, Action? onVisiblePeek = null)
+    internal TrayOverflowInvoker(TaskbarVisibilityService taskbar)
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
-        _onVisiblePeek = onVisiblePeek;
         _dispatcher = System.Windows.Application.Current?.Dispatcher
             ?? Dispatcher.CurrentDispatcher;
     }
@@ -53,8 +51,6 @@ internal sealed class TrayOverflowInvoker
             if (peeked)
             {
                 Thread.Sleep(PeekSettle);
-                // Capture mirrored tray icons while the real taskbar is on-screen.
-                _dispatcher.BeginInvoke(() => _onVisiblePeek?.Invoke());
             }
 
             bool opened = TrayOverflowNative.TryOpen();

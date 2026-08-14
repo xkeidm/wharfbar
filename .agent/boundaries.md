@@ -18,7 +18,7 @@
   yakala; çıkış ve crash yollarında **önceki duruma geri yükle** (ADR-005; `ABM_REMOVE`
   ile aynı disiplin). Kalıcı (WharfBar kapalıyken) bozma yok.
 - Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
-- Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) veya kullanıcı onaylı canlı 3. parti tepsi ikon aynalama (`TrayIconMirrorService` — Win11’de UIA `NotifyItemIcon` + görev çubuğu peek; ADR-007)
+- Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron; ADR-005). Tepsi ikon aynalaması yok.
 
 
 ## Önce sor (kullanıcı onayı)

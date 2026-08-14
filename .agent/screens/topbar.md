@@ -20,7 +20,6 @@ Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
 | id | Arayüz | Tıklama davranışı |
 |----|--------|-------------------|
 | `trayOverflow` | "Gizli simgeler" (glif `E70E`) | overflow bölgesi popup'ı (Win+B) |
-| `mirroredTray` | aynalanmış tepsi ikonları (16×16) | sol tık → sahte tıklama iletimi; sağ tık → uygulamanın menüsü (içerik okunmaz, pencereye gönderilir) |
 | `dateTime` | saat+tarih tek satır, `tr-TR` kısaltmaları | sistem takvim/panel |
 | `notifications` | zil glifi `EA8F` | Win+N (bildirim merkezi) |
 | `controlCenter` | hızlı ayarlar glifi `E9CE` | `QuickSettingsFlyout` → **Main** sekmesi |
