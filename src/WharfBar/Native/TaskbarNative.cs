@@ -7,6 +7,7 @@ namespace WharfBar.Native;
 internal static class TaskbarNative
 {
     private const string TrayClass = "Shell_TrayWnd";
+    private const string SecondaryTrayClass = "Shell_SecondaryTrayWnd";
 
     /// <summary>DWMWA_CLOAK — hide from composition while the HWND stays "shown" for UIA.</summary>
     private const uint DwmwaCloak = 13;
@@ -44,25 +45,119 @@ internal static class TaskbarNative
         return hwnd != IntPtr.Zero && NativeMethods.IsWindowVisible(hwnd);
     }
 
+    /// <summary>
+    /// True when any primary or secondary taskbar HWND is visible. Explorer can re-show
+    /// <c>Shell_TrayWnd</c> after AppBar <c>SETPOS</c> or auto-hide edge reveal.
+    /// </summary>
+    internal static bool IsAnyTrayVisible()
+    {
+        bool visible = false;
+        ForEachTrayHwnd(hwnd =>
+        {
+            if (NativeMethods.IsWindowVisible(hwnd))
+            {
+                visible = true;
+            }
+        });
+        return visible;
+    }
+
     internal static void SetTrayVisible(bool visible)
     {
-        IntPtr hwnd = FindTrayHwnd();
-        if (hwnd == IntPtr.Zero)
+        IntPtr primary = FindTrayHwnd();
+        if (primary != IntPtr.Zero)
+        {
+            if (visible)
+            {
+                ClearStealthVisuals(primary);
+            }
+        }
+        else
         {
             System.Diagnostics.Debug.WriteLine("WharfBar: Shell_TrayWnd not found");
-            return;
         }
 
+        int shown = 0;
+        ForEachTrayHwnd(hwnd =>
+        {
+            shown++;
+            ApplyTrayVisibility(hwnd, visible);
+            if (!visible)
+            {
+                ClearStealthVisuals(hwnd);
+            }
+        });
+
+        if (shown == 0)
+        {
+            System.Diagnostics.Debug.WriteLine("WharfBar: no Shell_TrayWnd / Shell_SecondaryTrayWnd");
+        }
+    }
+
+    private static void ApplyTrayVisibility(IntPtr hwnd, bool visible)
+    {
         if (visible)
         {
-            ClearStealthVisuals(hwnd);
             // SW_SHOW (not SW_SHOWNA): after SW_HIDE, SHOWNA often leaves Shell_TrayWnd invisible.
             _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
+            _ = NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                0,
+                0,
+                0,
+                0,
+                NativeMethods.SWP_SHOWWINDOW
+                    | NativeMethods.SWP_NOMOVE
+                    | NativeMethods.SWP_NOSIZE
+                    | NativeMethods.SWP_NOZORDER
+                    | NativeMethods.SWP_NOACTIVATE);
             return;
         }
 
         _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_HIDE);
-        ClearStealthVisuals(hwnd);
+        _ = NativeMethods.SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            0,
+            0,
+            0,
+            0,
+            NativeMethods.SWP_HIDEWINDOW
+                | NativeMethods.SWP_NOMOVE
+                | NativeMethods.SWP_NOSIZE
+                | NativeMethods.SWP_NOZORDER
+                | NativeMethods.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Primary via <c>FindWindow</c>, secondaries via <c>FindWindowEx</c>. Avoid
+    /// <c>EnumWindows</c> on the UI thread — a hung top-level window stalls the callback
+    /// and the AppBar shows the wait cursor.
+    /// </summary>
+    private static void ForEachTrayHwnd(Action<IntPtr> action)
+    {
+        IntPtr primary = FindTrayHwnd();
+        if (primary != IntPtr.Zero)
+        {
+            action(primary);
+        }
+
+        IntPtr secondary = IntPtr.Zero;
+        while (true)
+        {
+            secondary = NativeMethods.FindWindowEx(
+                IntPtr.Zero,
+                secondary,
+                SecondaryTrayClass,
+                null);
+            if (secondary == IntPtr.Zero)
+            {
+                break;
+            }
+
+            action(secondary);
+        }
     }
 
     /// <summary>
@@ -193,7 +288,7 @@ internal static class TaskbarNative
             work = info.rcWork;
         }
 
-        if (work.Bottom >= info.rcMonitor.Bottom)
+        if (!AppBarPlacement.NeedsBottomExpand(work.Bottom, info.rcMonitor.Bottom))
         {
             return true;
         }

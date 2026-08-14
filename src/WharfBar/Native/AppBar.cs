@@ -70,10 +70,10 @@ internal sealed class AppBar : IDisposable
     }
 
     /// <summary>
-    /// Asks the shell to approve <paramref name="desired"/> and commits the result.
-    /// Returns the rect the window should actually occupy, in physical pixels.
+    /// Asks the shell to approve <paramref name="desired"/> without committing.
+    /// QUERYPOS only moves the owned edge; the opposite edge is restored here.
     /// </summary>
-    internal RECT Reserve(RECT desired)
+    internal RECT Query(RECT desired)
     {
         if (!_isRegistered || IsRemoved)
         {
@@ -87,8 +87,6 @@ internal sealed class AppBar : IDisposable
         data.rc = desired;
         NativeMethods.SHAppBarMessage(NativeMethods.ABM_QUERYPOS, ref data);
 
-        // QUERYPOS only moves the edge it owns; the opposite edge must be restored by us
-        // or the bar collapses to zero thickness.
         switch (_edge)
         {
             case NativeMethods.ABE_TOP:
@@ -105,9 +103,28 @@ internal sealed class AppBar : IDisposable
                 break;
         }
 
+        return data.rc;
+    }
+
+    /// <summary>Commits a previously queried rect with <c>ABM_SETPOS</c>.</summary>
+    internal RECT CommitPos(RECT approved)
+    {
+        if (!_isRegistered || IsRemoved)
+        {
+            return approved;
+        }
+
+        APPBARDATA data = CreateData();
+        data.rc = approved;
         NativeMethods.SHAppBarMessage(NativeMethods.ABM_SETPOS, ref data);
         return data.rc;
     }
+
+    /// <summary>
+    /// Asks the shell to approve <paramref name="desired"/> and commits the result.
+    /// Returns the rect the window should actually occupy, in physical pixels.
+    /// </summary>
+    internal RECT Reserve(RECT desired) => CommitPos(Query(desired));
 
     internal void NotifyActivated()
     {

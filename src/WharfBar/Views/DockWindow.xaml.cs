@@ -69,6 +69,9 @@ public partial class DockWindow : Window
     private int _lastPlacementX;
     private int _lastPlacementWidthPx;
     private int _lastPlacementHeightPx;
+    private int _lastVisibleY;
+    private int _lastHiddenY;
+    private bool _haveSlideRange;
 
     private static readonly DependencyProperty AnimYOffsetProperty =
         DependencyProperty.Register(
@@ -686,6 +689,10 @@ public partial class DockWindow : Window
         int visibleY = monitor.Bottom - heightPx - bottomGapPx;
         int hiddenY = monitor.Bottom;
 
+        _lastVisibleY = visibleY;
+        _lastHiddenY = hiddenY;
+        _haveSlideRange = true;
+
         geo = new PlacementGeometry(x, visibleY, hiddenY, widthPx, heightPx);
         return true;
     }
@@ -695,13 +702,21 @@ public partial class DockWindow : Window
         IntPtr hwnd = _source!.Handle;
         uint dpi = Display.GetDpi(hwnd);
         RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
-        int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
-        int widthPx = MeasureDesiredWidthPx(dpi);
-        int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
-        widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
 
-        int x = monitor.Left + (monitor.Width - widthPx) / 2;
-        int yVisible = monitor.Bottom - heightPx;
+        // Use last SetWindowPos geometry — Measure() on the 50 ms poll stalls the UI
+        // thread (laggy hover slide, delayed top-bar menus).
+        int widthPx = _lastPlacementWidthPx > 0
+            ? _lastPlacementWidthPx
+            : Math.Max(Display.DipToPixels(MinWidthDip, dpi), 1);
+        int heightPx = _lastPlacementHeightPx > 0
+            ? _lastPlacementHeightPx
+            : Display.DipToPixels(_dockHeightDip, dpi);
+        int x = _lastPlacementWidthPx > 0
+            ? _lastPlacementX
+            : monitor.Left + (monitor.Width - widthPx) / 2;
+        int yVisible = _haveSlideRange
+            ? _lastVisibleY
+            : monitor.Bottom - heightPx;
 
         return new EdgeProbeContext(
             monitor.Left,
@@ -836,6 +851,12 @@ public partial class DockWindow : Window
 
     private void OnWorkAreaChanged(object? sender, EventArgs e)
     {
+        if (_autoHide.Enabled
+            && _autoHide.State is DockAutoHideVisualState.Showing or DockAutoHideVisualState.Hiding)
+        {
+            return;
+        }
+
         CancelYAnimation();
         ApplyPlacement();
     }
@@ -878,6 +899,10 @@ public partial class DockWindow : Window
     {
         switch (msg)
         {
+            case NativeMethods.WM_WINDOWPOSCHANGING:
+                ClampDockPlacement(lParam);
+                break;
+
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
                 Dispatcher.BeginInvoke(new Action(() =>
@@ -903,6 +928,44 @@ public partial class DockWindow : Window
         }
 
         return IntPtr.Zero;
+    }
+
+    private void ClampDockPlacement(IntPtr lParam)
+    {
+        if (_source is null || lParam == IntPtr.Zero || !_haveSlideRange)
+        {
+            return;
+        }
+
+        WINDOWPOS pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        if (!NativeMethods.GetWindowRect(_source.Handle, out RECT current))
+        {
+            return;
+        }
+
+        bool noMove = (pos.flags & NativeMethods.SWP_NOMOVE) != 0;
+        int proposedY = noMove ? current.Top : pos.y;
+        bool allowSlide = _isAnimatingY
+            || _autoHide.State is DockAutoHideVisualState.Showing or DockAutoHideVisualState.Hiding;
+        AppBarPlacement.GetDockSlideClampRange(
+            _autoHide.Enabled,
+            allowSlide,
+            parkedHidden: _autoHide.State is DockAutoHideVisualState.Hidden,
+            _lastVisibleY,
+            _lastHiddenY,
+            out int minY,
+            out int maxY);
+
+        int clampedY = AppBarPlacement.ClampSlideY(proposedY, minY, maxY);
+        if (clampedY == proposedY)
+        {
+            return;
+        }
+
+        pos.x = noMove ? current.Left : pos.x;
+        pos.y = clampedY;
+        pos.flags &= ~NativeMethods.SWP_NOMOVE;
+        Marshal.StructureToPtr(pos, lParam, false);
     }
 
     private static bool IsImmersiveColorSet(IntPtr lParam)

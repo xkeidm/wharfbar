@@ -42,7 +42,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 1. **`Shell_NotifyIcon` ≠ sistem tepsi okuma.** Wi-Fi/pil/ses için .NET API + kendi ikonlar.
 2. **Dock AppBar zorunlu değil** — overlay tercih (ADR-001). Top bar AppBar kullanır.
 3. **WPF-UI backdrop önce**; ham DWM Mica ile çakıştırma. **`AllowsTransparency=true` + Mica yasak.**
-4. **AppBar:** çıkışta `ABM_REMOVE`; callback’ler; explorer restart sonrası yeniden kayıt; DPI/display handler’lar.
+4. **AppBar:** çıkışta `ABM_REMOVE`; `ABN_POSCHANGED` içinde `SHAppBarMessage` yok (`BeginInvoke`, aynı rect’te SETPOS atla); `WM_WINDOWPOSCHANGING` onaylı rect’e kıskaç (phantom taskbar work-area itmesi; dock kıskacı `Measure` etmez); onaylı rect’te `ABM_WINDOWPOSCHANGED` yok; explorer restart sonrası yeniden kayıt; DPI/display handler’lar.
 5. **v1:** UWP ikonları sınırlı (placeholder); görev çubuğu gizleme + restore (ADR-005); tek örnek Mutex.
 6. **Autostart:** Startup klasörü > Registry Run (`AutostartService` + `AppConfig.autostart`).
 7. **Hit-testing + auto-hide** dock’ta uygulandı (`DockHitTest` + `DockAutoHideController`; `FullscreenState` köprüsü). Spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
@@ -79,7 +79,7 @@ konumlanma, auto-hide + hit-test (`DockAutoHideController`, `DockHitTest`)), `Co
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), sol küme CPU/GPU/RAM rozetleri (Windows logo yanında; GHz/GB yerleşimi — `SystemMonitorService`, `SystemStatsFormatter`), saat + ağ + pil
 (`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
 `controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
-görev çubuğu gizle/restore (`TaskbarVisibilityService`; çıkışta restore → `ABM_REMOVE`),
+görev çubuğu gizle/restore (`TaskbarVisibilityService`; keep-hidden izleme; çıkışta restore → `ABM_REMOVE`),
 canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
 `DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
 Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, monitör alt kenarına

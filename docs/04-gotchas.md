@@ -14,7 +14,7 @@
 | Kenar şeritte yuvarlak DWM köşe | DWM dört köşeyi birden yuvarlar; üst bar `DONOTROUND` |
 | DPI değişimi / monitör tak-çıkar | Per-Monitor V2 + `WM_DPICHANGED` + display handlers + AppBar yeniden SETPOS |
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
-| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Overflow: native `Win+B`/chevron (ADR-005). Deneysel ayna: `TrayIconMirrorService` (ADR-007) — Win11’de UIA `NotifyItemIcon` + stealth peek (DWM cloak + off-screen; görünür flaş yok) / ikon için görünür peek’te `BitBlt` + düğme chrome’unu (koyu kutu / ayırıcı) alpha ile sil; `ToolbarWindow32`/RPM yok. Explorer `HICON` kullanma → AV |
+| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Overflow: native `Win+B`/chevron (ADR-005). Deneysel ayna: `TrayIconMirrorService` (ADR-007) — arka plan peek yok (cloak başka süreçte başarısız; UIA taraması görev çubuğunu saniyelerce gösterir). İkon `BitBlt` yalnızca overflow/tıklama peek’inde. `ToolbarWindow32`/RPM yok. |
 | WPF-UI `SymbolRegular` XAML’de yok | Örn. `Meter24` yok → Ayarlar `GeneralPage` parse patlar, süreç ölür. Paketteki enum adını doğrula (`DataUsage24` vb.) |
 | Üst barda yalnızca saat görünmesi | WPF-UI `SymbolIcon` Mica AppBar’da boş kalabiliyor; durum/overflow için Segoe MDL2 `TextBlock` kullan |
 | Sol Windows logosu görünmüyor | MDL2 `E782` bazı yüzlerde boş; 4 kare `Rectangle`/`Viewbox` çiz (font bağımsız) |
@@ -26,7 +26,9 @@
 | Maximize altta boşluk (dock gizli) | Overlay dock work area rezerve etmez; boşluk gizlenmiş görev çubuğunun AppBar rezervasyonudur — hide sonrası `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`, ini’ye yazma) + AppBar `SETPOS` sonrası `EnsureWorkAreaExpanded` |
 | UWP ikonları | v1 tam destek yok; placeholder veya atla; kırık Appx yolu sunma |
 | Görev çubuğu gizleme sonrası restore kaçması | Başlatmada `ABM_GETSTATE` + `SPI_GETWORKAREA` yakala; çıkışta **her zaman** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` + baseline `SPI_SETWORKAREA` sonra `ABM_REMOVE`; `IsWindowVisible` auto-hide’ta yanıltır — restore’da kullanma |
-| Görev çubuğu hide API seçimi | `ShowWindow(Shell_TrayWnd, SW_HIDE)` gizler; ayrıca `ABS_AUTOHIDE` + `SPI_SETWORKAREA` (alt kenar = monitör) — yalnızca `SW_HIDE` phantom alt şerit bırakır; restore `SW_SHOW` (SHOWNA yetmez) + `ABM_SETSTATE` baseline + work area baseline |
+| Görev çubuğu hide API seçimi | `ShowWindow` + `SWP_HIDEWINDOW` (`Shell_TrayWnd` + `Shell_SecondaryTrayWnd`) + `SPI_SETWORKAREA` (alt kenar = monitör). `ABS_AUTOHIDE` kenar reveal ile çubuğu geri getirir — gizlerken kullanılmaz. Restore `SW_SHOW` + `ABM_SETSTATE` baseline + work area baseline |
+| Görev çubuğu gizlendikten sonra tekrar görünmesi | Explorer AppBar `SETPOS` / `Shell_NotifyIcon` ile `Shell_TrayWnd`’i yeniden gösterir; `ABS_AUTOHIDE` kenar reveal’ı tetikler (gizlerken kullanılmaz). Keep-hidden 250 ms `FindWindow`/`FindWindowEx` + gerekirse `SW_HIDE` (UI’da tam `EnumWindows` yok). HWND gizliyken bile görev çubuğu AppBar rezervasyonu geri gelebilir (`SPI` alt kenar 48px daralır); keep-hidden work area’yı en fazla 1 sn’de bir genişletir (100 ms `SPI_GETWORKAREA` + `ABM_WINDOWPOSCHANGED` döngüsü dock auto-hide’ı takırdatır ve üst bar menüsünü geciktirir). `ApplyPlacement` içinde `ReapplyHide` yok. `ABN_POSCHANGED` explorer `SendMessage` içinde `SHAppBarMessage` çağırmaz (`BeginInvoke`); `ABM_SETPOS` yalnızca QUERYPOS rect’i değişince — aksi halde hide→POSCHANGED→SETPOS→tray tekrar görünür döngüsü üst barda wait cursor ve ölü tıklama üretir. `WorkAreaChanged` yalnızca yerleşim gerçekten değişince. Onaylı AppBar rect’inde `ABM_WINDOWPOSCHANGED` yok. Dock kıskacı önbellekli Y kullanır (`Measure` yok). Tepsi ikonu / idle / `TaskbarCreated` sonrası `ReapplyHide`. Tepsi aynası arka plan peek yapmaz. |
+| Üst barda takılı ikinci şerit / dock yukarı-aşağı | Gizli görev çubuğu AppBar’ı work area’yı daraltınca WPF barı `y=0` dışarıda sayıp `y=30`’a iter; AppBar rezerv şeridinde eski kare kalır. Dock aynı itmede ~48px zıplar. `WM_WINDOWPOSCHANGING` onaylı rect / `ClampSlideY` (önbellekli Y; layout `Measure` yok); keep-hidden work area’yı 1 sn yedekle genişletir. Onaylı rect’te `ABM_WINDOWPOSCHANGED` atlanır. |
 | Zorla kill / konsol kapatma → görev çubuğu gizli kalır | `Stop-Process -Force` restore’u atlar. `dotnet run` konsolunu kapatmak da WPF `OnExit`’i atlayabilir — `SetConsoleCtrlHandler` + `run.bat` artık EXE’yi **ayrık** başlatır. Düzeltme: `explorer.exe` restart veya `ShowWindow(Shell_TrayWnd, SW_SHOW)`. Normal Quit kullan |
 | Dock için gereksiz AppBar | Overlay + Topmost (+ auto-hide); ADR-001 — erken notlar “her iki yüzey AppBar” diyordu; geçersiz |
 | Erken notta `AllowUnsafeBlocks=true` / `/Windows` | ADR-002: unsafe kapalı; klasör `Views/` |
@@ -36,13 +38,13 @@
 | `AllowUnsafeBlocks` gereksiz açma | Temel P/Invoke için kapalı bırak; `LibraryImport` yerine `DllImport` |
 | WPF DIP `Left/Top` ile konumlandırma | Birincil monitör ölçeğini varsayar; fiziksel piksel + `SetWindowPos` kullan |
 | `global.json` ile SDK pinleme | Makinede yalnızca .NET 9 SDK var; 8.x’e pinleme derlemeyi kırar (ADR-002) |
-| Kendi `SetWindowPos`’umuz → `ABM_WINDOWPOSCHANGED` → `ABN_POSCHANGED` döngüsü | Yerleşim uygularken bildirimi atla (`_isApplyingPlacement`) |
+| Kendi `SetWindowPos`’umuz → `ABM_WINDOWPOSCHANGED` → `ABN_POSCHANGED` döngüsü | Yerleşim uygularken bildirimi atla (`_isApplyingPlacement`); `ABN_POSCHANGED`’i `BeginInvoke` ile işle; aynı rect’te `ABM_SETPOS` yok |
 | `ShowInTaskbar=false` → `Process.MainWindowHandle` **0** | WPF pencereye gizli bir owner verir; `CloseMainWindow()` çalışmaz. Dışarıdan kapatmak için `EnumWindows` + PID filtresi ile `WM_CLOSE` gönder |
 | Uygulamayı kapatmanın görünür yolu yoktu | Tepsi ikonu → **Quit WharfBar** (`TrayIconService`); Alt+F4 hâlâ çalışır |
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
 | Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
 | Translucent üst bar / Mica geçişi | `AllowsTransparency` ctor'da; Mica↔translucent = TopBar recreate; recreate'de **taskbar restore yok**, yalnız `ABM_REMOVE`+yeni `ABM_NEW`; Mica+`AllowsTransparency` yasak |
-| Translucent bar bembeyaz / opak | (1) XAML `Background={DynamicResource ApplicationBackgroundBrush}` + `SetCurrentValue` → tema `Apply` opak fırçayı geri yazar; yerel `Background = …` ata. (2) WPF-UI `RemoveBackdrop` → `RestoreContentBackground` `CompositionTarget.BackgroundColor = SystemColors.WindowColor` yapar — layered pencerede `HwndSource.CompositionTarget.BackgroundColor = Transparent` de şart. (3) Dock `WindowAppearance.Apply` MainWindow chrome’unu ezer → `MainWindowChromeClobbered` ile üst bar yeniden uygular |
+| GPU Engine sayaçları UI’yi dondurması | `PerformanceCounterCategory.Exists` + her poll’da yeni sayaç (~yüzlerce `engtype_*`) saniyeler sürer ve 1.5 sn’de bir üst üste biner. Sayaçları bir kez oluştur; örtüşen poll’u atla; `Task.Run` dışında UI’da okuma. |
 
 ## Geliştirme ipucu
 

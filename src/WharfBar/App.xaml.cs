@@ -115,6 +115,12 @@ public partial class App : Application
 
         // Own tray icon only (quit menu). Not reading system status tray icons.
         _tray = new TrayIconService();
+
+        // Shell_NotifyIcon / AppBar SETPOS can re-show Shell_TrayWnd after the initial hide.
+        _taskbar.ReapplyHide();
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+            () => _taskbar.ReapplyHide());
     }
 
     /// <summary>

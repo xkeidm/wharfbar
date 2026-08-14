@@ -46,7 +46,8 @@ src/WharfBar/
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
     MonitorNative.cs            # dxva2.dll (DDC/CI) + user32.dll monitör P/Invoke
-    AppBar.cs                   # SHAppBarMessage wrapper; idempotent ABM_REMOVE
+    AppBar.cs                   # SHAppBarMessage wrapper; QUERYPOS/SETPOS; idempotent ABM_REMOVE
+    AppBarPlacement.cs          # SETPOS no-op, WM_WINDOWPOSCHANGING kıskaç, dock slide aralığı
     Display.cs                  # birincil monitör sınırları + DPI → fiziksel piksel
     Dwm.cs                      # köşe, immersive dark, backdrop yedek, frame extend
     ShellIcon.cs                # IShellItemImageFactory + SHGetFileInfo ikon çıkarma / Destroy
@@ -83,17 +84,17 @@ src/WharfBar/
     DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
-    SystemMonitorService.cs     # CPU/RAM/GPU ham snapshot (poll)
+    SystemMonitorService.cs     # CPU/RAM/GPU ham snapshot (önbellekli GPU sayaçları; örtüşen poll yok)
     SystemStatsFormatter.cs     # yerleşim → bar/tooltip metni
     MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
     QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
-    TrayIconMirrorService.cs    # 3. parti tepsi aynası (UIA + peek; ADR-007)
+    TrayIconMirrorService.cs    # 3. parti tepsi aynası (overflow peek; ADR-007)
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
-    RunningAppsSource.cs        # EnumWindows + AUMID gruplama
+    RunningAppsSource.cs        # EnumWindows arka plan + AUMID gruplama
     DockAppsComposer.cs         # pin + running birleşik liste
     ShortcutResolver.cs         # .lnk → hedef yol / args
     TrayOverflowInvoker.cs      # peek-show + native overflow + yeniden gizle
@@ -125,21 +126,22 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | Tek aygıt + dropdown + uygulama oturum sesleri (ADR-006) |
 | `QuickSettingsService` | Ağ detayı, WinRT radyo, Settings URI / Win+P |
 | `NotificationCenterInvoker` | Native bildirim merkezi (`Win+N`) |
-| `AppBar` | `ABM_NEW` / `QUERYPOS` / `SETPOS` / `REMOVE`; `ABN_*` çözümleme; yeniden kayıt |
+| `AppBar` | `ABM_NEW` / `QUERYPOS` / `SETPOS` / `REMOVE`; aynı rect’te SETPOS yok; `ABN_*` çözümleme; yeniden kayıt |
+| `AppBarPlacement` | QUERYPOS no-op, onaylı rect kıskaç, dock auto-hide Y aralığı |
 | `NativeMethods` | Ham `DllImport` + struct + sabitler; `internal`, UI’dan doğrudan çağrılmaz |
 | `Display` | Birincil monitör sınırları, DPI, DIP → piksel dönüşümü |
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
 | `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek; sağ tık bağlam menüsü (Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici çalıştır, Dosya konumunu aç, Yeni pencere); %100 ekran genişliği & yatay ScrollViewer kaydırma; Mica + yuvarlak köşe; AppBar yok |
-| `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` gizle; çıkışta restore |
+| `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar` `.lnk` tarama; değişiklik watcher |
-| `RunningAppsSource` | `EnumWindows` + AUMID ile çalışan uygulama gruplama |
+| `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
 | `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi (Sabitler solda, sabit olmayan çalışanlar ayırıcı ile sağda); `pinnedApps` fallback |
 | `ShortcutResolver` | `.lnk` hedef yol / args çözümleme ve dinamik `.lnk` kısayolu oluşturma |
 | `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |
 | `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
-| `TrayIconMirrorService` | Win11 UIA `NotifyItemIcon` aynası (ADR-007); peek + `BitBlt` ikon; tık → Invoke / mouse |
+| `TrayIconMirrorService` | Win11 UIA `NotifyItemIcon` aynası (ADR-007); ikon yakalama yalnızca overflow/tıklama peek’inde |
 | `ShellIcon` | `IShellItemImageFactory` (DPI px) + `SHGetFileInfo` yedek; ikon / bitmap destroy |
 | `AppIconService` | `ShellIcon` → WPF `ImageSource` (boyut önbellek anahtarlı) |
 | `ProcessLauncherService` | Pin tıklamasında `Process.Start` |
@@ -153,7 +155,7 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `AppThemePreference` | `theme` alanı → `ApplicationTheme` |
 | `AutostartService` | Startup klasörü `WharfBar.lnk`; `autostart` true/false ile oluştur/sil |
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
-| `SystemMonitorService` | CPU `%`/`GHz`, RAM, GPU `%`/VRAM ham snapshot; 1.5 sn poll |
+| `SystemMonitorService` | CPU `%`/`GHz`, RAM, GPU `%`/VRAM ham snapshot; 1.5 sn poll; GPU Engine sayaçları bir kez; örtüşen poll atlanır |
 | `SystemStatsFormatter` | `StatPlacement` + snapshot → rozet metni |
 | `DxgiAdapterMemory` | DXGI dedicated/Budget toplam VRAM (kullanılan: `GPU Adapter Memory` sayacı) |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
@@ -227,12 +229,13 @@ mesajının AppBar’ı yeniden kaydetmesi böyle engellenir.
 
 | Mesaj | Davranış |
 |-------|----------|
-| `ABN_POSCHANGED`, `ABN_STATECHANGE` | Yerleşimi yeniden uygula |
+| `ABN_POSCHANGED`, `ABN_STATECHANGE` | `Dispatcher.BeginInvoke` ile yerleşimi kuyruğa al; `ABM_SETPOS` yalnızca QUERYPOS sonucu değişince (explorer `SendMessage` içinde `SHAppBarMessage` deadlock / wait cursor) |
 | `ABN_FULLSCREENAPP` | Tam ekran uygulama varken `HWND_BOTTOM`, bitince `HWND_TOPMOST`; `FullscreenState.Instance.Set` |
 | `ABN_WINDOWARRANGE` | v1’de işlem yok |
 | `TaskbarCreated` | `ABM_NEW` tekrar (explorer yeniden başladı) + yerleşim + `TaskbarVisibilityService.ReapplyHide()` |
 | `WM_DPICHANGED`, `WM_DISPLAYCHANGE` | `Dispatcher.BeginInvoke` ile yerleşimi yeniden uygula |
 | `WM_WINDOWPOSCHANGED` | `ABM_WINDOWPOSCHANGED` (kendi taşımamız sırasında atlanır) |
+| `WM_WINDOWPOSCHANGING` | Onaylı AppBar rect’ine kıskaç (phantom work-area itmesi; bar altında bar) |
 | `WM_ACTIVATE` | `ABM_ACTIVATE` |
 
 ## Config şeması (`schemaVersion` 1)

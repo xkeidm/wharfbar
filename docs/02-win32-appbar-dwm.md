@@ -20,7 +20,11 @@ static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
 
 ### Callback’ler
 
-AppBar kaydında `uCallbackMessage` ile özel bir window message tanımla. Gelen `ABN_*` bildirimlerini işle (ör. `ABN_POSCHANGED`, `ABN_FULLSCREENAPP`, `ABN_WINDOWARRANGE`). Fullscreen gizleme ve yeniden konumlandırma buradan bağlanır.
+AppBar kaydında `uCallbackMessage` ile özel bir window message tanımla. Gelen `ABN_*`
+bildirimlerini işle (ör. `ABN_POSCHANGED`, `ABN_FULLSCREENAPP`, `ABN_WINDOWARRANGE`).
+**`ABN_POSCHANGED` içinde `SHAppBarMessage` çağırma** — explorer `SendMessage` ile bildirir;
+içeriden `ABM_SETPOS` deadlock (üst barda wait cursor, tıklama yok). `BeginInvoke` +
+aynı rect’te SETPOS atla. Fullscreen gizleme ve yeniden konumlandırma buradan bağlanır.
 
 ### Çoklu monitör (v1 sınırı)
 
@@ -149,16 +153,34 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
 
 1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + birincil `SPI_GETWORKAREA` +
    `FindWindow("Shell_TrayWnd")` — restore için saklanır.
-2. **Gizleme:** `ShowWindow(Shell_TrayWnd, SW_HIDE)` + `ABM_SETSTATE(ABS_AUTOHIDE)` +
-   `SPI_SETWORKAREA` (üst/sol/sağ korunur; alt = monitör kenarı). Yalnızca `SW_HIDE`
-   görev çubuğunu görsel olarak gizler ama AppBar rezervasyonunu bırakır — maximize
-   pencereler altta phantom şerit bırakır.
+2. **Gizleme:** `ShowWindow` + `SWP_HIDEWINDOW` (`FindWindow("Shell_TrayWnd")` ve
+   `FindWindowEx` ile `Shell_SecondaryTrayWnd`; UI thread’de tam `EnumWindows` yok —
+   asılı bir pencere AppBar’da wait cursor bırakır) + `SPI_SETWORKAREA` (üst/sol/sağ
+   korunur; alt = monitör kenarı). `ABM_SETSTATE(ABS_AUTOHIDE)` kullanılmaz — explorer
+   kenar reveal ile çubuğu tekrar gösterir. Yalnızca `SW_HIDE` AppBar rezervasyonunu
+   bırakır; bu yüzden work area ayrıca genişletilir.
 3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
-   `TaskbarVisibilityService.EnsureWorkAreaExpanded()` yeniden uygular.
-4. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
-   `SPI_SETWORKAREA(baseline work area)`.
-5. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
-6. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
+   `EnsureWorkAreaExpanded()`. `ApplyPlacement` içinde `ReapplyHide` yok — gizleme +
+   `SETPOS` `ABN_POSCHANGED` döngüsü üst barda wait cursor ve dock auto-hide iptali
+   üretir. `ABN_POSCHANGED` / `ABN_STATECHANGE` `Dispatcher.BeginInvoke` ile işlenir
+   (explorer `SendMessage` içinde `SHAppBarMessage` deadlock). `ABM_SETPOS` yalnızca
+   QUERYPOS sonucu son commit’ten farklıysa. `WorkAreaChanged` yalnızca yerleşim
+   gerçekten değişince.    `WM_WINDOWPOSCHANGING` onaylı AppBar rect’ine kıskanç:
+   phantom alt şerit dönünce WPF barı work-area tepesine (`y=30`) iter; rezerv
+   şeritte takılı kare kalır. Dock overlay aynı itmede `ClampSlideY` ile
+   auto-hide aralığında kalır (önbellekli Y; `WM_WINDOWPOSCHANGING` içinde
+   `Measure` yok). Onaylı rect’teyken `ABM_WINDOWPOSCHANGED` atlanır —
+   aksi halde WPF’nin work-area itmesi her layout’ta explorer `SendMessage`
+   ile UI’yi dondurur.
+4. **Keep-hidden:** 250 ms `FindWindow` / `FindWindowEx` — peek dışında görünür
+   tepsiye `SW_HIDE`. HWND gizli kalsa bile explorer görev çubuğu AppBar’ını
+   yeniden `SETPOS` edebilir; work area altı daralmışsa en fazla 1 sn’de bir
+   `EnsureWorkAreaExpanded` (10 Hz `SPI_GETWORKAREA` UI thread’i tıkar).
+   `Shell_NotifyIcon` sonrası ve `TaskbarCreated` için `ReapplyHide`.
+5. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
+   `SPI_SETWORKAREA(baseline work area)`; izleme durur.
+6. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
+7. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
 
 v1: yalnızca birincil monitör work area. Çoklu monitör `SPI_SETWORKAREA` ayrı onay
 (boundaries “önce sor”).
@@ -169,9 +191,11 @@ Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
 ## g) Çalışan uygulama listesi (dock)
 
-`EnumWindows` ile üst düzey görünür pencereler taranır; `Shell_TrayWnd`, `Progman`, `WorkerW` ve
-kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Gruplama için
-`GetCurrentProcessExplicitAppUserModelID` (`AppUserModelId.cs`). WharfBar kendi pencereleri
+`EnumWindows` ile üst düzey görünür pencereler **arka plan thread**’de taranır (UI’da
+asılı bir HWND wait cursor bırakır); `IsHungAppWindow` atlanır. `Shell_TrayWnd`, `Progman`,
+`WorkerW` ve kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Yol için
+`QueryFullProcessImageName` (`Process.MainModule` UI’yi kilitleyebilir). Gruplama için
+`GetProp(ApplicationUserModelID)` (`AppUserModelId.cs`). WharfBar kendi pencereleri
 (`ShowInTaskbar=false`) için `Process.MainWindowHandle` güvenilmez — odaklama
 `WindowActivationService` + `EnumWindows` + PID filtresi ile yapılır.
 

@@ -41,6 +41,10 @@ public partial class TopBarWindow : Window
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
+    private bool _placementQueued;
+    private bool _pendingAppBarReregister;
+    private RECT _lastApprovedPlacement;
+    private bool _haveLastApprovedPlacement;
     private bool _isFullScreenAppActive;
     private bool _isShutdownHooked;
     private bool _isRecreateClose;
@@ -1040,20 +1044,48 @@ public partial class TopBarWindow : Window
                 Bottom = monitor.Top + heightPx,
             };
 
-            RECT approved = _appBar.Reserve(desired);
+            RECT approved = _appBar.Query(desired);
+            bool needSetPos = AppBarPlacement.NeedsShellSetPos(
+                _haveLastApprovedPlacement,
+                _lastApprovedPlacement,
+                approved);
+            if (needSetPos)
+            {
+                approved = _appBar.CommitPos(approved);
+            }
 
-            NativeMethods.SetWindowPos(
-                hwnd,
-                _isFullScreenAppActive ? NativeMethods.HWND_BOTTOM : NativeMethods.HWND_TOPMOST,
-                approved.Left,
-                approved.Top,
-                approved.Width,
-                approved.Height,
-                NativeMethods.SWP_NOACTIVATE);
+            bool placementChanged = !_haveLastApprovedPlacement
+                || !AppBarPlacement.RectsEqual(_lastApprovedPlacement, approved);
+            // Commit before SetWindowPos so WM_WINDOWPOSCHANGING clamp uses this rect
+            // (WPF otherwise shoves the bar into the work area when the phantom strip returns).
+            _lastApprovedPlacement = approved;
+            _haveLastApprovedPlacement = true;
 
-            // ABM_SETPOS can restore the phantom taskbar strip; re-expand while tray is hidden.
+            bool windowMatches = NativeMethods.GetWindowRect(hwnd, out RECT current)
+                && AppBarPlacement.RectsEqual(current, approved);
+            if (needSetPos || !windowMatches)
+            {
+                NativeMethods.SetWindowPos(
+                    hwnd,
+                    _isFullScreenAppActive ? NativeMethods.HWND_BOTTOM : NativeMethods.HWND_TOPMOST,
+                    approved.Left,
+                    approved.Top,
+                    approved.Width,
+                    approved.Height,
+                    NativeMethods.SWP_NOACTIVATE);
+            }
+
+            // ABM_SETPOS can restore the phantom taskbar strip; keep-hidden re-hides
+            // Shell_TrayWnd. Do not ReapplyHide here — hide+SETPOS → ABN_POSCHANGED loops
+            // stall the UI thread (wait cursor on the bar) and snap the dock back off-screen.
+            // Skip SETPOS when QUERYPOS matches the last commit or explorer's hide/show
+            // of Shell_TrayWnd retriggers ABN_POSCHANGED forever (wait cursor, dead clicks).
             _taskbar.EnsureWorkAreaExpanded();
-            WorkAreaChanged.Notify();
+
+            if (placementChanged)
+            {
+                WorkAreaChanged.Notify();
+            }
         }
         finally
         {
@@ -1072,9 +1104,7 @@ public partial class TopBarWindow : Window
 
         if (_taskbarCreatedMessage != 0 && (uint)msg == _taskbarCreatedMessage)
         {
-            _appBar?.ReRegister();
-            _taskbar.ReapplyHide();
-            ApplyPlacement();
+            QueueApplyPlacement(reRegister: true);
             return IntPtr.Zero;
         }
 
@@ -1082,15 +1112,18 @@ public partial class TopBarWindow : Window
         {
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
-                Dispatcher.BeginInvoke(new Action(() =>
-                {
-                    ApplyPlacement();
-                    _monitorBrightness?.RefreshMonitors();
-                }));
+                QueueApplyPlacement();
+                _ = Dispatcher.BeginInvoke(new Action(() => _monitorBrightness?.RefreshMonitors()));
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGED:
-                if (!_isApplyingPlacement)
+                if (_source is not null
+                    && NativeMethods.GetWindowRect(_source.Handle, out RECT current)
+                    && AppBarPlacement.ShouldNotifyShellWindowPosChanged(
+                        _isApplyingPlacement,
+                        _haveLastApprovedPlacement,
+                        current,
+                        _lastApprovedPlacement))
                 {
                     _appBar?.NotifyWindowPosChanged();
                 }
@@ -1102,7 +1135,7 @@ public partial class TopBarWindow : Window
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGING:
-                ClampHeight(lParam);
+                ClampToApprovedPlacement(lParam);
                 break;
 
             case NativeMethods.WM_THEMECHANGED:
@@ -1123,7 +1156,7 @@ public partial class TopBarWindow : Window
         return IntPtr.Zero;
     }
 
-    private void ClampHeight(IntPtr lParam)
+    private void ClampToApprovedPlacement(IntPtr lParam)
     {
         if (_source is null || lParam == IntPtr.Zero)
         {
@@ -1131,6 +1164,34 @@ public partial class TopBarWindow : Window
         }
 
         WINDOWPOS pos = Marshal.PtrToStructure<WINDOWPOS>(lParam);
+        if (_haveLastApprovedPlacement
+            && NativeMethods.GetWindowRect(_source.Handle, out RECT current)
+            && AppBarPlacement.TryAlignToRect(
+                pos.x,
+                pos.y,
+                pos.cx,
+                pos.cy,
+                pos.flags,
+                current.Left,
+                current.Top,
+                current.Width,
+                current.Height,
+                _lastApprovedPlacement,
+                out int nx,
+                out int ny,
+                out int ncx,
+                out int ncy,
+                out uint nflags))
+        {
+            pos.x = nx;
+            pos.y = ny;
+            pos.cx = ncx;
+            pos.cy = ncy;
+            pos.flags = nflags;
+            Marshal.StructureToPtr(pos, lParam, false);
+            return;
+        }
+
         if ((pos.flags & NativeMethods.SWP_NOSIZE) != 0)
         {
             return;
@@ -1152,13 +1213,45 @@ public partial class TopBarWindow : Window
             && string.Equals(Marshal.PtrToStringUni(lParam), "ImmersiveColorSet", StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Defers shell AppBar work off explorer's SendMessage. SHAppBarMessage inside
+    /// ABN_POSCHANGED deadlocks (explorer waits for us, we wait for explorer) and the
+    /// bar shows the wait cursor with dead clicks.
+    /// </summary>
+    private void QueueApplyPlacement(bool reRegister = false)
+    {
+        if (reRegister)
+        {
+            _pendingAppBarReregister = true;
+        }
+
+        if (_placementQueued)
+        {
+            return;
+        }
+
+        _placementQueued = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _placementQueued = false;
+            if (_pendingAppBarReregister)
+            {
+                _pendingAppBarReregister = false;
+                _appBar?.ReRegister();
+                _taskbar.ReapplyHide();
+            }
+
+            ApplyPlacement();
+        });
+    }
+
     private void HandleAppBarNotification(AppBarNotification notification, IntPtr lParam)
     {
         switch (notification)
         {
             case AppBarNotification.PosChanged:
             case AppBarNotification.StateChange:
-                ApplyPlacement();
+                QueueApplyPlacement();
                 break;
 
             case AppBarNotification.FullScreenApp:
