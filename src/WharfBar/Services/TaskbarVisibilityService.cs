@@ -334,9 +334,36 @@ internal sealed class TaskbarVisibilityService
 
         try
         {
-            if (!TaskbarNative.TryExpandPrimaryWorkAreaBottom())
+            // SPI_SETWORKAREA with SPIF_SENDCHANGE broadcasts to every top-level window
+            // and can block the caller for ~1s on some systems. Run it off the UI thread;
+            // keep the guard so at most one expansion is in flight.
+            ThreadPool.QueueUserWorkItem(RunExpandWorkAreaBottom);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar work area expand queue failed: {ex.Message}");
+            Interlocked.Exchange(ref _expandingWorkArea, 0);
+        }
+    }
+
+    private void RunExpandWorkAreaBottom(object? state)
+    {
+        try
+        {
+            bool restoreRaced = Volatile.Read(ref _restored) != 0;
+            if (!restoreRaced && TaskbarNative.TryExpandPrimaryWorkAreaBottom())
             {
-                Debug.WriteLine("WharfBar: SPI_SETWORKAREA expand failed");
+                return;
+            }
+
+            // Restore may have run while the expansion was queued or in flight; undo it so
+            // exit never leaves the work area stuck expanded past the baseline.
+            if (restoreRaced || Volatile.Read(ref _restored) != 0)
+            {
+                if (_haveBaselineWorkArea)
+                {
+                    _ = TaskbarNative.TrySetPrimaryWorkArea(_baselineWorkArea);
+                }
             }
         }
         catch (Exception ex)
