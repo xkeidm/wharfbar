@@ -44,7 +44,6 @@
 | Fullscreen’de bar üstüne binme | `ABN_FULLSCREENAPP` / hit-test ile gizle |
 | Config şemasız JSON | `schemaVersion` + net model (`ConfigService`; uyumsuz → `.bak` + varsayılan) |
 | Translucent üst bar / Mica geçişi | `AllowsTransparency` ctor'da; Mica↔translucent = TopBar recreate; recreate'de **taskbar restore yok**, yalnız `ABM_REMOVE`+yeni `ABM_NEW`; Mica+`AllowsTransparency` yasak |
-| GPU Engine sayaçları UI’yi dondurması | `PerformanceCounterCategory.Exists` + her poll’da yeni sayaç (~yüzlerce `engtype_*`) saniyeler sürer ve 1.5 sn’de bir üst üste biner. Sayaçları bir kez oluştur; örtüşen poll’u atla; `Task.Run` dışında UI’da okuma. |
 
 ## Geliştirme ipucu
 

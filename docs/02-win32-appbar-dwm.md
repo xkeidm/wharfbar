@@ -87,17 +87,6 @@ Top bar göstergeleri için:
 - İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
 - **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
 
-
-
-Donanım rozetleri (sol küme, `SystemMonitorService`):
-
-- CPU `%`: `GetSystemTimes`
-- CPU GHz: `powrprof!CallNtPowerInformation` (`ProcessorInformation` = 11), çekirdek `CurrentMhz` ortalaması
-- RAM: `GlobalMemoryStatusEx`
-- GPU `%`: `GPU Engine` performans sayaçları (`engtype_3D`)
-- GPU VRAM: toplam DXGI `DedicatedVideoMemory` (0 ise `Budget`); kullanılan `GPU Adapter Memory` / `Dedicated Usage` (adaptör LUID). `QueryVideoMemoryInfo.CurrentUsage` süreç bazlıdır, kullanılmaz.
-- Yerleşim: `topBar.*Placement` (`bar` / `tooltip` / `hidden`); biçim `SystemStatsFormatter`
-
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
 sağ küme varsayılan LTR `gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
 (`topBar.statusItems`; özelleştirilebilir). Saat/tarih: tek satır `tr-TR` birleşik etiket
