@@ -11,23 +11,20 @@ internal sealed class TrayIconMirrorSnapshot
 }
 
 /// <summary>
-/// Polls Win11 notification-area icons via UIA while briefly peeking the hidden taskbar
-/// (same peek discipline as <see cref="TrayOverflowInvoker"/>). Background polls use
-/// stealth (off-screen) peek so the real taskbar does not flash every interval.
+/// Mirrors Win11 notification-area icons via UIA. Does not peek the hidden taskbar on
+/// a timer — DWM cloak of <c>Shell_TrayWnd</c> from another process fails, and a UIA
+/// scan holds peek for seconds, leaving the real taskbar visible. Icons are captured
+/// only during a user-facing overflow / click peek (<see cref="PollWhilePeeked"/>).
 /// </summary>
 internal sealed class TrayIconMirrorService : IDisposable
 {
     private readonly TaskbarVisibilityService _taskbar;
     private readonly Dispatcher _uiDispatcher;
-    private readonly DispatcherTimer _pollTimer;
     private readonly object _lock = new();
     private List<TrayIconItem> _currentItems = [];
     private bool _isDisposed;
-    private bool _isScanning;
     private bool _clickInFlight;
     private bool _enabled;
-    private DispatcherTimer? _missingIconTimer;
-    private DateTime _lastVisibleCaptureUtc = DateTime.MinValue;
 
     public event EventHandler? Changed;
 
@@ -46,15 +43,10 @@ internal sealed class TrayIconMirrorService : IDisposable
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         _uiDispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
-        _pollTimer = new DispatcherTimer(DispatcherPriority.Background, _uiDispatcher)
-        {
-            Interval = TimeSpan.FromSeconds(10.0),
-        };
-        _pollTimer.Tick += OnPollTick;
     }
 
     /// <summary>
-    /// Starts/stops background stealth polls. When disabled, clears mirrored items.
+    /// Enables capturing during overflow peeks. When disabled, clears mirrored items.
     /// </summary>
     public void SetEnabled(bool enabled)
     {
@@ -71,19 +63,12 @@ internal sealed class TrayIconMirrorService : IDisposable
 
         if (_enabled == enabled)
         {
-            if (enabled && !_pollTimer.IsEnabled)
-            {
-                _pollTimer.Start();
-            }
-
             return;
         }
 
         _enabled = enabled;
         if (!enabled)
         {
-            _pollTimer.Stop();
-            _missingIconTimer?.Stop();
             bool cleared;
             lock (_lock)
             {
@@ -95,19 +80,8 @@ internal sealed class TrayIconMirrorService : IDisposable
             {
                 Changed?.Invoke(this, EventArgs.Empty);
             }
-
-            return;
         }
-
-        _pollTimer.Start();
-        // Stealth polls skip BitBlt (off-screen). Seed glyphs once with a visible peek
-        // so the strip is not empty-with-tooltips until the user happens to open overflow.
-        _ = _uiDispatcher.BeginInvoke(
-            DispatcherPriority.Background,
-            () => PollSystemTray(stealth: false));
     }
-
-    private void OnPollTick(object? sender, EventArgs e) => PollSystemTray(stealth: true);
 
     /// <summary>
     /// Scans while a visible peek is already held (overflow / click). Captures icons via BitBlt.
@@ -130,157 +104,25 @@ internal sealed class TrayIconMirrorService : IDisposable
             return;
         }
 
-        ApplyScan(TrayIconNative.GetSystemTrayIcons(captureIcons: true), mergeIcons: false);
+        ApplyScan(TrayIconNative.GetSystemTrayIcons(captureIcons: true));
     }
 
-    public void PollSystemTray(bool stealth = true)
-    {
-        if (_isDisposed || !_enabled || _isScanning || _clickInFlight)
-        {
-            return;
-        }
-
-        if (!_uiDispatcher.CheckAccess())
-        {
-            _ = _uiDispatcher.BeginInvoke(DispatcherPriority.Background, () => PollSystemTray(stealth));
-            return;
-        }
-
-        // Nested inside an existing visible peek — capture icons without another Begin/End.
-        if (_taskbar.IsTrayPeekActive && !_taskbar.IsStealthPeekActive)
-        {
-            PollWhilePeeked();
-            return;
-        }
-
-        _isScanning = true;
-        bool peeked = false;
-        try
-        {
-            peeked = _taskbar.BeginTrayPeek(stealth: stealth);
-            bool captureIcons = !stealth;
-            if (captureIcons)
-            {
-                _lastVisibleCaptureUtc = DateTime.UtcNow;
-            }
-
-            var scanned = TrayIconNative.GetSystemTrayIcons(captureIcons: captureIcons);
-            ApplyScan(scanned, mergeIcons: stealth);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"WharfBar: tray mirror poll failed — {ex.Message}");
-        }
-        finally
-        {
-            if (peeked)
-            {
-                _taskbar.EndTrayPeek();
-            }
-
-            _isScanning = false;
-        }
-    }
-
-    private void ApplyScan(List<TrayIconItem> scanned, bool mergeIcons)
+    private void ApplyScan(List<TrayIconItem> scanned)
     {
         bool changed;
-        bool needsIconCapture;
         lock (_lock)
         {
-            if (mergeIcons)
-            {
-                scanned = MergePreservedIcons(_currentItems, scanned);
-            }
-
             changed = HasListChanged(_currentItems, scanned);
             if (changed)
             {
                 _currentItems = scanned;
             }
-
-            needsIconCapture = _currentItems.Exists(i => i.IconSource is null);
         }
 
         if (changed)
         {
             Changed?.Invoke(this, EventArgs.Empty);
         }
-
-        if (needsIconCapture && mergeIcons)
-        {
-            ScheduleMissingIconCapture();
-        }
-    }
-
-    /// <summary>
-    /// Stealth list updates can introduce new ids without glyphs — capture soon, throttled.
-    /// </summary>
-    private void ScheduleMissingIconCapture()
-    {
-        if (_isDisposed || !_enabled)
-        {
-            return;
-        }
-
-        // Avoid flashing the taskbar more than once per minute for icon seeds.
-        if ((DateTime.UtcNow - _lastVisibleCaptureUtc).TotalSeconds < 60)
-        {
-            return;
-        }
-
-        if (_missingIconTimer is null)
-        {
-            _missingIconTimer = new DispatcherTimer(DispatcherPriority.Background, _uiDispatcher)
-            {
-                Interval = TimeSpan.FromSeconds(1.5),
-            };
-            _missingIconTimer.Tick += (_, _) =>
-            {
-                _missingIconTimer.Stop();
-                if (!_isDisposed && _enabled)
-                {
-                    PollSystemTray(stealth: false);
-                }
-            };
-        }
-
-        if (!_missingIconTimer.IsEnabled)
-        {
-            _missingIconTimer.Start();
-        }
-    }
-
-    private static List<TrayIconItem> MergePreservedIcons(
-        List<TrayIconItem> previous,
-        List<TrayIconItem> scanned)
-    {
-        if (previous.Count == 0)
-        {
-            return scanned;
-        }
-
-        var byId = previous.ToDictionary(i => i.Id, StringComparer.Ordinal);
-        var merged = new List<TrayIconItem>(scanned.Count);
-        foreach (TrayIconItem item in scanned)
-        {
-            if (item.IconSource is null && byId.TryGetValue(item.Id, out TrayIconItem? old)
-                && old.IconSource is not null)
-            {
-                merged.Add(new TrayIconItem
-                {
-                    Id = item.Id,
-                    Title = item.Title,
-                    IconSource = old.IconSource,
-                });
-            }
-            else
-            {
-                merged.Add(item);
-            }
-        }
-
-        return merged;
     }
 
     private static bool HasListChanged(List<TrayIconItem> oldList, List<TrayIconItem> newList)
@@ -338,7 +180,7 @@ internal sealed class TrayIconMirrorService : IDisposable
             peeked = _taskbar.BeginTrayPeek(stealth: false);
             if (peeked)
             {
-                ApplyScan(TrayIconNative.GetSystemTrayIcons(captureIcons: true), mergeIcons: false);
+                ApplyScan(TrayIconNative.GetSystemTrayIcons(captureIcons: true));
             }
 
             TrayIconNative.ForwardClick(item, isRightClick);
@@ -379,8 +221,5 @@ internal sealed class TrayIconMirrorService : IDisposable
 
         _isDisposed = true;
         _enabled = false;
-        _pollTimer.Stop();
-        _missingIconTimer?.Stop();
-        _missingIconTimer = null;
     }
 }

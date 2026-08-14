@@ -2,14 +2,14 @@
 
 **Durum:** Kabul edildi (Win11 UIA uygulaması)  
 **Tarih:** 2026-08-11  
-**Güncelleme:** 2026-08-11 — Win11 22H2+ için `ToolbarWindow32` / RPM yolu terk edildi; arka plan poll stealth peek (cloak + off-screen) ile görev çubuğu flaşı giderildi.  
+**Güncelleme:** 2026-08-13 — Başka süreçten `Shell_TrayWnd` DWM cloak başarısız; UIA taraması peek’i saniyelerce tutup varsayılan görev çubuğunu görünür bırakıyordu. Arka plan poll kaldırıldı; ikon yakalama yalnızca kullanıcı overflow / tıklama peek’inde.  
 **Bağlam:** Kullanıcının Windows sistem tepsisinde (Notification Area / System Tray) yer alan 3. parti uygulamaların (AnyDesk, NVIDIA, AMD, Logitech G HUB vb.) simgelerini doğrudan WharfBar üst barında canlı olarak görüp etkileşime girmesi talebi.
 
 ## Karar
 
 1. **Deneysel `TrayIconMirrorService`** (`mirroredTray` durum öğesi):
    - **Win11 22H2+ (XAML tepsi):** UI Automation ile `Shell_TrayWnd` altında `AutomationId=NotifyItemIcon` olan `SystemTray.NormalButton` öğeleri taranır. Sistem omni ikonları (`SystemTrayIcon`) atlanır; WharfBar’ın kendi tepsi ikonu ada göre elenir.
-   - Görev çubuğu WharfBar tarafından `SW_HIDE` iken UIA ağacı boştur → arka plan tarama `BeginTrayPeek(stealth: true)` ile yapılır: DWM cloak + tepsi monitörün altına park + `SW_SHOW` (görünür flaş yok). İkon `BitBlt` **görünür** peek ister: enable’da bir kez seed + overflow/tıklama + eksik glif için throttle’lı görünür peek; stealth poll önceki ikonları id ile korur.
+   - Görev çubuğu WharfBar tarafından `SW_HIDE` iken UIA ağacı boştur. Başka süreçten DWM cloak işe yaramaz; UIA taraması peek’i saniyelerce açık tutar → varsayılan görev çubuğu görünür kalır. Bu yüzden **arka plan poll yok**. İkon `BitBlt` yalnızca kullanıcı overflow / tıklama peek’inde (`PollWhilePeeked`). Overflow düğmesi yedek erişim olarak kalır.
    - Peek refcount: overflow + mirror iç içe gelebilir; `EndTrayPeek` erken kapatmaz.
    - `mirroredTray` durum öğesi kapalıysa poll timer durur (gereksiz peek yok).
    - Sol tık: UIA `InvokePattern` (yoksa ekran koordinatında mouse). Sağ tık: ekran koordinatında sağ tık; peek kısa süre açık kalır ki menü görünsün.
