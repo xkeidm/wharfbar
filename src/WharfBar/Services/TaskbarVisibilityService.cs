@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Windows.Threading;
 using WharfBar.Native;
 
 namespace WharfBar.Services;
@@ -24,16 +23,17 @@ internal sealed class TaskbarVisibilityService
     private int _restored; // 0 = not restored
     private int _hooksAttached;
     private bool _hidden;
-    private int _peekDepth;
+    private readonly TrayPeekTracker _peekTracker = new(AppBarPlacement.TrayPeekMaxDuration);
     private bool _stealthPeek;
     private int _expandingWorkArea;
-    private DispatcherTimer? _keepHiddenTimer;
+    private int _watchBusy;
+    private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
 
     internal bool IsHidden => _hidden;
 
-    /// <summary>True while a tray-overflow / mirror peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
-    internal bool IsTrayPeekActive => Volatile.Read(ref _peekDepth) > 0;
+    /// <summary>True while a tray peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
+    internal bool IsTrayPeekActive => _peekTracker.IsActive;
 
     /// <summary>True when the active peek parked the tray off-screen (no visible flash).</summary>
     internal bool IsStealthPeekActive => IsTrayPeekActive && _stealthPeek;
@@ -111,7 +111,7 @@ internal sealed class TaskbarVisibilityService
 
         if (IsTrayPeekActive)
         {
-            Interlocked.Increment(ref _peekDepth);
+            _peekTracker.Begin(DateTime.UtcNow);
             // Upgrade stealth → visible if a user-facing peek nests over a mirror poll.
             if (!stealth && _stealthPeek)
             {
@@ -142,7 +142,7 @@ internal sealed class TaskbarVisibilityService
                 _stealthPeek = false;
             }
 
-            Interlocked.Exchange(ref _peekDepth, 1);
+            _peekTracker.Begin(DateTime.UtcNow);
             // Keep maximized apps from jumping when the shell reclaims the bottom strip.
             ExpandWorkAreaBottom();
             return true;
@@ -150,7 +150,7 @@ internal sealed class TaskbarVisibilityService
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar tray peek show failed: {ex.Message}");
-            Interlocked.Exchange(ref _peekDepth, 0);
+            _peekTracker.Reset();
             _stealthPeek = false;
             return false;
         }
@@ -159,17 +159,16 @@ internal sealed class TaskbarVisibilityService
     /// <summary>Hides the taskbar again after a tray peek (still respects restore). Refcounted.</summary>
     internal void EndTrayPeek()
     {
-        if (!IsTrayPeekActive)
+        if (!_peekTracker.IsActive)
         {
             return;
         }
 
-        if (Interlocked.Decrement(ref _peekDepth) > 0)
+        if (!_peekTracker.End())
         {
             return;
         }
 
-        Interlocked.Exchange(ref _peekDepth, 0);
         _stealthPeek = false;
 
         if (Volatile.Read(ref _restored) != 0 || Volatile.Read(ref _captured) == 0)
@@ -192,7 +191,7 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
-        Interlocked.Exchange(ref _peekDepth, 0);
+        _peekTracker.Reset();
         _stealthPeek = false;
         StopKeepHiddenWatch();
 
@@ -252,34 +251,24 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
-        Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is null)
-        {
-            return;
-        }
-
-        _keepHiddenTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
-        {
-            Interval = TimeSpan.FromMilliseconds(AppBarPlacement.KeepHiddenTrayPollMs),
-        };
-        _keepHiddenTimer.Tick += OnKeepHiddenTick;
-        _keepHiddenTimer.Start();
+        // Background thread, not the WPF dispatcher — a busy or starving UI thread must
+        // never block re-hiding the taskbar (Background-priority DispatcherTimer starves
+        // under constant render/input load and leaves Shell_TrayWnd visible).
+        _keepHiddenTimer = new Timer(
+            OnKeepHiddenTick,
+            null,
+            AppBarPlacement.KeepHiddenTrayPollMs,
+            AppBarPlacement.KeepHiddenTrayPollMs);
     }
 
     private void StopKeepHiddenWatch()
     {
-        DispatcherTimer? timer = _keepHiddenTimer;
-        if (timer is null)
-        {
-            return;
-        }
-
+        Timer? timer = _keepHiddenTimer;
         _keepHiddenTimer = null;
-        timer.Tick -= OnKeepHiddenTick;
         _lastWorkAreaCheckMs = -1;
         try
         {
-            timer.Stop();
+            timer?.Dispose();
         }
         catch (Exception ex)
         {
@@ -287,20 +276,34 @@ internal sealed class TaskbarVisibilityService
         }
     }
 
-    private void OnKeepHiddenTick(object? sender, EventArgs e)
+    private void OnKeepHiddenTick(object? state)
     {
-        if (Volatile.Read(ref _captured) == 0 || Volatile.Read(ref _restored) != 0)
-        {
-            return;
-        }
-
-        if (IsTrayPeekActive)
+        if (Interlocked.Exchange(ref _watchBusy, 1) != 0)
         {
             return;
         }
 
         try
         {
+            if (Volatile.Read(ref _captured) == 0 || Volatile.Read(ref _restored) != 0)
+            {
+                return;
+            }
+
+            if (_peekTracker.IsActive)
+            {
+                // A fresh peek (overflow flyout in use) protects the tray from re-hide.
+                // An orphaned peek (missed EndTrayPeek) would disable this watch forever
+                // and leave the taskbar visible — force-end it once it is stale.
+                if (!_peekTracker.IsStale(DateTime.UtcNow))
+                {
+                    return;
+                }
+
+                _peekTracker.Reset();
+                _stealthPeek = false;
+            }
+
             if (TaskbarNative.IsAnyTrayVisible())
             {
                 TaskbarNative.SetTrayVisible(false);
@@ -322,6 +325,10 @@ internal sealed class TaskbarVisibilityService
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar keep-hidden failed: {ex.Message}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _watchBusy, 0);
         }
     }
 

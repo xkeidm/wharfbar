@@ -162,9 +162,18 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
    aksi halde WPF’nin work-area itmesi her layout’ta explorer `SendMessage`
    ile UI’yi dondurur.
 4. **Keep-hidden:** 250 ms `FindWindow` / `FindWindowEx` — peek dışında görünür
-   tepsiye `SW_HIDE`. HWND gizli kalsa bile explorer görev çubuğu AppBar’ını
+   tepsiye `SW_HIDE`. **Arka plan `System.Threading.Timer` üzerinde çalışır**
+   (WPF dispatcher’a bağımlı değil; meşgul UI thread’i re-hide’ı asla
+   açlıktan öldüremez). Peek yalnızca **taze** iken tepsiyi korur: kaçırılmış
+   `EndTrayPeek` ile takılı kalan (orphaned) peek, `TrayPeekTracker`’ın 45 sn
+   sınırını aşınca keep-hidden tarafından zorla sonlandırılır (`Reset` +
+   re-hide) — görev çubuğu bu yüzden asla sonsuza dek görünür kalamaz.
+   HWND gizli kalsa bile explorer görev çubuğu AppBar’ını
    yeniden `SETPOS` edebilir; work area altı daralmışsa en fazla 1 sn’de bir
-   `EnsureWorkAreaExpanded` (10 Hz `SPI_GETWORKAREA` UI thread’i tıkar).
+   `EnsureWorkAreaExpanded`. `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`) her üst düzey
+   pencereye broadcast yapar ve bu makinede ~1 sn bloklar — UI thread’i
+   donmaması için çağrı arka plan thread’e kaydırıldı (guard: aynı anda tek
+   genişletme; restore ile yarışan genişletme baseline’a geri alınır).
    `Shell_NotifyIcon` sonrası ve `TaskbarCreated` için `ReapplyHide`.
 5. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
    `SPI_SETWORKAREA(baseline work area)`; izleme durur.

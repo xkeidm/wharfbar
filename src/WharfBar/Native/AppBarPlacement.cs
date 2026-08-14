@@ -42,6 +42,13 @@ internal static class AppBarPlacement
     internal const int KeepHiddenWorkAreaPollMs = 1000;
 
     /// <summary>
+    /// Max duration a tray peek protects <c>Shell_TrayWnd</c> from the keep-hidden watch.
+    /// Past this the watch force-ends an orphaned peek (missed <c>EndTrayPeek</c>) so the
+    /// taskbar can never be left visible forever. Matches <c>TrayOverflowInvoker.MaxPeekDuration</c>.
+    /// </summary>
+    internal static readonly TimeSpan TrayPeekMaxDuration = TimeSpan.FromSeconds(45);
+
+    /// <summary>
     /// True when <paramref name="lastMs"/> never ran (< 0) or the interval has elapsed.
     /// </summary>
     internal static bool IsIntervalDue(long nowMs, long lastMs, int intervalMs) =>
