@@ -33,6 +33,8 @@ internal sealed class SystemMonitorService : IDisposable
     private bool _disposed;
     private bool _gpuCounterFailed;
     private bool _vramCounterFailed;
+    private int _pollBusy;
+    private List<PerformanceCounter>? _gpuCounters;
 
     internal SystemMonitorService()
     {
@@ -40,10 +42,10 @@ internal sealed class SystemMonitorService : IDisposable
 
         _timer = new DispatcherTimer { Interval = PollingInterval };
         _timer.Tick += OnTimerTick;
-
-        // Perform initial poll
-        PollMetrics();
         _timer.Start();
+
+        // GPU Engine PerformanceCounters can block the UI thread for seconds on first use.
+        OnTimerTick(_timer, EventArgs.Empty);
     }
 
     internal SystemStatsSnapshot Snapshot { get; private set; }
@@ -59,28 +61,31 @@ internal sealed class SystemMonitorService : IDisposable
 
         _disposed = true;
         _timer.Stop();
+        DisposeGpuCounters();
     }
 
     private async void OnTimerTick(object? sender, EventArgs e)
     {
-        if (_disposed)
+        if (_disposed || Interlocked.Exchange(ref _pollBusy, 1) != 0)
         {
             return;
         }
 
-        SystemStatsSnapshot next = await Task.Run(BuildSnapshot).ConfigureAwait(true);
-        if (_disposed)
+        try
         {
-            return;
+            SystemStatsSnapshot next = await Task.Run(BuildSnapshot).ConfigureAwait(true);
+            if (_disposed)
+            {
+                return;
+            }
+
+            Snapshot = next;
+            Changed?.Invoke(this, EventArgs.Empty);
         }
-
-        Snapshot = next;
-        Changed?.Invoke(this, EventArgs.Empty);
-    }
-
-    private void PollMetrics()
-    {
-        Snapshot = BuildSnapshot();
+        finally
+        {
+            Interlocked.Exchange(ref _pollBusy, 0);
+        }
     }
 
     private SystemStatsSnapshot BuildSnapshot()
@@ -159,6 +164,9 @@ internal sealed class SystemMonitorService : IDisposable
         return (percent, usedGb, totalGb);
     }
 
+    internal static bool IsGpu3DEngineInstance(string instanceName) =>
+        instanceName.EndsWith("engtype_3D", StringComparison.OrdinalIgnoreCase);
+
     private int ReadGpuUsage()
     {
         if (_gpuCounterFailed)
@@ -168,23 +176,23 @@ internal sealed class SystemMonitorService : IDisposable
 
         try
         {
-            if (!PerformanceCounterCategory.Exists("GPU Engine"))
+            List<PerformanceCounter>? counters = _gpuCounters;
+            if (counters is null)
             {
-                _gpuCounterFailed = true;
-                return -1;
+                counters = CreateGpuCounters();
+                if (counters is null)
+                {
+                    _gpuCounterFailed = true;
+                    return -1;
+                }
+
+                _gpuCounters = counters;
             }
 
-            var category = new PerformanceCounterCategory("GPU Engine");
-            string[] instanceNames = category.GetInstanceNames();
             float total3DUsage = 0;
-
-            foreach (string instance in instanceNames)
+            foreach (PerformanceCounter counter in counters)
             {
-                if (instance.EndsWith("engtype_3D", StringComparison.OrdinalIgnoreCase))
-                {
-                    using var counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance);
-                    total3DUsage += counter.NextValue();
-                }
+                total3DUsage += counter.NextValue();
             }
 
             return Math.Clamp((int)Math.Round(total3DUsage), 0, 100);
@@ -192,7 +200,51 @@ internal sealed class SystemMonitorService : IDisposable
         catch
         {
             _gpuCounterFailed = true;
+            DisposeGpuCounters();
             return -1;
+        }
+    }
+
+    private static List<PerformanceCounter>? CreateGpuCounters()
+    {
+        if (!PerformanceCounterCategory.Exists("GPU Engine"))
+        {
+            return null;
+        }
+
+        var category = new PerformanceCounterCategory("GPU Engine");
+        var counters = new List<PerformanceCounter>();
+        foreach (string instance in category.GetInstanceNames())
+        {
+            if (!IsGpu3DEngineInstance(instance))
+            {
+                continue;
+            }
+
+            var counter = new PerformanceCounter("GPU Engine", "Utilization Percentage", instance, readOnly: true);
+            _ = counter.NextValue();
+            counters.Add(counter);
+        }
+
+        if (counters.Count == 0)
+        {
+            return null;
+        }
+
+        return counters;
+    }
+
+    private void DisposeGpuCounters()
+    {
+        List<PerformanceCounter>? counters = Interlocked.Exchange(ref _gpuCounters, null);
+        if (counters is null)
+        {
+            return;
+        }
+
+        foreach (PerformanceCounter counter in counters)
+        {
+            counter.Dispose();
         }
     }
 
