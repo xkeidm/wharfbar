@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Globalization;
 using System.Windows.Threading;
 using WharfBar.Native;
 
@@ -8,17 +7,15 @@ namespace WharfBar.Services;
 /// <summary>Immutable snapshot of hardware resource usage (CPU, RAM, GPU).</summary>
 internal sealed record SystemStatsSnapshot(
     int CpuPercent,
-    string CpuText,
-    string CpuTooltip,
+    double? CpuGhz,
     int RamPercent,
     double UsedRamGb,
     double TotalRamGb,
-    string RamText,
-    string RamTooltip,
+    bool IsGpuUsageAvailable,
     int GpuPercent,
-    string GpuText,
-    string GpuTooltip,
-    bool IsGpuAvailable);
+    bool IsGpuVramAvailable,
+    double? GpuUsedVramGb,
+    double? GpuTotalVramGb);
 
 /// <summary>
 /// Periodically monitors CPU, RAM, and GPU resource utilization using lightweight Win32 APIs
@@ -35,6 +32,7 @@ internal sealed class SystemMonitorService : IDisposable
     private bool _hasPrevCpuTime;
     private bool _disposed;
     private bool _gpuCounterFailed;
+    private bool _vramCounterFailed;
 
     internal SystemMonitorService()
     {
@@ -87,42 +85,24 @@ internal sealed class SystemMonitorService : IDisposable
 
     private SystemStatsSnapshot BuildSnapshot()
     {
-        // 1. CPU Usage via GetSystemTimes
         int cpuPercent = ReadCpuUsage();
-        string cpuText = $"{cpuPercent}%";
-        string cpuTooltip = $"CPU Kullanımı: %{cpuPercent}";
-
-        // 2. RAM Usage via GlobalMemoryStatusEx
         (int ramPercent, double usedGb, double totalGb) = ReadRamUsage();
-        string ramText = $"{ramPercent}%";
-        string ramTooltip = string.Format(
-            CultureInfo.CurrentCulture,
-            "RAM Kullanımı: %{0} ({1:F1} GB / {2:F1} GB)",
-            ramPercent,
-            usedGb,
-            totalGb);
-
-        // 3. GPU Usage via PerformanceCounters
         int gpuPercent = ReadGpuUsage();
-        bool isGpuAvailable = gpuPercent >= 0;
-        string gpuText = isGpuAvailable ? $"{gpuPercent}%" : "N/A";
-        string gpuTooltip = isGpuAvailable
-            ? $"GPU Kullanımı: %{gpuPercent}"
-            : "GPU Kullanımı: Kullanılamıyor";
+        bool isGpuUsageAvailable = gpuPercent >= 0;
 
+        double? cpuGhz = SystemInfoNative.TryReadCpuGhz();
+        bool vramOk = TryReadVram(out double vramUsed, out double vramTotal);
         return new SystemStatsSnapshot(
             cpuPercent,
-            cpuText,
-            cpuTooltip,
+            cpuGhz,
             ramPercent,
             usedGb,
             totalGb,
-            ramText,
-            ramTooltip,
-            gpuPercent,
-            gpuText,
-            gpuTooltip,
-            isGpuAvailable);
+            isGpuUsageAvailable,
+            isGpuUsageAvailable ? gpuPercent : 0,
+            vramOk,
+            vramOk ? vramUsed : null,
+            vramOk ? vramTotal : null);
     }
 
     private int ReadCpuUsage()
@@ -216,17 +196,79 @@ internal sealed class SystemMonitorService : IDisposable
         }
     }
 
+    private bool TryReadVram(out double usedGb, out double totalGb)
+    {
+        usedGb = 0;
+        totalGb = 0;
+        if (!DxgiAdapterMemory.TryReadTotal(out totalGb, out long adapterLuid) || totalGb <= 0)
+        {
+            return false;
+        }
+
+        return TryReadDedicatedUsageGb(adapterLuid, out usedGb);
+    }
+
+    private bool TryReadDedicatedUsageGb(long adapterLuid, out double usedGb)
+    {
+        usedGb = 0;
+        if (_vramCounterFailed)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!PerformanceCounterCategory.Exists("GPU Adapter Memory"))
+            {
+                _vramCounterFailed = true;
+                return false;
+            }
+
+            var category = new PerformanceCounterCategory("GPU Adapter Memory");
+            uint low = (uint)((ulong)adapterLuid & 0xFFFFFFFFu);
+            uint high = (uint)((ulong)adapterLuid >> 32);
+            string tokenA = $"luid_0x{high:X8}_0x{low:X8}_";
+            string tokenB = $"luid_0x{low:X8}_0x{high:X8}_";
+
+            float sum = 0;
+            int matched = 0;
+            foreach (string instance in category.GetInstanceNames())
+            {
+                if (!instance.Contains(tokenA, StringComparison.OrdinalIgnoreCase)
+                    && !instance.Contains(tokenB, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                using var counter = new PerformanceCounter("GPU Adapter Memory", "Dedicated Usage", instance);
+                sum += counter.NextValue();
+                matched++;
+            }
+
+            if (matched == 0)
+            {
+                return false;
+            }
+
+            usedGb = sum / (1024.0 * 1024.0 * 1024.0);
+            return true;
+        }
+        catch
+        {
+            _vramCounterFailed = true;
+            return false;
+        }
+    }
+
     private static SystemStatsSnapshot BuildEmptySnapshot() => new(
         0,
-        "0%",
-        "CPU",
+        null,
         0,
         0,
         0,
-        "0%",
-        "RAM",
-        -1,
-        "N/A",
-        "GPU",
-        false);
+        false,
+        0,
+        false,
+        null,
+        null);
 }

@@ -58,6 +58,8 @@ src/WharfBar/
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
     PowerStatus.cs              # GetSystemPowerStatus sarmalayıcı
+    SystemInfoNative.cs         # GetSystemTimes, GlobalMemoryStatusEx, CallNtPowerInformation
+    DxgiAdapterMemory.cs        # DXGI dedicated/Budget toplam VRAM
     NotifyIconHost.cs           # Shell_NotifyIcon ADD/DELETE (kendi tepsi ikonu)
     AudioEndpointVolume.cs      # master volume / mute (Core Audio)
     CoreAudioDevices.cs         # render aygıt listesi + varsayılan seçimi
@@ -81,6 +83,8 @@ src/WharfBar/
     DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
+    SystemMonitorService.cs     # CPU/RAM/GPU ham snapshot (poll)
+    SystemStatsFormatter.cs     # yerleşim → bar/tooltip metni
     MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
@@ -149,6 +153,9 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `AppThemePreference` | `theme` alanı → `ApplicationTheme` |
 | `AutostartService` | Startup klasörü `WharfBar.lnk`; `autostart` true/false ile oluştur/sil |
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
+| `SystemMonitorService` | CPU `%`/`GHz`, RAM, GPU `%`/VRAM ham snapshot; 1.5 sn poll |
+| `SystemStatsFormatter` | `StatPlacement` + snapshot → rozet metni |
+| `DxgiAdapterMemory` | DXGI dedicated/Budget toplam VRAM (kullanılan: `GPU Adapter Memory` sayacı) |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
 
@@ -275,6 +282,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |
 | `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, `mirroredTray`, … `battery`). Soft alan (`schemaVersion` 1) |
+| `topBar.showSystemStats` / `showCpuStats` / `showGpuStats` / `showRamStats` | Rozet ana anahtarları |
+| `topBar.cpuPercentPlacement` (ve `cpuGhz`, `ramPercent`, `ramUsedTotal`, `gpuPercent`, `gpuVram`) | `bar` \| `tooltip` \| `hidden`; bilinmeyen → alan varsayılanı (`%`=`bar`, ekstra=`tooltip`) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

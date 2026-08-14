@@ -366,34 +366,27 @@ public partial class TopBarWindow : Window
 
     private void ApplySystemStats(SystemStatsSnapshot snapshot)
     {
-        TopBarConfig? topBarConfig = _config.Current.TopBar;
-        bool showSystemStats = topBarConfig?.ShowSystemStats ?? true;
+        TopBarConfig topBarConfig = _config.Current.TopBar ?? new TopBarConfig();
+        SystemStatsDisplay display = SystemStatsFormatter.Format(snapshot, topBarConfig);
 
-        if (!showSystemStats)
+        bool any = display.CpuVisible || display.GpuVisible || display.RamVisible;
+        SystemStatsPanel.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        if (!any)
         {
-            SystemStatsPanel.Visibility = Visibility.Collapsed;
             return;
         }
 
-        SystemStatsPanel.Visibility = Visibility.Visible;
+        CpuStatsHit.Visibility = display.CpuVisible ? Visibility.Visible : Visibility.Collapsed;
+        CpuText.Text = display.CpuBarText;
+        CpuToolTip.Content = display.CpuTooltip;
 
-        // CPU
-        bool showCpu = topBarConfig?.ShowCpuStats ?? true;
-        CpuStatsHit.Visibility = showCpu ? Visibility.Visible : Visibility.Collapsed;
-        CpuText.Text = snapshot.CpuText;
-        CpuToolTip.Content = snapshot.CpuTooltip;
+        GpuStatsHit.Visibility = display.GpuVisible ? Visibility.Visible : Visibility.Collapsed;
+        GpuText.Text = display.GpuBarText;
+        GpuToolTip.Content = display.GpuTooltip;
 
-        // GPU
-        bool showGpu = (topBarConfig?.ShowGpuStats ?? true) && snapshot.IsGpuAvailable;
-        GpuStatsHit.Visibility = showGpu ? Visibility.Visible : Visibility.Collapsed;
-        GpuText.Text = snapshot.GpuText;
-        GpuToolTip.Content = snapshot.GpuTooltip;
-
-        // RAM
-        bool showRam = topBarConfig?.ShowRamStats ?? true;
-        RamStatsHit.Visibility = showRam ? Visibility.Visible : Visibility.Collapsed;
-        RamText.Text = snapshot.RamText;
-        RamToolTip.Content = snapshot.RamTooltip;
+        RamStatsHit.Visibility = display.RamVisible ? Visibility.Visible : Visibility.Collapsed;
+        RamText.Text = display.RamBarText;
+        RamToolTip.Content = display.RamTooltip;
     }
 
     private void ApplyStatus(StatusSnapshot snapshot)
