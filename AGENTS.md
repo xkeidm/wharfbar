@@ -24,6 +24,7 @@
    - Geliştirme sırası → [`docs/03-development-order.md`](docs/03-development-order.md)
    - Tuzaklar → [`docs/04-gotchas.md`](docs/04-gotchas.md)
 7. Bağlam: [`.agent/context/stack.md`](.agent/context/stack.md), [`.agent/context/roadmap.md`](.agent/context/roadmap.md)
+8. UI turu (top bar, dock, ayarlar): [`.agent/screens/README.md`](.agent/screens/README.md)
 
 ## Build / run
 
@@ -32,7 +33,16 @@ Kod kökü: **`src/WharfBar/`**, çözüm dosyası kökte (`WharfBar.sln`).
 ```bash
 dotnet build WharfBar.sln
 dotnet run --project src/WharfBar
+dotnet test                       # tests/WharfBar.Tests (xUnit)
 ```
+
+## Kod haritası
+
+- `src/WharfBar/Models/` — config + veri modelleri (`AppConfig`, `PinnedApp`, `DockAppItem`)
+- `src/WharfBar/Native/` — Win32 P/Invoke (`AppBar`, `Dwm`, `ShellIcon`, `TaskbarNative`, …)
+- `src/WharfBar/Services/` — mantık (`ConfigService`, `StatusService`, `TrayIconService`, `DockAppsComposer`, …)
+- `src/WharfBar/Views/` — pencereler (`TopBarWindow`, `DockWindow`, `SettingsWindow`, `AboutWindow`, flyout'lar)
+- `src/WharfBar/Views/Pages/` — ayar sayfaları (`General`, `Appearance`, `Dock`, `TopBar`, `About`)
 
 > **Uyarı:** Uygulamayı çalıştırmak üst kenarda AppBar alanı rezerve eder. Süreci zorla
 > sonlandırma (`Stop-Process -Force`, hata ayıklayıcıyı koparma) `ABM_REMOVE` yolunu atlar ve
