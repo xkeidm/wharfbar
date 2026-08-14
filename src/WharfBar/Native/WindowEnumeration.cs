@@ -13,6 +13,11 @@ internal static class WindowEnumeration
 
     private static readonly uint OwnProcessId = (uint)Environment.ProcessId;
 
+    /// <summary>
+    /// Top-level visible windows for the dock running-apps list.
+    /// Must not run on the WPF UI thread — <c>EnumWindows</c> stalls on a hung HWND
+    /// and the AppBar then shows the wait cursor.
+    /// </summary>
     internal static IReadOnlyList<(IntPtr Hwnd, string Title, uint Pid)> GetTopLevelCandidates()
     {
         var results = new List<(IntPtr Hwnd, string Title, uint Pid)>();
@@ -35,7 +40,7 @@ internal static class WindowEnumeration
         title = string.Empty;
         pid = 0;
 
-        if (!NativeMethods.IsWindowVisible(hwnd))
+        if (!NativeMethods.IsWindowVisible(hwnd) || NativeMethods.IsHungAppWindow(hwnd))
         {
             return false;
         }

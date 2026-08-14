@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Windows.Threading;
 using WharfBar.Native;
 
@@ -15,20 +16,70 @@ internal sealed class RunningAppsSource : IDisposable
     private readonly List<RunningAppInfo> _apps = [];
     private DispatcherTimer? _poll;
     private bool _disposed;
+    private int _refreshBusy;
 
     internal RunningAppsSource(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher;
-        Refresh();
         _poll = new DispatcherTimer { Interval = PollInterval };
-        _poll.Tick += (_, _) => Refresh();
+        _poll.Tick += (_, _) => RequestRefresh();
         _poll.Start();
+        RequestRefresh();
     }
 
     internal IReadOnlyList<RunningAppInfo> Apps => _apps;
     internal event EventHandler? Changed;
 
-    internal void Refresh()
+    internal void Refresh() => RequestRefresh();
+
+    private void RequestRefresh()
+    {
+        if (_disposed || Interlocked.Exchange(ref _refreshBusy, 1) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                List<RunningAppInfo> next = Scan();
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _ = _dispatcher.BeginInvoke(() => ApplyScan(next));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar running-apps scan failed: {ex.Message}");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _refreshBusy, 0);
+            }
+        });
+    }
+
+    private void ApplyScan(List<RunningAppInfo> next)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (AppsEqual(_apps, next))
+        {
+            return;
+        }
+
+        _apps.Clear();
+        _apps.AddRange(next);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static List<RunningAppInfo> Scan()
     {
         var grouped = new Dictionary<string, RunningAppInfo>(StringComparer.OrdinalIgnoreCase);
 
@@ -52,15 +103,7 @@ internal sealed class RunningAppsSource : IDisposable
             grouped[id] = new RunningAppInfo(id, path, label, hwnd);
         }
 
-        var next = grouped.Values.ToList();
-        if (AppsEqual(_apps, next))
-        {
-            return;
-        }
-
-        _apps.Clear();
-        _apps.AddRange(next);
-        Changed?.Invoke(this, EventArgs.Empty);
+        return grouped.Values.ToList();
     }
 
     public void Dispose()
@@ -88,15 +131,31 @@ internal sealed class RunningAppsSource : IDisposable
 
     private static string TryGetProcessPath(uint pid)
     {
+        IntPtr handle = NativeMethods.OpenProcess(
+            NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION,
+            bInheritHandle: false,
+            pid);
+        if (handle == IntPtr.Zero)
+        {
+            return string.Empty;
+        }
+
         try
         {
-            using var proc = Process.GetProcessById((int)pid);
-            return proc.MainModule?.FileName ?? string.Empty;
+            var sb = new StringBuilder(1024);
+            int size = sb.Capacity;
+            return NativeMethods.QueryFullProcessImageName(handle, 0, sb, ref size)
+                ? sb.ToString()
+                : string.Empty;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar process path lookup failed (pid {pid}): {ex.Message}");
             return string.Empty;
+        }
+        finally
+        {
+            _ = NativeMethods.CloseHandle(handle);
         }
     }
 
