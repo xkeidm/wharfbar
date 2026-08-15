@@ -19,6 +19,7 @@ public partial class DockPage : Page
 
         AutoHideToggle.Checked += OnAutoHideChanged;
         AutoHideToggle.Unchecked += OnAutoHideChanged;
+        SurfaceCombo.SelectionChanged += OnSurfaceChanged;
 
         _isLoading = false;
     }
@@ -32,6 +33,12 @@ public partial class DockPage : Page
         AutoHideToggle.IsChecked = Cfg.Dock.AutoHide;
         IconSizeSlider.Value = Cfg.Dock.IconSize;
         IconSizeLabel.Text = $"{(int)Cfg.Dock.IconSize} DIP";
+        SurfaceCombo.SelectedIndex = string.Equals(
+            Cfg.Dock.Surface,
+            DockSurfaceStyles.Acrylic,
+            StringComparison.OrdinalIgnoreCase)
+            ? 1
+            : 0;
     }
 
     private void OnAutoHideChanged(object sender, RoutedEventArgs e)
@@ -49,6 +56,16 @@ public partial class DockPage : Page
         if (_isLoading) return;
 
         Cfg.Dock.IconSize = Math.Clamp(v, DockConfig.MinIconSize, DockConfig.MaxIconSize);
+        SaveAndApply();
+    }
+
+    private void OnSurfaceChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading) return;
+
+        Cfg.Dock.Surface = SurfaceCombo.SelectedIndex == 1
+            ? DockSurfaceStyles.Acrylic
+            : DockSurfaceStyles.Mica;
         SaveAndApply();
     }
 

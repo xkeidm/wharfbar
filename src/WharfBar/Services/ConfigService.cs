@@ -195,6 +195,7 @@ internal sealed class ConfigService
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
+        config.Dock.Surface = DockSurfaceStyles.NormalizeStyle(config.Dock.Surface);
         config.PinnedApps ??= [];
 
         for (int i = config.PinnedApps.Count - 1; i >= 0; i--)

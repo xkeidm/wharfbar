@@ -127,7 +127,7 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
-| `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek; sağ tık bağlam menüsü (Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici çalıştır, Dosya konumunu aç, Yeni pencere); %100 ekran genişliği & yatay ScrollViewer kaydırma; Mica + yuvarlak köşe; AppBar yok |
+| `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek (yalnız hover'daki ikon, 1.3×); sağ tık bağlam menüsü (Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici çalıştır, Dosya konumunu aç, Yeni pencere); katmanlı pencere + tema renkli yüzey (Mica/Acrylic); AppBar yok |
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar` `.lnk` tarama; değişiklik watcher |
 | `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
@@ -240,7 +240,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
   "autostart": true,
   "dock": {
     "autoHide": true,
-    "iconSize": 28
+    "iconSize": 28,
+    "surface": "mica"
   },
   "topBar": {
     "backgroundMode": "tint",
@@ -270,6 +271,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
+| `dock.surface` | `mica` \| `acrylic`; dock yüzeyi (`WindowAppearance` → `WindowBackdropType`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Zemin rengi üst barla aynı DWM sistem kaynağından (Windows temasından otomatik) |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |

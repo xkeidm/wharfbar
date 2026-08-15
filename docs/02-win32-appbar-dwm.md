@@ -210,6 +210,18 @@ arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada od
 `PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
 “önde” sayılır (Electron vb. alt pencereler).
 
+**Hover ve pencere boyutu:** macOS tipi büyütme (komşu ölçeği / reflow) yok — hover'daki
+ikon tek başına `HoverScale` 1.3× büyür (140ms geçiş). Pencere **sabit boyuttadır** (taban
+şerit + küçük hover payı; `ComputeMaxWidthPx`/`MaxHeightDip`), hover sırasında `SetWindowPos`
+hiç çalışmaz — frame-başına resize/recenter (stutter) önlenir. ScrollViewer yoktur; çok
+sayıda ikon ekran genişliğine kırpılır.
+
+**Dock yüzeyi:** Katmanlı pencere (`AllowsTransparency=True`) — strip yüzeyi `Surface`
+border’ın WPF fırçasıyla çizilir; pencere kenarları (headroom) şeffaf ve tıklama geçirir,
+dock çevresinde görünür kutu oluşmaz. **DWM backdrop kullanılmaz** (tüm pencereyi doldurur,
+kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`dock.surface`:
+`mica` = opak tema rengi koyu `#202020` / açık `#FAFAFA`; `acrylic` = aynı renk %80 saydam).
+
 ---
 
 ## h) DPI ve ekran değişimi

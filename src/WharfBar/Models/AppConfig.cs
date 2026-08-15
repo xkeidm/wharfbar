@@ -29,6 +29,21 @@ internal sealed class AppConfig
     public List<PinnedApp> PinnedApps { get; set; } = [];
 }
 
+/// <summary>Dock surface backdrop styles (<see cref="DockConfig.Surface"/>).</summary>
+internal static class DockSurfaceStyles
+{
+    internal const string Mica = "mica";
+
+    internal const string Acrylic = "acrylic";
+
+    internal static string NormalizeStyle(string? style)
+    {
+        return string.Equals(style, Acrylic, StringComparison.OrdinalIgnoreCase)
+            ? Acrylic
+            : Mica;
+    }
+}
+
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
 internal sealed class DockConfig
 {
@@ -47,6 +62,12 @@ internal sealed class DockConfig
     public bool AutoHide { get; set; } = true;
 
     public double IconSize { get; set; } = DefaultIconSize;
+
+    /// <summary>
+    /// Surface backdrop: <c>mica</c> or <c>acrylic</c>. The tint color comes from the Windows
+    /// system theme via the DWM backdrop — the same source as the top bar.
+    /// </summary>
+    public string Surface { get; set; } = DockSurfaceStyles.Mica;
 }
 
 /// <summary>Top bar settings under <see cref="AppConfig.TopBar"/>.</summary>

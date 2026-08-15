@@ -11,6 +11,7 @@ using System.Windows.Media.Animation;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
+using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 using MenuItem = Wpf.Ui.Controls.MenuItem;
@@ -43,20 +44,22 @@ public partial class DockWindow : Window
     /// </summary>
     private const double BottomGapDip = 0d;
 
-    private const double HoverScale = 1.12d;
-    private const int HoverDurationMs = 140;
     private const int AutoHideAnimMs = 200;
     private const double MinWidthDip = 180d;
 
-    private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
-    private const DwmCornerPreference Corners = DwmCornerPreference.Round;
+    /// <summary>Hover scale: only the hovered icon grows slightly (no macOS-style magnification).</summary>
+    private const double HoverScale = 1.3d;
+    private const int HoverDurationMs = 140;
+
+    /// <summary>Acrylic surface translucency (0–255 alpha over the theme color).</summary>
+    private const byte AcrylicAlpha = 0xCC;
 
     private readonly AppConfig _config;
+    private readonly TaskbarVisibilityService _taskbar;
     private double _iconSizeDip;
     private double _dockHeightDip;
     private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
-    private WindowAppearance? _appearance;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
     private TaskbarPinnedAppsSource? _pinSource;
@@ -123,6 +126,7 @@ public partial class DockWindow : Window
     internal void ApplyConfigChanges()
     {
         ApplyIconSizeFromConfig();
+        ApplySurfaceFromConfig();
 
         bool wasEnabled = _autoHide.Enabled;
         _autoHide.SetEnabled(_config.Dock.AutoHide);
@@ -186,6 +190,23 @@ public partial class DockWindow : Window
         }
     }
 
+    /// <summary>
+    /// The dock surface is drawn by WPF (layered window): Mica = opaque theme color,
+    /// Acrylic = semi-transparent theme color. Both come from the app theme, so they
+    /// follow the system light/dark preference like the top bar's backdrop would.
+    /// </summary>
+    private void ApplySurfaceFromConfig()
+    {
+        bool acrylic = string.Equals(_config.Dock.Surface, DockSurfaceStyles.Acrylic, StringComparison.OrdinalIgnoreCase);
+        bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+        byte baseRgb = dark ? (byte)0x20 : (byte)0xFA;
+        byte alpha = acrylic ? AcrylicAlpha : (byte)0xFF;
+
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, baseRgb, baseRgb, baseRgb));
+        brush.Freeze();
+        Surface.Background = brush;
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -200,8 +221,9 @@ public partial class DockWindow : Window
 
         IntPtr hwnd = _source.Handle;
 
-        _appearance = new WindowAppearance(this, hwnd, Backdrop, Corners);
-        _appearance.Apply();
+        // Layered window: keep the composition surface clear so only the strip is visible.
+        _source.CompositionTarget.BackgroundColor = Colors.Transparent;
+        ApplySurfaceFromConfig();
 
         DockHitTest.ApplyInteractive(hwnd);
 
@@ -569,28 +591,12 @@ public partial class DockWindow : Window
         return string.IsNullOrWhiteSpace(result) ? "AppShortcut" : result;
     }
 
-    private void OnDockScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
-    {
-        if (sender is ScrollViewer sv)
-        {
-            if (e.Delta < 0)
-            {
-                sv.LineRight();
-            }
-            else
-            {
-                sv.LineLeft();
-            }
-
-            e.Handled = true;
-        }
-    }
-
     private int ResolveIconPixelSize()
     {
         uint dpi = _source is null ? 96u : Display.GetDpi(_source.Handle);
-        // Request at least the DIP size in px; prefer even sizes for GDI icons.
-        int px = Display.DipToPixels(_iconSizeDip, dpi);
+        // Request the bitmap at the max displayed size (hover scale) so both the resting and
+        // the scaled-up hover render stay sharp — upscaling a base-size bitmap looks blurry.
+        int px = Display.DipToPixels(_iconSizeDip * HoverScale, dpi);
         return Math.Clamp(px <= 0 ? 24 : px, 16, 256);
     }
 
@@ -672,7 +678,7 @@ public partial class DockWindow : Window
         }
 
         uint dpi = Display.GetDpi(hwnd);
-        int heightPx = Display.DipToPixels(_dockHeightDip, dpi);
+        int heightPx = Display.DipToPixels(MaxHeightDip, dpi);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
         RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
 
@@ -681,7 +687,7 @@ public partial class DockWindow : Window
             return false;
         }
 
-        int widthPx = MeasureDesiredWidthPx(dpi);
+        int widthPx = ComputeMaxWidthPx(dpi);
         int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
         widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
 
@@ -710,7 +716,7 @@ public partial class DockWindow : Window
             : Math.Max(Display.DipToPixels(MinWidthDip, dpi), 1);
         int heightPx = _lastPlacementHeightPx > 0
             ? _lastPlacementHeightPx
-            : Display.DipToPixels(_dockHeightDip, dpi);
+            : Display.DipToPixels(MaxHeightDip, dpi);
         int x = _lastPlacementWidthPx > 0
             ? _lastPlacementX
             : monitor.Left + (monitor.Width - widthPx) / 2;
@@ -843,11 +849,21 @@ public partial class DockWindow : Window
             NativeMethods.SWP_NOACTIVATE);
     }
 
-    private int MeasureDesiredWidthPx(uint dpi)
+    private int ComputeMaxWidthPx(uint dpi)
     {
-        Surface.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
-        return Display.DipToPixels(Surface.DesiredSize.Width, dpi);
+        // Base strip width + a small hover headroom: the window is sized once so hovering
+        // never triggers SetWindowPos (per-frame resize stutters the strip). No reflow — the
+        // hovered icon grows in place (1.3x fits within the base slot + gap).
+        int count = Pins.Items.Count;
+        double baseWidth = count <= 0 ? 0d : count * (_iconSizeDip + IconGapDip) - IconGapDip;
+        double width = baseWidth
+            + _iconSizeDip * (HoverScale - 1d)
+            + 2 * HorizontalPaddingDip;
+        return Display.DipToPixels(width, dpi);
     }
+
+    private double MaxHeightDip =>
+        _dockHeightDip + _iconSizeDip * (HoverScale - 1d) + 2d;
 
     private void OnWorkAreaChanged(object? sender, EventArgs e)
     {
@@ -915,13 +931,13 @@ public partial class DockWindow : Window
             case NativeMethods.WM_THEMECHANGED:
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
-                _appearance?.Refresh();
+                Dispatcher.BeginInvoke(ApplySurfaceFromConfig);
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
-                    _appearance?.Refresh();
+                    Dispatcher.BeginInvoke(ApplySurfaceFromConfig);
                 }
 
                 break;

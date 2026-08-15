@@ -8,24 +8,27 @@
         Topmost="True"
         WindowStartupLocation="Manual"
         SizeToContent="Manual"
-        Background="{DynamicResource ApplicationBackgroundBrush}"
+        Background="Transparent"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
         UseLayoutRounding="True"
-        AllowsTransparency="False">
+        AllowsTransparency="True">
 
     <!-- ContextMenu / MenuItem styles live in App.xaml (BasedOn WPF-UI) so Fluent
          templates are not replaced by Aero2's light icon gutter. -->
 
-    <Border x:Name="Surface"
-            Padding="12,6"
-            Background="Transparent"
-            CornerRadius="8">
-        <ScrollViewer x:Name="DockScrollViewer"
-                      HorizontalScrollBarVisibility="Hidden"
-                      VerticalScrollBarVisibility="Disabled"
-                      Focusable="False"
-                      CanContentScroll="False"
-                      PreviewMouseWheel="OnDockScrollViewerPreviewMouseWheel">
+    <!-- Layered window: the strip is a WPF-drawn rounded surface (theme-aware brush set from
+         code), everything outside it is fully transparent AND click-through. The window is
+         fixed at max-hover size (never resized during hover — SetWindowPos per frame
+         stutters); the Surface border hugs the strip, centered/bottom. -->
+    <Grid>
+        <Border x:Name="Surface"
+                Padding="12,6"
+                Background="Transparent"
+                CornerRadius="8"
+                BorderThickness="1"
+                BorderBrush="#1AFFFFFF"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom">
             <ItemsControl x:Name="Pins">
                 <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -33,6 +36,6 @@
                     </ItemsPanelTemplate>
                 </ItemsControl.ItemsPanel>
             </ItemsControl>
-        </ScrollViewer>
-    </Border>
+        </Border>
+    </Grid>
 </Window>
