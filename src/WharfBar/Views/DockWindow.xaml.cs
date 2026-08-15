@@ -94,13 +94,15 @@ public partial class DockWindow : Window
         ((DockWindow)d).SetWindowY((int)Math.Round((double)e.NewValue));
     }
 
-    internal DockWindow(AppConfig config)
+    internal DockWindow(AppConfig config, TaskbarVisibilityService taskbar)
     {
         ArgumentNullException.ThrowIfNull(config);
+        ArgumentNullException.ThrowIfNull(taskbar);
 
         InitializeComponent();
 
         _config = config;
+        _taskbar = taskbar;
         _iconSizeDip = Math.Clamp(
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
@@ -157,6 +159,15 @@ public partial class DockWindow : Window
             CancelYAnimation();
             DockHitTest.ApplyInteractive(hwnd);
             ApplyPlacement();
+        }
+
+        ApplyWorkAreaReservation();
+
+        // Fullscreen + auto-hide toggle: if auto-hide turned OFF while a fullscreen app is
+        // active, the dock was collapsed for the fullscreen — re-show it (it now reserves).
+        if (_isFullscreenHidden && !_config.Dock.AutoHide)
+        {
+            OnFullscreenChanged(this, EventArgs.Empty);
         }
     }
 
@@ -250,10 +261,30 @@ public partial class DockWindow : Window
             _autoHide.Start(BuildEdgeProbe);
         }
 
+        ApplyWorkAreaReservation();
+
         if (FullscreenState.Instance.IsFullscreen)
         {
             OnFullscreenChanged(this, EventArgs.Empty);
         }
+    }
+
+    /// <summary>
+    /// Reserves the dock strip at the primary work-area bottom when the dock is always
+    /// visible (auto-hide off), so maximized apps stop at the dock's top edge. In
+    /// auto-hide mode nothing is reserved and maximized apps cover the full bottom.
+    /// </summary>
+    private void ApplyWorkAreaReservation()
+    {
+        if (_source is null || _autoHide.Enabled || !TryGetPlacementGeometry(out PlacementGeometry geo))
+        {
+            _taskbar.SetDockReservation(0);
+            return;
+        }
+
+        uint dpi = Display.GetDpi(_source.Handle);
+        int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
+        _taskbar.SetDockReservation(geo.HeightPx + bottomGapPx);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -900,7 +931,9 @@ public partial class DockWindow : Window
 
     private void OnFullscreenChanged(object? sender, EventArgs e)
     {
-        if (FullscreenState.Instance.IsFullscreen)
+        // Auto-hide: the fullscreen app must cover the full monitor — hide the dock.
+        // Always-visible (auto-hide off): the dock reserves its strip and stays put.
+        if (FullscreenState.Instance.IsFullscreen && _autoHide.Enabled)
         {
             _isFullscreenHidden = true;
             _autoHide.NotifyFullscreen(true);

@@ -129,6 +129,6 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 
 - [ ] İkincil monitör / work-area stratejisi
 - [ ] UWP/Store ikonları (tam yol)
-- [ ] İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
+- [x] Dock work area rezervasyonu (auto-hide OFF): `SPI_SETWORKAREA` alt kenar = dock tepesi (AppBar değil — ADR-001); oto-gizle ON: rezervasyon yok, maximize altı tam kaplar
 - [ ] Daha zengin durum menüleri / bildirim merkezi benzeri UI
 

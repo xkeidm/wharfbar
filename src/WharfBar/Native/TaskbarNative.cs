@@ -265,10 +265,17 @@ internal static class TaskbarNative
     }
 
     /// <summary>
-    /// Expands the primary work-area bottom to the monitor edge while keeping top/left/right
-    /// (top AppBar reservation). <c>ShowWindow(SW_HIDE)</c> alone leaves a phantom taskbar strip.
+    /// Expands the primary work-area bottom to the monitor edge (minus the optional dock
+    /// reservation strip) while keeping top/left/right (top AppBar reservation).
+    /// <c>ShowWindow(SW_HIDE)</c> alone leaves a phantom taskbar strip.
     /// </summary>
-    internal static bool TryExpandPrimaryWorkAreaBottom()
+    /// <param name="reservedBottomPx">Strip reserved by the dock (0 = none).</param>
+    /// <param name="broadcast">
+    /// When true, writes with <c>SPIF_SENDCHANGE</c>. A broadcast makes the shell recompute
+    /// appbar reservations and re-asserts the hidden taskbar's phantom strip, which then
+    /// needs another expansion — an endless fight. Ongoing maintenance must be silent.
+    /// </param>
+    internal static bool TryExpandPrimaryWorkAreaBottom(int reservedBottomPx = 0, bool broadcast = false)
     {
         IntPtr tray = FindTrayHwnd();
         IntPtr anchor = tray != IntPtr.Zero ? tray : NativeMethods.GetDesktopWindow();
@@ -288,7 +295,8 @@ internal static class TaskbarNative
             work = info.rcWork;
         }
 
-        if (!AppBarPlacement.NeedsBottomExpand(work.Bottom, info.rcMonitor.Bottom))
+        int targetBottom = info.rcMonitor.Bottom - Math.Max(0, reservedBottomPx);
+        if (!AppBarPlacement.NeedsBottomExpand(work.Bottom, targetBottom))
         {
             return true;
         }
@@ -298,14 +306,14 @@ internal static class TaskbarNative
             Left = work.Left,
             Top = work.Top,
             Right = work.Right,
-            Bottom = info.rcMonitor.Bottom,
+            Bottom = targetBottom,
         };
 
         return NativeMethods.SystemParametersInfo(
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            NativeMethods.SPIF_SENDCHANGE);
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0);
     }
 
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>

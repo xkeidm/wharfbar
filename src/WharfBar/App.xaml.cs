@@ -106,7 +106,7 @@ public partial class App : Application
         MainWindow = topBar;
         topBar.Show();
 
-        _dock = new DockWindow(config);
+        _dock = new DockWindow(config, _taskbar);
         _dock.Show();
 
         // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which

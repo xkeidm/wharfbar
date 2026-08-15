@@ -22,7 +22,7 @@ internal static class AppBarPlacement
 
     /// <summary>
     /// True when the hidden taskbar AppBar has reclaimed the bottom strip
-    /// (<c>SPI_GETWORKAREA</c> bottom sits above the monitor edge).
+    /// (<c>SPI_GETWORKAREA</c> bottom sits above the desired bottom edge).
     /// </summary>
     internal static bool NeedsBottomExpand(int workBottom, int monitorBottom) =>
         workBottom < monitorBottom;

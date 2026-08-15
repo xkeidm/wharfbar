@@ -26,11 +26,40 @@ internal sealed class TaskbarVisibilityService
     private readonly TrayPeekTracker _peekTracker = new(AppBarPlacement.TrayPeekMaxDuration);
     private bool _stealthPeek;
     private int _expandingWorkArea;
+    private int _pendingBroadcastExpand;
     private int _watchBusy;
+    private int _reservedBottomPx;
     private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
 
     internal bool IsHidden => _hidden;
+
+    /// <summary>
+    /// Bottom strip reserved for the always-visible dock (physical px, 0 = none).
+    /// Read on the work-area thread; written by the dock on config changes.
+    /// </summary>
+    internal int ReservedBottomPx
+    {
+        get => Volatile.Read(ref _reservedBottomPx);
+        private set => Volatile.Write(ref _reservedBottomPx, Math.Max(0, value));
+    }
+
+    /// <summary>
+    /// Updates the dock reservation and re-announces the work area so maximized apps
+    /// resize to the new bottom edge. The announcement is a one-shot broadcast — the
+    /// shell re-asserts the hidden taskbar's phantom strip in response, and the silent
+    /// maintenance expansion (which triggers nothing) heals it.
+    /// </summary>
+    internal void SetDockReservation(int bottomPx)
+    {
+        if (ReservedBottomPx == bottomPx)
+        {
+            return;
+        }
+
+        ReservedBottomPx = bottomPx;
+        ExpandWorkAreaBottom(broadcast: true);
+    }
 
     /// <summary>True while a tray peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
     internal bool IsTrayPeekActive => _peekTracker.IsActive;
@@ -59,7 +88,8 @@ internal sealed class TaskbarVisibilityService
         Interlocked.Exchange(ref _restored, 0);
 
         AttachShutdownHooks();
-        ApplyHide();
+        // First announcement must reach already-maximized windows (broadcast).
+        ApplyHide(broadcast: true);
         StartKeepHiddenWatch();
     }
 
@@ -213,7 +243,7 @@ internal sealed class TaskbarVisibilityService
         }
     }
 
-    private void ApplyHide()
+    private void ApplyHide(bool broadcast = false)
     {
         if (Volatile.Read(ref _restored) != 0)
         {
@@ -229,7 +259,10 @@ internal sealed class TaskbarVisibilityService
             }
 
             _hidden = true;
-            ExpandWorkAreaBottom();
+            // Silent expansion: a SPIF_SENDCHANGE broadcast makes the shell re-assert the
+            // hidden taskbar's phantom reservation, which needs another expansion — an
+            // endless grow/shrink loop for maximized windows. Only startup announces.
+            ExpandWorkAreaBottom(broadcast);
 
             // Re-notifying on every no-op hide cancels dock auto-hide animation
             // (WorkAreaChanged → ApplyPlacement snaps Y back to Hidden).
@@ -332,10 +365,16 @@ internal sealed class TaskbarVisibilityService
         }
     }
 
-    private void ExpandWorkAreaBottom()
+    private void ExpandWorkAreaBottom(bool broadcast = false)
     {
         if (Interlocked.Exchange(ref _expandingWorkArea, 1) != 0)
         {
+            // Coalesce; remember dropped announcements so the in-flight run re-queues them.
+            if (broadcast)
+            {
+                Interlocked.Exchange(ref _pendingBroadcastExpand, 1);
+            }
+
             return;
         }
 
@@ -344,7 +383,7 @@ internal sealed class TaskbarVisibilityService
             // SPI_SETWORKAREA with SPIF_SENDCHANGE broadcasts to every top-level window
             // and can block the caller for ~1s on some systems. Run it off the UI thread;
             // keep the guard so at most one expansion is in flight.
-            ThreadPool.QueueUserWorkItem(RunExpandWorkAreaBottom);
+            ThreadPool.QueueUserWorkItem(RunExpandWorkAreaBottom, broadcast);
         }
         catch (Exception ex)
         {
@@ -357,8 +396,9 @@ internal sealed class TaskbarVisibilityService
     {
         try
         {
+            bool broadcast = state is true;
             bool restoreRaced = Volatile.Read(ref _restored) != 0;
-            if (!restoreRaced && TaskbarNative.TryExpandPrimaryWorkAreaBottom())
+            if (!restoreRaced && TaskbarNative.TryExpandPrimaryWorkAreaBottom(ReservedBottomPx, broadcast))
             {
                 return;
             }
@@ -380,6 +420,10 @@ internal sealed class TaskbarVisibilityService
         finally
         {
             Interlocked.Exchange(ref _expandingWorkArea, 0);
+            if (Interlocked.Exchange(ref _pendingBroadcastExpand, 0) == 1)
+            {
+                ExpandWorkAreaBottom(broadcast: true);
+            }
         }
     }
 

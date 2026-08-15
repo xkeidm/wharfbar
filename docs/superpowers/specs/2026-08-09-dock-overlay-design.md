@@ -132,7 +132,7 @@ UWP/Store ikonları, gerçek auto-hide animasyonu.
 - [ ] Dock work area altında, yatay ortalı; Windows görev çubuğunun üstünde (binmeden)
 - [ ] Mica + yuvarlak köşe (veya opak fallback); sistem light/dark ile uyumlu
 - [ ] Demo ikonlar; hover büyüme; tıklanınca uygulama açılır
-- [ ] Overlay: work area dock için **rezerve edilmez** (maximize alt kenarı dock’un altına girebilir — beklenen)
+- [x] Overlay: auto-hide modunda work area dock için **rezerve edilmez** (maximize alt kenarı tam kaplar — 2026-08-15: sessiz `SPI_SETWORKAREA`); auto-hide OFF’ta `SetDockReservation` ile alt kenar = dock tepesi
 - [ ] Fullscreen → dock gizlenir; çıkınca geri gelir
 - [ ] DPI / çözünürlük değişiminde yeniden hizalanma
 - [ ] Uygulama kapanınca AppBar work area baseline’a döner
