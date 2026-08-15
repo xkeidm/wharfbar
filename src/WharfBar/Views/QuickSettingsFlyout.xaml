@@ -91,15 +91,19 @@
                         <Button x:Name="MasterMuteButton"
                                 DockPanel.Dock="Left"
                                 Style="{StaticResource QsIconButton}"
-                                Content="&#xE767;"
                                 Click="OnMasterMuteClick"
-                                ToolTip="Sessiz" />
+                                ToolTip="Sessiz">
+                            <TextBlock x:Name="MasterMuteGlyph"
+                                       Style="{StaticResource QsGlyph}"
+                                       Text="&#xE767;" />
+                        </Button>
                         <Button x:Name="MixerChevronButton"
                                 DockPanel.Dock="Right"
                                 Style="{StaticResource QsIconButton}"
-                                Content="&#xE713;  &#xE76C;"
                                 Click="OnOpenMixerClick"
-                                ToolTip="Ses karıştırıcı" />
+                                ToolTip="Ses karıştırıcı">
+                            <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE713;  &#xE76C;" />
+                        </Button>
                         <Slider x:Name="MasterVolumeSlider"
                                 Minimum="0"
                                 Maximum="100"
@@ -121,9 +125,10 @@
                         <Button x:Name="SettingsGearButton"
                                 DockPanel.Dock="Right"
                                 Style="{StaticResource QsIconButton}"
-                                Content="&#xE713;"
                                 Click="OnSettingsClick"
-                                ToolTip="Ayarlar" />
+                                ToolTip="Ayarlar">
+                            <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE713;" />
+                        </Button>
                         <TextBlock VerticalAlignment="Center"
                                    FontSize="12"
                                    Opacity="0.7"
@@ -143,9 +148,10 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <Button Style="{StaticResource QsIconButton}"
-                            Content="&#xE76B;"
                             Click="OnBackToMainClick"
-                            ToolTip="Geri" />
+                            ToolTip="Geri">
+                        <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE76B;" />
+                    </Button>
                     <TextBlock Margin="8,0,0,0"
                                VerticalAlignment="Center"
                                FontWeight="SemiBold"
@@ -206,9 +212,12 @@
                         <Button x:Name="MixerMasterMuteButton"
                                 DockPanel.Dock="Left"
                                 Style="{StaticResource QsIconButton}"
-                                Content="&#xE767;"
                                 Click="OnMixerMasterMuteClick"
-                                ToolTip="Sessiz" />
+                                ToolTip="Sessiz">
+                            <TextBlock x:Name="MixerMasterMuteGlyph"
+                                       Style="{StaticResource QsGlyph}"
+                                       Text="&#xE767;" />
+                        </Button>
                         <TextBlock x:Name="MixerMasterPercentText"
                                    DockPanel.Dock="Right"
                                    Width="28"
@@ -251,9 +260,10 @@
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
                     <Button Style="{StaticResource QsIconButton}"
-                            Content="&#xE76B;"
                             Click="OnBackToMainClick"
-                            ToolTip="Geri" />
+                            ToolTip="Geri">
+                        <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE76B;" />
+                    </Button>
                     <TextBlock Margin="8,0,0,0"
                                VerticalAlignment="Center"
                                FontWeight="SemiBold"

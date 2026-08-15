@@ -193,12 +193,13 @@
             </StackPanel>
 
             <!-- Quick Settings (Win11-style): shared by controlCenter / volume / network.
-                 Opaque Fluent chrome — AllowsTransparency stays false (never pair with Mica). -->
+                 PopupAnimation=Fade requires a layered popup (AllowsTransparency=True);
+                 that only affects the popup window, never the main window's Mica. -->
             <Popup x:Name="QuickSettingsPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=ControlCenterButton}"
                    StaysOpen="False"
-                   AllowsTransparency="False"
+                   AllowsTransparency="True"
                    PopupAnimation="Fade"
                    Opened="OnQuickSettingsOpened"
                    Closed="OnQuickSettingsClosed">
@@ -210,7 +211,7 @@
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=BrightnessButton}"
                    StaysOpen="False"
-                   AllowsTransparency="False"
+                   AllowsTransparency="True"
                    PopupAnimation="Fade">
                 <local:BrightnessFlyout x:Name="BrightnessHost" />
             </Popup>

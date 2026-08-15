@@ -148,7 +148,7 @@ public partial class QuickSettingsFlyout : UserControl
         {
             MasterVolumeSlider.Value = snap.Percent;
             string glyph = snap.IsMuted || snap.Percent == 0 ? "\uE74F" : "\uE767";
-            MasterMuteButton.Content = glyph;
+            MasterMuteGlyph.Text = glyph;
             MasterMuteButton.ToolTip = snap.IsMuted ? "Sesi aç" : "Sessiz";
         }
         finally
@@ -189,7 +189,7 @@ public partial class QuickSettingsFlyout : UserControl
 
             MixerMasterMuteButton.IsEnabled = true;
             MixerMasterSlider.IsEnabled = !snap.Selected.IsMuted;
-            MixerMasterMuteButton.Content =
+            MixerMasterMuteGlyph.Text =
                 snap.Selected.IsMuted || snap.Selected.Percent == 0 ? "\uE74F" : "\uE767";
             MixerMasterMuteButton.ToolTip = snap.Selected.IsMuted ? "Sesi aç" : "Sessiz";
             if (!_masterDragging && !MixerMasterSlider.IsMouseCaptureWithin)

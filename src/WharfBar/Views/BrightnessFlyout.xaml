@@ -54,9 +54,14 @@
                 <Button x:Name="RefreshButton"
                         DockPanel.Dock="Right"
                         Style="{StaticResource QsIconButton}"
-                        Content="&#xE72C;"
                         Click="OnRefreshClick"
-                        ToolTip="Monitörleri Yenile" />
+                        ToolTip="Monitörleri Yenile">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                               FontSize="16"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Text="&#xE72C;" />
+                </Button>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
                                FontSize="16"

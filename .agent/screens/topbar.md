@@ -39,7 +39,8 @@ Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
 
 ## Hızlı ayarlar flyout
 
-`QuickSettingsFlyout` — tek opak Fluent popup (`AllowsTransparency=false`); Main / Mixer /
+`QuickSettingsFlyout` — tek Fluent popup (`AllowsTransparency=true`; `PopupAnimation=Fade`
+için katmanlı — ana pencerenin Mica'sıyla ilgisi yok); Main / Mixer /
 Network sekmeleri paylaşılır (ADR-006). Mixer: varsayılan aygıt + dropdown + uygulama
 oturumları. Açılış noktası tıklanan ikona göre sekme seçer.
 

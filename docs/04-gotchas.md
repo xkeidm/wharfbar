@@ -4,7 +4,7 @@
 |-------|---------|
 | AppBar kaydı silinmeden crash → asılı work area | `OnClosing` + `Exit` + mümkünse unhandled path’te `ABM_REMOVE`; geliştirmede `explorer.exe` restart |
 | Shell/explorer restart → AppBar kaybı | Yeniden kayıt stratejisi (shell mesajı / sağlık kontrolü) |
-| `AllowsTransparency=true` + Mica | Asla birlikte kullanma; WPF-UI backdrop veya opak + DWM extend; hızlı ayarlar Popup da opak |
+| `AllowsTransparency=true` + Mica | Asla birlikte kullanma; WPF-UI backdrop veya opak + DWM extend. Flyout popup'ları ayrı pencere olduğu için `AllowsTransparency=true` kullanır (`PopupAnimation=Fade` gereği); Mica'yı etkilemez |
 | Hızlı ayarlar / PolicyConfig | Varsayılan ses aygıtı için `IPolicyConfig` (ADR-006); tepsi RPM değil |
 | Ses karıştırıcı | Tek seçili çıkış aygıtı + satır içi expander ile varsayılan değiştirme (QS `Popup` içinde iç içe `Popup` kullanma — odak kaçar, liste görünmez); master `IAudioEndpointVolume` + oturum listesi; `IMMDeviceCollection` IID `…8397-CC5392387B5E`; `IAudioSessionEnumerator` ComImport’u IUnknown IID ile sar (resmi IID QI `E_NOINTERFACE` verir, vtable yine enumerator); oturum slider sürüklerken satırları yeniden kurma (poll/`Changed` mid-drag UI’yi yıkıyordu); oturum ikonu süreç yolu yoksa MDL2; UWP ikonları sınırlı (ADR-006) |
 | WPF-UI backdrop + ham DWM aynı anda | Önce WPF-UI; ham DWM’yi yedek tut |

@@ -17,8 +17,9 @@ belgelenmiş .NET / WinRT yollarıyla (ADR-005 tepsi aynası yasağı korunur).
 | Ağ / ethernet ikonu | Ağ sayfası (durum + Ayarlar URI'leri) |
 | Karıştırıcı chevron (flyout içi) | Ses karıştırıcı |
 
-Popup **opak Fluent** (`AllowsTransparency=false`); Mica ile şeffaflık eşleştirilmez
-(ADR-004 / gotcha). **Ayrı bir ses popup'ı yok** — karıştırıcı derinliği QS sayfası
+Popup `AllowsTransparency=true` + `PopupAnimation=Fade` (Win11 Quick Settings benzeri
+geçiş); popup ayrı bir pencere olduğundan Mica kuralı etkilenmez (ADR-004 / gotcha —
+kural **ana pencere** içindir). **Ayrı bir ses popup'ı yok** — karıştırıcı derinliği QS sayfası
 olarak kalır (aşağıdaki UX notu). Üst bar varsayılan sıra ve `controlCenter` id:
 [`../superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../superpowers/specs/2026-08-09-topbar-status-strip-design.md).
 

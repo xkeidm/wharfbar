@@ -93,7 +93,9 @@ sağ küme varsayılan LTR `gizli · tarih/saat · bildirim · controlCenter · 
 (örn. `9 Ağu Paz 21:57`, Segoe UI) + zil glifi; ikisi de native Notification Center
 (`Win+N` — takvim + bildirimler; ayrı takvim `Popup` yok; ADR-005 aynası yok).
 `controlCenter` → QS **Main**; ses → QS **Mixer**; ağ → QS **Network** — paylaşılan
-**Hızlı ayarlar** flyout (ADR-006); opak Fluent `Popup` (`AllowsTransparency=false`).
+**Hızlı ayarlar** flyout (ADR-006); `PopupAnimation=Fade` için katmanlı (layered) `Popup`
+(`AllowsTransparency=true`). Kural değişmedi: **ana pencerede** Mica + `AllowsTransparency`
+yasak; popup ayrı bir pencere olduğundan Mica'yı etkilemez.
 
 **Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
 `TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,
