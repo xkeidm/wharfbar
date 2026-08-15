@@ -32,6 +32,9 @@ internal sealed class WindowActivationService
         if (NativeMethods.IsIconic(hwnd))
         {
             _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+            // Task Manager (and some other apps) manage window state via
+            // WM_SYSCOMMAND only; ShowWindow alone is ignored there.
+            _ = NativeMethods.PostMessage(hwnd, NativeMethods.WM_SYSCOMMAND, NativeMethods.SC_RESTORE, IntPtr.Zero);
         }
 
         return NativeMethods.SetForegroundWindow(hwnd);
@@ -44,7 +47,9 @@ internal sealed class WindowActivationService
             return false;
         }
 
-        return NativeMethods.ShowWindow(hwnd, NativeMethods.SW_MINIMIZE);
+        _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_MINIMIZE);
+        _ = NativeMethods.PostMessage(hwnd, NativeMethods.WM_SYSCOMMAND, NativeMethods.SC_MINIMIZE, IntPtr.Zero);
+        return true;
     }
 
     /// <summary>

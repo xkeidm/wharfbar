@@ -165,6 +165,13 @@ internal static class NativeMethods
     internal const int WM_THEMECHANGED = 0x031A;
     internal const int WM_DWMCOLORIZATIONCOLORCHANGED = 0x0320;
     internal const uint WM_CLOSE = 0x0010;
+    internal const uint WM_SYSCOMMAND = 0x0112;
+
+    /// <summary>SC_RESTORE — restore a minimized/maximized window (Task Manager only honors syscommands).</summary>
+    internal const IntPtr SC_RESTORE = 0xF120;
+
+    /// <summary>SC_MINIMIZE — minimize via syscommand (Task Manager only honors syscommands).</summary>
+    internal const IntPtr SC_MINIMIZE = 0xF020;
 
     internal static readonly IntPtr HWND_TOP = new(0);
     internal static readonly IntPtr HWND_BOTTOM = new(1);
@@ -198,6 +205,9 @@ internal static class NativeMethods
     internal const uint DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
     internal const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const uint DWMWA_SYSTEMBACKDROP_TYPE = 38;
+
+    /// <summary>DWMWA_CLOAKED — window hidden from composition (shell-cloaked apps, other virtual desktops).</summary>
+    internal const uint DWMWA_CLOAKED = 14;
 
     internal const uint SHGFI_ICON = 0x000000100;
     internal const uint SHGFI_LARGEICON = 0x000000000;
