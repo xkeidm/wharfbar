@@ -514,9 +514,12 @@ public partial class QuickSettingsFlyout : UserControl
 
         var border = new Border
         {
-            Style = TryFindResource(tile.IsActive ? "QsTileActive" : "QsTile") as Style,
+            Style = tile.IsEnabled
+                ? TryFindResource(tile.IsActive ? "QsTileActive" : "QsTile") as Style
+                : TryFindResource("QsTileDisabled") as Style,
             Tag = tile.Id,
             ToolTip = CreateTip(tile.Tooltip),
+            IsEnabled = tile.IsEnabled,
         };
 
         var grid = new Grid();

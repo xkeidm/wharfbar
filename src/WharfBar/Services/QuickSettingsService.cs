@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
+using Microsoft.Win32;
 using WharfBar.Native;
 
 namespace WharfBar.Services;
@@ -41,13 +42,21 @@ internal sealed class QuickSettingsService : IDisposable
     private bool _bluetoothOn;
     private bool _airplaneOn;
     private bool _radiosKnown;
+    private int _radioRefreshBusy;
+
+    /// <summary>
+    /// Session truth for airplane mode after <em>we</em> toggled it. The OS flag
+    /// (<c>SystemRadioState</c>) does not follow radio-API toggles, so the tile would
+    /// otherwise snap back to the stale OS value. <c>null</c> = follow the OS flag.
+    /// </summary>
+    private bool? _airplaneSessionOverride;
 
     internal QuickSettingsService()
     {
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _timer.Tick += (_, _) => Refresh();
+        _timer.Tick += (_, _) => OnPollTick();
         _ = RefreshRadiosAsync();
     }
 
@@ -70,6 +79,13 @@ internal sealed class QuickSettingsService : IDisposable
     }
 
     internal void StopPolling() => _timer.Stop();
+
+    private void OnPollTick()
+    {
+        Refresh();
+        // Keep tiles live against external changes (Windows quick settings, radio switch).
+        _ = RefreshRadiosAsync();
+    }
 
     internal async Task ToggleTileAsync(string tileId)
     {
@@ -155,18 +171,18 @@ internal sealed class QuickSettingsService : IDisposable
                 "wifi",
                 "Wi-Fi",
                 "\uE701",
-                IsEnabled: true,
+                IsEnabled: !_airplaneOn,
                 IsActive: _wifiOn && !_airplaneOn,
                 HasChevron: true,
-                Tooltip: "Wi-Fi"),
+                Tooltip: _airplaneOn ? "Uçak modunu kapatın" : "Wi-Fi"),
             new QuickTileState(
                 "bluetooth",
                 "Bluetooth",
                 "\uE702",
-                IsEnabled: true,
+                IsEnabled: !_airplaneOn,
                 IsActive: _bluetoothOn && !_airplaneOn,
                 HasChevron: true,
-                Tooltip: "Bluetooth"),
+                Tooltip: _airplaneOn ? "Uçak modunu kapatın" : "Bluetooth"),
             new QuickTileState(
                 "airplane",
                 "Uçak modu",
@@ -204,6 +220,11 @@ internal sealed class QuickSettingsService : IDisposable
 
     private async Task RefreshRadiosAsync()
     {
+        if (Interlocked.Exchange(ref _radioRefreshBusy, 1) != 0)
+        {
+            return;
+        }
+
         try
         {
             Windows.Devices.Radios.RadioAccessStatus access =
@@ -238,16 +259,61 @@ internal sealed class QuickSettingsService : IDisposable
 
             _wifiOn = !sawWifi || wifi;
             _bluetoothOn = sawBt && bt;
-            // Airplane approximation: both Wi-Fi and BT off when those radios exist.
-            _airplaneOn = _radiosKnown
-                ? (!wifi && !bt && (sawWifi || sawBt))
-                : (!anyOn && (sawWifi || sawBt));
+
+            // Airplane mode is an OS flag, not "all radios off": turning Wi-Fi off must not
+            // light the airplane tile. Prefer the flag; fall back to the aggregate
+            // approximation only when the flag is not readable (no radio manager).
+            if (_airplaneSessionOverride is bool session)
+            {
+                _airplaneOn = session;
+            }
+            else if (TryReadSystemRadioState(out bool systemAirplane))
+            {
+                _airplaneOn = systemAirplane;
+            }
+            else
+            {
+                _airplaneOn = _radiosKnown
+                    ? (!wifi && !bt && (sawWifi || sawBt))
+                    : (!anyOn && (sawWifi || sawBt));
+            }
+
             _radiosKnown = true;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar: Radio refresh failed — {ex.Message}");
         }
+        finally
+        {
+            Interlocked.Exchange(ref _radioRefreshBusy, 0);
+        }
+    }
+
+    /// <summary>
+    /// Real airplane-mode flag as maintained by the Windows radio manager
+    /// (<c>radiosvc</c>). Only changes when airplane mode itself is toggled —
+    /// individual radio toggles leave it untouched.
+    /// </summary>
+    private static bool TryReadSystemRadioState(out bool airplaneOn)
+    {
+        try
+        {
+            using RegistryKey? key = Registry.LocalMachine.OpenSubKey(
+                @"SYSTEM\CurrentControlSet\Control\RadioManagement\SystemRadioState");
+            if (key?.GetValue(null) is int value)
+            {
+                airplaneOn = value != 0;
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: SystemRadioState read failed — {ex.Message}");
+        }
+
+        airplaneOn = false;
+        return false;
     }
 
     private async Task SetRadioKindAsync(Windows.Devices.Radios.RadioKind kind, bool turnOn)
@@ -315,7 +381,10 @@ internal sealed class QuickSettingsService : IDisposable
                 }
             }
 
+            // The OS flag does not follow radio-API toggles (and writing it needs admin) —
+            // keep the tile honest with a session override.
             _airplaneOn = enable;
+            _airplaneSessionOverride = enable;
         }
         catch (Exception ex)
         {

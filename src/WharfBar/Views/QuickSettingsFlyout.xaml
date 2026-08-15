@@ -16,6 +16,10 @@
         <Style x:Key="QsTileActive" TargetType="Border" BasedOn="{StaticResource QsTile}">
             <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
         </Style>
+        <Style x:Key="QsTileDisabled" TargetType="Border" BasedOn="{StaticResource QsTile}">
+            <Setter Property="Opacity" Value="0.45" />
+            <Setter Property="Cursor" Value="Arrow" />
+        </Style>
         <Style x:Key="QsGlyph" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppIconFontFamily}" />
             <Setter Property="FontSize" Value="16" />

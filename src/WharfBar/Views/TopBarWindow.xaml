@@ -148,7 +148,7 @@
                     </Border.ToolTip>
                     <TextBlock x:Name="ControlCenterGlyph"
                                Style="{StaticResource StatusGlyph}"
-                               Text="&#xE9CE;" />
+                               Text="&#xE9E9;" />
                 </Border>
 
                 <Border x:Name="VolumeButton" Style="{StaticResource StatusHit}">

@@ -37,6 +37,13 @@ olarak kalır (aşağıdaki UX notu). Üst bar varsayılan sıra ve `controlCent
 
 - Durum: `.NET NetworkInformation` (tepisi okuma yok)
 - Wi-Fi / Bluetooth / uçak: WinRT `Windows.Devices.Radios` (erişim yoksa Settings URI)
+- **Uçak modu görünümü (2026-08-15):** karo durumu “tüm radyolar kapalı” yaklaşımıyla
+  değil, radyo yöneticisinin gerçek bayrağından okunur
+  (`HKLM\SYSTEM\CurrentControlSet\Control\RadioManagement\SystemRadioState`; anahtar yoksa
+  eski yaklaşım fallback). Tekil radyo kapatmak uçak modunu yakmaz. Bizim uçak toggle'ı
+  radyo API'sinden radyoları kapatır — OS bayrağı bu çağrıyı izlemez (yazmak admin ister),
+  bu yüzden oturum override'ı tutulur; uçak açıkken Wi-Fi/BT karoları devre dışıdır
+  (Windows UX'iyle aynı)
 - Yansıt: `Win+P` (`SendInputKeys`)
 - Gece ışığı / enerji tasarrufu: `ms-settings:` URI (doğrudan toggle v1'de yok)
 - Ağ sayfası: ethernet/Wi-Fi Settings deep-link
