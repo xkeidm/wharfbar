@@ -502,13 +502,7 @@ internal static class ShortcutResolver
                     args = ((string?)shortcut.GetType().InvokeMember(
                         "Arguments", System.Reflection.BindingFlags.GetProperty, null, shortcut, null))
                         ?? string.Empty;
-                    string? desc = (string?)shortcut.GetType().InvokeMember(
-                        "Description", System.Reflection.BindingFlags.GetProperty, null, shortcut, null);
-                    if (!string.IsNullOrWhiteSpace(desc))
-                    {
-                        label = desc.Trim();
-                    }
-                    else if (string.IsNullOrWhiteSpace(label))
+                    if (string.IsNullOrWhiteSpace(label))
                     {
                         label = Path.GetFileNameWithoutExtension(targetPath) ?? "App";
                     }

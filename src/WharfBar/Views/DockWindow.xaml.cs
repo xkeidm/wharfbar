@@ -332,11 +332,13 @@ public partial class DockWindow : Window
             Source = string.IsNullOrWhiteSpace(item.Path)
                 ? _icons.GetIcon(string.Empty, sizePx)
                 : _icons.GetIcon(item.Path, sizePx),
-            ToolTip = item.Label,
             RenderTransformOrigin = new Point(0.5, 0.5),
             RenderTransform = transform,
             Cursor = Cursors.Hand,
         };
+        image.ToolTip = CreateDockTip(item.Label, image);
+        ToolTipService.SetInitialShowDelay(image, 250);
+        ToolTipService.SetShowDuration(image, 8000);
         RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
         image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
@@ -368,6 +370,25 @@ public partial class DockWindow : Window
         stack.Children.Add(dot);
         stack.ContextMenu = BuildContextMenuForApp(item);
         return stack;
+    }
+
+    private static ToolTip CreateDockTip(string text, FrameworkElement target) => new()
+    {
+        Content = text,
+        Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
+        PlacementTarget = target,
+        CustomPopupPlacementCallback = CenterAboveTarget,
+    };
+
+    private static System.Windows.Controls.Primitives.CustomPopupPlacement[] CenterAboveTarget(
+        Size tipSize, Size targetSize, Point offset)
+    {
+        return
+        [
+            new System.Windows.Controls.Primitives.CustomPopupPlacement(
+                new Point((targetSize.Width - tipSize.Width) / 2, -tipSize.Height - 25),
+                System.Windows.Controls.Primitives.PopupPrimaryAxis.Horizontal),
+        ];
     }
 
     private ContextMenu BuildContextMenuForApp(DockAppItem item)
