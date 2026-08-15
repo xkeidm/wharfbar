@@ -12,6 +12,9 @@ internal sealed class RunningAppsSource : IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
 
+    private static readonly string SystemAppsDir = Path.GetFullPath(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemApps"));
+
     private readonly Dispatcher _dispatcher;
     private readonly List<RunningAppInfo> _apps = [];
     private DispatcherTimer? _poll;
@@ -93,6 +96,11 @@ internal sealed class RunningAppsSource : IDisposable
             }
 
             string path = TryGetProcessPath(pid);
+            if (IsSystemUtilityHost(path))
+            {
+                continue;
+            }
+
             string label = ResolveLabel(title, path);
 
             if (string.IsNullOrEmpty(path) && string.IsNullOrEmpty(label) && !hasAumid)
@@ -127,6 +135,19 @@ internal sealed class RunningAppsSource : IDisposable
         }
 
         return $"hwnd:{hwnd}";
+    }
+
+    private static bool IsSystemUtilityHost(string path)
+    {
+        if (string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        string full = Path.GetFullPath(path);
+        return full.StartsWith(SystemAppsDir, StringComparison.OrdinalIgnoreCase)
+            && full.Length > SystemAppsDir.Length
+            && full[SystemAppsDir.Length] == Path.DirectorySeparatorChar;
     }
 
     private static string TryGetProcessPath(uint pid)

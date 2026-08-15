@@ -9,6 +9,7 @@ internal static class WindowEnumeration
         "Shell_TrayWnd",
         "Progman",
         "WorkerW",
+        "ApplicationFrameWindow",
     };
 
     private static readonly uint OwnProcessId = (uint)Environment.ProcessId;

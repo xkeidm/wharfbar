@@ -35,5 +35,9 @@ Simge Boyutu slider'ı (16–36 DIP).
 
 - Dock kıskacı `Measure` etmez (phantom taskbar work-area itmesine karşı).
 - UWP/Store uygulama ikonları v1'de sınırlı (placeholder).
+- UWP uygulamaları iki üst düzey pencere üretir (CoreWindow + ApplicationFrameWindow);
+  frame penceresi `WindowEnumeration`'da hariç tutulur, aksi halde her UWP app iki kez görünür.
+- `C:\Windows\SystemApps\` altındaki sistem yardımcı host'ları (Windows Input Experience /
+  TextInputHost vb.) çalışan uygulama listesinde gösterilmez (`RunningAppsSource`).
 - Auto-hide: hit-test bölgesi + `FullscreenState` köprüsü ile yönetilir
   (spec: `docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`).

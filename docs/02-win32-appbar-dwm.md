@@ -193,9 +193,15 @@ Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
 `EnumWindows` ile üst düzey görünür pencereler **arka plan thread**’de taranır (UI’da
 asılı bir HWND wait cursor bırakır); `IsHungAppWindow` atlanır. `Shell_TrayWnd`, `Progman`,
-`WorkerW` ve kendi sürecimiz hariç tutulur (`Native/WindowEnumeration.cs`). Yol için
-`QueryFullProcessImageName` (`Process.MainModule` UI’yi kilitleyebilir). Gruplama için
-`GetProp(ApplicationUserModelID)` (`AppUserModelId.cs`). WharfBar kendi pencereleri
+`WorkerW`, `ApplicationFrameWindow` ve kendi sürecimiz hariç tutulur
+(`Native/WindowEnumeration.cs`). `ApplicationFrameWindow`, UWP uygulamalarının
+ApplicationFrameHost çerçevesidir (asıl uygulama penceresi `Windows.UI.Core.CoreWindow`
+ayrıca enumerate edilir); hariç tutulmazsa her UWP uygulaması iki kez görünür.
+Yol için `QueryFullProcessImageName` (`Process.MainModule` UI’yi kilitleyebilir). Gruplama
+için `GetProp(ApplicationUserModelID)` (`AppUserModelId.cs`; Win11’de UWP pencerelerinde
+boş döner, dedup’ı `ApplicationFrameWindow` hariç tutulması sağlar). `C:\Windows\SystemApps\`
+altındaki süreçler (Windows Input Experience / TextInputHost vb. sistem yardımcı
+host’ları) çalışan uygulama sayılmaz (`RunningAppsSource`). WharfBar kendi pencereleri
 (`ShowInTaskbar=false`) için `Process.MainWindowHandle` güvenilmez — odaklama
 `WindowActivationService` + `EnumWindows` + PID filtresi ile yapılır.
 
