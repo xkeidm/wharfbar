@@ -327,6 +327,202 @@
                            TextWrapping="Wrap"
                            Text="Durum .NET ağ API’lerinden okunur; sistem tepsi ikonları aynalanmaz." />
             </Grid>
+
+            <!-- WIFI -->
+            <Grid x:Name="WifiPage" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                    <Button Style="{StaticResource QsIconButton}"
+                            Click="OnBackToMainClick"
+                            ToolTip="Geri">
+                        <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE76B;" />
+                    </Button>
+                    <TextBlock Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               FontSize="14"
+                               Text="Wi-Fi" />
+                </DockPanel>
+
+                <Border Grid.Row="1"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="8"
+                        Padding="14,12"
+                        Margin="0,0,0,10">
+                    <DockPanel>
+                        <TextBlock x:Name="WifiGlyphLarge"
+                                   FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="20"
+                                   VerticalAlignment="Center"
+                                   Text="&#xE701;" />
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="WifiSummaryTitle"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Text="Wi-Fi" />
+                            <TextBlock x:Name="WifiSummarySubtitle"
+                                       FontSize="12"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap"
+                                       Text="—" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <ScrollViewer Grid.Row="2"
+                              MaxHeight="260"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="WifiNetworkList" />
+                </ScrollViewer>
+
+                <Border x:Name="WifiPasswordPanel"
+                        Grid.Row="3"
+                        Margin="0,10,0,0"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Visibility="Collapsed">
+                    <StackPanel>
+                        <TextBlock x:Name="WifiPasswordSsid"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Margin="0,0,0,8" />
+                        <PasswordBox x:Name="WifiPasswordBox" Margin="0,0,0,8" />
+                        <DockPanel>
+                            <Button x:Name="WifiConnectButton"
+                                    DockPanel.Dock="Right"
+                                    Content="Bağlan"
+                                    Padding="12,6"
+                                    Click="OnWifiConnectClick" />
+                            <Button x:Name="WifiCancelButton"
+                                    DockPanel.Dock="Right"
+                                    Content="İptal"
+                                    Margin="0,0,8,0"
+                                    Padding="12,6"
+                                    Click="OnWifiCancelClick" />
+                        </DockPanel>
+                        <TextBlock x:Name="WifiErrorText"
+                                   FontSize="11"
+                                   Opacity="0.8"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <StackPanel Grid.Row="4" Margin="0,12,0,0">
+                    <Button Content="Ağ ayarlarını aç"
+                            Margin="0,0,0,8"
+                            Padding="12,8"
+                            HorizontalContentAlignment="Left"
+                            Click="OnOpenNetworkSettingsClick" />
+                    <Button Content="Wi-Fi ayarları"
+                            Padding="12,8"
+                            HorizontalContentAlignment="Left"
+                            Click="OnOpenWifiSettingsClick" />
+                </StackPanel>
+            </Grid>
+
+            <!-- BLUETOOTH -->
+            <Grid x:Name="BluetoothPage" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                    <Button Style="{StaticResource QsIconButton}"
+                            Click="OnBackToMainClick"
+                            ToolTip="Geri">
+                        <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE76B;" />
+                    </Button>
+                    <TextBlock Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               FontSize="14"
+                               Text="Bluetooth" />
+                </DockPanel>
+
+                <Border Grid.Row="1"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        CornerRadius="8"
+                        Padding="14,12"
+                        Margin="0,0,0,10">
+                    <DockPanel>
+                        <TextBlock x:Name="BtGlyphLarge"
+                                   FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="20"
+                                   VerticalAlignment="Center"
+                                   Text="&#xE702;" />
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="BtSummaryTitle"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Text="Bluetooth" />
+                            <TextBlock x:Name="BtSummarySubtitle"
+                                       FontSize="12"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap"
+                                       Text="—" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <ScrollViewer Grid.Row="2"
+                              MaxHeight="260"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="BluetoothDeviceList" />
+                </ScrollViewer>
+
+                <Button Grid.Row="3"
+                        Content="Bluetooth ayarlarını aç"
+                        Margin="0,12,0,0"
+                        Padding="12,8"
+                        HorizontalContentAlignment="Left"
+                        Click="OnOpenBluetoothSettingsClick" />
+            </Grid>
+
+            <!-- PROJECT -->
+            <Grid x:Name="ProjectPage" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                    <Button Style="{StaticResource QsIconButton}"
+                            Click="OnBackToMainClick"
+                            ToolTip="Geri">
+                        <TextBlock Style="{StaticResource QsGlyph}" Text="&#xE76B;" />
+                    </Button>
+                    <TextBlock Margin="8,0,0,0"
+                               VerticalAlignment="Center"
+                               FontWeight="SemiBold"
+                               FontSize="14"
+                               Text="Yansıt" />
+                </DockPanel>
+
+                <StackPanel Grid.Row="1" x:Name="ProjectModeList" />
+
+                <Button Grid.Row="2"
+                        Content="Ekran ayarları"
+                        Margin="0,12,0,0"
+                        Padding="12,8"
+                        HorizontalContentAlignment="Left"
+                        Click="OnOpenDisplaySettingsClick" />
+            </Grid>
         </Grid>
     </Border>
 </UserControl>

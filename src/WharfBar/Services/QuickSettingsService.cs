@@ -11,6 +11,9 @@ internal enum QuickSettingsPage
     Main,
     Mixer,
     Network,
+    Wifi,
+    Bluetooth,
+    Project,
 }
 
 internal sealed record QuickTileState(
@@ -32,7 +35,7 @@ internal sealed record NetworkDetails(
 
 /// <summary>
 /// Quick Settings actions: network details, documented WinRT radio toggles where available,
-/// and Settings URIs / Win+P for the rest (no tray-icon mirroring).
+/// Settings URIs for the rest; Project opens the native Yansıt panel (no tray-icon mirroring).
 /// </summary>
 internal sealed class QuickSettingsService : IDisposable
 {
@@ -43,6 +46,7 @@ internal sealed class QuickSettingsService : IDisposable
     private bool _airplaneOn;
     private bool _radiosKnown;
     private int _radioRefreshBusy;
+    private readonly NightLightService _nightLight;
 
     /// <summary>
     /// Session truth for airplane mode after <em>we</em> toggled it. The OS flag
@@ -51,8 +55,9 @@ internal sealed class QuickSettingsService : IDisposable
     /// </summary>
     private bool? _airplaneSessionOverride;
 
-    internal QuickSettingsService()
+    internal QuickSettingsService(NightLightService nightLight)
     {
+        _nightLight = nightLight;
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -61,6 +66,10 @@ internal sealed class QuickSettingsService : IDisposable
     }
 
     internal NetworkDetails Network { get; private set; }
+
+    internal bool IsWifiRadioOn => _wifiOn;
+
+    internal bool IsBluetoothRadioOn => _bluetoothOn;
 
     internal IReadOnlyList<QuickTileState> Tiles { get; private set; }
 
@@ -101,11 +110,8 @@ internal sealed class QuickSettingsService : IDisposable
             case "airplane":
                 await SetAirplaneAsync(!_airplaneOn).ConfigureAwait(true);
                 break;
-            case "project":
-                SendInputKeys.TrySendWinP();
-                break;
             case "nightlight":
-                OpenSettingsUri("ms-settings:nightlight");
+                _nightLight.SetEnabled(!_nightLight.IsEnabled);
                 break;
             case "batterysaver":
                 OpenSettingsUri("ms-settings:batterysaver");
@@ -156,6 +162,7 @@ internal sealed class QuickSettingsService : IDisposable
 
     private void Refresh()
     {
+        _nightLight.PollRegistry();
         NetworkDetails nextNet = ReadNetworkDetails();
         IReadOnlyList<QuickTileState> nextTiles = BuildTiles();
         Network = nextNet;
@@ -198,15 +205,15 @@ internal sealed class QuickSettingsService : IDisposable
                 IsEnabled: true,
                 IsActive: false,
                 HasChevron: true,
-                Tooltip: "Yansıt (Win+P)"),
+                Tooltip: "Yansıt"),
             new QuickTileState(
                 "nightlight",
                 "Gece ışığı",
                 "\uE708",
                 IsEnabled: true,
-                IsActive: false,
+                IsActive: _nightLight.IsEnabled,
                 HasChevron: false,
-                Tooltip: "Gece ışığı ayarları"),
+                Tooltip: "Gece ışığı"),
             new QuickTileState(
                 "batterysaver",
                 "Enerji tasarrufu",

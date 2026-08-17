@@ -1,9 +1,11 @@
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using WharfBar.Native;
 using WharfBar.Services;
 
@@ -16,6 +18,10 @@ public partial class QuickSettingsFlyout : UserControl
     private VolumeService? _volume;
     private AudioMixerService? _mixer;
     private QuickSettingsService? _quick;
+    private WifiService? _wifi;
+    private BluetoothService? _bluetooth;
+    private ProjectionService? _projection;
+    private WifiNetworkInfo? _pendingWifiConnect;
     private bool _masterSliderUpdating;
     private bool _sessionSliderUpdating;
     private bool _deviceSliderUpdating;
@@ -34,6 +40,20 @@ public partial class QuickSettingsFlyout : UserControl
         internal required FrameworkElement IconHost { get; init; }
     }
 
+    private sealed class TileUi
+    {
+        internal required string Id { get; init; }
+        internal required StackPanel Cell { get; init; }
+        internal required Border Border { get; init; }
+        internal required TextBlock Icon { get; init; }
+        internal required TextBlock Label { get; init; }
+        internal bool IsActive { get; set; }
+        internal required SolidColorBrush BaseBrush { get; init; }
+        internal required SolidColorBrush AccentBrush { get; init; }
+    }
+
+    private readonly Dictionary<string, TileUi> _tiles = new();
+
     public QuickSettingsFlyout()
     {
         InitializeComponent();
@@ -51,15 +71,21 @@ public partial class QuickSettingsFlyout : UserControl
             handledEventsToo: true);
     }
 
-    internal void Attach(VolumeService volume, AudioMixerService mixer, QuickSettingsService quick)
+    internal void Attach(VolumeService volume, AudioMixerService mixer, QuickSettingsService quick,
+        WifiService wifi, BluetoothService bluetooth, ProjectionService projection)
     {
         Detach();
         _volume = volume;
         _mixer = mixer;
         _quick = quick;
+        _wifi = wifi;
+        _bluetooth = bluetooth;
+        _projection = projection;
         _volume.Changed += OnVolumeChanged;
         _mixer.Changed += OnMixerChanged;
         _quick.Changed += OnQuickChanged;
+        _wifi.Changed += OnWifiChanged;
+        _bluetooth.Changed += OnBluetoothChanged;
     }
 
     internal void Detach()
@@ -79,9 +105,22 @@ public partial class QuickSettingsFlyout : UserControl
             _quick.Changed -= OnQuickChanged;
         }
 
+        if (_wifi is not null)
+        {
+            _wifi.Changed -= OnWifiChanged;
+        }
+
+        if (_bluetooth is not null)
+        {
+            _bluetooth.Changed -= OnBluetoothChanged;
+        }
+
         _volume = null;
         _mixer = null;
         _quick = null;
+        _wifi = null;
+        _bluetooth = null;
+        _projection = null;
     }
 
     internal void ShowPage(QuickSettingsPage page)
@@ -90,6 +129,9 @@ public partial class QuickSettingsFlyout : UserControl
         MainPage.Visibility = page == QuickSettingsPage.Main ? Visibility.Visible : Visibility.Collapsed;
         MixerPage.Visibility = page == QuickSettingsPage.Mixer ? Visibility.Visible : Visibility.Collapsed;
         NetworkPage.Visibility = page == QuickSettingsPage.Network ? Visibility.Visible : Visibility.Collapsed;
+        WifiPage.Visibility = page == QuickSettingsPage.Wifi ? Visibility.Visible : Visibility.Collapsed;
+        BluetoothPage.Visibility = page == QuickSettingsPage.Bluetooth ? Visibility.Visible : Visibility.Collapsed;
+        ProjectPage.Visibility = page == QuickSettingsPage.Project ? Visibility.Visible : Visibility.Collapsed;
 
         if (page == QuickSettingsPage.Mixer)
         {
@@ -99,6 +141,30 @@ public partial class QuickSettingsFlyout : UserControl
         {
             SetDevicePickerExpanded(false);
             _mixer?.StopPolling();
+        }
+
+        if (page == QuickSettingsPage.Wifi)
+        {
+            _wifi?.StartPolling();
+        }
+        else
+        {
+            _wifi?.StopPolling();
+            WifiPasswordPanel.Visibility = Visibility.Collapsed;
+        }
+
+        if (page == QuickSettingsPage.Bluetooth)
+        {
+            _bluetooth?.StartPolling();
+        }
+        else
+        {
+            _bluetooth?.StopPolling();
+        }
+
+        if (page == QuickSettingsPage.Project)
+        {
+            RefreshProjectPage();
         }
 
         if (page is QuickSettingsPage.Main or QuickSettingsPage.Network)
@@ -120,6 +186,9 @@ public partial class QuickSettingsFlyout : UserControl
         SetDevicePickerExpanded(false);
         _mixer?.StopPolling();
         _quick?.StopPolling();
+        _wifi?.StopPolling();
+        _bluetooth?.StopPolling();
+        WifiPasswordPanel.Visibility = Visibility.Collapsed;
     }
 
     private void OnVolumeChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshMaster);
@@ -127,6 +196,10 @@ public partial class QuickSettingsFlyout : UserControl
     private void OnMixerChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshMixer);
 
     private void OnQuickChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshQuick);
+
+    private void OnWifiChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshWifiPage);
+
+    private void OnBluetoothChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshBluetoothPage);
 
     private void RefreshAll()
     {
@@ -490,10 +563,25 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
-        TilesGrid.Children.Clear();
-        foreach (QuickTileState tile in _quick.Tiles)
+        IReadOnlyList<QuickTileState> tiles = _quick.Tiles;
+
+        if (tiles.Count != _tiles.Count || tiles.Any(t => !_tiles.ContainsKey(t.Id)))
         {
-            TilesGrid.Children.Add(BuildTile(tile));
+            TilesGrid.Children.Clear();
+            _tiles.Clear();
+            foreach (QuickTileState tile in tiles)
+            {
+                TileUi ui = BuildTile(tile);
+                _tiles[tile.Id] = ui;
+                TilesGrid.Children.Add(ui.Cell);
+            }
+        }
+        else
+        {
+            foreach (QuickTileState tile in tiles)
+            {
+                UpdateTile(_tiles[tile.Id], tile);
+            }
         }
 
         NetworkDetails net = _quick.Network;
@@ -508,19 +596,32 @@ public partial class QuickSettingsFlyout : UserControl
         };
     }
 
-    private UIElement BuildTile(QuickTileState tile)
+    private TileUi BuildTile(QuickTileState tile)
     {
         var cell = new StackPanel { Margin = new Thickness(4) };
 
+        SolidColorBrush baseBrush = TryFindResource("ControlFillColorDefaultBrush") as SolidColorBrush
+            ?? Foreground as SolidColorBrush
+            ?? Brushes.Transparent;
+        SolidColorBrush accentBrush = TryFindResource("AccentFillColorDefaultBrush") as SolidColorBrush
+            ?? Foreground as SolidColorBrush
+            ?? Brushes.Transparent;
+
         var border = new Border
         {
-            Style = tile.IsEnabled
-                ? TryFindResource(tile.IsActive ? "QsTileActive" : "QsTile") as Style
-                : TryFindResource("QsTileDisabled") as Style,
+            Style = TryFindResource("QsTile") as Style,
+            Background = tile.IsEnabled
+                ? tile.IsActive ? accentBrush : baseBrush
+                : baseBrush,
             Tag = tile.Id,
             ToolTip = CreateTip(tile.Tooltip),
             IsEnabled = tile.IsEnabled,
         };
+        if (!tile.IsEnabled)
+        {
+            border.Style = TryFindResource("QsTileDisabled") as Style;
+            border.Opacity = 0.45;
+        }
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -534,10 +635,8 @@ public partial class QuickSettingsFlyout : UserControl
             Text = tile.Glyph,
             Style = TryFindResource("QsGlyph") as Style,
             Foreground = tile.IsActive
-                ? TryFindResource("TextFillColorInverseBrush") as Brush
-                    ?? Brushes.Black
-                : TryFindResource("TextFillColorPrimaryBrush") as Brush
-                    ?? Foreground,
+                ? TryFindResource("TextFillColorInverseBrush") as Brush ?? Brushes.Black
+                : TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Foreground,
         };
         grid.Children.Add(icon);
 
@@ -571,12 +670,114 @@ public partial class QuickSettingsFlyout : UserControl
         border.Child = grid;
         border.MouseLeftButtonUp += OnTileClick;
         cell.Children.Add(border);
-        cell.Children.Add(new TextBlock
+        var label = new TextBlock
         {
             Text = tile.Label,
             Style = TryFindResource("QsTileLabel") as Style,
-        });
-        return cell;
+        };
+        cell.Children.Add(label);
+
+        return new TileUi
+        {
+            Id = tile.Id,
+            Cell = cell,
+            Border = border,
+            Icon = icon,
+            Label = label,
+            IsActive = tile.IsActive,
+            BaseBrush = baseBrush,
+            AccentBrush = accentBrush,
+        };
+    }
+
+    private void UpdateTile(TileUi ui, QuickTileState tile)
+    {
+        if (ui.Label.Text != tile.Label)
+        {
+            ui.Label.Text = tile.Label;
+        }
+
+        if (ui.Border.ToolTip is ToolTip tip)
+        {
+            tip.Content = tile.Tooltip;
+        }
+        else if (ui.Border.ToolTip is not string)
+        {
+            ui.Border.ToolTip = CreateTip(tile.Tooltip);
+        }
+
+        bool activeChanged = ui.IsActive != tile.IsActive;
+        if (activeChanged)
+        {
+            ui.IsActive = tile.IsActive;
+            ui.Icon.Foreground = tile.IsActive
+                ? TryFindResource("TextFillColorInverseBrush") as Brush ?? Brushes.Black
+                : TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Foreground;
+            SolidColorBrush? from = ui.Border.Background as SolidColorBrush;
+            var target = new SolidColorBrush((tile.IsActive ? ui.AccentBrush : ui.BaseBrush).Color);
+            SetTileBackground(ui, target);
+            AnimateTileToggle(ui, from, target, tile.IsActive);
+        }
+        else
+        {
+            SetTileBackground(ui, tile.IsActive ? ui.AccentBrush : ui.BaseBrush);
+        }
+
+        if (!tile.IsEnabled)
+        {
+            ui.Border.Style = TryFindResource("QsTileDisabled") as Style;
+            ui.Border.Opacity = 0.45;
+            ui.Border.Cursor = Cursors.Arrow;
+        }
+        else
+        {
+            ui.Border.Style = TryFindResource("QsTile") as Style;
+            ui.Border.Opacity = 1;
+            ui.Border.Cursor = Cursors.Hand;
+        }
+    }
+
+    private static void SetTileBackground(TileUi ui, Brush brush)
+    {
+        ui.Border.Background = brush;
+    }
+
+    private void AnimateTileToggle(TileUi ui, SolidColorBrush? from, SolidColorBrush target, bool activating)
+    {
+        var group = new TransformGroup();
+        var scale = new ScaleTransform(1, 1);
+        var rotate = new RotateTransform(0);
+        group.Children.Add(scale);
+        group.Children.Add(rotate);
+        ui.Icon.RenderTransform = group;
+        ui.Icon.RenderTransformOrigin = new Point(0.5, 0.5);
+
+        var storyboard = new Storyboard();
+
+        var pop = new DoubleAnimation(
+                fromValue: 1,
+                toValue: activating ? 1.15 : 0.9,
+                duration: TimeSpan.FromMilliseconds(90))
+        {
+            AutoReverse = true,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        Storyboard.SetTarget(pop, ui.Icon);
+        Storyboard.SetTargetProperty(pop, new PropertyPath("RenderTransform.Children[0].ScaleX"));
+        storyboard.Children.Add(pop);
+
+        if (from is not null && from.Color != target.Color)
+        {
+            var colorAnim = new ColorAnimation(from.Color, target.Color, TimeSpan.FromMilliseconds(250))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
+            };
+            Storyboard.SetTarget(colorAnim, target);
+            Storyboard.SetTargetProperty(colorAnim, new PropertyPath("Color"));
+            storyboard.Children.Add(colorAnim);
+        }
+
+        storyboard.Begin();
     }
 
     private static ToolTip CreateTip(string text) => new()
@@ -594,6 +795,12 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         e.Handled = true;
+        if (id == "project")
+        {
+            ShowPage(QuickSettingsPage.Project);
+            return;
+        }
+
         await _quick.ToggleTileAsync(id);
         RefreshQuick();
     }
@@ -606,15 +813,21 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         e.Handled = true;
-        if (id is "wifi" or "bluetooth")
+        if (id is "wifi")
         {
-            ShowPage(QuickSettingsPage.Network);
+            ShowPage(QuickSettingsPage.Wifi);
+            return;
+        }
+
+        if (id == "bluetooth")
+        {
+            ShowPage(QuickSettingsPage.Bluetooth);
             return;
         }
 
         if (id == "project")
         {
-            _ = _quick?.ToggleTileAsync("project");
+            ShowPage(QuickSettingsPage.Project);
         }
     }
 
@@ -643,6 +856,347 @@ public partial class QuickSettingsFlyout : UserControl
 
     private void OnOpenEthernetSettingsClick(object sender, RoutedEventArgs e) =>
         QuickSettingsService.OpenSettingsUri("ms-settings:network-ethernet");
+
+    private void RefreshWifiPage()
+    {
+        if (_wifi is null || _page != QuickSettingsPage.Wifi)
+        {
+            return;
+        }
+
+        if (_quick is not null)
+        {
+            bool radioOn = _quick.IsWifiRadioOn;
+            WifiSummarySubtitle.Text = !_wifi.IsAvailable
+                ? "Adaptör bulunamadı"
+                : !radioOn
+                    ? "Wi-Fi kapalı"
+                    : _wifi.Networks.FirstOrDefault(n => n.IsConnected)?.Ssid ?? "Bağlı değil";
+        }
+
+        WifiNetworkList.Children.Clear();
+        foreach (WifiNetworkInfo network in _wifi.Networks)
+        {
+            WifiNetworkList.Children.Add(BuildWifiRow(network));
+        }
+
+        if (WifiNetworkList.Children.Count == 0 && _wifi.IsAvailable)
+        {
+            WifiNetworkList.Children.Add(new TextBlock
+            {
+                Text = "Ağ bulunamadı",
+                Opacity = 0.55,
+                FontSize = 12,
+                Margin = new Thickness(4, 4, 0, 0),
+            });
+        }
+    }
+
+    private UIElement BuildWifiRow(WifiNetworkInfo network)
+    {
+        int bars = WifiService.SignalBars(network.Signal);
+        string signalGlyph = bars switch
+        {
+            4 => "\uE854",
+            3 => "\uE853",
+            2 => "\uE852",
+            _ => "\uE851",
+        };
+
+        var border = new Border
+        {
+            Padding = new Thickness(12, 10, 12, 10),
+            CornerRadius = new CornerRadius(8),
+            Cursor = Cursors.Hand,
+            Margin = new Thickness(0, 0, 0, 6),
+            Background = network.IsConnected
+                ? TryFindResource("AccentFillColorDefaultBrush") as Brush
+                    ?? TryFindResource("ControlFillColorDefaultBrush") as Brush
+                : TryFindResource("ControlFillColorDefaultBrush") as Brush,
+            Tag = network,
+        };
+
+        var dock = new DockPanel();
+
+        var signal = new TextBlock
+        {
+            Text = signalGlyph,
+            FontFamily = SystemVersion.IconFontFamily,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        DockPanel.SetDock(signal, Dock.Right);
+
+        var lockIcon = network.IsSecured ? "\uE72E" : "\uE730";
+        var name = new TextBlock
+        {
+            Text = network.Ssid,
+            FontSize = 13,
+            FontWeight = network.IsConnected ? FontWeights.SemiBold : FontWeights.Normal,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+
+        var security = new TextBlock
+        {
+            Text = lockIcon,
+            FontFamily = SystemVersion.IconFontFamily,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0),
+            Opacity = 0.75,
+        };
+        DockPanel.SetDock(security, Dock.Left);
+        if (!network.IsSecured)
+        {
+            security.Visibility = Visibility.Collapsed;
+        }
+
+        var badge = network.IsConnected
+            ? "Bağlı"
+            : network.IsKnown
+                ? "Kayıtlı"
+                : string.Empty;
+        if (badge.Length > 0)
+        {
+            var badgeText = new TextBlock
+            {
+                Text = badge,
+                FontSize = 11,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0),
+                Opacity = 0.7,
+            };
+            dock.Children.Add(badgeText);
+        }
+
+        dock.Children.Add(signal);
+        dock.Children.Add(security);
+        dock.Children.Add(name);
+        border.Child = dock;
+        border.MouseLeftButtonUp += OnWifiRowClick;
+        return border;
+    }
+
+    private void OnWifiRowClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: WifiNetworkInfo network } || _wifi is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (network.IsConnected)
+        {
+            return;
+        }
+
+        if (network.IsKnown || !network.IsSecured)
+        {
+            (bool ok, string? error) = _wifi.TryConnect(network, password: null);
+            if (!ok)
+            {
+                ShowWifiError(error ?? "Bağlanılamadı");
+            }
+
+            return;
+        }
+
+        _pendingWifiConnect = network;
+        WifiPasswordSsid.Text = network.Ssid;
+        WifiErrorText.Text = string.Empty;
+        WifiPasswordBox.Password = string.Empty;
+        WifiPasswordPanel.Visibility = Visibility.Visible;
+        WifiPasswordBox.Focus();
+    }
+
+    private void OnWifiConnectClick(object sender, RoutedEventArgs e)
+    {
+        if (_wifi is null || _pendingWifiConnect is not { } network)
+        {
+            return;
+        }
+
+        string password = WifiPasswordBox.Password;
+        (bool ok, string? error) = _wifi.TryConnect(network, password);
+        if (ok)
+        {
+            WifiPasswordPanel.Visibility = Visibility.Collapsed;
+            _pendingWifiConnect = null;
+            RefreshWifiPage();
+            return;
+        }
+
+        ShowWifiError(error ?? "Bağlanılamadı");
+    }
+
+    private void OnWifiCancelClick(object sender, RoutedEventArgs e)
+    {
+        WifiPasswordPanel.Visibility = Visibility.Collapsed;
+        _pendingWifiConnect = null;
+    }
+
+    private void ShowWifiError(string message) => WifiErrorText.Text = message;
+
+    private void RefreshBluetoothPage()
+    {
+        if (_bluetooth is null || _page != QuickSettingsPage.Bluetooth)
+        {
+            return;
+        }
+
+        if (_quick is not null)
+        {
+            BtSummarySubtitle.Text = _quick.IsBluetoothRadioOn ? "Açık" : "Kapalı";
+        }
+
+        BluetoothDeviceList.Children.Clear();
+        foreach (BluetoothDeviceInfo device in _bluetooth.Devices)
+        {
+            var border = new Border
+            {
+                Padding = new Thickness(12, 10, 12, 10),
+                CornerRadius = new CornerRadius(8),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 0, 6),
+                Background = TryFindResource("ControlFillColorDefaultBrush") as Brush,
+                Tag = device,
+            };
+            border.Child = new DockPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = device.Name,
+                        FontSize = 13,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                    },
+                },
+            };
+            if (device.IsConnected)
+            {
+                var badge = new TextBlock
+                {
+                    Text = "Bağlı",
+                    FontSize = 11,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Thickness(8, 0, 0, 0),
+                    Opacity = 0.7,
+                };
+                DockPanel.SetDock(badge, Dock.Right);
+                ((DockPanel)border.Child).Children.Add(badge);
+            }
+
+            border.MouseLeftButtonUp += OnBluetoothDeviceClick;
+            BluetoothDeviceList.Children.Add(border);
+        }
+
+        if (BluetoothDeviceList.Children.Count == 0)
+        {
+            BluetoothDeviceList.Children.Add(new TextBlock
+            {
+                Text = "Eşleşmiş cihaz yok",
+                Opacity = 0.55,
+                FontSize = 12,
+                Margin = new Thickness(4, 4, 0, 0),
+            });
+        }
+    }
+
+    private void OnBluetoothDeviceClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: BluetoothDeviceInfo })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        QuickSettingsService.OpenSettingsUri("ms-settings:bluetooth");
+    }
+
+    private void OnOpenBluetoothSettingsClick(object sender, RoutedEventArgs e) =>
+        QuickSettingsService.OpenSettingsUri("ms-settings:bluetooth");
+
+    private static readonly (ProjectionMode Mode, string Label)[] ProjectModes =
+    [
+        (ProjectionMode.InternalOnly, "Yalnızca PC ekranı"),
+        (ProjectionMode.Clone, "Çoğalt"),
+        (ProjectionMode.Extend, "Genişlet"),
+        (ProjectionMode.ExternalOnly, "Yalnızca 2. ekran"),
+    ];
+
+    private void RefreshProjectPage()
+    {
+        if (_projection is null || _page != QuickSettingsPage.Project)
+        {
+            return;
+        }
+
+        _projection.Refresh();
+        ProjectModeList.Children.Clear();
+        foreach ((ProjectionMode mode, string label) in ProjectModes)
+        {
+            bool active = _projection.Current == mode;
+            var border = new Border
+            {
+                Padding = new Thickness(12, 10, 12, 10),
+                CornerRadius = new CornerRadius(8),
+                Cursor = Cursors.Hand,
+                Margin = new Thickness(0, 0, 0, 6),
+                Background = active
+                    ? TryFindResource("AccentFillColorDefaultBrush") as Brush
+                    : TryFindResource("ControlFillColorDefaultBrush") as Brush,
+                Tag = mode,
+            };
+
+            var glyph = new TextBlock
+            {
+                Text = active ? "\uE73E" : "\uE756",
+                FontFamily = SystemVersion.IconFontFamily,
+                FontSize = 14,
+                VerticalAlignment = VerticalAlignment.Center,
+                Foreground = active
+                    ? TryFindResource("TextFillColorInverseBrush") as Brush
+                    : null,
+            };
+            DockPanel.SetDock(glyph, Dock.Left);
+
+            var labelBlock = new TextBlock
+            {
+                Text = label,
+                FontSize = 13,
+                FontWeight = active ? FontWeights.SemiBold : FontWeights.Normal,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10, 0, 0, 0),
+            };
+
+            var dock = new DockPanel();
+            dock.Children.Add(glyph);
+            dock.Children.Add(labelBlock);
+            border.Child = dock;
+            border.MouseLeftButtonUp += OnProjectModeClick;
+            ProjectModeList.Children.Add(border);
+        }
+    }
+
+    private void OnProjectModeClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: ProjectionMode mode } || _projection is null)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (_projection.TryApply(mode))
+        {
+            RefreshProjectPage();
+        }
+    }
+
+    private void OnOpenDisplaySettingsClick(object sender, RoutedEventArgs e) =>
+        QuickSettingsService.OpenSettingsUri("ms-settings:display");
 
     private void OnDevicePickerClick(object sender, MouseButtonEventArgs e)
     {
