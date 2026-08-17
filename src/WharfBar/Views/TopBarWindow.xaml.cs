@@ -144,6 +144,76 @@ public partial class TopBarWindow : Window
         BrightnessButton.PreviewMouseLeftButtonUp += OnBrightnessClick;
         DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
         NotificationsButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
+
+        PreviewMouseDown += OnTopBarPreviewMouseDown;
+        PreviewMouseRightButtonDown += OnTopBarPreviewMouseDown;
+        PreviewKeyDown += OnTopBarPreviewKeyDown;
+
+        // ESC while focus is inside a flyout popup window (e.g. the Wi-Fi password box)
+        // routes through the popup's visual tree, not the topbar window.
+        QuickSettingsHost.KeyDown += OnFlyoutHostKeyDown;
+        BrightnessHost.KeyDown += OnFlyoutHostKeyDown;
+    }
+
+    /// <summary>
+    /// Flyoutlar açıkken topbar'a yapılan tıklamaları kapatma animasyonuyla kapatır;
+    /// flyout'u yeniden hedefleyen çapa butonları (QS anchors / brightness) hariç tutulur
+    /// — onlar kendi toggle/re-target mantığını yürütür.
+    /// </summary>
+    private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen)
+        {
+            return;
+        }
+
+        if (e.OriginalSource is DependencyObject hit
+            && (IsWithin(hit, ControlCenterButton)
+                || IsWithin(hit, VolumeButton)
+                || IsWithin(hit, NetworkButton)
+                || IsWithin(hit, BrightnessButton)))
+        {
+            return;
+        }
+
+        CloseFlyouts();
+    }
+
+    private static bool IsWithin(DependencyObject? node, DependencyObject? target)
+    {
+        while (node is not null)
+        {
+            if (ReferenceEquals(node, target))
+            {
+                return true;
+            }
+
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return false;
+    }
+
+    private void OnTopBarPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CloseFlyouts();
+    }
+
+    private void OnFlyoutHostKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Escape)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        CloseFlyouts();
     }
 
     private void OnAppMenuClick(object sender, MouseButtonEventArgs e)
@@ -158,6 +228,18 @@ public partial class TopBarWindow : Window
         menu.PlacementTarget = AppMenuButton;
         menu.Placement = PlacementMode.Bottom;
         menu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// WPF-UI popup'ı gölge payı için ContextMenu'ye 30px'lik effect margin uygular ve popup
+    /// penceresi (content+60 genişliğinde) hedefin sol kenarına hizalanır; buton ekranın en
+    /// solunda olduğundan pencere ekran kenarına clamp edilir ve görünen menü sağa kayar.
+    /// Sol marjı sıfırlayarak pencerenin buton hizasında durmasını ve menünün ikonun sol
+    /// kenarına yapışmasını sağlıyoruz; sağ/alt gölge payı korunur.
+    /// </summary>
+    private void OnAppMenuLoaded(object sender, RoutedEventArgs e)
+    {
+        ((ContextMenu)sender).Margin = new Thickness(0, 30, 30, 30);
     }
 
     private void OnAboutClick(object sender, RoutedEventArgs e)
@@ -226,10 +308,11 @@ public partial class TopBarWindow : Window
             && ReferenceEquals(QuickSettingsPopup.PlacementTarget, anchor)
             && _pendingQuickPage == page)
         {
-            QuickSettingsPopup.IsOpen = false;
+            CloseQuickSettings();
             return;
         }
 
+        CancelPendingClose(QuickSettingsHost, ref _qsClosePending);
         _pendingQuickPage = page;
         QuickSettingsPopup.PlacementTarget = anchor;
         QuickSettingsHost.ShowPage(page);
@@ -238,11 +321,17 @@ public partial class TopBarWindow : Window
 
     private void OnQuickSettingsOpened(object sender, EventArgs e)
     {
+        CancelPendingClose(QuickSettingsHost, ref _qsClosePending);
         QuickSettingsHost.OnFlyoutOpened(_pendingQuickPage);
         AnimateFlyoutOpen(QuickSettingsHost);
     }
 
-    private void OnBrightnessPopupOpened(object sender, EventArgs e) => AnimateFlyoutOpen(BrightnessHost);
+    private void OnBrightnessPopupOpened(object sender, EventArgs e)
+    {
+        CancelPendingClose(BrightnessHost, ref _brightnessClosePending);
+        BrightnessHost.OnFlyoutOpened();
+        AnimateFlyoutOpen(BrightnessHost);
+    }
 
     /// <summary>
     /// Win11-style flyout entrance: content slides down from under the bar while fading in.
@@ -274,9 +363,107 @@ public partial class TopBarWindow : Window
         });
     }
 
+    /// <summary>
+    /// Flyout kapanışı: açılışın tam tersi — içerik yukarı (barın altına) doğru kayarak
+    /// kaybolur, açılıştan bir tık hızlıdır. Animasyon bitince popup kapanır.
+    /// Bekleyen kapanış, popup yeniden açılırsa <see cref="CancelPendingClose"/> ile iptal edilir
+    /// (animasyon clock'ları temizlenince Completed tetiklenmez, yeni popup kapanmaz).
+    /// </summary>
+    private static void AnimateFlyoutClose(FrameworkElement content, Action onDone)
+    {
+        var transform = content.RenderTransform as TranslateTransform ?? new TranslateTransform();
+        content.RenderTransform = transform;
+        transform.BeginAnimation(TranslateTransform.YProperty, null);
+        content.BeginAnimation(UIElement.OpacityProperty, null);
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var slide = new DoubleAnimation(
+            0,
+            -FlyoutSlideDip,
+            TimeSpan.FromMilliseconds(FlyoutCloseSlideMs))
+        {
+            EasingFunction = ease,
+        };
+        slide.Completed += (_, _) => onDone();
+        transform.BeginAnimation(TranslateTransform.YProperty, slide);
+        content.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(
+            1,
+            0,
+            TimeSpan.FromMilliseconds(FlyoutCloseFadeMs))
+        {
+            EasingFunction = ease,
+        });
+    }
+
+    private static void CancelPendingClose(FrameworkElement content, ref bool pending)
+    {
+        pending = false;
+        content.BeginAnimation(UIElement.OpacityProperty, null);
+        if (content.RenderTransform is TranslateTransform transform)
+        {
+            transform.BeginAnimation(TranslateTransform.YProperty, null);
+            transform.Y = 0;
+        }
+
+        content.Opacity = 1;
+    }
+
     private const double FlyoutSlideDip = 10;
     private const double FlyoutSlideMs = 170;
     private const double FlyoutFadeMs = 140;
+    private const double FlyoutCloseSlideMs = 110;
+    private const double FlyoutCloseFadeMs = 90;
+
+    private bool _qsClosePending;
+    private bool _brightnessClosePending;
+
+    private void CloseQuickSettings(bool animate = true)
+    {
+        if (!QuickSettingsPopup.IsOpen)
+        {
+            _qsClosePending = false;
+            return;
+        }
+
+        if (animate && !_qsClosePending)
+        {
+            _qsClosePending = true;
+            AnimateFlyoutClose(QuickSettingsHost, () =>
+            {
+                _qsClosePending = false;
+                QuickSettingsPopup.IsOpen = false;
+            });
+        }
+        else
+        {
+            CancelPendingClose(QuickSettingsHost, ref _qsClosePending);
+            QuickSettingsPopup.IsOpen = false;
+        }
+    }
+
+    private void CloseBrightness(bool animate = true)
+    {
+        if (!BrightnessPopup.IsOpen)
+        {
+            _brightnessClosePending = false;
+            return;
+        }
+
+        if (animate && !_brightnessClosePending)
+        {
+            _brightnessClosePending = true;
+            AnimateFlyoutClose(BrightnessHost, () =>
+            {
+                _brightnessClosePending = false;
+                BrightnessPopup.IsOpen = false;
+            });
+        }
+        else
+        {
+            CancelPendingClose(BrightnessHost, ref _brightnessClosePending);
+            BrightnessPopup.IsOpen = false;
+        }
+    }
 
     private void OnQuickSettingsClosed(object sender, EventArgs e)
     {
@@ -302,19 +489,20 @@ public partial class TopBarWindow : Window
     {
         if (BrightnessPopup.IsOpen)
         {
-            BrightnessPopup.IsOpen = false;
+            CloseBrightness();
             return;
         }
 
+        CancelPendingClose(BrightnessHost, ref _brightnessClosePending);
         CloseFlyouts();
         BrightnessHost.Refresh();
         BrightnessPopup.IsOpen = true;
     }
 
-    private void CloseFlyouts()
+    private void CloseFlyouts(bool animate = true)
     {
-        QuickSettingsPopup.IsOpen = false;
-        BrightnessPopup.IsOpen = false;
+        CloseQuickSettings(animate);
+        CloseBrightness(animate);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -338,7 +526,7 @@ public partial class TopBarWindow : Window
             return;
         }
 
-        CloseFlyouts();
+        CloseFlyouts(animate: false);
         DisposeOwnedServices();
         ReleaseShellState(); // taskbar.Restore + AppBar.Remove
         base.OnClosing(e);
@@ -352,7 +540,7 @@ public partial class TopBarWindow : Window
     {
         _isRecreateClose = true;
         UnhookShutdownPaths();
-        CloseFlyouts();
+        CloseFlyouts(animate: false);
         _appBar?.Remove();
     }
 
@@ -461,7 +649,7 @@ public partial class TopBarWindow : Window
         else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton)
             || ReferenceEquals(QuickSettingsPopup.PlacementTarget, ControlCenterButton))
         {
-            QuickSettingsPopup.IsOpen = false;
+            CloseQuickSettings(animate: false);
         }
 
         ApplyStatusItemLayout();
@@ -1116,6 +1304,16 @@ public partial class TopBarWindow : Window
 
             case NativeMethods.WM_ACTIVATE:
                 _appBar?.NotifyActivated();
+                break;
+
+            case NativeMethods.WM_ACTIVATEAPP:
+                // App losing activation (desktop/other-app/taskbar click, Alt+Tab): close
+                // flyouts with their close animation instead of the instant popup teardown.
+                if (wParam == IntPtr.Zero)
+                {
+                    CloseFlyouts();
+                }
+
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGING:

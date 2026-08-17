@@ -156,6 +156,7 @@ internal static class NativeMethods
     internal const int ABN_WINDOWARRANGE = 0x00000003;
 
     internal const int WM_ACTIVATE = 0x0006;
+    internal const int WM_ACTIVATEAPP = 0x001C;
     internal const int WM_SYSCOLORCHANGE = 0x0015;
     internal const int WM_SETTINGCHANGE = 0x001A;
     internal const int WM_WINDOWPOSCHANGING = 0x0046;

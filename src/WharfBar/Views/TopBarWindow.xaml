@@ -77,7 +77,7 @@
                         <ToolTip Content="WharfBar menüsü" />
                     </Border.ToolTip>
                     <Border.ContextMenu>
-                        <ContextMenu x:Name="AppMenu">
+                        <ContextMenu x:Name="AppMenu" Loaded="OnAppMenuLoaded">
                             <MenuItem Header="Ayarlar (PC)" Click="OnOpenWindowsSettingsClick" />
                             <MenuItem Header="Profil" Click="OnOpenProfileClick" />
                             <MenuItem Header="Bilgisayar hakkında" Click="OnOpenAboutPcClick" />
@@ -202,15 +202,19 @@
             </StackPanel>
 
             <!-- Quick Settings (Win11-style): shared by controlCenter / volume / network.
-                 PopupAnimation=None: the flyout plays its own slide+fade (AnimateFlyoutOpen
-                 in code-behind); a layered popup (AllowsTransparency=True) is required for
-                 that — it only affects the popup window, never the main window's Mica. -->
+                 PopupAnimation=None: the flyout plays its own slide+fade (AnimateFlyoutOpen /
+                 AnimateFlyoutClose in code-behind); a layered popup (AllowsTransparency=True) is
+                 required for that — it only affects the popup window, never the main window's Mica.
+                 StaysOpen=True: no capture — outside clicks reach other windows; the flyout is
+                 closed manually (WM_ACTIVATEAPP, topbar PreviewMouseDown, ESC, toggles) so the
+                 close animation can play before IsOpen=false. -->
             <Popup x:Name="QuickSettingsPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=ControlCenterButton}"
-                   StaysOpen="False"
+                   StaysOpen="True"
                    AllowsTransparency="True"
                    PopupAnimation="None"
+                   VerticalOffset="10"
                    Opened="OnQuickSettingsOpened"
                    Closed="OnQuickSettingsClosed">
                 <local:QuickSettingsFlyout x:Name="QuickSettingsHost" />
@@ -220,9 +224,10 @@
             <Popup x:Name="BrightnessPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=BrightnessButton}"
-                   StaysOpen="False"
+                   StaysOpen="True"
                    AllowsTransparency="True"
                    PopupAnimation="None"
+                   VerticalOffset="10"
                    Opened="OnBrightnessPopupOpened">
                 <local:BrightnessFlyout x:Name="BrightnessHost" />
             </Popup>
