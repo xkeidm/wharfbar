@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
@@ -35,6 +36,10 @@ public partial class TopBarWindow : Window
     private VolumeService? _volume;
     private AudioMixerService? _mixer;
     private QuickSettingsService? _quick;
+    private NightLightService? _nightLight;
+    private WifiService? _wifi;
+    private BluetoothService? _bluetooth;
+    private ProjectionService? _projection;
     private MonitorBrightnessService? _monitorBrightness;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
@@ -118,8 +123,12 @@ public partial class TopBarWindow : Window
         ApplyVolume(_volume.Snapshot);
 
         _mixer = new AudioMixerService(_volume);
-        _quick = new QuickSettingsService();
-        QuickSettingsHost.Attach(_volume, _mixer, _quick);
+        _nightLight = new NightLightService();
+        _wifi = new WifiService();
+        _bluetooth = new BluetoothService();
+        _projection = new ProjectionService();
+        _quick = new QuickSettingsService(_nightLight);
+        QuickSettingsHost.Attach(_volume, _mixer, _quick, _wifi, _bluetooth, _projection);
 
         _monitorBrightness = new MonitorBrightnessService();
         BrightnessHost.Attach(_monitorBrightness);
@@ -156,6 +165,23 @@ public partial class TopBarWindow : Window
         var about = new AboutWindow { Owner = this };
         about.ShowDialog();
     }
+
+    private void OnOpenWindowsSettingsClick(object sender, RoutedEventArgs e) =>
+        QuickSettingsService.OpenSettingsUri("ms-settings:");
+
+    private void OnOpenProfileClick(object sender, RoutedEventArgs e) =>
+        QuickSettingsService.OpenSettingsUri("ms-settings:yourinfo");
+
+    private void OnOpenAboutPcClick(object sender, RoutedEventArgs e) =>
+        QuickSettingsService.OpenSettingsUri("ms-settings:about");
+
+    private void OnLockClick(object sender, RoutedEventArgs e) => PowerActions.TryLock();
+
+    private void OnSleepClick(object sender, RoutedEventArgs e) => PowerActions.TrySleep();
+
+    private void OnShutdownClick(object sender, RoutedEventArgs e) => PowerActions.TryShutdown();
+
+    private void OnRestartClick(object sender, RoutedEventArgs e) => PowerActions.TryRestart();
 
     private void OnSettingsClick(object sender, RoutedEventArgs e)
     {
@@ -213,7 +239,44 @@ public partial class TopBarWindow : Window
     private void OnQuickSettingsOpened(object sender, EventArgs e)
     {
         QuickSettingsHost.OnFlyoutOpened(_pendingQuickPage);
+        AnimateFlyoutOpen(QuickSettingsHost);
     }
+
+    private void OnBrightnessPopupOpened(object sender, EventArgs e) => AnimateFlyoutOpen(BrightnessHost);
+
+    /// <summary>
+    /// Win11-style flyout entrance: content slides down from under the bar while fading in.
+    /// The animation restarts cleanly on every open (prior clocks are cleared first).
+    /// </summary>
+    private static void AnimateFlyoutOpen(FrameworkElement content)
+    {
+        var transform = content.RenderTransform as TranslateTransform ?? new TranslateTransform(0, -FlyoutSlideDip);
+        content.RenderTransform = transform;
+        transform.BeginAnimation(TranslateTransform.YProperty, null);
+        content.BeginAnimation(UIElement.OpacityProperty, null);
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        transform.Y = -FlyoutSlideDip;
+        content.Opacity = 0;
+        transform.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(
+            -FlyoutSlideDip,
+            0,
+            TimeSpan.FromMilliseconds(FlyoutSlideMs))
+        {
+            EasingFunction = ease,
+        });
+        content.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(
+            0,
+            1,
+            TimeSpan.FromMilliseconds(FlyoutFadeMs))
+        {
+            EasingFunction = ease,
+        });
+    }
+
+    private const double FlyoutSlideDip = 10;
+    private const double FlyoutSlideMs = 170;
+    private const double FlyoutFadeMs = 140;
 
     private void OnQuickSettingsClosed(object sender, EventArgs e)
     {
@@ -323,6 +386,10 @@ public partial class TopBarWindow : Window
         _mixer = null;
         _quick?.Dispose();
         _quick = null;
+        _wifi?.Dispose();
+        _wifi = null;
+        _bluetooth?.Dispose();
+        _bluetooth = null;
         _volume?.Dispose();
         _volume = null;
         _monitorBrightness?.Dispose();
