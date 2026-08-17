@@ -8,7 +8,9 @@ Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
 
 ## Sol küme
 
-- **Windows logosu** (geometri çizimi, font glifi değil — Mica'da kaybolmaz) → sol tık menü:
+- **Windows logosu** (geometri çizimi, font glifi değil — Mica'da kaybolmaz) → sol tık menü
+  (ikonun sol kenarına yapışık açılır; `OnAppMenuLoaded` WPF-UI'nin 30px'lik effect margin'inden
+  sol marjı sıfırlar — popup penceresi ekran kenarına clamp edilip menüyü sağa kaydırmasın):
   - **Ayarlar (PC)** → `ms-settings:` · **Profil** → `ms-settings:yourinfo` · **Bilgisayar hakkında** → `ms-settings:about`
   - **Bilgisayarı kilitle** / **Uyku** → `PowerActions` (LockWorkStation / SetSuspendState)
   - **Kapat** / **Yeniden başlat** → `PowerActions` (shutdown.exe `/s|/r /t 0`)
@@ -42,12 +44,23 @@ Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
 
 ## Hızlı ayarlar flyout
 
-`QuickSettingsFlyout` — tek Fluent popup (`AllowsTransparency=true`; ana pencerenin
+`QuickSettingsFlyout` — tek Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; ana pencerenin
 Mica'sıyla ilgisi yok); Main / Mixer /
 Network sekmeleri paylaşılır (ADR-006). Mixer: varsayılan aygıt + dropdown + uygulama
-oturumları. Açılış noktası tıklanan ikona göre sekme seçer. Açılışta Win11 tarzı
-yukarıdan aşağı slide+fade animasyonu (`AnimateFlyoutOpen`: ~10px kayma, 170ms
-CubicEase EaseOut; parlaklık flyout'u da aynı animasyonu kullanır).
+oturumları. Açılış noktası tıklanan ikona göre sekme seçer. Popup `VerticalOffset=10` ile
+barın altında hafif boşluk bırakır; sağ kenarda da 12px boşluk (kök Border `Margin="0,0,12,0"`,
+ekran sağ kenarına clamp'li açılır). Yüzey border'sız, yuvarlatılmış köşeler + yarı saydam
+(`FlyoutSurface`: tema `ApplicationBackgroundBrush` rengi, %85 alfa — arkadaki içerik hafifçe
+seçilir; her açılışta tazelenir). Açılışta Win11 tarzı
+**yukarıdan aşağı** slide+fade animasyonu (`AnimateFlyoutOpen`: barın altından ~10px
+kayarak iner, 170ms CubicEase EaseOut); kapanışta açılışın **tam tersi** animasyon
+(`AnimateFlyoutClose`: içerik yukarı/barın altına doğru kayar + solar, 110ms — bir tık
+daha hızlı, sonra `IsOpen=false`). Kapanış yolları (`CloseFlyouts` /
+`CloseQuickSettings` / `CloseBrightness`): dış tıklama → `WM_ACTIVATEAPP` (topbar WndProc),
+topbar'a tıklama (çapa butonları hariç — onlar toggle/re-target yapar), ESC
+(`OnTopBarPreviewKeyDown`), toggle, AppMenu/tray/notification butonları. Popup yeniden
+açılırsa bekleyen kapanış animasyonu `CancelPendingClose` ile iptal edilir (yeniden açılan
+popup kapanmaz). Parlaklık flyout'u aynı açılış/kapanış animasyonlarını kullanır.
 
 ### Wi-Fi sayfası (ağ listesi + şifre paneli)
 
