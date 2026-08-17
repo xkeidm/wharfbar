@@ -40,6 +40,11 @@ public partial class BrightnessFlyout : UserControl
         _service?.RefreshMonitors();
     }
 
+    internal void OnFlyoutOpened()
+    {
+        FlyoutRoot.Background = FlyoutSurface.Create();
+    }
+
     private void OnRefreshClick(object sender, RoutedEventArgs e)
     {
         Refresh();

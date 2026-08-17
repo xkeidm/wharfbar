@@ -177,6 +177,7 @@ public partial class QuickSettingsFlyout : UserControl
 
     internal void OnFlyoutOpened(QuickSettingsPage page)
     {
+        FlyoutRoot.Background = FlyoutSurface.Create();
         _quick?.StartPolling();
         ShowPage(page);
     }
