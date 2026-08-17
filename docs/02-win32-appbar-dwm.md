@@ -246,3 +246,27 @@ Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama al
 ## j) AllowUnsafeBlocks
 
 Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca pointer arithmetic veya `unsafe` blok gerçekten yazılırsa aç.
+
+---
+
+### wlanapi.dll — Wi-Fi listesi / bağlanma (Quick Settings)
+
+- `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`
+- `WlanEnumInterfaces(handle, NULL, &list)` — WLAN_INTERFACE_INFO_LIST (InterfaceGuid)
+- `WlanGetAvailableNetworkList(handle, &guid, 0, NULL, &list)` — WLAN_AVAILABLE_NETWORK_LIST
+  (wlanProfileFlags & CONNECTED/HAS_PROFILE, wlanSignalQuality 0-100, bSecurityEnabled)
+- `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — kalıcı profil
+- `WlanConnect(handle, &guid, &params)` — WLAN_CONNECTION_PARAMETERS (mode=profile)
+- `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection, ...)` — mevcut SSID
+- `WlanFreeMemory` / `WlanCloseHandle`
+
+### user32.dll — display topology (Quick Settings / Yansıt)
+
+- `QueryDisplayConfig(QDC_DATABASE_CURRENT, 0, NULL, 0, NULL, &topologyId)` — mevcut topoloji
+- `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES)`
+
+### user32.dll / powrprof.dll — güç eylemleri (Windows logo menüsü)
+
+- `LockWorkStation()` (user32) — oturumu kilitle
+- `SetSuspendState(FALSE, FALSE, FALSE)` (powrprof) — uyku
+- `shutdown.exe /s|/r /t 0` — kapat / yeniden başlat (P/Invoke değil, `Process.Start`)

@@ -62,8 +62,14 @@
     [`../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
     plan: [`../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md)
     (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manuel UI checklist)
-9. Hızlı ayarlar cila: gerçek Gece ışığı / Enerji tasarrufu toggle; oturum ikonları; Wi-Fi SSID listesi
-   (8b/8c sonrası; panel = mevcut ADR-006)
+9. Hızlı ayarlar cila ✓ (kod) — canlı Wi-Fi listesi + bağlanma (`WifiService` / wlanapi.dll;
+   QS Wifi sayfası + şifre paneli), BT cihaz listesi (`BluetoothService`), gerçek Gece ışığı
+   durum + toggle (`NightLightService` / CloudStore best-effort + oturum override), native
+   yansıtma paneli 4 mod (`ProjectionService` / `SetDisplayConfig`), tile animasyonları
+   (in-place pop + renk geçişi). Kalan: Enerji tasarrufu toggle; oturum ikonları. Spec:
+   [`../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
+   plan: [`../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md`](../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md)
+   (kod çalışma ağacında; manuel UI doğrulaması bekliyor)
 10. İkincil monitör / work-area stratejisi
 11. UWP/Store ikonları (tam yol)
 12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)

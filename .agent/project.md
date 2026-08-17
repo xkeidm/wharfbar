@@ -85,7 +85,14 @@ Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, m
 yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
-tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. **Monitör Parlaklık Kontrolü:**
+tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Canlı ağ özellikleri
+tamamlandı: canlı Wi-Fi listesi + bağlanma (`WifiService`, wlanapi.dll; QS Wifi sayfası + şifre paneli),
+BT cihaz listesi (`BluetoothService`), gece ışığı gerçek durum + toggle (`NightLightService`,
+CloudStore best-effort + oturum override), native yansıtma paneli 4 mod (`ProjectionService`,
+`QueryDisplayConfig`/`SetDisplayConfig`), tile animasyonları (in-place pop + renk geçişi).
+Spec: [`../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
+plan: [`../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md`](../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md).
+**Monitör Parlaklık Kontrolü:**
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
 Faz 8 spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).

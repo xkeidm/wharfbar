@@ -85,6 +85,10 @@ src/WharfBar/
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
     QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
+    WifiService.cs              # Wlan API ile ağ listesi + bağlanma (QS Wifi sayfası)
+    BluetoothService.cs         # eşleşmiş BT cihazları + bağlı durumu (QS Bluetooth sayfası)
+    NightLightService.cs        # CloudStore best-effort gece ışığı okuma/yazma + oturum override
+    ProjectionService.cs        # SetDisplayConfig ile yansıtma modları (QS Project sayfası)
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
