@@ -104,8 +104,13 @@ kartları; 50ms debounced arka plan kuyruğu. `MonitorBrightnessService` + `Moni
 yuvarlatılmış kapak (kapsızsa müzik glifi `E90C` yer tutucu) + başlık (kalın, tek satır,
 metadata alınamadıysa uygulama adı fallback) + sanatçı; altında `E892` Önceki /
 `E768`–`E769` Oynat-Duraklat (duruma göre glif canlı değişir) / `E893` Sonraki.
-Birden çok oturum aktifse üstte seçici satırı belirir: `E76B` ‹ oturum adı › `E76C`
+Flyout sabit **340px** genişliktedir (`MinWidth=MaxWidth=340`) — içerik değişince
+(ör. oturum adı) genişlik sıçramaz.
+Birden çok oturum aktifse üstte seçici satırı belirir: `E76B` ‹ uygulama adı › `E76C`
 chevron'lar seçili oturumu halkada ilerletir; kontroller seçili uygulamaya gider.
+Uygulama adı AUMID'den çözülür (`MediaAppNameResolver`): çalışan sürecin
+`FileDescription`'ı Windows'ta görünen addır (örn. `chrome.exe` → "Google Chrome");
+süreç bulunamazsa basitleştirilmiş exe adı gösterilir (örn. "Microsoft.ZuneMusic").
 Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
 
 - Üst bar öğesi `media` yalnızca oturum varken görünür (`_mediaActive`; Battery/Volume

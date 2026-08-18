@@ -13,7 +13,9 @@ Oynat/Duraklat + İleri/Geri, çoklu oturum seçici)
 | API | Windows SMTC — `GlobalSystemMediaTransportControlsSessionManager` (`Windows.Media.Control`); TFM `net8.0-windows10.0.19041.0` WinRT projection'ı zaten içerir → yeni NuGet paketi / `AllowUnsafeBlocks` yok |
 | Üst bar öğesi | Katalog öğesi `media` (`DefaultOrder`'da `brightness` sonrası); **dinamik görünürlük**: oturum yokken `Collapsed` (Battery/Volume deseni; macOS menü bar davranışı); sağ tık menüsünden kalıcı göster/gizle + sıralama (katalog öğesi, "hide must stick") |
 | Seçim politikası | **En son aktif oturum** başta (`MediaSessionSelector.MarkActive`); oturum kapanınca en son aktif kalan seçilir; hiçbiri yoksa öğe gizlenir. Saf liste mantığı — unit testli |
-| Çoklu oturum | Flyout içinde chevron seçici (‹ oturum adı ›), yalnızca 1'den fazla oturum varken görünür; `MoveCurrent` seçimi halkada ilerletir |
+| Çoklu oturum | Flyout içinde chevron seçici (‹ uygulama adı ›), yalnızca 1'den fazla oturum varken görünür; `MoveCurrent` seçimi halkada ilerletir |
+| Uygulama adı | AUMID'den çözülür (`MediaAppNameResolver`): çalışan sürecin `FileDescription`'ı Windows'ta görünen adı verir (örn. `chrome.exe` → "Google Chrome"); süreç bulunamazsa basitleştirilmiş exe adı fallback (örn. "Microsoft.ZuneMusic"); sonuç AUMID başına önbelleklenir. Seçici satırı ve başlık fallback'i bu adı gösterir |
+| Flyout boyutu | Sabit **340px** genişlik (`MinWidth=MaxWidth=340`) — içerik/oturum değişince genişlik sıçramaz; yükseklik içeriğe göre |
 | Komutlar | Oynat/Duraklat + İleri/Geri (`TryTogglePlayPauseAsync` / `TrySkipNextAsync` / `TrySkipPreviousAsync`); **seek/süre yok** (kullanıcı kararı — temel set) |
 | Thread | WinRT olayları arka plan thread'den gelir → servisin kurulduğu Dispatcher'a `BeginInvoke` ile marshal; kapak UI thread'de `BitmapImage` (`OnLoad`) üretilir + `Freeze()` |
 | Hata dayanıklılığı | Init hatası → 10 sn sonra `DispatcherTimer` ile yeniden dener (SMTC hizmeti geç gelirse); desteklenmeyen komut → yutulur (debug log); metadata alınamazsa kaynak uygulama adı fallback |
@@ -34,7 +36,8 @@ yok" gösterir (kullanıcı denetiminde kalır, diğer flyout'larla aynı kapan�
 ## Sonuçlar
 
 - Yeni dosyalar: `Models/MediaSnapshot.cs` (saf record; `Idle` + `HasSession`),
-  `Services/MediaSessionSelector.cs` (son-aktif politikası), `Services/MediaSessionService.cs`
+  `Services/MediaSessionSelector.cs` (son-aktif politikası), `Services/MediaAppNameResolver.cs`
+  (AUMID → Windows uygulama adı çözümü), `Services/MediaSessionService.cs`
   (SMTC wrapper: `Changed` / `SessionsChanged`, snapshot, komutlar, 10 sn retry),
   `Views/MediaFlyout.xaml(.cs)` (seçici + kapak + başlık/sanatçı + kontroller).
 - `TopBarWindow`: `media` öğesi + `MediaPopup`/`MediaHost`; `_mediaActive` dinamik görünürlük;

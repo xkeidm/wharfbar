@@ -140,7 +140,8 @@ Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 | `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
 | `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) izleme: snapshot (kapak/başlık/sanatçı/çalma durumu), komutlar (Oynat/Duraklat, İleri/Geri), oturum seçimi; olaylar kurulduğu Dispatcher'a marshal; init hatası 10 sn retry; `Changed` / `SessionsChanged` (ADR-008) |
 | `MediaSessionSelector` | Saf seçim politikası: en son aktif oturum başta; `MoveCurrent` ile seçici halkasında ilerleme; yalnızca playing/paused oturumlar — unit testli (ADR-008) |
-| `MediaFlyout` | Flyout içeriği: oturum seçici (1'den fazlaysa), kapak + başlık/sanatçı, Oynat/Duraklat + İleri/Geri; oturum yokken "Çalan medya yok" (popup kapanmaz) |
+| `MediaAppNameResolver` | AUMID → Windows uygulama adı: çalışan sürecin `FileDescription`'ı (örn. `chrome.exe` → "Google Chrome"), bulunamazsa basitleştirilmiş exe adı; AUMID başına önbellek — unit testli (ADR-008) |
+| `MediaFlyout` | Flyout içeriği: oturum seçici (1'den fazlaysa), kapak + başlık/sanatçı, Oynat/Duraklat + İleri/Geri; sabit 340px genişlik; oturum yokken "Çalan medya yok" (popup kapanmaz) |
 | `VeilService` | Kaplama durumu + fade + hotkey host (mesaj-only `HwndSource`); `SetEnabled` → `Config.Save`; çıkışta `UnregisterHotKey` (ADR-007) |
 | `VeilWindow` | Tam ekran katmanlı kaplama (düz renk dolgu, `Topmost`, kalıcı `WS_EX_TRANSPARENT` passthrough, 280 ms fade); birincil monitör rect + `WM_DISPLAYCHANGE` / `WM_DPICHANGED` yeniden yerleşim |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |

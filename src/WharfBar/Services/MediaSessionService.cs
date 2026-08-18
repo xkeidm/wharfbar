@@ -20,6 +20,7 @@ internal sealed class MediaSessionService : IDisposable
 {
     private readonly Dispatcher _dispatcher;
     private readonly MediaSessionSelector _selector = new();
+    private readonly MediaAppNameResolver _appNames = new();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _sessions = new(StringComparer.Ordinal);
     private readonly Dictionary<(string Id, string Title, string Artist), ImageSource> _thumbnails = new();
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
@@ -283,7 +284,7 @@ internal sealed class MediaSessionService : IDisposable
             return;
         }
 
-        string appName = SimplifyAppName(id);
+        string appName = _appNames.Resolve(id);
         string title = string.Empty;
         string artist = string.Empty;
         IRandomAccessStreamReference? thumbnailRef = null;
@@ -361,19 +362,6 @@ internal sealed class MediaSessionService : IDisposable
             Debug.WriteLine($"[media] kapak çözülemedi: {ex.Message}");
             return null;
         }
-    }
-
-    /// <summary>AUMID'i okunabilir uygulama adına sadeleştirir: "..."!LastSegment[.exe]</summary>
-    private static string SimplifyAppName(string appUserModelId)
-    {
-        string name = appUserModelId;
-        int bang = name.LastIndexOf('!');
-        if (bang >= 0 && bang < name.Length - 1)
-        {
-            name = name[(bang + 1)..];
-        }
-
-        return name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
     }
 
     /// <summary>Oturum anahtarı: AUMID (uygulama başına tek oturum). Boşsa "session" fallback.</summary>
