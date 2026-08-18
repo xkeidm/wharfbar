@@ -30,6 +30,8 @@ public partial class VeilWindow : Window
 
         _source = (HwndSource?)PresentationSource.FromVisual(this);
         _source?.AddHook(WndProc);
+        EnsureTransparentComposition();
+        ClearSystemBackdrop();
         DockHitTest.ApplyPassthrough(_source?.Handle ?? IntPtr.Zero);
         ApplyRect();
     }
@@ -38,6 +40,44 @@ public partial class VeilWindow : Window
     {
         byte alpha = (byte)(Math.Clamp(opacity, 0, 100) * 255 / 100);
         VeilSurface.Background = new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
+        EnsureTransparentComposition();
+        ClearSystemBackdrop();
+    }
+
+    /// <summary>
+    /// Re-asserts the click-through + transparent layered state. Call after startup settles
+    /// (theme applies can re-apply a DWM system backdrop to this window) and before showing.
+    /// </summary>
+    internal void ReassertBackdrop()
+    {
+        EnsureTransparentComposition();
+        ClearSystemBackdrop();
+    }
+
+    /// <summary>
+    /// Layered windows render the whole surface with <see cref="HwndSource.CompositionTarget"/>
+    /// as backing; an opaque fill there turns the veil into a solid screen-covering rectangle.
+    /// Mirrors WindowAppearance.SetLayeredWindowBackground.
+    /// </summary>
+    private void EnsureTransparentComposition()
+    {
+        if (_source?.CompositionTarget is { } target)
+        {
+            target.BackgroundColor = Colors.Transparent;
+        }
+    }
+
+    /// <summary>
+    /// Clears any DWM system backdrop (Mica). A Mica material on a full-screen layered window
+    /// renders as an opaque dark surface that hides the desktop and every window behind it —
+    /// WPF-UI theme applies can attach it, so re-assert whenever the veil (re)appears.
+    /// </summary>
+    private void ClearSystemBackdrop()
+    {
+        if (_source?.Handle is { } hwnd && hwnd != IntPtr.Zero)
+        {
+            Dwm.SetSystemBackdrop(hwnd, DwmSystemBackdrop.None);
+        }
     }
 
     internal void SetVisible(bool visible, bool animate)
@@ -48,6 +88,7 @@ public partial class VeilWindow : Window
         {
             if (!IsVisible)
             {
+                ClearSystemBackdrop();
                 Show();
             }
 
@@ -115,9 +156,10 @@ public partial class VeilWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg is NativeMethods.WM_DISPLAYCHANGE or NativeMethods.WM_DPICHANGED)
+        if (msg is NativeMethods.WM_DISPLAYCHANGE or NativeMethods.WM_DPICHANGED or NativeMethods.WM_THEMECHANGED)
         {
             ApplyRect();
+            ClearSystemBackdrop();
         }
 
         return IntPtr.Zero;

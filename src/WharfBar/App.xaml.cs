@@ -128,6 +128,13 @@ public partial class App : Application
         Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.ApplicationIdle,
             () => _taskbar.ReapplyHide());
+
+        // Startup theme applies can attach a DWM Mica backdrop to the veil window, which would
+        // render the full-screen overlay as an opaque rectangle; re-assert its transparent state
+        // once everything has settled.
+        Dispatcher.BeginInvoke(
+            System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+            () => _veil?.ReassertBackdrop());
     }
 
     /// <summary>

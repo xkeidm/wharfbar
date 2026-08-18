@@ -45,6 +45,15 @@ internal sealed class VeilService : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// Re-asserts the veil's transparent layered state once startup theme applies have settled;
+    /// those can attach a DWM Mica backdrop that would render the overlay as an opaque rectangle.
+    /// </summary>
+    internal void ReassertBackdrop()
+    {
+        _window?.ReassertBackdrop();
+    }
+
     /// <summary>Toggles the veil (QS tile, hotkey); persists Enabled to config.</summary>
     internal void SetEnabled(bool enabled)
     {
