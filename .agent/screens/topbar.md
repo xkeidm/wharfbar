@@ -121,6 +121,9 @@ Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
 - Flyout oturum bitince **kapanmaz**; "Çalan medya yok" metnine döner (kapatma yalnızca
   kullanıcı: dış tıklama / ESC / tekrar tıklama — QS/Brightness ile aynı animasyonlu kapanış).
 - Açılışta `FlyoutSurface` yüzeyi tazelenir; QS ile aynı yukarıdan-aşağı slide+fade animasyonu.
+- Oturum (kaynak) değişince içerik yönlü kaydırma + fade ile gelir: chevron › sağdan, ‹
+  soldan, otomatik değişimde yönsüz fade (~150ms, CubicEase EaseOut); aynı oturumdaki
+  parça/oynat-durdur güncellemeleri animasyonsuzdur.
 - SMTC başlatılamazsa servis pasif kalır (öğe görünmez); 10 sn sonra yeniden dener.
 
 ## Tuzaklar
