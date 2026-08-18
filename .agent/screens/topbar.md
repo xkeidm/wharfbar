@@ -108,9 +108,11 @@ Flyout sabit **340px** genişliktedir (`MinWidth=MaxWidth=340`) — içerik değ
 (ör. oturum adı) genişlik sıçramaz.
 Birden çok oturum aktifse üstte seçici satırı belirir: `E76B` ‹ uygulama adı › `E76C`
 chevron'lar seçili oturumu halkada ilerletir; kontroller seçili uygulamaya gider.
-Uygulama adı AUMID'den çözülür (`MediaAppNameResolver`): çalışan sürecin
-`FileDescription`'ı Windows'ta görünen addır (örn. `chrome.exe` → "Google Chrome");
-süreç bulunamazsa basitleştirilmiş exe adı gösterilir (örn. "Microsoft.ZuneMusic").
+Uygulama adı AUMID'den çözülür (`MediaAppNameResolver`, katmanlı):
+Start Menü kısayolu AUMID eşleşmesi Windows'un gösterdiği adı verir (örn. Zen'in
+`F0DC299D809B9700` → "Zen", YouTube Music Desktop'ın `com.github.th-ch.youtube-music` →
+"YouTube Music"); eşleşme yoksa çalışan sürecin `FileDescription`'ı (örn. `chrome.exe` →
+"Google Chrome"); o da yoksa basitleştirilmiş exe adı (örn. "Microsoft.ZuneMusic").
 Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
 
 - Üst bar öğesi `media` yalnızca oturum varken görünür (`_mediaActive`; Battery/Volume

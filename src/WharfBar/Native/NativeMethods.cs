@@ -464,6 +464,24 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    /// <summary>PKEY_AppUserModel_ID — .lnk kısayolunun AppUserModelID property'si (pid 5).</summary>
+    internal static readonly Guid PKEY_AppUserModelId = new("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
+
+    internal const int VT_LPWSTR = 31;
+    internal const int VT_EMPTY = 0;
+    internal const uint GPS_DEFAULT = 0;
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int SHGetPropertyStoreFromParsingName(
+        string pszPath,
+        IntPtr hwnd,
+        uint flags,
+        ref Guid riid,
+        out IntPtr ppv);
+
+    [DllImport("ole32.dll")]
+    internal static extern int PropVariantClear(ref PROPVARIANT pvar);
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -488,4 +506,42 @@ internal interface IShellItemImageFactory
 {
     [PreserveSig]
     int GetImage(SIZE size, int flags, out IntPtr phbm);
+}
+
+/// <summary>
+/// Property store for a shell item (Start Menu .lnk AUMID okuma). COM.
+/// </summary>
+[ComImport]
+[Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IPropertyStore
+{
+    void GetCount(out uint cProps);
+    void GetAt(uint iProp, out PROPERTYKEY key);
+    [PreserveSig]
+    int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
+    void SetValue(ref PROPERTYKEY key, ref PROPVARIANT pv);
+    void Commit();
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct PROPERTYKEY
+{
+    public Guid fmtid;
+    public uint pid;
+}
+
+/// <summary>
+/// PROPVARIANT — union; string değerler (VT_LPWSTR) offset 8'de <see cref="pwszVal"/> tutar.
+/// Alma yapıldıktan sonra <see cref="NativeMethods.PropVariantClear"/> ile serbest bırakılır.
+/// </summary>
+[StructLayout(LayoutKind.Explicit)]
+internal struct PROPVARIANT
+{
+    [FieldOffset(0)] public ushort vt;
+    [FieldOffset(2)] public ushort wReserved1;
+    [FieldOffset(4)] public ushort wReserved2;
+    [FieldOffset(6)] public ushort wReserved3;
+    [FieldOffset(8)] public IntPtr pwszVal;
+    [FieldOffset(8)] public IntPtr p;
 }
