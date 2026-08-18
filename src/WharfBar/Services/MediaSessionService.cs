@@ -14,6 +14,7 @@ namespace WharfBar.Services;
 /// Windows SMTC (GlobalSystemMediaTransportControlsSessionManager) üzerinden çalan medyayı
 /// izler: snapshot (başlık/sanatçı/kapak/durum) + oynat/duraklat/ileri/geri + oturum seçici.
 /// Tüm olaylar UI thread'e (ctor'un kurulduğu Dispatcher) marshal edilir.
+/// Kurulum hatası → 10 sn sonra yeniden dener (SMTC hizmeti gelene kadar).
 /// </summary>
 internal sealed class MediaSessionService : IDisposable
 {
@@ -24,6 +25,7 @@ internal sealed class MediaSessionService : IDisposable
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private MediaSnapshot _snapshot = MediaSnapshot.Idle;
     private DispatcherTimer? _retryTimer;
+    private bool _disposed;
 
     internal MediaSessionService()
     {
@@ -43,6 +45,11 @@ internal sealed class MediaSessionService : IDisposable
 
     internal async Task InitializeAsync()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         try
         {
             _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
@@ -73,6 +80,8 @@ internal sealed class MediaSessionService : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
+
         _retryTimer?.Stop();
         _retryTimer = null;
 
@@ -149,9 +158,10 @@ internal sealed class MediaSessionService : IDisposable
         _ = _dispatcher.BeginInvoke(() =>
         {
             string id = GetSessionId(sender);
+            string? before = _selector.Current;
             SyncSelectorForSession(id);
             RaiseSessions();
-            if (id == _selector.Current)
+            if (id == before || _selector.Current != before)
             {
                 _ = ReloadCurrentAsync();
             }
@@ -277,6 +287,11 @@ internal sealed class MediaSessionService : IDisposable
             Debug.WriteLine($"[media] metadata başarısız: {ex.Message}");
         }
 
+        if (id != _selector.Current)
+        {
+            return;
+        }
+
         ImageSource? thumb = null;
         if (thumbnailRef is not null && !_thumbnails.TryGetValue(id, out thumb))
         {
@@ -285,6 +300,11 @@ internal sealed class MediaSessionService : IDisposable
             {
                 _thumbnails[id] = thumb;
             }
+        }
+
+        if (id != _selector.Current)
+        {
+            return;
         }
 
         bool isPlaying = false;
