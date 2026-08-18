@@ -32,6 +32,7 @@
   - Kod çalışma ağacında; manuel doğrulama bekliyor
 - **Monitör Parlaklık Kontrolü (Monitorian Entegrasyonu) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hibrit), `BrightnessFlyout` (TopBar `brightness` simgesi, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu, katalog v2).
 - **Dock Sağ Tık Bağlam Menüsü & Düzen Polish ✓** — `DockWindow` sağ tık bağlam menüsü (Uygulama İkonu/Adı başlık kartı, Dock'a Sabitle/Kaldır dinamik kısayol senkronizasyonu, Görevi Sonlandır `Process.Kill`, Pencereyi Kapat `WM_CLOSE`, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere), %100 ekran genişliği desteği ve `ScrollViewer` + `PreviewMouseWheel` yatay kaydırma entegrasyonu.
+- **Renk kaplaması (veil) ✓ (kod; manuel doğrulama bekliyor)** — tam ekran katmanlı kaplama (`VeilWindow`, click-through + 280 ms fade), `VeilService` (durum + fade + `RegisterHotKey` host + config kalıcılığı), QS `veil` karosu + global kısayol (varsayılan Ctrl+F11, config'te değiştirilebilir), Kaplama ayarlar sayfası (`VeilPage`; renk/opaklık/kısayol). Karar: [ADR-007](../../docs/decisions/007-veil-overlay.md); spec: [`../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../../docs/superpowers/plans/2026-08-18-veil-overlay.md). Manuel doğrulama listesi spec'in "Doğrulama (manuel)" bölümünde.
 
 ## Yapılacaklar listesi (öncelikli)
 

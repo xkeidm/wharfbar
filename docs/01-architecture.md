@@ -42,7 +42,15 @@ src/WharfBar/
     BrightnessFlyout.xaml(.cs)  # Monitör parlaklık uçan penceresi (DDC/CI + WMI Monitorian)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
+    VeilWindow.xaml(.cs)        # tam ekran kaplama overlay (click-through, fade; ADR-007)
     SettingsWindow.xaml(.cs)     # Ayarlar ana penceresi (NavigationView)
+  Views/Pages/
+    GeneralPage.xaml(.cs)       # Ayarlar: genel (autostart)
+    AppearancePage.xaml(.cs)    # Ayarlar: görünüm (tema, arka plan, accent)
+    DockPage.xaml(.cs)          # Ayarlar: dock (auto-hide, ikon boyutu)
+    TopBarPage.xaml(.cs)        # Ayarlar: üst çubuk (durum öğeleri)
+    VeilPage.xaml(.cs)          # Ayarlar: Kaplama (renk/opaklık/kısayol; ADR-007)
+    AboutPage.xaml(.cs)         # Ayarlar: hakkında
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
     MonitorNative.cs            # dxva2.dll (DDC/CI) + user32.dll monitör P/Invoke
@@ -62,6 +70,7 @@ src/WharfBar/
     AudioEndpointVolume.cs      # master volume / mute (Core Audio)
     CoreAudioDevices.cs         # render aygıt listesi + varsayılan seçimi
     CoreAudioSessions.cs        # uygulama oturum sesleri
+    Hotkey.cs                   # RegisterHotKey P/Invoke + kısayol parser (ADR-007)
   Models/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
@@ -84,11 +93,12 @@ src/WharfBar/
     MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
-    QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri
+    QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri (veil karosu dahil)
     WifiService.cs              # Wlan API ile ağ listesi + bağlanma (QS Wifi sayfası)
     BluetoothService.cs         # eşleşmiş BT cihazları + bağlı durumu (QS Bluetooth sayfası)
     NightLightService.cs        # CloudStore best-effort gece ışığı okuma/yazma + oturum override
     ProjectionService.cs        # SetDisplayConfig ile yansıtma modları (QS Project sayfası)
+    VeilService.cs              # kaplama durumu, fade, hotkey host, config kalıcılığı (ADR-007)
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
@@ -110,6 +120,9 @@ Dock auto-hide / hit-test (Faz 8) uygulandı — ayrıntı:
 [plan](superpowers/plans/2026-08-10-dock-auto-hide.md).
 Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tray-hybrid.md),
 [spec](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
+Renk kaplaması (veil): [ADR-007](decisions/007-veil-overlay.md),
+[spec](superpowers/specs/2026-08-18-veil-overlay-design.md),
+[plan](superpowers/plans/2026-08-18-veil-overlay.md).
 ## Sorumluluklar
 
 | Bileşen | Görev |
@@ -117,6 +130,9 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 | `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `network` → QS Network |
 | `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
 | `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
+| `VeilService` | Kaplama durumu + fade + hotkey host (mesaj-only `HwndSource`); `SetEnabled` → `Config.Save`; çıkışta `UnregisterHotKey` (ADR-007) |
+| `VeilWindow` | Tam ekran katmanlı kaplama (düz renk dolgu, `Topmost`, kalıcı `WS_EX_TRANSPARENT` passthrough, 280 ms fade); birincil monitör rect + `WM_DISPLAYCHANGE` / `WM_DPICHANGED` yeniden yerleşim |
+| `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
 | `AboutWindow` | Hakkında diyaloğu; shell kaydı yok |
 | `MonitorBrightnessService` | DDC/CI (masaüstü `dxva2.dll`) + WMI (`WmiMonitorBrightness`) taraması; 50ms debounced arka plan yazma |
 | `MonitorNative` | `dxva2.dll` P/Invoke fonksiyonları + `user32.dll` monitör sorguları |
@@ -262,6 +278,12 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
       "battery"
     ]
   },
+  "veil": {
+    "enabled": false,
+    "color": "#4a90d9",
+    "opacity": 40,
+    "hotKey": "Ctrl+F11"
+  },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
   ]
@@ -280,6 +302,10 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |
 | `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, … `battery`). Soft alan (`schemaVersion` 1) |
+| `veil.enabled` | Kaplama açık/kapalı (kalıcı; QS karosu + kısayol + sayfa toggle'ı yazar). Varsayılan **`false`** |
+| `veil.color` | Kaplama rengi `#RRGGBB` (soft; geçersiz/eksik → `VeilNormalizer` varsayılan **`#4A90D9`**, küçük harfe normalleştirilir; `#RGB` kabul edilir) |
+| `veil.opacity` | 0–100 kaplama gücü; yüklemede `ClampOpacity` (varsayılan **40**). Siyah + yüksek opaklık = parlaklık azaltma (ayrı kontrol yok) |
+| `veil.hotKey` | Global kısayol metni (`Ctrl+F11`); boş = yok. Soft alan: geçersizse kayıt yapılmaz, string korunur (sayfada uyarı) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

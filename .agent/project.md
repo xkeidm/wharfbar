@@ -65,6 +65,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/004-...` | Mica / WPF-UI, köşe `DONOTROUND`, tema yenileme |
 | `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle |
 | `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
+| `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
 
 ## Mevcut repo durumu
 
@@ -92,6 +93,11 @@ CloudStore best-effort + oturum override), native yansıtma paneli 4 mod (`Proje
 `QueryDisplayConfig`/`SetDisplayConfig`), tile animasyonları (in-place pop + renk geçişi).
 Spec: [`../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
 plan: [`../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md`](../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md).
+**Renk kaplaması (veil):** QS karosu + global kısayol (Ctrl+F11) ile tam ekran renk overlay;
+Kaplama ayarlar sayfası (renk/opaklık/kısayol).
+Spec/plan: [`../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../docs/superpowers/specs/2026-08-18-veil-overlay-design.md),
+[`../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../docs/superpowers/plans/2026-08-18-veil-overlay.md);
+karar: [`../docs/decisions/007-veil-overlay.md`](../docs/decisions/007-veil-overlay.md).
 **Monitör Parlaklık Kontrolü:**
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).

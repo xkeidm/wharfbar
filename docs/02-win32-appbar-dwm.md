@@ -249,6 +249,23 @@ Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca p
 
 ---
 
+## k) Global kısayol (RegisterHotKey)
+
+Kaplama (ADR-007) ve benzeri toggle'lar için sistem geneli kısayol; uygulama: `Native/Hotkey.cs` + `VeilService`.
+
+```csharp
+RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk)      // user32.dll
+UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dll
+// fsModifiers: MOD_ALT=0x1, MOD_CONTROL=0x2, MOD_SHIFT=0x4, MOD_WIN=0x8
+// WM_HOTKEY = 0x0312; wParam = id; mesaj-only HwndSource (ParentWindow=-3)
+```
+
+- Mesaj alımı için **mesaj-only** pencere: `HwndSourceParameters` + `ParentWindow = new IntPtr(-3)` (TrayIconService deseni); `AddHook` ile `WM_HOTKEY` → toggle.
+- `RegisterHotKey` başarısızlığı (başka uygulamanın çakışması) çökme değildir: kayıt yok + uyarı, config bozulmaz.
+- **Çıkış garantisi:** `UnregisterHotKey` `VeilService.Dispose`'ta (normal çıkış + `App.Exit`); kaçırılırsa kısayol ikinci başlatmada yeniden kaydedilemez.
+
+---
+
 ### wlanapi.dll — Wi-Fi listesi / bağlanma (Quick Settings)
 
 - `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`
