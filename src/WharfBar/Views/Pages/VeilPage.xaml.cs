@@ -38,11 +38,7 @@ public partial class VeilPage : Page
 
         VeilEnabledSwitch.Checked += OnEnabledChanged;
         VeilEnabledSwitch.Unchecked += OnEnabledChanged;
-        OpacitySlider.ValueChanged += OnOpacityChanged;
         ColorHexBox.TextChanged += OnColorHexChanged;
-        CaptureHotkeyButton.Click += OnCaptureHotkeyClick;
-        RemoveHotkeyButton.Click += OnRemoveHotkeyClick;
-        ResetHotkeyButton.Click += OnResetHotkeyClick;
         PreviewKeyDown += OnPageKeyDown;
 
         _isLoading = false;
