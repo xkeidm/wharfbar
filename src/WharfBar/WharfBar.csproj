@@ -16,6 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>

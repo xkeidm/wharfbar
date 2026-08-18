@@ -38,4 +38,14 @@ public class VeilConfigTests
     {
         Assert.Equal(VeilConfig.DefaultColor, VeilNormalizer.NormalizeColor(input));
     }
+
+    [Theory]
+    [InlineData(0x4A, 0x90, 0xD9, "#4a90d9")]
+    [InlineData(0xAA, 0xBB, 0xCC, "#aabbcc")]
+    [InlineData(0xE5, 0x73, 0x73, "#e57373")]
+    public void NormalizeColor_FromColor_ReturnsLowercaseHex(byte r, byte g, byte b, string expected)
+    {
+        var color = System.Windows.Media.Color.FromRgb(r, g, b);
+        Assert.Equal(expected, VeilNormalizer.NormalizeColor(color));
+    }
 }

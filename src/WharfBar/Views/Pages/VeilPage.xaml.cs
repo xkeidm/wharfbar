@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using WharfBar.Models;
 using WharfBar.Native;
@@ -132,6 +133,43 @@ public partial class VeilPage : Page
         ColorErrorText.Visibility = Visibility.Collapsed;
         Cfg.Veil.Color = normalized;
         SaveAndApply();
+    }
+
+    /// <summary>Opens the standard Windows color picker pre-seeded with the current veil color.</summary>
+    private void OnPickColorClick(object sender, RoutedEventArgs e)
+    {
+        var owner = Window.GetWindow(this);
+        IntPtr ownerHandle = owner is null
+            ? IntPtr.Zero
+            : new WindowInteropHelper(owner).Handle;
+
+        using var dialog = new System.Windows.Forms.ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+        };
+        if (VeilNormalizer.TryParseColor(Cfg.Veil.Color, out Color current))
+        {
+            dialog.Color = System.Drawing.Color.FromArgb(current.R, current.G, current.B);
+        }
+
+        if (dialog.ShowDialog(ownerHandle == IntPtr.Zero ? null : new Win32Window(ownerHandle))
+            != System.Windows.Forms.DialogResult.OK)
+        {
+            return;
+        }
+
+        System.Drawing.Color picked = dialog.Color;
+        ApplyColor(VeilNormalizer.NormalizeColor(Color.FromRgb(picked.R, picked.G, picked.B)));
+    }
+
+    private sealed class Win32Window : System.Windows.Forms.IWin32Window
+    {
+        private readonly IntPtr _handle;
+
+        internal Win32Window(IntPtr handle) => _handle = handle;
+
+        public IntPtr Handle => _handle;
     }
 
     private void OnCaptureHotkeyClick(object sender, RoutedEventArgs e)

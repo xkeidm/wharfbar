@@ -63,6 +63,8 @@
                                    VerticalAlignment="Center" Margin="0,0,8,0" />
                         <TextBox x:Name="ColorHexBox" Width="110" VerticalContentAlignment="Center"
                                  MaxLength="7" FontFamily="Consolas" />
+                        <Button x:Name="PickColorButton" Content="Renk seç…" Margin="8,0,0,0"
+                                Click="OnPickColorClick" />
                         <TextBlock x:Name="ColorErrorText" Text="Geçersiz renk kodu (#RRGGBB veya #RGB)"
                                    FontSize="12" Foreground="#E57373"
                                    VerticalAlignment="Center" Margin="8,0,0,0"
@@ -93,6 +95,7 @@
                     <Slider x:Name="OpacitySlider" Grid.Row="1"
                             Minimum="0" Maximum="100"
                             IsSnapToTickEnabled="True" TickFrequency="1"
+                            IsMoveToPointEnabled="True"
                             Margin="0,12,0,4"
                             ValueChanged="OnOpacityChanged" />
                 </Grid>

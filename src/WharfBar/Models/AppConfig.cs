@@ -136,6 +136,12 @@ internal static class VeilNormalizer
             : VeilConfig.DefaultColor;
     }
 
+    /// <summary>Formats a <see cref="Color"/> as a lowercase <c>#rrggbb</c> string (alpha ignored).</summary>
+    internal static string NormalizeColor(Color color)
+    {
+        return $"#{color.R:x2}{color.G:x2}{color.B:x2}";
+    }
+
     internal static bool TryParseColor(string? text, out Color color)
     {
         color = Colors.Transparent;
