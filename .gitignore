@@ -56,3 +56,6 @@ appsettings.*.Local.json
 
 ## Superpowers / agent scratch (briefs, review diffs)
 .superpowers/
+
+## Git worktrees
+.worktrees/
