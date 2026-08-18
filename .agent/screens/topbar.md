@@ -30,6 +30,7 @@ Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
 | `controlCenter` | hızlı ayarlar glifi `E9CE` | `QuickSettingsFlyout` → **Main** sekmesi |
 | `volume` | ses glifi `E767` | `QuickSettingsFlyout` → **Mixer** sekmesi |
 | `brightness` | güneş glifi `E706` | `BrightnessFlyout` (monitör kartları, DDC/CI + WMI) |
+| `media` | müzik notası glifi `E90B` | `MediaFlyout` (kapak + başlık/sanatçı + kontroller + oturum seçici); oturum yokken gizli |
 | `network` | ağ glifi `E701` | `QuickSettingsFlyout` → **Network** sekmesi |
 | `battery` | pil glifi + yüzde metni | yok (gösterim) |
 
@@ -96,6 +97,24 @@ accent/base arasında yumuşatılır. Devre dışı tile'lar `QsTileDisabled` il
 `BrightnessFlyout` — Monitorian tarzı: master "Tüm Ekranlar" slider'ı + bağımsız monitör
 kartları; 50ms debounced arka plan kuyruğu. `MonitorBrightnessService` + `MonitorNative`
 (DDC/CI + WMI hibrit).
+
+## Medya flyout
+
+`MediaFlyout` — Windows SMTC (`MediaSessionService`, ADR-008) üzerinden şu an çalan medya:
+yuvarlatılmış kapak (kapsızsa müzik glifi `E90C` yer tutucu) + başlık (kalın, tek satır,
+metadata alınamadıysa uygulama adı fallback) + sanatçı; altında `E892` Önceki /
+`E768`–`E769` Oynat-Duraklat (duruma göre glif canlı değişir) / `E893` Sonraki.
+Birden çok oturum aktifse üstte seçici satırı belirir: `E76B` ‹ oturum adı › `E76C`
+chevron'lar seçili oturumu halkada ilerletir; kontroller seçili uygulamaya gider.
+Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
+
+- Üst bar öğesi `media` yalnızca oturum varken görünür (`_mediaActive`; Battery/Volume
+  deseni) — oturum bitince kaybolur; sağ tık menüsünden kalıcı göster/gizle + sıralama.
+- Tooltip: "Başlık – Sanatçı" (metadata yoksa uygulama adı).
+- Flyout oturum bitince **kapanmaz**; "Çalan medya yok" metnine döner (kapatma yalnızca
+  kullanıcı: dış tıklama / ESC / tekrar tıklama — QS/Brightness ile aynı animasyonlu kapanış).
+- Açılışta `FlyoutSurface` yüzeyi tazelenir; QS ile aynı yukarıdan-aşağı slide+fade animasyonu.
+- SMTC başlatılamazsa servis pasif kalır (öğe görünmez); 10 sn sonra yeniden dener.
 
 ## Tuzaklar
 

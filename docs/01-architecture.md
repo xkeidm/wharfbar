@@ -40,6 +40,7 @@ src/WharfBar/
     TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; sağ durum/overflow; WndProc
     QuickSettingsFlyout.xaml(.cs) # Win11 tarzı hızlı ayarlar (ses/ağ; ADR-006)
     BrightnessFlyout.xaml(.cs)  # Monitör parlaklık uçan penceresi (DDC/CI + WMI Monitorian)
+    MediaFlyout.xaml(.cs)       # Medya flyout: kapak/başlık/sanatçı/kontroller + oturum seçici (ADR-008)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
     VeilWindow.xaml(.cs)        # tam ekran kaplama overlay (click-through, fade; ADR-007)
@@ -76,6 +77,7 @@ src/WharfBar/
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
     TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize
+    MediaSnapshot.cs            # çalan medya anlık görüntüsü (SMTC; Idle + HasSession) — ADR-008
     AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
@@ -90,6 +92,8 @@ src/WharfBar/
     DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
+    MediaSessionSelector.cs     # oturum seçim politikası: en son aktif; MoveCurrent halka (ADR-008)
+    MediaSessionService.cs      # SMTC izleme: snapshot + oynat/duraklat/ileri/geri + seçici (ADR-008)
     MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
     VolumeService.cs            # master volume poll
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
@@ -123,13 +127,20 @@ Shell yerine geçme (Faz 9): [ADR-005](decisions/005-shell-replace-live-dock-tra
 Renk kaplaması (veil): [ADR-007](decisions/007-veil-overlay.md),
 [spec](superpowers/specs/2026-08-18-veil-overlay-design.md),
 [plan](superpowers/plans/2026-08-18-veil-overlay.md).
+Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
+[spec](superpowers/specs/2026-08-18-media-panel-design.md),
+[plan](superpowers/plans/2026-08-18-media-panel.md).
+
 ## Sorumluluklar
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `network` → QS Network |
+| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (oturum yokken gizli); `network` → QS Network |
 | `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
 | `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
+| `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) izleme: snapshot (kapak/başlık/sanatçı/çalma durumu), komutlar (Oynat/Duraklat, İleri/Geri), oturum seçimi; olaylar kurulduğu Dispatcher'a marshal; init hatası 10 sn retry; `Changed` / `SessionsChanged` (ADR-008) |
+| `MediaSessionSelector` | Saf seçim politikası: en son aktif oturum başta; `MoveCurrent` ile seçici halkasında ilerleme; yalnızca playing/paused oturumlar — unit testli (ADR-008) |
+| `MediaFlyout` | Flyout içeriği: oturum seçici (1'den fazlaysa), kapak + başlık/sanatçı, Oynat/Duraklat + İleri/Geri; oturum yokken "Çalan medya yok" (popup kapanmaz) |
 | `VeilService` | Kaplama durumu + fade + hotkey host (mesaj-only `HwndSource`); `SetEnabled` → `Config.Save`; çıkışta `UnregisterHotKey` (ADR-007) |
 | `VeilWindow` | Tam ekran katmanlı kaplama (düz renk dolgu, `Topmost`, kalıcı `WS_EX_TRANSPARENT` passthrough, 280 ms fade); birincil monitör rect + `WM_DISPLAYCHANGE` / `WM_DPICHANGED` yeniden yerleşim |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
@@ -200,11 +211,14 @@ Uygulanan (Faz 1–9):
 6. `DockWindow.Show(config)` — overlay; `DockAppsComposer` ile canlı pin/running; AppBar kaydı yok
 7. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
 8. `OnSourceInitialized` (TopBar) → `HwndSource.AddHook`; `RegisterWindowMessage("TaskbarCreated")`;
-   `AppBar` oluştur (`ABE_TOP`, callback mesajı `WharfBarAppBarMessage`); durum şeridi bağlanır
+   `AppBar` oluştur (`ABE_TOP`, callback mesajı `WharfBarAppBarMessage`); durum şeridi bağlanır;
+   medya servisi kurulur: `new MediaSessionService()` → `Changed`/`SessionsChanged` abonelikleri →
+   `MediaHost.Attach(_media)` → `_ = _media.InitializeAsync()` (ADR-008)
 9. `OnSourceInitialized` (Dock) → hook; `WindowAppearance`; `DockHitTest.ApplyInteractive`;
    `FullscreenState` / `WorkAreaChanged` abonelikleri; pin görselleri; yerleşim
 10. Çıkış yolları bağlanır → `ABM_NEW` → yerleşim uygulanır → `WorkAreaChanged.Notify`
-11. Çıkış: **görev çubuğu restore** (`TaskbarVisibilityService.Restore`) → tray dispose → dock kapat
+11. Çıkış: `DisposeOwnedServices` (servis abonelikleri çözülür; `_media.Dispose()`) →
+    **görev çubuğu restore** (`TaskbarVisibilityService.Restore`) → tray dispose → dock kapat
     → `ABM_REMOVE` (idempotent; `ReleaseShellState` sırası: restore önce, sonra remove)
 
 ### Yerleşim hesabı (fiziksel piksel)
@@ -266,7 +280,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
   "topBar": {
     "backgroundMode": "tint",
     "tintOpacity": 40,
-    "statusCatalogVersion": 1,
+    "statusCatalogVersion": 4,
     "statusItems": [
       "trayOverflow",
       "dateTime",
@@ -274,6 +288,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
       "controlCenter",
       "volume",
       "brightness",
+      "media",
       "network",
       "battery"
     ]
@@ -300,8 +315,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `dock.surface` | `mica` \| `acrylic`; dock yüzeyi (`WindowAppearance` → `WindowBackdropType`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Zemin rengi üst barla aynı DWM sistem kaynağından (Windows temasından otomatik) |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
-| `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). `0` → `1`: eksik `controlCenter` `volume` önüne eklenir |
-| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, … `battery`). Soft alan (`schemaVersion` 1) |
+| `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). Güncel **4**: eksik `controlCenter` `volume` önüne, eksik `brightness` `volume` sonrasına, eksik `media` `brightness` sonrasına eklenir (`Ensure*`; eski sürüm açılışta 4'e taşınır — ADR-008) |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, … `media` dahil, … `battery`). Soft alan (`schemaVersion` 1) |
 | `veil.enabled` | Kaplama açık/kapalı (kalıcı; QS karosu + kısayol + sayfa toggle'ı yazar). Varsayılan **`false`** |
 | `veil.color` | Kaplama rengi `#RRGGBB` (soft; geçersiz/eksik → `VeilNormalizer` varsayılan **`#4A90D9`**, küçük harfe normalleştirilir; `#RGB` kabul edilir) |
 | `veil.opacity` | 0–100 kaplama gücü; yüklemede `ClampOpacity` (varsayılan **40**). Siyah + yüksek opaklık = parlaklık azaltma (ayrı kontrol yok) |

@@ -10,6 +10,7 @@ WharfBar'ın kullanıcı arayüzü turu: her ekranın ayrıntılı sayfası aşa
 | **Ayarlar** | [`settings.md`](settings.md) | Logo/tepsi menüsünden açılır; Genel · Görünüm · Dock · Üst Çubuk · Kaplama · Hakkında sayfaları (WPF-UI NavigationView). |
 | **Hızlı ayarlar flyout** | [`topbar.md`](topbar.md#hızlı-ayarlar-flyout) | `controlCenter`/ses/ağ ikonlarının paylaştığı tek popup: Main / Mixer / Network sekmeleri (ADR-006); Wi-Fi (canlı ağ listesi + şifre paneli), Bluetooth (cihaz listesi), Yansıt (4 mod), gece ışığı tile (gerçek durum + toggle), kaplama tile (renk overlay aç/kapa, `\uE790`; ADR-007), tile animasyonları. |
 | **Parlaklık flyout** | [`topbar.md`](topbar.md#parlaklık-flyout) | Monitorian tarzı DDC/CI + WMI; master slider + monitör kartları. |
+| **Medya flyout** | [`topbar.md`](topbar.md#medya-flyout) | SMTC şu an çalan: kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturum seçici; öğe yalnızca oturum aktifken görünür |
 
 Ortak notlar:
 

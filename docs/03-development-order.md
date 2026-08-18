@@ -4,6 +4,7 @@
 
 > Faz 1–7 tamamlandı. **Faz 8 kodu çalışma ağacında** (manuel doğrulama bekliyor).
 > **Faz 9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor).
+> **Medya paneli kodu çalışma ağacında** (manuel doğrulama bekliyor; aşağıda).
 > Faz 8 spec: [`superpowers/specs/2026-08-10-dock-auto-hide-design.md`](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 > Faz 8 plan: [`superpowers/plans/2026-08-10-dock-auto-hide.md`](superpowers/plans/2026-08-10-dock-auto-hide.md).
 > Faz 9 spec: [`superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
@@ -124,6 +125,18 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 - [x] Yabancı ikon çizimi / RPM / undocumented enumeration yok
 - [x] İsteğe bağlı: ses / volume göstergesi + hızlı ayarlar (ADR-006; 9c sonrası genişletildi)
 - [ ] Manuel: düğme overflow açar; WharfBar’da üçüncü taraf ikon yok
+
+## Medya paneli (SMTC) ✓ (kod)
+
+Faz düzeninin dışında, Faz 9 sonrası ayrı özellik olarak uygulandı (ADR-008).
+Spec: [`superpowers/specs/2026-08-18-media-panel-design.md`](superpowers/specs/2026-08-18-media-panel-design.md).
+Plan: [`superpowers/plans/2026-08-18-media-panel.md`](superpowers/plans/2026-08-18-media-panel.md).
+
+- [x] `MediaSnapshot` modeli (`Idle` + `HasSession`) + `MediaSessionSelector` (en son aktif politika, `MoveCurrent` halka) — unit testli
+- [x] `MediaSessionService` — SMTC (`GlobalSystemMediaTransportControlsSessionManager`) izleme: snapshot + Oynat/Duraklat/İleri/Geri + `Changed`/`SessionsChanged`; olaylar UI Dispatcher'a marshal; init hatası 10 sn retry; `Dispose` (`_disposed` guard)
+- [x] Katalog `media` öğesi + katalog **v4** migration (`EnsureMedia` → `brightness` sonrası)
+- [x] `MediaFlyout` (kapak + başlık/sanatçı + kontroller + oturum seçici) + üst bar kablolaması (dinamik görünürlük, tooltip, animasyonlu açılış/kapanış)
+- [ ] Manuel doğrulama: çalan medyada öğe belirir; kontroller çalışır; çoklu oturum seçici; sağ tık kalıcı gizleme; config migration (brief'teki 10 maddelik liste)
 
 ## Faz 10+ (v1 sonrası adaylar — sıra sabit değil)
 

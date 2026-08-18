@@ -12,10 +12,11 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 ## Ürün
 
 - **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
-  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `network` →
-  `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
+  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `media` →
+  `network` → `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
-  `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
+  `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
+  medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   sabitlenen uygulamalar solda, sabit olmayan çalışanlar sağda (ayırıcı çizgi ile ayrılmış);
   sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere);
@@ -66,6 +67,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle |
 | `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
 | `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
+| `docs/decisions/008-...` | Medya paneli (SMTC) — çalan medya + kontroller |
 
 ## Mevcut repo durumu
 
@@ -98,6 +100,14 @@ Kaplama ayarlar sayfası (renk/opaklık/kısayol).
 Spec/plan: [`../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../docs/superpowers/specs/2026-08-18-veil-overlay-design.md),
 [`../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../docs/superpowers/plans/2026-08-18-veil-overlay.md);
 karar: [`../docs/decisions/007-veil-overlay.md`](../docs/decisions/007-veil-overlay.md).
+**Medya paneli (SMTC):** üst bar `media` öğesi (yalnızca oturum varken görünür) + medya
+flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron
+seçici); `MediaSessionService` (Windows SMTC izleme + komutlar + 10 sn retry),
+`MediaSessionSelector` (en son aktif politikası), `MediaSnapshot`; katalog **v4**
+migration (`media` `brightness` sonrasına eklenir).
+Spec: [`../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../docs/superpowers/specs/2026-08-18-media-panel-design.md);
+plan: [`../docs/superpowers/plans/2026-08-18-media-panel.md`](../docs/superpowers/plans/2026-08-18-media-panel.md);
+karar: [`../docs/decisions/008-media-panel.md`](../docs/decisions/008-media-panel.md).
 **Monitör Parlaklık Kontrolü:**
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
