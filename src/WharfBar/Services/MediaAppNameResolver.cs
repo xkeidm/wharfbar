@@ -86,8 +86,18 @@ internal sealed class MediaAppNameResolver
 
             foreach (string lnk in Directory.EnumerateFiles(root, "*.lnk", SearchOption.AllDirectories))
             {
-                if (!AppShortcut.TryGetAppUserModelId(lnk, out string? aumid) || string.IsNullOrEmpty(aumid))
+                string? aumid;
+                try
                 {
+                    bool ok = AppShortcut.TryGetAppUserModelId(lnk, out aumid);
+                    if (!ok || string.IsNullOrEmpty(aumid))
+                    {
+                        continue;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[media] kısayol AUMID okunamadı ({lnk}): {ex.GetType().Name}: {ex.Message}");
                     continue;
                 }
 

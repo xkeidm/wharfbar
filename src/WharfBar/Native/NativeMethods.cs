@@ -509,29 +509,6 @@ internal interface IShellItemImageFactory
 }
 
 /// <summary>
-/// Property store for a shell item (Start Menu .lnk AUMID okuma). COM.
-/// </summary>
-[ComImport]
-[Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")]
-[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
-internal interface IPropertyStore
-{
-    void GetCount(out uint cProps);
-    void GetAt(uint iProp, out PROPERTYKEY key);
-    [PreserveSig]
-    int GetValue(ref PROPERTYKEY key, out PROPVARIANT pv);
-    void SetValue(ref PROPERTYKEY key, ref PROPVARIANT pv);
-    void Commit();
-}
-
-[StructLayout(LayoutKind.Sequential)]
-internal struct PROPERTYKEY
-{
-    public Guid fmtid;
-    public uint pid;
-}
-
-/// <summary>
 /// PROPVARIANT — union; string değerler (VT_LPWSTR) offset 8'de <see cref="pwszVal"/> tutar.
 /// Alma yapıldıktan sonra <see cref="NativeMethods.PropVariantClear"/> ile serbest bırakılır.
 /// </summary>
