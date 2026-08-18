@@ -171,8 +171,9 @@ public partial class TopBarWindow : Window
 
     /// <summary>
     /// Flyoutlar açıkken topbar'a yapılan tıklamaları kapatma animasyonuyla kapatır;
-    /// flyout'u yeniden hedefleyen çapa butonları (QS anchors / brightness) hariç tutulur
-    /// — onlar kendi toggle/re-target mantığını yürütür.
+    /// flyout'u yeniden hedefleyen çapa butonları (QS anchors / brightness / media) ve
+    /// popup içeriğine yapılan tıklamalar hariç tutulur — popup içeriği pencerenin görsel
+    /// ağacında olduğundan tıklamalar buraya kadar tünel açar; onlar kendi tüketir.
     /// </summary>
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -181,14 +182,23 @@ public partial class TopBarWindow : Window
             return;
         }
 
-        if (e.OriginalSource is DependencyObject hit
-            && (IsWithin(hit, ControlCenterButton)
+        if (e.OriginalSource is DependencyObject hit)
+        {
+            if (IsWithin(hit, QuickSettingsHost)
+                || IsWithin(hit, BrightnessHost)
+                || IsWithin(hit, MediaHost))
+            {
+                return;
+            }
+
+            if (IsWithin(hit, ControlCenterButton)
                 || IsWithin(hit, VolumeButton)
                 || IsWithin(hit, NetworkButton)
                 || IsWithin(hit, BrightnessButton)
-                || IsWithin(hit, MediaButton)))
-        {
-            return;
+                || IsWithin(hit, MediaButton))
+            {
+                return;
+            }
         }
 
         CloseFlyouts();
