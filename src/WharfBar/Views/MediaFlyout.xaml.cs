@@ -39,6 +39,7 @@ public partial class MediaFlyout : UserControl
         if (_service is not null)
         {
             Apply(_service.Snapshot);
+            ApplySessions(_service);
         }
     }
 

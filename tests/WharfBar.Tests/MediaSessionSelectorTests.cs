@@ -74,10 +74,27 @@ public class MediaSessionSelectorTests
         sel.AddSession("A");
         sel.AddSession("B");
         sel.AddSession("C");
-        Assert.Equal("B", sel.MoveCurrent(1));   // [B, A, C]
-        Assert.Equal("C", sel.MoveCurrent(1));   // [C, B, A]
-        Assert.Equal("A", sel.MoveCurrent(1));   // [A, C, B]
-        Assert.Equal("C", sel.MoveCurrent(-1));  // [C, A, B]
+        Assert.Equal("B", sel.MoveCurrent(1));          // [B, A, C]
+        Assert.Equal(["B", "A", "C"], sel.Sessions);
+        Assert.Equal("C", sel.MoveCurrent(1));          // [C, B, A]
+        Assert.Equal(["C", "B", "A"], sel.Sessions);
+        Assert.Equal("A", sel.MoveCurrent(1));          // [A, C, B]
+        Assert.Equal(["A", "C", "B"], sel.Sessions);
+        Assert.Equal("C", sel.MoveCurrent(-1));         // [C, A, B]
+        Assert.Equal(["C", "A", "B"], sel.Sessions);
+    }
+
+    [Fact]
+    public void MoveCurrent_UsesRingOrder_NotMruOrder()
+    {
+        var sel = new MediaSessionSelector();
+        sel.AddSession("A");
+        sel.AddSession("B");
+        sel.AddSession("C");
+        sel.MarkActive("C");                            // MRU [C, A, B]
+        Assert.Equal(["C", "A", "B"], sel.Sessions);
+        Assert.Equal("A", sel.MoveCurrent(1));          // halka [A, B, C] → A
+        Assert.Equal(["A", "C", "B"], sel.Sessions);
     }
 
     [Fact]

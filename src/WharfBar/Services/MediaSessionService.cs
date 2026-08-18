@@ -21,7 +21,7 @@ internal sealed class MediaSessionService : IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly MediaSessionSelector _selector = new();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> _sessions = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, ImageSource> _thumbnails = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string Id, string Title, string Artist), ImageSource> _thumbnails = new();
     private GlobalSystemMediaTransportControlsSessionManager? _manager;
     private MediaSnapshot _snapshot = MediaSnapshot.Idle;
     private DispatcherTimer? _retryTimer;
@@ -52,7 +52,17 @@ internal sealed class MediaSessionService : IDisposable
 
         try
         {
+            if (_manager is not null)
+            {
+                _manager.SessionsChanged -= OnSessionsChanged;
+            }
+
             _manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
+            if (_disposed)
+            {
+                return;
+            }
+
             _manager.SessionsChanged += OnSessionsChanged;
             ReconcileSessions();
             RaiseSessions();
@@ -248,7 +258,11 @@ internal sealed class MediaSessionService : IDisposable
         {
             session.PlaybackInfoChanged -= OnPlaybackChanged;
             session.MediaPropertiesChanged -= OnMediaPropertiesChanged;
-            _thumbnails.Remove(id);
+            foreach (var key in _thumbnails.Keys.Where(k => k.Id == id).ToList())
+            {
+                _thumbnails.Remove(key);
+            }
+
             _selector.RemoveSession(id);
         }
     }
@@ -283,8 +297,14 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            // Metadata alınamadı (uygulama yanıt vermiyor) — app adı fallback'i kullanılır.
+            // Metadata alınamadı (uygulama yanıt vermiyor) — son bilinen değerler korunur,
+            // yoksa app adı fallback'i kullanılır.
             Debug.WriteLine($"[media] metadata başarısız: {ex.Message}");
+            if (_snapshot.SessionId == id)
+            {
+                title = _snapshot.Title;
+                artist = _snapshot.Artist;
+            }
         }
 
         if (id != _selector.Current)
@@ -292,13 +312,14 @@ internal sealed class MediaSessionService : IDisposable
             return;
         }
 
+        var thumbnailKey = (id, title, artist);
         ImageSource? thumb = null;
-        if (thumbnailRef is not null && !_thumbnails.TryGetValue(id, out thumb))
+        if (thumbnailRef is not null && !_thumbnails.TryGetValue(thumbnailKey, out thumb))
         {
             thumb = await TryDecodeThumbnailAsync(thumbnailRef);
             if (thumb is not null)
             {
-                _thumbnails[id] = thumb;
+                _thumbnails[thumbnailKey] = thumb;
             }
         }
 

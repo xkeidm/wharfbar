@@ -9,6 +9,7 @@ namespace WharfBar.Services;
 internal sealed class MediaSessionSelector
 {
     private readonly List<string> _sessions = new();
+    // Ekleme sırası halkası — chevron kaydırma düzeni; MRU sırasından bağımsız.
     private readonly List<string> _ring = new();
 
     /// <summary>Oturum id'leri, en son aktif başta.</summary>
@@ -28,13 +29,7 @@ internal sealed class MediaSessionSelector
     }
 
     /// <summary>Bilinen id'yi başa taşır; bilinmeyen no-op.</summary>
-    internal void MarkActive(string id)
-    {
-        if (_sessions.Remove(id))
-        {
-            _sessions.Insert(0, id);
-        }
-    }
+    internal void MarkActive(string id) => MoveToFront(id);
 
     internal void RemoveSession(string id)
     {
@@ -42,7 +37,7 @@ internal sealed class MediaSessionSelector
         _ring.Remove(id);
     }
 
-    /// <summary>Seçili oturumu delta kadar kaydırır (liste sonunda sarmalayıcı); yeni seçim döner.</summary>
+    /// <summary>Seçimi halkada delta kadar ilerletir (başa sarma); yeni seçim MRU listesinin başına taşınır; boşsa null.</summary>
     internal string? MoveCurrent(int delta)
     {
         if (_sessions.Count == 0)
@@ -53,8 +48,15 @@ internal sealed class MediaSessionSelector
         int current = _ring.IndexOf(Current!);
         int next = ((current + delta) % _ring.Count + _ring.Count) % _ring.Count;
         string id = _ring[next];
-        _sessions.Remove(id);
-        _sessions.Insert(0, id);
+        MoveToFront(id);
         return id;
+    }
+
+    private void MoveToFront(string id)
+    {
+        if (_sessions.Remove(id))
+        {
+            _sessions.Insert(0, id);
+        }
     }
 }

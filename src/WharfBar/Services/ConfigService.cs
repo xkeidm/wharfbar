@@ -181,13 +181,24 @@ internal sealed class ConfigService
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
-        if (config.TopBar.StatusCatalogVersion < TopBarConfig.CurrentStatusCatalogVersion)
+        // Her öğe kendi tanıtım sürümüyle eşiklenir: kullanıcı gizlemişse (hide must stick)
+        // upgrade'te yeniden eklenmez. controlCenter v1, brightness v2, media v4 ile geldi.
+        if (config.TopBar.StatusCatalogVersion < 1)
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);
-            TopBarStatusItemIds.EnsureBrightness(config.TopBar.StatusItems);
-            TopBarStatusItemIds.EnsureMedia(config.TopBar.StatusItems);
-            config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
         }
+
+        if (config.TopBar.StatusCatalogVersion < 2)
+        {
+            TopBarStatusItemIds.EnsureBrightness(config.TopBar.StatusItems);
+        }
+
+        if (config.TopBar.StatusCatalogVersion < 4)
+        {
+            TopBarStatusItemIds.EnsureMedia(config.TopBar.StatusItems);
+        }
+
+        config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
 
         // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
         // Other values inside Min–Max are preserved.
