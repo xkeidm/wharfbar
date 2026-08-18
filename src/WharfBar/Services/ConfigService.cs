@@ -185,6 +185,7 @@ internal sealed class ConfigService
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);
             TopBarStatusItemIds.EnsureBrightness(config.TopBar.StatusItems);
+            TopBarStatusItemIds.EnsureMedia(config.TopBar.StatusItems);
             config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
         }
 

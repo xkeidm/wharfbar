@@ -11,6 +11,7 @@ internal static class TopBarStatusItemIds
     internal const string Brightness = "brightness";
     internal const string Network = "network";
     internal const string Battery = "battery";
+    internal const string Media = "media";
 
     internal static readonly IReadOnlyList<string> DefaultOrder =
     [
@@ -20,6 +21,7 @@ internal static class TopBarStatusItemIds
         ControlCenter,
         Volume,
         Brightness,
+        Media,
         Network,
         Battery,
     ];
@@ -106,6 +108,37 @@ internal static class TopBarStatusItemIds
         else
         {
             items.Add(Brightness);
+        }
+    }
+
+    /// <summary>
+    /// Soft migration helper: eksik <see cref="Media"/>'yı <see cref="Brightness"/> sonrasına ekler
+    /// (brightness yoksa <see cref="Volume"/> sonrası; o da yoksa sona).
+    /// </summary>
+    internal static void EnsureMedia(List<string> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Contains(Media, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        int index = items.FindIndex(static x =>
+            string.Equals(x, Brightness, StringComparison.Ordinal));
+        if (index < 0)
+        {
+            index = items.FindIndex(static x =>
+                string.Equals(x, Volume, StringComparison.Ordinal));
+        }
+
+        if (index >= 0)
+        {
+            items.Insert(index + 1, Media);
+        }
+        else
+        {
+            items.Add(Media);
         }
     }
 
