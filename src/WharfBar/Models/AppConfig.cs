@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Windows.Media;
+
 namespace WharfBar.Models;
 
 /// <summary>
@@ -25,6 +28,8 @@ internal sealed class AppConfig
     public DockConfig Dock { get; set; } = new();
 
     public TopBarConfig TopBar { get; set; } = new();
+
+    public VeilConfig Veil { get; set; } = new();
 
     public List<PinnedApp> PinnedApps { get; set; } = [];
 }
@@ -95,4 +100,78 @@ internal sealed class TopBarConfig
 
     /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
     public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
+}
+
+/// <summary>Veil (screen color overlay) settings under <see cref="AppConfig.Veil"/>.</summary>
+internal sealed class VeilConfig
+{
+    internal const string DefaultColor = "#4A90D9";
+
+    internal const int DefaultOpacity = 40;
+
+    internal const string DefaultHotKey = "Ctrl+F11";
+
+    public bool Enabled { get; set; }
+
+    /// <summary>Overlay color as <c>#RRGGBB</c>.</summary>
+    public string Color { get; set; } = DefaultColor;
+
+    /// <summary>0–100 overlay strength.</summary>
+    public int Opacity { get; set; } = DefaultOpacity;
+
+    /// <summary>Hotkey text (<c>Ctrl+F11</c>); empty = no hotkey. Soft field: invalid text is kept.</summary>
+    public string HotKey { get; set; } = DefaultHotKey;
+}
+
+/// <summary>Pure static normalization helpers for <see cref="VeilConfig"/> (unit-tested).</summary>
+internal static class VeilNormalizer
+{
+    internal static int ClampOpacity(int value) => Math.Clamp(value, 0, 100);
+
+    /// <summary>Returns a lowercase <c>#rrggbb</c> string, or <see cref="VeilConfig.DefaultColor"/> when unparsable.</summary>
+    internal static string NormalizeColor(string? text)
+    {
+        return TryParseColor(text, out Color color)
+            ? $"#{color.R:x2}{color.G:x2}{color.B:x2}"
+            : VeilConfig.DefaultColor;
+    }
+
+    internal static bool TryParseColor(string? text, out Color color)
+    {
+        color = Colors.Transparent;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        string hex = text.Trim().TrimStart('#');
+        return hex.Length is 3 or 6
+            && int.TryParse(hex, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out int value)
+            && ExpandHex(hex.Length, value, out color);
+    }
+
+    private static bool ExpandHex(int length, int value, out Color color)
+    {
+        int r;
+        int g;
+        int b;
+        if (length == 3)
+        {
+            r = (value >> 8) & 0xF;
+            r |= r << 4;
+            g = (value >> 4) & 0xF;
+            g |= g << 4;
+            b = value & 0xF;
+            b |= b << 4;
+        }
+        else
+        {
+            r = (value >> 16) & 0xFF;
+            g = (value >> 8) & 0xFF;
+            b = value & 0xFF;
+        }
+
+        color = Color.FromRgb((byte)r, (byte)g, (byte)b);
+        return true;
+    }
 }
