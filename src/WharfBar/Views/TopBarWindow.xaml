@@ -178,6 +178,15 @@
                                Text="&#xE706;" />
                 </Border>
 
+                <Border x:Name="MediaButton" Style="{StaticResource StatusHit}" Visibility="Collapsed">
+                    <Border.ToolTip>
+                        <ToolTip Content="Çalan medya" />
+                    </Border.ToolTip>
+                    <TextBlock x:Name="MediaGlyph"
+                               Style="{StaticResource StatusGlyph}"
+                               Text="&#xE90B;" />
+                </Border>
+
                 <Border x:Name="NetworkButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
                         <ToolTip Content="Ağ" />
@@ -230,6 +239,18 @@
                    VerticalOffset="10"
                    Opened="OnBrightnessPopupOpened">
                 <local:BrightnessFlyout x:Name="BrightnessHost" />
+            </Popup>
+
+            <!-- Media Flyout (SMTC şu an çalan) -->
+            <Popup x:Name="MediaPopup"
+                   Placement="Bottom"
+                   PlacementTarget="{Binding ElementName=MediaButton}"
+                   StaysOpen="True"
+                   AllowsTransparency="True"
+                   PopupAnimation="None"
+                   VerticalOffset="10"
+                   Opened="OnMediaPopupOpened">
+                <local:MediaFlyout x:Name="MediaHost" />
             </Popup>
         </Grid>
     </Border>

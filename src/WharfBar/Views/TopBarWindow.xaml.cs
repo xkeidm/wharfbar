@@ -61,6 +61,9 @@ public partial class TopBarWindow : Window
     private Dictionary<string, FrameworkElement>? _statusElements;
     private bool _batteryPresent = false;
     private bool _volumeAvailable = true;
+    private MediaSessionService? _media;
+    private bool _mediaActive;
+    private bool _mediaClosePending;
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
@@ -84,6 +87,7 @@ public partial class TopBarWindow : Window
             [TopBarStatusItemIds.ControlCenter] = ControlCenterButton,
             [TopBarStatusItemIds.Volume] = VolumeButton,
             [TopBarStatusItemIds.Brightness] = BrightnessButton,
+            [TopBarStatusItemIds.Media] = MediaButton,
             [TopBarStatusItemIds.Network] = NetworkButton,
             [TopBarStatusItemIds.Battery] = BatteryGroup,
         };
@@ -135,6 +139,12 @@ public partial class TopBarWindow : Window
         _monitorBrightness = new MonitorBrightnessService();
         BrightnessHost.Attach(_monitorBrightness);
 
+        _media = new MediaSessionService();
+        _media.Changed += OnMediaChanged;
+        _media.SessionsChanged += OnMediaSessionsChanged;
+        MediaHost.Attach(_media);
+        _ = _media.InitializeAsync();
+
         _appBar.Register();
         ApplyPlacement();
 
@@ -144,6 +154,7 @@ public partial class TopBarWindow : Window
         NetworkButton.PreviewMouseLeftButtonUp += OnNetworkClick;
         VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
         BrightnessButton.PreviewMouseLeftButtonUp += OnBrightnessClick;
+        MediaButton.PreviewMouseLeftButtonUp += OnMediaClick;
         DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
         NotificationsButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
 
@@ -155,6 +166,7 @@ public partial class TopBarWindow : Window
         // routes through the popup's visual tree, not the topbar window.
         QuickSettingsHost.KeyDown += OnFlyoutHostKeyDown;
         BrightnessHost.KeyDown += OnFlyoutHostKeyDown;
+        MediaHost.KeyDown += OnFlyoutHostKeyDown;
     }
 
     /// <summary>
@@ -164,7 +176,7 @@ public partial class TopBarWindow : Window
     /// </summary>
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen)
+        if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen && !MediaPopup.IsOpen)
         {
             return;
         }
@@ -173,7 +185,8 @@ public partial class TopBarWindow : Window
             && (IsWithin(hit, ControlCenterButton)
                 || IsWithin(hit, VolumeButton)
                 || IsWithin(hit, NetworkButton)
-                || IsWithin(hit, BrightnessButton)))
+                || IsWithin(hit, BrightnessButton)
+                || IsWithin(hit, MediaButton)))
         {
             return;
         }
@@ -501,10 +514,61 @@ public partial class TopBarWindow : Window
         BrightnessPopup.IsOpen = true;
     }
 
+    private void OnMediaClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleMediaFlyout();
+    }
+
+    private void ToggleMediaFlyout()
+    {
+        if (MediaPopup.IsOpen)
+        {
+            CloseMedia();
+            return;
+        }
+
+        CancelPendingClose(MediaHost, ref _mediaClosePending);
+        CloseFlyouts();
+        MediaPopup.IsOpen = true;
+    }
+
+    private void CloseMedia(bool animate = true)
+    {
+        if (!MediaPopup.IsOpen)
+        {
+            _mediaClosePending = false;
+            return;
+        }
+
+        if (animate && !_mediaClosePending)
+        {
+            _mediaClosePending = true;
+            AnimateFlyoutClose(MediaHost, () =>
+            {
+                _mediaClosePending = false;
+                MediaPopup.IsOpen = false;
+            });
+        }
+        else
+        {
+            CancelPendingClose(MediaHost, ref _mediaClosePending);
+            MediaPopup.IsOpen = false;
+        }
+    }
+
+    private void OnMediaPopupOpened(object sender, EventArgs e)
+    {
+        CancelPendingClose(MediaHost, ref _mediaClosePending);
+        MediaHost.OnFlyoutOpened();
+        AnimateFlyoutOpen(MediaHost);
+    }
+
     private void CloseFlyouts(bool animate = true)
     {
         CloseQuickSettings(animate);
         CloseBrightness(animate);
+        CloseMedia(animate);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -584,6 +648,8 @@ public partial class TopBarWindow : Window
         _volume = null;
         _monitorBrightness?.Dispose();
         _monitorBrightness = null;
+        _media?.Dispose();
+        _media = null;
     }
 
     private void OnMainWindowChromeClobbered()
@@ -657,6 +723,41 @@ public partial class TopBarWindow : Window
         ApplyStatusItemLayout();
     }
 
+    private void OnMediaChanged(object? sender, EventArgs e)
+    {
+        if (_media is null)
+        {
+            return;
+        }
+
+        _mediaActive = _media.HasActiveSession;
+        SetPlainToolTip(MediaButton, BuildMediaTooltip(_media.Snapshot));
+        ApplyStatusItemLayout();
+    }
+
+    private void OnMediaSessionsChanged(object? sender, EventArgs e)
+    {
+        _mediaActive = _media?.HasActiveSession ?? false;
+        ApplyStatusItemLayout();
+    }
+
+    private static string BuildMediaTooltip(MediaSnapshot snapshot)
+    {
+        if (!snapshot.HasSession)
+        {
+            return "Çalan medya";
+        }
+
+        if (string.IsNullOrEmpty(snapshot.Title))
+        {
+            return snapshot.AppName;
+        }
+
+        return string.IsNullOrEmpty(snapshot.Artist)
+            ? snapshot.Title
+            : $"{snapshot.Title} – {snapshot.Artist}";
+    }
+
     private void ApplyStatusItemLayout()
     {
         if (_statusElements is null)
@@ -683,6 +784,7 @@ public partial class TopBarWindow : Window
             {
                 TopBarStatusItemIds.Battery => _batteryPresent,
                 TopBarStatusItemIds.Volume => _volumeAvailable,
+                TopBarStatusItemIds.Media => _mediaActive,
                 _ => true,
             };
             el.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
@@ -869,6 +971,7 @@ public partial class TopBarWindow : Window
         TopBarStatusItemIds.Volume => "Ses",
         TopBarStatusItemIds.Network => "Ağ",
         TopBarStatusItemIds.Battery => "Pil",
+        TopBarStatusItemIds.Media => "Medya",
         _ => id,
     };
 
