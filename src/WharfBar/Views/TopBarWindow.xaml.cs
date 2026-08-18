@@ -28,6 +28,7 @@ public partial class TopBarWindow : Window
 
     private readonly TaskbarVisibilityService _taskbar;
     private readonly ConfigService _config;
+    private readonly VeilService _veil;
     private readonly TrayOverflowInvoker _trayOverflow;
     private readonly NotificationCenterInvoker _notifications = new();
     private AppBar? _appBar;
@@ -63,10 +64,11 @@ public partial class TopBarWindow : Window
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
-    internal TopBarWindow(TaskbarVisibilityService taskbar, ConfigService config)
+    internal TopBarWindow(TaskbarVisibilityService taskbar, ConfigService config, VeilService veil)
     {
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        _veil = veil ?? throw new ArgumentNullException(nameof(veil));
         _trayOverflow = new TrayOverflowInvoker(_taskbar);
 
         // Must be set before InitializeComponent — WPF locks AllowsTransparency after creation.
@@ -127,7 +129,7 @@ public partial class TopBarWindow : Window
         _wifi = new WifiService();
         _bluetooth = new BluetoothService();
         _projection = new ProjectionService();
-        _quick = new QuickSettingsService(_nightLight);
+        _quick = new QuickSettingsService(_nightLight, _veil);
         QuickSettingsHost.Attach(_volume, _mixer, _quick, _wifi, _bluetooth, _projection);
 
         _monitorBrightness = new MonitorBrightnessService();

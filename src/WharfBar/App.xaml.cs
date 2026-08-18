@@ -16,6 +16,7 @@ public partial class App : Application
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
     private SettingsWindow? _settings;
+    private VeilService? _veil;
 
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
@@ -25,6 +26,9 @@ public partial class App : Application
 
     /// <summary>The currently active <see cref="TopBarWindow"/> (same as <see cref="MainWindow"/>).</summary>
     internal TopBarWindow? TopBar => MainWindow as TopBarWindow;
+
+    /// <summary>Exposes the veil service for settings pages and shutdown.</summary>
+    internal VeilService? Veil => _veil;
 
     /// <summary>
     /// Opens the settings window or activates it if already open.
@@ -90,6 +94,9 @@ public partial class App : Application
         // Explicit Apply covers the common case where config exists and Save is skipped.
         new AutostartService().Apply(config.Autostart);
 
+        _veil = new VeilService(_config);
+        _veil.ApplyConfig(config.Veil);
+
         // Match the configured theme before the first window is realized, so the bar
         // never flashes the wrong palette.
         AppThemePreference.Mode = config.Theme;
@@ -102,7 +109,7 @@ public partial class App : Application
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
 
-        var topBar = new TopBarWindow(_taskbar, _config);
+        var topBar = new TopBarWindow(_taskbar, _config, _veil);
         MainWindow = topBar;
         topBar.Show();
 
@@ -131,7 +138,7 @@ public partial class App : Application
     /// </summary>
     internal void RecreateTopBar()
     {
-        if (_config is null || _taskbar is null)
+        if (_config is null || _taskbar is null || _veil is null)
         {
             return;
         }
@@ -146,7 +153,7 @@ public partial class App : Application
         try
         {
             // Ctor only — AppBar registers in OnSourceInitialized during Show.
-            next = new TopBarWindow(_taskbar, _config);
+            next = new TopBarWindow(_taskbar, _config, _veil);
             old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
             prepared = true;
             MainWindow = next;
@@ -187,6 +194,9 @@ public partial class App : Application
 
         _tray?.Dispose();
         _tray = null;
+
+        _veil?.Dispose();
+        _veil = null;
 
         _settings?.Close();
         _settings = null;

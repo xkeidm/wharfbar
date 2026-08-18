@@ -83,7 +83,7 @@
                 <UniformGrid x:Name="TilesGrid"
                              Grid.Row="0"
                              Columns="3"
-                             Rows="2"
+                             Rows="3"
                              Margin="0,0,0,4" />
 
                 <Border Grid.Row="1"

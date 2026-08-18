@@ -47,6 +47,7 @@ internal sealed class QuickSettingsService : IDisposable
     private bool _radiosKnown;
     private int _radioRefreshBusy;
     private readonly NightLightService _nightLight;
+    private readonly VeilService _veil;
 
     /// <summary>
     /// Session truth for airplane mode after <em>we</em> toggled it. The OS flag
@@ -55,9 +56,20 @@ internal sealed class QuickSettingsService : IDisposable
     /// </summary>
     private bool? _airplaneSessionOverride;
 
-    internal QuickSettingsService(NightLightService nightLight)
+    internal QuickSettingsService(NightLightService nightLight, VeilService veil)
     {
         _nightLight = nightLight;
+        _veil = veil;
+        veil.Changed += (_, _) =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Tiles = BuildTiles();
+            Changed?.Invoke(this, EventArgs.Empty);
+        };
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -112,6 +124,9 @@ internal sealed class QuickSettingsService : IDisposable
                 break;
             case "nightlight":
                 _nightLight.SetEnabled(!_nightLight.IsEnabled);
+                break;
+            case "veil":
+                _veil.SetEnabled(!_veil.IsEnabled);
                 break;
             case "batterysaver":
                 OpenSettingsUri("ms-settings:batterysaver");
@@ -214,6 +229,14 @@ internal sealed class QuickSettingsService : IDisposable
                 IsActive: _nightLight.IsEnabled,
                 HasChevron: false,
                 Tooltip: "Gece ışığı"),
+            new QuickTileState(
+                "veil",
+                "Kaplama",
+                "\uE790",
+                IsEnabled: true,
+                IsActive: _veil.IsEnabled,
+                HasChevron: false,
+                Tooltip: "Renk kaplaması"),
             new QuickTileState(
                 "batterysaver",
                 "Enerji tasarrufu",
