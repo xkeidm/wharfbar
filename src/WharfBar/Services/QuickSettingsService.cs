@@ -48,6 +48,7 @@ internal sealed class QuickSettingsService : IDisposable
     private int _radioRefreshBusy;
     private readonly NightLightService _nightLight;
     private readonly VeilService _veil;
+    private readonly EventHandler _onVeilChanged;
 
     /// <summary>
     /// Session truth for airplane mode after <em>we</em> toggled it. The OS flag
@@ -60,7 +61,7 @@ internal sealed class QuickSettingsService : IDisposable
     {
         _nightLight = nightLight;
         _veil = veil;
-        veil.Changed += (_, _) =>
+        _onVeilChanged = (_, _) =>
         {
             if (_disposed)
             {
@@ -70,6 +71,7 @@ internal sealed class QuickSettingsService : IDisposable
             Tiles = BuildTiles();
             Changed?.Invoke(this, EventArgs.Empty);
         };
+        veil.Changed += _onVeilChanged;
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -173,6 +175,7 @@ internal sealed class QuickSettingsService : IDisposable
 
         _disposed = true;
         _timer.Stop();
+        _veil.Changed -= _onVeilChanged;
     }
 
     private void Refresh()

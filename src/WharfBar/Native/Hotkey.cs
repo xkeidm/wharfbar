@@ -101,9 +101,9 @@ internal static class HotkeyParser
     private static bool TryParseKey(string text, out uint vk)
     {
         vk = 0;
-        if (text.Length == 1 && text[0] is >= 'A' and <= 'Z')
+        if (text.Length == 1 && char.ToUpperInvariant(text[0]) is >= 'A' and <= 'Z')
         {
-            vk = (uint)text[0];
+            vk = (uint)char.ToUpperInvariant(text[0]);
             return true;
         }
 

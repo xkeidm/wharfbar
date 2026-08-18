@@ -8,6 +8,7 @@ public class HotkeyParserTests
     [Theory]
     [InlineData("Ctrl+F11", HotkeyNative.MOD_CONTROL, 0x7A)]
     [InlineData("ctrl+f11", HotkeyNative.MOD_CONTROL, 0x7A)]
+    [InlineData("ctrl+a", HotkeyNative.MOD_CONTROL, 0x41)]
     [InlineData("Alt+Shift+A", HotkeyNative.MOD_ALT | HotkeyNative.MOD_SHIFT, 0x41)]
     [InlineData("Win+1", HotkeyNative.MOD_WIN, 0x31)]
     [InlineData("Ctrl+Alt+Shift+Win+F5", HotkeyNative.MOD_CONTROL | HotkeyNative.MOD_ALT | HotkeyNative.MOD_SHIFT | HotkeyNative.MOD_WIN, 0x74)]

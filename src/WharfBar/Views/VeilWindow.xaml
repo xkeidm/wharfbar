@@ -9,6 +9,7 @@
         ShowActivated="False"
         WindowStartupLocation="Manual"
         Background="Transparent"
-        AllowsTransparency="True">
+        AllowsTransparency="True"
+        Opacity="0">
     <Border x:Name="VeilSurface" />
 </Window>

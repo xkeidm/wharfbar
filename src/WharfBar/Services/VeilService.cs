@@ -95,6 +95,11 @@ internal sealed class VeilService : IDisposable
 
         if (!HotkeyParser.TryParse(hotkeyText, out uint modifiers, out uint vk))
         {
+            if (!string.IsNullOrWhiteSpace(hotkeyText))
+            {
+                HotkeyRegistrationError = "Geçersiz kısayol biçimi.";
+            }
+
             return; // boş veya geçersiz → kısayol yok (soft alan)
         }
 

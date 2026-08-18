@@ -43,7 +43,6 @@ public partial class VeilWindow : Window
     internal void SetVisible(bool visible, bool animate)
     {
         _targetVisible = visible;
-        BeginAnimation(OpacityProperty, null);
 
         if (visible)
         {
