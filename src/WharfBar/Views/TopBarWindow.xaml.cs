@@ -10,7 +10,7 @@ using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
-using Image = Wpf.Ui.Controls.Image;
+using Image = System.Windows.Controls.Image;
 using Wpf.Ui.Controls;
 
 namespace WharfBar.Views;
@@ -1631,10 +1631,8 @@ public partial class TopBarWindow : Window
                     Margin = new Thickness(1, 0, 1, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                image.MouseLeftButtonDown += OnTrayMirrorItemMouseDown;
-                image.MouseRightButtonDown += OnTrayMirrorItemMouseDown;
+                image.MouseDown += OnTrayMirrorItemMouseDown;
                 image.MouseRightButtonUp += OnTrayMirrorItemRightUp;
-                image.MouseDoubleClick += OnTrayMirrorItemDoubleClick;
                 SetPlainToolTip(image, item.Tooltip);
                 _trayMirrorImages[item.Key] = image;
                 TrayMirrorItems.Items.Add(image);
@@ -1652,7 +1650,16 @@ public partial class TopBarWindow : Window
         }
 
         e.Handled = true;
-        ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+        // Çift tık: ikinci fiziksel tıklamada ClickCount==2 (MouseLeftButtonDown UIElement'te
+        // yok; MouseDown üzerinden ClickCount ile ayrıştırılır). Sıra: down/up, down/up, dblclk/up.
+        if (e.ChangedButton == MouseButton.Left && e.ClickCount >= 2)
+        {
+            ForwardTrayClick(item, TrayClick.DoubleLeft);
+        }
+        else
+        {
+            ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+        }
     }
 
     private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
@@ -1662,17 +1669,6 @@ public partial class TopBarWindow : Window
         {
             e.Handled = true;
         }
-    }
-
-    private void OnTrayMirrorItemDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not Image { Tag: TrayMirrorItem item })
-        {
-            return;
-        }
-
-        e.Handled = true;
-        ForwardTrayClick(item, TrayClick.DoubleLeft);
     }
 
     private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
