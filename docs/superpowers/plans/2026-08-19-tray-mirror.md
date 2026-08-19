@@ -475,7 +475,8 @@ internal static class TrayToolbar
             }
 
             raw = Marshal.PtrToStructure<TBBUTTON>(rawPtr);
-            string tooltip = ReadTooltip(toolbar, index);
+            // TB_GETBUTTONTEXT wParam is the COMMAND ID (MSDN), not the index.
+            string tooltip = ReadTooltip(toolbar, raw.idCommand);
             info = new TrayButtonInfo(raw.idCommand, raw.iBitmap, tooltip);
             return true;
         }
