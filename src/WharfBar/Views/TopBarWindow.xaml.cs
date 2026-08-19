@@ -976,6 +976,7 @@ public partial class TopBarWindow : Window
 
     private static string StatusItemHeader(string id) => id switch
     {
+        TopBarStatusItemIds.TrayMirror => "Tepsi simgeleri",
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",

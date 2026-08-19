@@ -198,6 +198,11 @@ internal sealed class ConfigService
             TopBarStatusItemIds.EnsureMedia(config.TopBar.StatusItems);
         }
 
+        if (config.TopBar.StatusCatalogVersion < 5)
+        {
+            TopBarStatusItemIds.EnsureTrayMirror(config.TopBar.StatusItems);
+        }
+
         config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
 
         // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.

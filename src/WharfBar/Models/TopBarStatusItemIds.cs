@@ -3,6 +3,7 @@ namespace WharfBar.Models;
 /// <summary>Built-in top-bar status strip item ids (config <c>topBar.statusItems</c>).</summary>
 internal static class TopBarStatusItemIds
 {
+    internal const string TrayMirror = "trayMirror";
     internal const string TrayOverflow = "trayOverflow";
     internal const string DateTime = "dateTime";
     internal const string Notifications = "notifications";
@@ -15,6 +16,7 @@ internal static class TopBarStatusItemIds
 
     internal static readonly IReadOnlyList<string> DefaultOrder =
     [
+        TrayMirror,
         TrayOverflow,
         DateTime,
         Notifications,
@@ -139,6 +141,31 @@ internal static class TopBarStatusItemIds
         else
         {
             items.Add(Media);
+        }
+    }
+
+    /// <summary>
+    /// Soft migration helper: eksik <see cref="TrayMirror"/>'ı <see cref="TrayOverflow"/> öncesine ekler
+    /// (yoksa sona).
+    /// </summary>
+    internal static void EnsureTrayMirror(List<string> items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (items.Contains(TrayMirror, StringComparer.Ordinal))
+        {
+            return;
+        }
+
+        int index = items.FindIndex(static x =>
+            string.Equals(x, TrayOverflow, StringComparison.Ordinal));
+        if (index >= 0)
+        {
+            items.Insert(index, TrayMirror);
+        }
+        else
+        {
+            items.Add(TrayMirror);
         }
     }
 

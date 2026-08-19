@@ -193,6 +193,7 @@ public partial class TopBarPage : Page
 
     private static SymbolRegular StatusItemSymbol(string id) => id switch
     {
+        TopBarStatusItemIds.TrayMirror => SymbolRegular.Apps24,
         TopBarStatusItemIds.TrayOverflow => SymbolRegular.ChevronUp24,
         TopBarStatusItemIds.DateTime => SymbolRegular.Clock24,
         TopBarStatusItemIds.Notifications => SymbolRegular.Alert24,
@@ -206,6 +207,7 @@ public partial class TopBarPage : Page
 
     private static string StatusItemName(string id) => id switch
     {
+        TopBarStatusItemIds.TrayMirror => "Tepsi simgeleri",
         TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
         TopBarStatusItemIds.DateTime => "Tarih ve saat",
         TopBarStatusItemIds.Notifications => "Bildirimler",
