@@ -1034,6 +1034,12 @@ private bool _trayMirrorActive;
 private readonly Dictionary<string, Image> _trayMirrorImages = new(StringComparer.Ordinal);
 ```
 
+> Not: Dosyada hem `using System.Windows.Controls;` hem `using Wpf.Ui.Controls;` var; `Wpf.Ui.Controls.Image`
+> de mevcut olduğu için bare `Image` ambigüe. Dosyanın en üstündeki using bloklarına şu satırı ekle:
+> `using Image = System.Windows.Controls.Image;`
+> (WPF-UI Image kullanma — plan düz `System.Windows.Controls.Image` ister; `MouseLeftButtonDoubleClick`
+> UIElement'te yok, çift tık için `MouseDown` + `ClickCount` kullanılır, aşağıdaki Step 3 kodunda.)
+
 (2b) Ctor `_statusElements` sözlüğüne ekle:
 
 ```csharp
@@ -1106,10 +1112,8 @@ private void ApplyTrayMirror(IReadOnlyList<TrayMirrorItem> items)
                 Margin = new Thickness(1, 0, 1, 0),
                 VerticalAlignment = VerticalAlignment.Center,
             };
-            image.MouseLeftButtonDown += OnTrayMirrorItemMouseDown;
-            image.MouseRightButtonDown += OnTrayMirrorItemMouseDown;
+            image.MouseDown += OnTrayMirrorItemMouseDown;
             image.MouseRightButtonUp += OnTrayMirrorItemRightUp;
-            image.MouseLeftButtonDoubleClick += OnTrayMirrorItemDoubleClick;
             SetPlainToolTip(image, item.Tooltip);
             _trayMirrorImages[item.Key] = image;
             TrayMirrorItems.Items.Add(image);
@@ -1127,7 +1131,16 @@ private void OnTrayMirrorItemMouseDown(object sender, MouseButtonEventArgs e)
     }
 
     e.Handled = true;
-    ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+    // Çift tık: ikinci fiziksel tıklamada ClickCount==2 (MouseLeftButtonDown UIElement'te
+    // yok; MouseDown üzerinden ClickCount ile ayrıştırılır). Sıra: down/up, down/up, dblclk/up.
+    if (e.ChangedButton == MouseButton.Left && e.ClickCount >= 2)
+    {
+        ForwardTrayClick(item, TrayClick.DoubleLeft);
+    }
+    else
+    {
+        ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+    }
 }
 
 private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
@@ -1137,17 +1150,6 @@ private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
     }
-}
-
-private void OnTrayMirrorItemDoubleClick(object sender, MouseButtonEventArgs e)
-{
-    if (sender is not Image { Tag: TrayMirrorItem item })
-    {
-        return;
-    }
-
-    e.Handled = true;
-    ForwardTrayClick(item, TrayClick.DoubleLeft);
 }
 
 private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
