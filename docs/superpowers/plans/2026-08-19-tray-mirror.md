@@ -215,12 +215,10 @@ internal const uint MK_SHIFT = 0x0004;
 internal const uint MK_CONTROL = 0x0008;
 
 internal const uint TB_BUTTONCOUNT = (uint)WM_USER + 24;
-internal const uint TB_GETBUTTONINFO = (uint)WM_USER + 63;
+internal const uint TB_GETBUTTON = (uint)WM_USER + 23;
 internal const uint TB_GETITEMRECT = (uint)WM_USER + 29;
 internal const uint TB_GETIMAGELIST = (uint)WM_USER + 49;
 internal const uint TB_GETBUTTONTEXT = (uint)WM_USER + 75;
-internal const int TBIF_COMMAND = 0x00000020;
-internal const int TBIF_IMAGE = 0x00000002;
 internal const uint ILD_TRANSPARENT = 0x0001;
 internal const uint SMTO_ABORTIFHUNG = 0x0002;
 internal const ushort VK_SHIFT = 0x10;
@@ -333,18 +331,16 @@ internal static class TrayToolbar
     private const int MaxTooltipChars = 256;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct TBBUTTONINFO
+    private struct TBBUTTON
     {
-        public uint cbSize;
-        public uint dwMask;
+        public int iBitmap;
         public int idCommand;
-        public int iImage;
         public byte fsState;
         public byte fsStyle;
-        public ushort cx;
-        public IntPtr lParam;
-        public IntPtr pszText;
-        public int cchText;
+        public byte bReserved0;
+        public byte bReserved1;
+        public IntPtr dwData;
+        public IntPtr iString;
     }
 
     internal static IntPtr FindToolbarHwnd()
@@ -467,24 +463,20 @@ internal static class TrayToolbar
     {
         info = new TrayButtonInfo(0, -1, string.Empty);
 
-        IntPtr rawPtr = Marshal.AllocHGlobal(Marshal.SizeOf<TBBUTTONINFO>());
+        IntPtr rawPtr = Marshal.AllocHGlobal(Marshal.SizeOf<TBBUTTON>());
         try
         {
-            var raw = new TBBUTTONINFO
-            {
-                cbSize = (uint)Marshal.SizeOf<TBBUTTONINFO>(),
-                dwMask = (uint)(NativeMethods.TBIF_COMMAND | NativeMethods.TBIF_IMAGE),
-            };
+            var raw = new TBBUTTON();
             Marshal.StructureToPtr(raw, rawPtr, false);
-            IntPtr ret = SendTimeout(toolbar, NativeMethods.TB_GETBUTTONINFO, (IntPtr)index, rawPtr);
-            raw = Marshal.PtrToStructure<TBBUTTONINFO>(rawPtr);
-            if (ret.ToInt64() < 0)
+            IntPtr ret = SendTimeout(toolbar, NativeMethods.TB_GETBUTTON, (IntPtr)index, rawPtr);
+            if (ret.ToInt32() == 0)
             {
                 return false;
             }
 
+            raw = Marshal.PtrToStructure<TBBUTTON>(rawPtr);
             string tooltip = ReadTooltip(toolbar, index);
-            info = new TrayButtonInfo(raw.idCommand, raw.iImage, tooltip);
+            info = new TrayButtonInfo(raw.idCommand, raw.iBitmap, tooltip);
             return true;
         }
         finally
