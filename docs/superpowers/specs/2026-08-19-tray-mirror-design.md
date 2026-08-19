@@ -1,7 +1,7 @@
 # WharfBar — Üst bar tray aynası (ToolbarWindow32 enumeration)
 
 **Tarih:** 2026-08-19
-**Durum:** Onaylandı (kullanıcı); plan bekliyor
+**Durum:** Uygulandı (main); 25H2 hibrit UIA fallback dahil — bkz. "Ek (25H2 uygulaması)"
 **ADR:** [009-tray-mirror-toolbar-enumeration.md](../../decisions/009-tray-mirror-toolbar-enumeration.md)
 **Kapsam:** Üçüncü taraf tepsi ikonlarının üst bar durum şeridinde salt-okunur aynası +
 tıklama forward; ADR-005'in "yabancı tepsi ikonları çizilmez / click-forward yok" kararının
@@ -149,6 +149,25 @@ Manuel:
   salt-okunur ayna "Yap"a taşınır), `.agent/project.md`, `.agent/context/roadmap.md`
 - `docs/00-overview.md` (non-goals), `docs/02-win32-appbar-dwm.md` (tray bölümü),
   `docs/03-development-order.md`, `docs/04-gotchas.md`
+
+## Ek (25H2 uygulaması): UIA fallback
+
+**Durum güncellemesi (2026-08-19, uygulama sonrası):** Windows 11 25H2'de klasik `ToolbarWindow32`
+tepsi kaldırıldı (`TrayNotifyWnd` altında `SysPager`/`ToolbarWindow32` yok — ikonlar XAML
+composition ağacında; HWND/`TB_*` ile erişilemez). Uygulama hibritleşti:
+
+| Konu | Seçim |
+|------|--------|
+| Kaynak seçimi | `FindToolbarHwnd()` doluysa TB_* (gerçek ikonlar; <25H2); boşsa **UIA fallback** |
+| UIA okuma | `Shell_TrayWnd → AutomationElement` → `FindAll(Descendants, ClassName=="SystemTray.NormalButton")` → (ad, element). Sistem ikonları farklı class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`); giriş göstergesi tooltip filtreyle elenir (`IsSystemIcon` + `IsWharfBarIcon`) |
+| İkon | UIA'da bitmap yok → **harf glifi** (`TrayLetterGlyph`, ismin ilk harfi, 20px) |
+| UIA görünürlüğü | UIA çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)` (cloak + ekran dışı park, flash yok) → oku → `EndTrayPeek()` |
+| Sol tık | UIA `InvokePattern.Invoke()` (stealth-peek içinde; flash yok) |
+| Sağ/çift tık | UIA ifade edemez → görünür peek + `SendInputMouse` fiziksel tıklama (kısa flash; overflow deseniyle aynı; kabul edilen ödünleşim) |
+| Filtre token'ları | `TraySystemIconFilter`'a `tepsi girişi`, `input indicator` eklendi |
+
+Doğrulama (25H2, manuel): 10 üçüncü taraf ikonu harf glifiyle görünür; sol tık açar; sağ tık menüsü
+çıkar (taskbar kısa görünür); sistem ikonları filtrelenir.
 
 ## Self-review (2026-08-19)
 

@@ -93,6 +93,16 @@ Top bar göstergeleri için:
   aynalanamaz (yalnızca açık popup'ta var); `TrayOverflowInvoker` (`Win+B` / chevron) kalır.
   Poll 1.5 sn; `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI'ı
   kilitlemez.
+- **Windows 11 25H2+ UIA fallback:** klasik `ToolbarWindow32` tepsi bu sürümde kaldırıldı
+  (25H2'de `TrayNotifyWnd` altında `SysPager`/`ToolbarWindow32` yok). `FindToolbarHwnd()` boş
+  dönünce ayna UI Automation'a düşer: `Shell_TrayWnd → … → TaskbarFrameAutomationPeer` altındaki
+  `SystemTray.NormalButton` butonları (ad + `AutomationElement`); sistem ikonları farklı
+  class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`) + giriş göstergesi tooltip
+  filtreyle elenir. Gerçek ikon bitmap'i UIA'da yok → **harf glifi** (`TrayLetterGlyph`). UIA
+  çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
+  (cloak + ekran dışı park) ile okunur, flash yok. Tıklama: sol → `InvokePattern` (stealth-peek);
+  sağ/çift → UIA ifade edemediği için görünür peek + `SendInputMouse` fiziksel tıklama (kısa
+  flash; overflow deseniyle aynı).
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
 sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`

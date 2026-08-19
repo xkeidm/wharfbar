@@ -11,10 +11,10 @@ internal static class TraySystemIconFilter
     {
         // tr-TR
         "ses", "ağ", "internet", "pil", "saat", "tarih", "güvenlik",
-        "gizli simgeleri göster", "görev çubuğu", "giriş dili", "bildirim",
+        "gizli simgeleri göster", "görev çubuğu", "giriş dili", "bildirim", "tepsi girişi",
         // en-US
         "volume", "network", "internet", "battery", "clock", "date", "security",
-        "show hidden icons", "taskbar", "input", "notification",
+        "show hidden icons", "taskbar", "input", "notification", "input indicator",
     };
 
     internal static string Normalize(string? tooltip)

@@ -152,7 +152,7 @@ public partial class TopBarWindow : Window
         MediaHost.Attach(_media);
         _ = _media.InitializeAsync();
 
-        TrayMirrorService mirror = new(Dispatcher);
+        TrayMirrorService mirror = new(Dispatcher, _taskbar);
         _trayMirror = mirror;
         mirror.Changed += (_, _) => ApplyTrayMirror(mirror.Items);
         mirror.Reenumerate();
@@ -1674,12 +1674,7 @@ public partial class TopBarWindow : Window
 
     private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
     {
-        IntPtr toolbar = TrayToolbar.FindToolbarHwnd();
-        if (toolbar == IntPtr.Zero)
-        {
-            return;
-        }
-
-        TrayToolbar.ClickItem(toolbar, item.Index, kind);
+        // Routes by source: classic toolbar (TB_*) or UIA fallback (25H2+).
+        _trayMirror?.Click(item, kind);
     }
 }

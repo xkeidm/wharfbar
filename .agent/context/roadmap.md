@@ -36,7 +36,9 @@
 - **Medya paneli (SMTC) ✓ (kod; manuel doğrulama bekliyor)** — üst bar `media` öğesi (yalnızca oturum varken görünür; `brightness` sonrası, katalog **v4** migration) + medya flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron seçici). `MediaSessionService` (Windows SMTC izleme: snapshot + komutlar + `Changed`/`SessionsChanged` + 10 sn retry), `MediaSessionSelector` (en son aktif politikası + `MoveCurrent` halkası), `MediaSnapshot` modeli. Karar: [ADR-008](../../docs/decisions/008-media-panel.md); spec: [`../../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../../docs/superpowers/specs/2026-08-18-media-panel-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-media-panel.md`](../../docs/superpowers/plans/2026-08-18-media-panel.md). Manuel doğrulama listesi planın "Manuel doğrulama" bölümünde.
 - **Tray aynası (ADR-009) ✓** — üst bar `trayMirror` (belgelenmiş comctl32 `TB_*` mesajlarıyla
   salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 1.5 sn poll; gizli
-  ikonlar `Win+B`'de kalır). Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
+  ikonlar `Win+B`'de kalır). **25H2+ UIA fallback ✓ (manuel doğrulandı):** klasik toolbar
+  kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + harf glifi + UIA
+  `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
 
 ## Yapılacaklar listesi (öncelikli)
 
