@@ -85,10 +85,17 @@ Top bar göstergeleri için:
 - Kendi ikon setini kullan (üst barda **Segoe MDL2 Assets** glifleri — Mica AppBar şeridinde
   WPF-UI `SymbolIcon` boş kalabiliyordu; saat dışı göstergeler kayboluyordu)
 - İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
-- **Tepsi hibrit (ADR-005):** üçüncü taraf ikonlar çizilmez; tek düğme native Windows tray overflow’u açar (`Win+B` / chevron). `ReadProcessMemory` / belgelenmemiş enumeration yok.
+- **Tepsi hibrit + ayna (ADR-005 + ADR-009):** üçüncü taraf ikonlar **belgelenmiş comctl32
+  toolbar mesajlarıyla** (`TB_BUTTONCOUNT`, `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`),
+  `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id))
+  üst barda aynalanır; tıklama `SendMessageTimeout` mouse mesajlarıyla forward edilir.
+  `ReadProcessMemory` / enjeksiyon / belgelenmemiş enumeration yok. Gizli/overflow ikonlar
+  aynalanamaz (yalnızca açık popup'ta var); `TrayOverflowInvoker` (`Win+B` / chevron) kalır.
+  Poll 1.5 sn; `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI'ı
+  kilitlemez.
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
-sağ küme varsayılan LTR `gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
+sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
 (`topBar.statusItems`; özelleştirilebilir). Saat/tarih: tek satır `tr-TR` birleşik etiket
 (örn. `9 Ağu Paz 21:57`, Segoe UI) + zil glifi; ikisi de native Notification Center
 (`Win+N` — takvim + bildirimler; ayrı takvim `Popup` yok; ADR-005 aynası yok).

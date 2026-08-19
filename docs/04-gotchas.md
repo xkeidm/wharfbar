@@ -15,7 +15,8 @@
 | Kenar şeritte yuvarlak DWM köşe | DWM dört köşeyi birden yuvarlar; üst bar `DONOTROUND` |
 | DPI değişimi / monitör tak-çıkar | Per-Monitor V2 + `WM_DPICHANGED` + display handlers + AppBar yeniden SETPOS |
 | Çoklu monitör AppBar | v1: yalnızca birincil; ikincil için ileride SPI_SETWORKAREA değerlendirmesi |
-| Sistem / yabancı tepsi ikonlarını okumaya çalışma | Overflow: native `Win+B`/chevron (ADR-005). Tepsi ikon aynalaması (UIA/BitBlt) kaldırıldı. `ToolbarWindow32`/RPM yok. |
+| Sistem / yabancı tepsi ikonlarını okumaya çalışma | ADR-009: yalnızca belgelenmiş comctl32 `TB_*` mesajlarıyla salt-okunur ayna + `SendMessage` click-forward; `ToolbarWindow32`/RPM/enjeksiyon yok. `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI kilitlemesini önler. Gizli/overflow ikonlar aynalanamaz (yalnızca açık popup'ta var) → `Win+B`. |
+| Tray ikonu tıklaması yanlış uygulamaya gidiyor | Snapshot poll arasında buton sırası kayarsa (ikon ekle/kaldır) index eski kalabilir; sonraki 1.5 sn poll düzeltir. Çift tık: WPF ilk tıklamada `MouseLeftButtonDown`'ı da yükseltir → forward edilen sıra `down/up, down/up, dblclk/up` olur (native `down,up,dblclk,up`); uygulamalar fazladan down/up'ı yok sayar. |
 | WPF-UI `SymbolRegular` XAML’de yok | Örn. `Meter24` yok → Ayarlar `GeneralPage` parse patlar, süreç ölür. Paketteki enum adını doğrula (`DataUsage24` vb.) |
 | Üst barda yalnızca saat görünmesi | WPF-UI `SymbolIcon` Mica AppBar’da boş kalabiliyor; durum/overflow için Segoe MDL2 `TextBlock` kullan |
 | Sol Windows logosu görünmüyor | MDL2 `E782` bazı yüzlerde boş; 4 kare `Rectangle`/`Viewbox` çiz (font bağımsız) |

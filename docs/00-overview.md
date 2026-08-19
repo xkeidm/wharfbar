@@ -25,7 +25,7 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 | Üst AppBar | `ABE_TOP`, work area rezervasyonu |
 | Dock overlay | Topmost; AppBar şart değil (ADR-001) |
 | Pinned / running apps | Canlı TaskBar `.lnk` + `EnumWindows`/AUMID; `SHGetFileInfo`; config seed/fallback (ADR-005) |
-| Tepsi hibrit | Durum simülasyonu + native overflow düğmesi; yabancı ikon çizimi yok (ADR-005) |
+| Tepsi hibrit + ayna | Durum simülasyonu + native overflow düğmesi; üçüncü taraf ikon aynası belgelenmiş comctl32 `TB_*` mesajlarıyla (ADR-009); gizli ikonlar native overflow'da |
 | Görev çubuğu | WharfBar çalışırken gizle/auto-hide; çıkışta önceki duruma geri yükle (ADR-005) |
 | Config | JSON, `%AppData%/WharfBar/config.json` |
 | Autostart | Startup klasörü kısayolu |
@@ -38,8 +38,9 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 
 - İkincil monitörlerde AppBar / work-area rezervasyonu
 - UWP / Store paket ikonları (AppxManifest yolu)
-- Sistem / üçüncü taraf tepsi ikonlarını doğrudan okuma, WharfBar içinde çizme veya
-  click-forward (`ReadProcessMemory` / belgelenmemiş NotifyIcon enumeration dahil)
+- Sistem / üçüncü taraf tepsi ikonlarını `ReadProcessMemory` / enjeksiyon / belgelenmemiş
+  NotifyIcon enumeration ile okuma. (ADR-009: belgelenmiş comctl32 `TB_*` mesajlarıyla
+  salt-okunur ayna + tıklama forward üst barda **hedeftir**; gizli/overflow ikonlar kapsam dışı.)
 - Görev çubuğunu **kalıcı** bozmak (WharfBar kapalıyken de gizli / bozuk bırakmak).
   Çalışma anında gizleme/auto-hide + restore **hedeftir** (ADR-005); blanket yasak değildir.
 - macOS tarzı **global uygulama menüsü** (File/Edit/View) — Windows’ta her pencere kendi menüsünü taşır; top bar yalnızca saat / durum / kontroller
@@ -52,7 +53,8 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 - Maximize edilmiş pencereler top bar altına girmiyor (birincil monitör).
 - Uygulama temiz kapanınca rezerve alan geri geliyor; görev çubuğu önceki durumuna dönüyor (ADR-005).
 - Dock, TaskBar pinlerini / çalışan uygulamaları yansıtıyor; config fallback boş klasörde devreye giriyor.
-- Tray düğmesi native overflow açıyor; WharfBar içinde yabancı tepsi ikonu yok.
+- Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward); gizli ikonlar için
+  `Win+B`/chevron düğmesi native overflow'u açar.
 - İkinci örnek başlatılmıyor (Mutex).
 - DPI / ekran değişiminde üst bar pozisyonu bozulmuyor (temel handler’lar).
 

@@ -12,7 +12,7 @@ yeniden açılması (belgelenmiş comctl32 toolbar mesajları ile).
 | Konu | Seçim |
 |------|--------|
 | Kaynak | `Shell_TrayWnd` → `TrayNotifyWnd` → `SysPager` → **`ToolbarWindow32`** (ana tray alanı) |
-| Enumeration | Belgelenmiş comctl32 mesajları: `TB_BUTTONCOUNT`, `TB_GETBUTTON`, `TB_GETBUTTONINFO`, `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` |
+| Enumeration | Belgelenmiş comctl32 mesajları: `TB_BUTTONCOUNT`, `TB_GETBUTTON`, `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` |
 | Yasaklar (değişmez) | `ReadProcessMemory`, explorer'a enjeksiyon/subclass, `Shell_NotifyIcon` ile okuma, belgelenmemiş API (Windhawk benzeri hook) — **Asla** |
 | Sistem ikonu filtresi | Tooltip metninden bilinen sistem adları düşülür (tr/en: Ses/Volume, Ağ/Network, Pil/Battery, Saat/Clock, Giriş Dili/Input, Güvenlik/Security…); WharfBar'ın kendi Quit ikonu da düşülür |
 | Gizli/overflow ikonlar | **Kapsam dışı** — Win11'de gizli ikonlar yalnızca açılan overflow popup'ında yaşar; kalıcı okunamaz. Mevcut `trayOverflow` düğmesi (`TrayOverflowInvoker` / `Win+B`) kalır |
@@ -65,7 +65,7 @@ içinde `internal` kalır; UI `NativeMethods`'a doğrudan bağlanmaz (mevcut kur
 
 1. `FindWindow("Shell_TrayWnd", …)` → `FindWindowEx(…, "TrayNotifyWnd")` → `FindWindowEx(…, "SysPager")` → `FindWindowEx(…, "ToolbarWindow32")`. HWND bulunamazsa (explorer restart penceresi) retry; `TaskbarCreated` alınınca yeniden.
 2. `SendMessage(hwnd, TB_BUTTONCOUNT, 0, 0)` → N.
-3. Her buton için `TB_GETBUTTONINFO` (idCommand, iImage, state) ve `TB_GETBUTTONTEXT` (tooltip).
+3. Her buton için `TB_GETBUTTON` (index wParam; dönen `TBBUTTON` → `idCommand` + `iBitmap`) ve `TB_GETBUTTONTEXT` (command id wParam; tooltip).
 4. İkon: `TB_GETIMAGELIST` → `ImageList_GetIcon(himl, iImage, ILD_TRANSPARENT)` → HICON → `BitmapSource` (32bpp; `Freeze()`). HICON `DestroyIcon` ile serbest bırakılır (her poll'da sızıntı yok).
 5. İkon boyutu: `ImageList_GetIconSize` → Win11 20px; DPI ölçekli çizim (Per-Monitor V2).
 

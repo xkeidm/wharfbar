@@ -11,7 +11,7 @@
 | Konu | Seçim |
 |------|--------|
 | Kaynak | Ana tray alanı: `Shell_TrayWnd` → `TrayNotifyWnd` → `SysPager` → `ToolbarWindow32` |
-| Enumeration | **Belgelenmiş comctl32 mesajları** (`TB_BUTTONCOUNT`, `TB_GETBUTTONINFO`, `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT`) — bunlar standart toolbar kontrol mesajlarıdır; tray bunları barındıran bir ToolbarWindow32 olduğundan aynı mesaj yüzeyi kullanılır |
+| Enumeration | **Belgelenmiş comctl32 mesajları** (`TB_BUTTONCOUNT`, `TB_GETBUTTON` (index wParam; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id wParam)) — bunlar standart toolbar kontrol mesajlarıdır; tray bunları barındıran bir ToolbarWindow32 olduğundan aynı mesaj yüzeyi kullanılır |
 | Tıklama | Item rect → `SendMessage` mouse mesajları (WM_LBUTTONDOWN/UP, WM_RBUTTONDOWN/UP, çift tık) — explorer'ın kendi tray subclass'ı işler; `SendInput` / peek-show gerekmez |
 | Güncelleme | 1.5 sn arka plan `System.Threading.Timer` poll + snapshot diff (olay bildirimi yok; Windows böyle bir API sunmaz) |
 | Filtre | Bilinen sistem ikonları tooltip adıyla düşülür; WharfBar kendi Quit ikonu düşülür; tanınmayanlar gösterilir |

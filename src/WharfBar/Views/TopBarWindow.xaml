@@ -110,7 +110,7 @@
             </StackPanel>
 
             <!-- Right cluster (runtime order from config; default LTR):
-                 overflow · dateTime · notifications · controlCenter · volume · network · battery -->
+                 trayMirror · overflow · dateTime · notifications · controlCenter · volume · network · battery -->
             <StackPanel x:Name="StatusStrip"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"

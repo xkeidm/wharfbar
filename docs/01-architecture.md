@@ -63,6 +63,7 @@ src/WharfBar/
     TaskbarNative.cs            # Shell_TrayWnd + ABM_GETSTATE/SETSTATE sarmalayıcı
     SendInputKeys.cs            # Win+B / Win+N / Win+P / Space / Enter
     TrayOverflowNative.cs       # overflow penceresi / TrayNotifyWnd chevron / Win+B
+    TrayToolbar.cs              # gerçek tray toolbar TB_* okuyucu + click forward (ADR-009)
     WindowEnumeration.cs        # EnumWindows adayları (Shell_TrayWnd vb. hariç)
     AppUserModelId.cs           # GetCurrentProcessExplicitAppUserModelID
     DockHitTest.cs              # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
@@ -110,6 +111,7 @@ src/WharfBar/
     DockAppsComposer.cs         # pin + running birleşik liste
     ShortcutResolver.cs         # .lnk → hedef yol / args
     TrayOverflowInvoker.cs      # peek-show + native overflow + yeniden gizle
+    TrayMirrorService.cs        # Tray toolbar'ı poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar (ADR-009)
     NotificationCenterInvoker.cs # Win+N
   App.xaml(.cs)                 # Startup: taskbar hide → TopBar + Dock + tray
   app.manifest                  # PerMonitorV2 + longPathAware + asInvoker
@@ -181,6 +183,7 @@ Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 | `AutostartService` | Startup klasörü `WharfBar.lnk`; `autostart` true/false ile oluştur/sil |
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
+| `TrayMirrorService` | Tray toolbar'ı 1.5 sn poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar; tıklama forward (ADR-009) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
 
 ## Pencere modeli

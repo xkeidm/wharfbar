@@ -34,6 +34,9 @@
 - **Dock Sağ Tık Bağlam Menüsü & Düzen Polish ✓** — `DockWindow` sağ tık bağlam menüsü (Uygulama İkonu/Adı başlık kartı, Dock'a Sabitle/Kaldır dinamik kısayol senkronizasyonu, Görevi Sonlandır `Process.Kill`, Pencereyi Kapat `WM_CLOSE`, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere), %100 ekran genişliği desteği ve `ScrollViewer` + `PreviewMouseWheel` yatay kaydırma entegrasyonu.
 - **Renk kaplaması (veil) ✓ (kod; manuel doğrulama bekliyor)** — tam ekran katmanlı kaplama (`VeilWindow`, click-through + 280 ms fade), `VeilService` (durum + fade + `RegisterHotKey` host + config kalıcılığı), QS `veil` karosu + global kısayol (varsayılan Ctrl+F11, config'te değiştirilebilir), Kaplama ayarlar sayfası (`VeilPage`; renk/opaklık/kısayol). Karar: [ADR-007](../../docs/decisions/007-veil-overlay.md); spec: [`../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../../docs/superpowers/plans/2026-08-18-veil-overlay.md). Manuel doğrulama listesi spec'in "Doğrulama (manuel)" bölümünde.
 - **Medya paneli (SMTC) ✓ (kod; manuel doğrulama bekliyor)** — üst bar `media` öğesi (yalnızca oturum varken görünür; `brightness` sonrası, katalog **v4** migration) + medya flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron seçici). `MediaSessionService` (Windows SMTC izleme: snapshot + komutlar + `Changed`/`SessionsChanged` + 10 sn retry), `MediaSessionSelector` (en son aktif politikası + `MoveCurrent` halkası), `MediaSnapshot` modeli. Karar: [ADR-008](../../docs/decisions/008-media-panel.md); spec: [`../../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../../docs/superpowers/specs/2026-08-18-media-panel-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-media-panel.md`](../../docs/superpowers/plans/2026-08-18-media-panel.md). Manuel doğrulama listesi planın "Manuel doğrulama" bölümünde.
+- **Tray aynası (ADR-009) ✓** — üst bar `trayMirror` (belgelenmiş comctl32 `TB_*` mesajlarıyla
+  salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 1.5 sn poll; gizli
+  ikonlar `Win+B`'de kalır). Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
 
 ## Yapılacaklar listesi (öncelikli)
 
@@ -59,7 +62,7 @@
     [`../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
     plan:
     [`../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md)
-    (kod landed; manuel UI checklist bekliyor; ayrı Control Center yok; ADR-005 tepsi aynası yok; sağ tık menü)
+    (kod landed; manuel UI checklist bekliyor; ayrı Control Center yok; tepsi aynası ADR-009'da; sağ tık menü)
 8c. **Üst bar durum şeridi sırası + `controlCenter` + tek satır saat** ✓ (kod) —
     [`../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
     plan: [`../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md)
@@ -79,7 +82,9 @@
 
 ### Bilinçli ertelenenler / yasaklar
 
-- Yabancı / sistem tepsi ikonlarını okuma, WharfBar içinde çizme, click-forward (ADR-005)
+- Yabancı / sistem tepsi ikonlarını `ReadProcessMemory` / enjeksiyon / undocumented API ile
+  okuma, çizme, click-forward (ADR-009 ile yalnızca belgelenmiş `TB_*` mesaj aynası serbest;
+  gizli/overflow ikonlar hâlâ yasak — `Win+B` kullanılır)
 - `ReadProcessMemory` / belgelenmemiş NotifyIcon enumeration
 - Görev çubuğunu **kalıcı** bozmak (restore’suz)
 - Registry `Run` autostart (Startup klasörü tercih)

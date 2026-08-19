@@ -182,7 +182,7 @@ internal sealed class ConfigService
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
         // Her öğe kendi tanıtım sürümüyle eşiklenir: kullanıcı gizlemişse (hide must stick)
-        // upgrade'te yeniden eklenmez. controlCenter v1, brightness v2, media v4 ile geldi.
+        // upgrade'te yeniden eklenmez. controlCenter v1, brightness v2, media v4, trayMirror v5 ile geldi.
         if (config.TopBar.StatusCatalogVersion < 1)
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);

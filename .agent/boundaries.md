@@ -18,7 +18,12 @@
   yakala; çıkış ve crash yollarında **önceki duruma geri yükle** (ADR-005; `ABM_REMOVE`
   ile aynı disiplin). Kalıcı (WharfBar kapalıyken) bozma yok.
 - Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
-- Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron; ADR-005). Tepsi ikon aynalaması yok.
+- Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
+  taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
+  `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
+  `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) salt-okunur okuyup üst
+  barda çizmek + `SendMessage` ile tıklama forward. Gizli/overflow ikonlar kapsam dışı (yalnızca
+  açık popup'ta var) → `Win+B` düğmesi korunur.
 
 
 ## Önce sor (kullanıcı onayı)
@@ -34,7 +39,6 @@
   sabitleme derlemeyi kırar)
 - Breaking config şema değişikliği (migrasyon planı olmadan)
 - Görev çubuğu gizleme stratejisini kalıcı varsayılan dışı yapmak veya restore’suz denemek
-- Yabancı tepsi ikonlarını WharfBar içinde çizme / click-forward (ADR-005 reddetti; yeniden açmak için onay)
 
 ## Asla
 
@@ -42,8 +46,9 @@
 - Çıkış / crash yollarında **görev çubuğu durumunu geri yüklememek** (gizlenmiş / auto-hide
   bırakmak) — ADR-005
 - **`AllowsTransparency=true` ile Mica/DWM backdrop** birlikte
-- Sistem / üçüncü taraf tepsi ikonlarını **okunuyor gibi** `Shell_NotifyIcon`,
-  `ReadProcessMemory` veya belgelenmemiş enumeration ile “çözmek”
+- Sistem / üçüncü taraf tepsi ikonlarını **`ReadProcessMemory`, enjeksiyon/subclass veya
+  belgelenmemiş API ile** “çözmek” — `Shell_NotifyIcon` yalnızca WharfBar’ın kendi ikonu için.
+  (Belgelenmiş comctl32 `TB_*` mesajlarıyla salt-okunur ayna ADR-009 ile serbesttir.)
 - Kullanıcıya sormadan görev çubuğunu **kalıcı** bozmak (WharfBar kapalıyken de)
 - v1’de UWP ikon yolunu “yarım” bırakıp kırık deneyim sunmak
 - Cursor kurallarına Win32 rehberinin tamamını yapıştırmak (kanonik kaynak `.agent/` + `docs/`)

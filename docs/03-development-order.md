@@ -122,9 +122,15 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 ### 9c — Tepsi hibrit düğmesi
 
 - [x] Üst barda “tray / gizli ikonlar” düğmesi → native overflow (`TrayOverflowInvoker` / `Win+B`)
-- [x] Yabancı ikon çizimi / RPM / undocumented enumeration yok
+- [x] RPM / undocumented enumeration yok; yabancı ikon çizimi yalnızca belgelenmiş `TB_*` aynasıyla (ADR-009)
 - [x] İsteğe bağlı: ses / volume göstergesi + hızlı ayarlar (ADR-006; 9c sonrası genişletildi)
-- [ ] Manuel: düğme overflow açar; WharfBar’da üçüncü taraf ikon yok
+- [ ] Manuel: düğme overflow açar; üçüncü taraf ikonlar üst barda aynalanır (ADR-009)
+
+### Tray aynası (ADR-009) ✓ (kod)
+
+Üçüncü taraf tepsi ikonlarını belgelenmiş comctl32 `TB_*` mesajlarıyla üst barda aynalar
+(`trayMirror` katalog v5); sistem ikonu filtresi; tıklama forward; gizli ikonlar `Win+B`.
+Spec: [`superpowers/specs/2026-08-19-tray-mirror-design.md`](superpowers/specs/2026-08-19-tray-mirror-design.md).
 
 ## Medya paneli (SMTC) ✓ (kod)
 

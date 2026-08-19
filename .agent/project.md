@@ -12,7 +12,7 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 ## Ürün
 
 - **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
-  (`trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `media` →
+  (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `media` →
   `network` → `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
@@ -50,6 +50,9 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
    (ADR-006; `controlCenter` → Main, volume → Mixer); tepsi yalnızca kendi Quit menüsü.
    Üst bar sol küme: Windows logo menüsü.
+9. **Tray aynası (ADR-009):** yabancı tepsi ikonları belgelenmiş comctl32 `TB_*` mesajlarıyla
+   salt-okunur okunur + `SendMessage` click-forward; RPM/enjeksiyon/undocumented API **yasak**;
+   gizli ikonlar kapsam dışı (`Win+B` kalır); sistem ikonları tooltip filtreyle düşülür.
 
 ## Doküman haritası
 
@@ -108,6 +111,11 @@ migration (`media` `brightness` sonrasına eklenir).
 Spec: [`../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../docs/superpowers/specs/2026-08-18-media-panel-design.md);
 plan: [`../docs/superpowers/plans/2026-08-18-media-panel.md`](../docs/superpowers/plans/2026-08-18-media-panel.md);
 karar: [`../docs/decisions/008-media-panel.md`](../docs/decisions/008-media-panel.md).
+**Tray aynası (ADR-009):** üst bar `trayMirror` öğesi (katalog **v5**) — gerçek tray
+toolbar'ından (TrayNotifyWnd/SysPager/ToolbarWindow32) üçüncü taraf ikonları okur,
+sistem ikonlarını filtreler, 1.5 sn poll, tıklama forward. Spec:
+[`../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../docs/superpowers/specs/2026-08-19-tray-mirror-design.md);
+ADR: [`../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../docs/decisions/009-tray-mirror-toolbar-enumeration.md).
 **Monitör Parlaklık Kontrolü:**
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
