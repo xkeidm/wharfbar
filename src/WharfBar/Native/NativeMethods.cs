@@ -230,6 +230,25 @@ internal static class NativeMethods
     internal const int WM_CONTEXTMENU = 0x007B;
     internal const int WM_COMMAND = 0x0111;
 
+    internal const int WM_USER = 0x0400;
+    internal const uint WM_LBUTTONDBLCLK = 0x0203;
+    internal const uint WM_RBUTTONDOWN = 0x0204;
+    internal const uint MK_RBUTTON = 0x0002;
+    internal const uint MK_SHIFT = 0x0004;
+    internal const uint MK_CONTROL = 0x0008;
+
+    internal const uint TB_BUTTONCOUNT = (uint)WM_USER + 24;
+    internal const uint TB_GETBUTTONINFO = (uint)WM_USER + 63;
+    internal const uint TB_GETITEMRECT = (uint)WM_USER + 29;
+    internal const uint TB_GETIMAGELIST = (uint)WM_USER + 49;
+    internal const uint TB_GETBUTTONTEXT = (uint)WM_USER + 75;
+    internal const int TBIF_COMMAND = 0x00000020;
+    internal const int TBIF_IMAGE = 0x00000002;
+    internal const uint ILD_TRANSPARENT = 0x0001;
+    internal const uint SMTO_ABORTIFHUNG = 0x0002;
+    internal const ushort VK_SHIFT = 0x10;
+    internal const ushort VK_CONTROL = 0x11;
+
     /// <summary>Low word of tray callback lParam carries the mouse message.</summary>
     internal const int NIN_SELECT = 0x0400;
     internal const int NIN_KEYSELECT = 0x0401;
@@ -312,6 +331,9 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool DestroyIcon(IntPtr hIcon);
 
+    [DllImport("comctl32.dll")]
+    internal static extern IntPtr ImageList_GetIcon(IntPtr himl, int i, uint flags);
+
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetSystemPowerStatus(out SYSTEM_POWER_STATUS lpSystemPowerStatus);
@@ -379,6 +401,19 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr SendMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    internal static extern short GetKeyState(int nVirtKey);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SendMessageTimeout(
+        IntPtr hWnd,
+        uint Msg,
+        IntPtr wParam,
+        IntPtr lParam,
+        uint fuFlags,
+        uint uTimeout,
+        out IntPtr lpdwResult);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
