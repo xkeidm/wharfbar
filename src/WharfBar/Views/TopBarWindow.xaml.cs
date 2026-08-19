@@ -152,9 +152,10 @@ public partial class TopBarWindow : Window
         MediaHost.Attach(_media);
         _ = _media.InitializeAsync();
 
-        _trayMirror = new TrayMirrorService(Dispatcher);
-        _trayMirror.Changed += (_, _) => ApplyTrayMirror(_trayMirror.Items);
-        _trayMirror.Reenumerate();
+        TrayMirrorService mirror = new(Dispatcher);
+        _trayMirror = mirror;
+        mirror.Changed += (_, _) => ApplyTrayMirror(mirror.Items);
+        mirror.Reenumerate();
 
         _appBar.Register();
         ApplyPlacement();
