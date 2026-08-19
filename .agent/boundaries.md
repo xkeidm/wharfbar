@@ -24,9 +24,10 @@
   `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) salt-okunur okuyup üst
   barda çizmek + `SendMessage` ile tıklama forward. Gizli/overflow ikonlar kapsam dışı (yalnızca
   açık popup'ta var) → `Win+B` düğmesi korunur. **25H2+ UIA fallback:** klasik `ToolbarWindow32`
-  kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre; harf glifi; sol
-  tık `InvokePattern`, sağ/çift tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade
-  edemez).
+  kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
+  `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'dan yakalanıp buton rect'inden
+  kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
+  tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez.
 
 
 ## Önce sor (kullanıcı onayı)

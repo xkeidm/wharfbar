@@ -39,11 +39,13 @@ internal static class TrayUiaReader
     /// Enumerates tray app buttons under <c>Shell_TrayWnd</c>. Returns false when the taskbar is
     /// not present or its UIA tree is not exposed (e.g. taskbar fully hidden).
     /// </summary>
+    internal static IntPtr FindTrayHwnd() => NativeMethods.FindWindow(TrayClass, null);
+
     internal static bool TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons)
     {
         buttons = [];
 
-        IntPtr tray = NativeMethods.FindWindow(TrayClass, null);
+        IntPtr tray = FindTrayHwnd();
         if (tray == IntPtr.Zero)
         {
             return false;
@@ -136,5 +138,32 @@ internal static class TrayUiaReader
         {
             return Rect.Empty;
         }
+    }
+
+    /// <summary>
+    /// Tight bounds of the icon art: the button's child <c>Image</c> element rect (avoids the
+    /// button's hover padding). Falls back to the button rect when no child image is exposed.
+    /// </summary>
+    internal static Rect GetIconRect(AutomationElement button)
+    {
+        try
+        {
+            AutomationElement? image = button.FindFirst(
+                TreeScope.Children,
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Image));
+            if (image is not null)
+            {
+                Rect r = image.Current.BoundingRectangle;
+                if (!r.IsEmpty && r.Width > 0 && r.Height > 0)
+                {
+                    return r;
+                }
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        return GetScreenRect(button);
     }
 }

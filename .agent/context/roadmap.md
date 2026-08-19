@@ -37,8 +37,8 @@
 - **Tray aynası (ADR-009) ✓** — üst bar `trayMirror` (belgelenmiş comctl32 `TB_*` mesajlarıyla
   salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 1.5 sn poll; gizli
   ikonlar `Win+B`'de kalır). **25H2+ UIA fallback ✓ (manuel doğrulandı):** klasik toolbar
-  kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + harf glifi + UIA
-  `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
+  kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + `TrayCapture` (PrintWindow
+  ile gerçek ikon yakalama) + UIA `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
 
 ## Yapılacaklar listesi (öncelikli)
 

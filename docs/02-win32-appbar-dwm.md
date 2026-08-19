@@ -98,7 +98,9 @@ Top bar göstergeleri için:
   dönünce ayna UI Automation'a düşer: `Shell_TrayWnd → … → TaskbarFrameAutomationPeer` altındaki
   `SystemTray.NormalButton` butonları (ad + `AutomationElement`); sistem ikonları farklı
   class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`) + giriş göstergesi tooltip
-  filtreyle elenir. Gerçek ikon bitmap'i UIA'da yok → **harf glifi** (`TrayLetterGlyph`). UIA
+  filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)`
+  ile park+cloak'lı taskbar'ın kendi içeriğini çekip butonun `Image` çocuk rect'ini kırpar
+  (gerçek ikon, flash yok; başarısızsa `TrayLetterGlyph` fallback). UIA
   çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
   (cloak + ekran dışı park) ile okunur, flash yok. Tıklama: sol → `InvokePattern` (stealth-peek);
   sağ/çift → UIA ifade edemediği için görünür peek + `SendInputMouse` fiziksel tıklama (kısa

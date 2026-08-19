@@ -160,14 +160,15 @@ composition ağacında; HWND/`TB_*` ile erişilemez). Uygulama hibritleşti:
 |------|--------|
 | Kaynak seçimi | `FindToolbarHwnd()` doluysa TB_* (gerçek ikonlar; <25H2); boşsa **UIA fallback** |
 | UIA okuma | `Shell_TrayWnd → AutomationElement` → `FindAll(Descendants, ClassName=="SystemTray.NormalButton")` → (ad, element). Sistem ikonları farklı class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`); giriş göstergesi tooltip filtreyle elenir (`IsSystemIcon` + `IsWharfBarIcon`) |
-| İkon | UIA'da bitmap yok → **harf glifi** (`TrayLetterGlyph`, ismin ilk harfi, 20px) |
+| İkon | UIA'da bitmap yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'ı çizer, butonun `Image` çocuk rect'ini kırpar (gerçek ikon, flash yok); yakalama başarısızsa `TrayLetterGlyph` (ilk harf, 20px) fallback |
 | UIA görünürlüğü | UIA çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)` (cloak + ekran dışı park, flash yok) → oku → `EndTrayPeek()` |
 | Sol tık | UIA `InvokePattern.Invoke()` (stealth-peek içinde; flash yok) |
 | Sağ/çift tık | UIA ifade edemez → görünür peek + `SendInputMouse` fiziksel tıklama (kısa flash; overflow deseniyle aynı; kabul edilen ödünleşim) |
 | Filtre token'ları | `TraySystemIconFilter`'a `tepsi girişi`, `input indicator` eklendi |
 
-Doğrulama (25H2, manuel): 10 üçüncü taraf ikonu harf glifiyle görünür; sol tık açar; sağ tık menüsü
-çıkar (taskbar kısa görünür); sistem ikonları filtrelenir.
+Doğrulama (25H2, manuel): 12 üçüncü taraf ikonu gerçek piksellerle yakalanıp görünür (16x16
+sıkı kırpma, boş değil); sol tık açar; sağ tık menüsü çıkar (taskbar kısa görünür); sistem
+ikonları filtrelenir.
 
 ## Self-review (2026-08-19)
 

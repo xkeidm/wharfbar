@@ -1627,7 +1627,8 @@ public partial class TopBarWindow : Window
                     Tag = item,
                     Width = 20,
                     Height = 20,
-                    Stretch = Stretch.None,
+                    // Real tray captures can be 16–24px; scale into the fixed box (up/down).
+                    Stretch = Stretch.Uniform,
                     Cursor = Cursors.Hand,
                     Margin = new Thickness(1, 0, 1, 0),
                     VerticalAlignment = VerticalAlignment.Center,

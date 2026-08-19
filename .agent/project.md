@@ -114,7 +114,8 @@ karar: [`../docs/decisions/008-media-panel.md`](../docs/decisions/008-media-pane
 **Tray aynası (ADR-009):** üst bar `trayMirror` öğesi (katalog **v5**) — gerçek tray
 toolbar'ından (TrayNotifyWnd/SysPager/ToolbarWindow32) üçüncü taraf ikonları okur,
 sistem ikonlarını filtreler, 1.5 sn poll, tıklama forward. **Windows 11 25H2+ UIA fallback:**
-klasik toolbar kaldırıldığı için `TrayUiaReader` (SystemTray.NormalButton + harf glifi) + UIA
+klasik toolbar kaldırıldığı için `TrayUiaReader` (SystemTray.NormalButton) + `TrayCapture`
+(PrintWindow ile park+cloak'lı taskbar'dan gerçek ikon yakalama; başarısızsa harf glifi) + UIA
 `InvokePattern`/peek tıklama. Spec:
 [`../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../docs/superpowers/specs/2026-08-19-tray-mirror-design.md);
 ADR: [`../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../docs/decisions/009-tray-mirror-toolbar-enumeration.md).

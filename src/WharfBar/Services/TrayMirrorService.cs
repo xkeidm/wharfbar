@@ -126,6 +126,7 @@ internal sealed class TrayMirrorService : IDisposable
 
         try
         {
+            IntPtr tray = TrayUiaReader.FindTrayHwnd();
             if (!TrayUiaReader.TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons))
             {
                 return [];
@@ -137,7 +138,7 @@ internal sealed class TrayMirrorService : IDisposable
                 UiaTrayButton b = buttons[i];
                 // Key by name: most tray apps keep a stable tooltip; state-bearing names
                 // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
-                items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TrayLetterGlyph.Build(b.Name), b.Element));
+                items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
             }
 
             return items;
@@ -146,6 +147,33 @@ internal sealed class TrayMirrorService : IDisposable
         {
             _taskbar.EndTrayPeek();
         }
+    }
+
+    /// <summary>
+    /// Real icon via PrintWindow of the parked taskbar; letter glyph fallback when capture fails.
+    /// </summary>
+    private static ImageSource TryCaptureIcon(IntPtr tray, AutomationElement element, string name)
+    {
+        if (tray != IntPtr.Zero)
+        {
+            Rect rect = TrayUiaReader.GetIconRect(element);
+            if (!rect.IsEmpty && rect.Width > 0 && rect.Height > 0)
+            {
+                var screen = new RECT
+                {
+                    Left = (int)Math.Round(rect.Left),
+                    Top = (int)Math.Round(rect.Top),
+                    Right = (int)Math.Round(rect.Right),
+                    Bottom = (int)Math.Round(rect.Bottom),
+                };
+                if (TrayCapture.TryGetTrayIcon(tray, screen, out ImageSource? icon) && icon is not null)
+                {
+                    return icon;
+                }
+            }
+        }
+
+        return TrayLetterGlyph.Build(name);
     }
 
     private TrayMirrorItem BuildToolbarItem(IntPtr toolbar, TrayButtonInfo button, int index)
