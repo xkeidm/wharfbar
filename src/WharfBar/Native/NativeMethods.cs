@@ -238,12 +238,10 @@ internal static class NativeMethods
     internal const uint MK_CONTROL = 0x0008;
 
     internal const uint TB_BUTTONCOUNT = (uint)WM_USER + 24;
-    internal const uint TB_GETBUTTONINFO = (uint)WM_USER + 63;
+    internal const uint TB_GETBUTTON = (uint)WM_USER + 23;
     internal const uint TB_GETITEMRECT = (uint)WM_USER + 29;
     internal const uint TB_GETIMAGELIST = (uint)WM_USER + 49;
     internal const uint TB_GETBUTTONTEXT = (uint)WM_USER + 75;
-    internal const int TBIF_COMMAND = 0x00000020;
-    internal const int TBIF_IMAGE = 0x00000002;
     internal const uint ILD_TRANSPARENT = 0x0001;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
     internal const ushort VK_SHIFT = 0x10;

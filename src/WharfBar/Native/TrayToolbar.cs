@@ -24,18 +24,16 @@ internal static class TrayToolbar
     private const int MaxTooltipChars = 256;
 
     [StructLayout(LayoutKind.Sequential)]
-    private struct TBBUTTONINFO
+    private struct TBBUTTON
     {
-        public uint cbSize;
-        public uint dwMask;
+        public int iBitmap;
         public int idCommand;
-        public int iImage;
         public byte fsState;
         public byte fsStyle;
-        public ushort cx;
-        public IntPtr lParam;
-        public IntPtr pszText;
-        public int cchText;
+        public byte bReserved0;
+        public byte bReserved1;
+        public IntPtr dwData;
+        public IntPtr iString;
     }
 
     internal static IntPtr FindToolbarHwnd()
@@ -158,24 +156,20 @@ internal static class TrayToolbar
     {
         info = new TrayButtonInfo(0, -1, string.Empty);
 
-        IntPtr rawPtr = Marshal.AllocHGlobal(Marshal.SizeOf<TBBUTTONINFO>());
+        IntPtr rawPtr = Marshal.AllocHGlobal(Marshal.SizeOf<TBBUTTON>());
         try
         {
-            var raw = new TBBUTTONINFO
-            {
-                cbSize = (uint)Marshal.SizeOf<TBBUTTONINFO>(),
-                dwMask = (uint)(NativeMethods.TBIF_COMMAND | NativeMethods.TBIF_IMAGE),
-            };
+            var raw = new TBBUTTON();
             Marshal.StructureToPtr(raw, rawPtr, false);
-            IntPtr ret = SendTimeout(toolbar, NativeMethods.TB_GETBUTTONINFO, (IntPtr)index, rawPtr);
-            raw = Marshal.PtrToStructure<TBBUTTONINFO>(rawPtr);
-            if (ret.ToInt64() < 0)
+            IntPtr ret = SendTimeout(toolbar, NativeMethods.TB_GETBUTTON, (IntPtr)index, rawPtr);
+            if (ret.ToInt32() == 0)
             {
                 return false;
             }
 
+            raw = Marshal.PtrToStructure<TBBUTTON>(rawPtr);
             string tooltip = ReadTooltip(toolbar, index);
-            info = new TrayButtonInfo(raw.idCommand, raw.iImage, tooltip);
+            info = new TrayButtonInfo(raw.idCommand, raw.iBitmap, tooltip);
             return true;
         }
         finally
