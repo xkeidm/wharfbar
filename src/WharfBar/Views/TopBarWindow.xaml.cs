@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
+using Image = Wpf.Ui.Controls.Image;
 using Wpf.Ui.Controls;
 
 namespace WharfBar.Views;
@@ -64,6 +65,9 @@ public partial class TopBarWindow : Window
     private MediaSessionService? _media;
     private bool _mediaActive;
     private bool _mediaClosePending;
+    private TrayMirrorService? _trayMirror;
+    private bool _trayMirrorActive;
+    private readonly Dictionary<string, Image> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
@@ -81,6 +85,7 @@ public partial class TopBarWindow : Window
 
         _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
         {
+            [TopBarStatusItemIds.TrayMirror] = TrayMirrorHost,
             [TopBarStatusItemIds.TrayOverflow] = TrayOverflowButton,
             [TopBarStatusItemIds.DateTime] = DateTimeButton,
             [TopBarStatusItemIds.Notifications] = NotificationsButton,
@@ -146,6 +151,10 @@ public partial class TopBarWindow : Window
         _media.SessionsChanged += OnMediaSessionsChanged;
         MediaHost.Attach(_media);
         _ = _media.InitializeAsync();
+
+        _trayMirror = new TrayMirrorService(Dispatcher);
+        _trayMirror.Changed += (_, _) => ApplyTrayMirror(_trayMirror.Items);
+        _trayMirror.Reenumerate();
 
         _appBar.Register();
         ApplyPlacement();
@@ -662,6 +671,8 @@ public partial class TopBarWindow : Window
         _monitorBrightness = null;
         _media?.Dispose();
         _media = null;
+        _trayMirror?.Dispose();
+        _trayMirror = null;
     }
 
     private void OnMainWindowChromeClobbered()
@@ -794,6 +805,7 @@ public partial class TopBarWindow : Window
             FrameworkElement el = _statusElements[id];
             bool show = id switch
             {
+                TopBarStatusItemIds.TrayMirror => _trayMirrorActive,
                 TopBarStatusItemIds.Battery => _batteryPresent,
                 TopBarStatusItemIds.Volume => _volumeAvailable,
                 TopBarStatusItemIds.Media => _mediaActive,
@@ -1395,6 +1407,7 @@ public partial class TopBarWindow : Window
         if (_taskbarCreatedMessage != 0 && (uint)msg == _taskbarCreatedMessage)
         {
             QueueApplyPlacement(reRegister: true);
+            _trayMirror?.Reenumerate();
             return IntPtr.Zero;
         }
 
@@ -1582,5 +1595,94 @@ public partial class TopBarWindow : Window
             NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
 
         FullscreenState.Instance.Set(isActive);
+    }
+
+    private void ApplyTrayMirror(IReadOnlyList<TrayMirrorItem> items)
+    {
+        _trayMirrorActive = items.Count > 0;
+
+        var nextKeys = new HashSet<string>(items.Select(static i => i.Key), StringComparer.Ordinal);
+        var stale = _trayMirrorImages.Keys.Where(k => !nextKeys.Contains(k)).ToList();
+        foreach (string key in stale)
+        {
+            TrayMirrorItems.Items.Remove(_trayMirrorImages[key]);
+            _trayMirrorImages.Remove(key);
+        }
+
+        foreach (TrayMirrorItem item in items)
+        {
+            if (_trayMirrorImages.TryGetValue(item.Key, out Image? existing))
+            {
+                // Icons can change in place (badges) — refresh Source on every poll.
+                existing.Source = item.Icon;
+                existing.Tag = item;
+                SetPlainToolTip(existing, item.Tooltip);
+            }
+            else
+            {
+                var image = new Image
+                {
+                    Source = item.Icon,
+                    Tag = item,
+                    Width = 20,
+                    Height = 20,
+                    Stretch = Stretch.None,
+                    Cursor = Cursors.Hand,
+                    Margin = new Thickness(1, 0, 1, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                image.MouseLeftButtonDown += OnTrayMirrorItemMouseDown;
+                image.MouseRightButtonDown += OnTrayMirrorItemMouseDown;
+                image.MouseRightButtonUp += OnTrayMirrorItemRightUp;
+                image.MouseDoubleClick += OnTrayMirrorItemDoubleClick;
+                SetPlainToolTip(image, item.Tooltip);
+                _trayMirrorImages[item.Key] = image;
+                TrayMirrorItems.Items.Add(image);
+            }
+        }
+
+        ApplyStatusItemLayout();
+    }
+
+    private void OnTrayMirrorItemMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Image { Tag: TrayMirrorItem item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+    }
+
+    private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
+    {
+        // Blocks the status-strip context menu when the click landed on a tray icon.
+        if (sender is Image { Tag: TrayMirrorItem })
+        {
+            e.Handled = true;
+        }
+    }
+
+    private void OnTrayMirrorItemDoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not Image { Tag: TrayMirrorItem item })
+        {
+            return;
+        }
+
+        e.Handled = true;
+        ForwardTrayClick(item, TrayClick.DoubleLeft);
+    }
+
+    private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
+    {
+        IntPtr toolbar = TrayToolbar.FindToolbarHwnd();
+        if (toolbar == IntPtr.Zero)
+        {
+            return;
+        }
+
+        TrayToolbar.ClickItem(toolbar, item.Index, kind);
     }
 }

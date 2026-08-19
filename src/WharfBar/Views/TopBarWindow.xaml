@@ -116,6 +116,20 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
+                <Border x:Name="TrayMirrorHost"
+                        Style="{StaticResource StatusHit}"
+                        Padding="2,2"
+                        Margin="0,0,2,0"
+                        Visibility="Collapsed">
+                    <ItemsControl x:Name="TrayMirrorItems">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+                </Border>
+
                 <Border x:Name="TrayOverflowButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
                         <ToolTip Content="Gizli simgeler" />
