@@ -231,6 +231,7 @@ public partial class DockWindow : Window
         _source.AddHook(WndProc);
 
         IntPtr hwnd = _source.Handle;
+        WindowOverlayStyles.ExcludeFromTaskSwitcher(hwnd);
 
         // Layered window: keep the composition surface clear so only the strip is visible.
         _source.CompositionTarget.BackgroundColor = Colors.Transparent;

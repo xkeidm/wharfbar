@@ -94,17 +94,20 @@ public partial class App : Application
         // Explicit Apply covers the common case where config exists and Save is skipped.
         new AutostartService().Apply(config.Autostart);
 
-        _veil = new VeilService(_config);
-        _veil.ApplyConfig(config.Veil);
-
         // Match the configured theme before the first window is realized, so the bar
-        // never flashes the wrong palette.
+        // never flashes the wrong palette. VeilService.ApplyConfig stays after this:
+        // creating the full-screen layered veil window before a theme apply lets WPF-UI
+        // attach a DWM Mica backdrop to it — an opaque full-screen cover for the whole
+        // startup. Disabled veils must not realize the window at all (VeilService).
         AppThemePreference.Mode = config.Theme;
         ApplicationThemeManager.Apply(AppThemePreference.Resolve());
         if (config.UseSystemAccentColor)
         {
             ApplicationAccentColorManager.ApplySystemAccent();
         }
+
+        _veil = new VeilService(_config);
+        _veil.ApplyConfig(config.Veil);
 
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();

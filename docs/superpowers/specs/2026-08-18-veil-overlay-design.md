@@ -73,7 +73,9 @@ App (OnStartup)
 - `bool IsEnabled`, `Color` (Color), `Opacity` (0–100) — yalnızca okunan durum.
 - `event EventHandler? Changed` — toggle + config uygulaması sonrası.
 - `ApplyConfig(VeilConfig)` — başlatmada ve Kaplama sayfası değişikliklerinde; renk/opaklık/enabled
-  uygular (fade'li).
+  uygular (fade'li). **Pencere yalnızca enabled'da kurulur** — kapalıyken tam ekran pencere
+  gerçekleşmez (startup'ta tema uygulamasının Mica bağlayıp opak kaplama flaşı yaratmaması için);
+  ilk enable'da `EnsureWindow` + config'den tint uygulanır.
 - `SetEnabled(bool)` — durum + `Config.Save` (kalıcılık) + `Changed` + fade.
 - Hotkey: `HotkeyParser.Parse(cfg.HotKey)` → başarısızsa kayıt yok + `debug` log; başarılıysa
   mesaj-only `HwndSource` (`ParentWindow=new IntPtr(-3)`) + `AddHook`; `WM_HOTKEY` → `SetEnabled(!IsEnabled)`.
@@ -130,7 +132,9 @@ AppearancePage deseni (`PowerToysCard`, `_isLoading` guard, her değişiklikte `
 
 ## Veri akışı
 
-1. Başlatma: `App.OnStartup` → config → `new VeilService(config, _config)` → `ApplyConfig` (kaplama varsa açılır) → hotkey kaydı.
+1. Başlatma: `App.OnStartup` → config → tema uygulaması (**önce** — kaplama penceresi kurulmadan;
+   aksi halde Mica bağlanır ve opak flaş olur) → `new VeilService(config, _config)` → `ApplyConfig`
+   (kaplama varsa açılır; kapalıysa pencere hiç kurulmaz) → hotkey kaydı.
 2. QS karosu tık: `ToggleTileAsync("veil")` → `SetEnabled(!)` → fade + `Config.Save` + `Changed` → `Refresh()` → tile aktif/arka plan rengi.
 3. Kısayol: `WM_HOTKEY` → aynı `SetEnabled` yolu (karodan bağımsız, aynı durum).
 4. Kaplama sayfası: değer değişimi → `Config.Save` → `Veil.ApplyConfig` → canlı uygulanır; `Changed` → karosu da güncellenir.

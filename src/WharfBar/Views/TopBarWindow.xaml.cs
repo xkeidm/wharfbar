@@ -105,6 +105,8 @@ public partial class TopBarWindow : Window
             return;
         }
 
+        WindowOverlayStyles.ExcludeFromTaskSwitcher(_source.Handle);
+
         _source.AddHook(WndProc);
 
         _taskbarCreatedMessage = NativeMethods.RegisterWindowMessage("TaskbarCreated");

@@ -32,14 +32,20 @@ internal sealed class VeilService : IDisposable
 
     internal event EventHandler? Changed;
 
-    /// <summary>Applies config (startup, settings page). Always recreates window state.</summary>
+    /// <summary>
+    /// Applies config (startup, settings page). The full-screen window is only realized when
+    /// the veil is enabled — a disabled veil must not create it: an early theme apply can
+    /// attach a DWM Mica backdrop to the layered window and render it as an opaque full-screen
+    /// cover for the whole startup.
+    /// </summary>
     internal void ApplyConfig(VeilConfig cfg)
     {
-        EnsureWindow();
-        Color color = VeilNormalizer.TryParseColor(cfg.Color, out Color parsed)
-            ? parsed
-            : DefaultColor;
-        _window!.ApplyTint(color, VeilNormalizer.ClampOpacity(cfg.Opacity));
+        if (cfg.Enabled)
+        {
+            EnsureWindow();
+            _window!.ApplyTint(ResolveColor(cfg), VeilNormalizer.ClampOpacity(cfg.Opacity));
+        }
+
         SetEnabledCore(cfg.Enabled, animate: true);
         ReconfigureHotkey(cfg.HotKey);
         Changed?.Invoke(this, EventArgs.Empty);
@@ -57,8 +63,14 @@ internal sealed class VeilService : IDisposable
     /// <summary>Toggles the veil (QS tile, hotkey); persists Enabled to config.</summary>
     internal void SetEnabled(bool enabled)
     {
-        SetEnabledCore(enabled, animate: true);
         VeilConfig cfg = _config.Current.Veil ??= new VeilConfig();
+        if (enabled)
+        {
+            EnsureWindow();
+            _window!.ApplyTint(ResolveColor(cfg), VeilNormalizer.ClampOpacity(cfg.Opacity));
+        }
+
+        SetEnabledCore(enabled, animate: true);
         cfg.Enabled = enabled;
         _config.Save(_config.Current);
         Changed?.Invoke(this, EventArgs.Empty);
@@ -163,4 +175,7 @@ internal sealed class VeilService : IDisposable
 
     private static Color DefaultColor =>
         VeilNormalizer.TryParseColor(VeilConfig.DefaultColor, out Color color) ? color : Colors.Blue;
+
+    private static Color ResolveColor(VeilConfig cfg) =>
+        VeilNormalizer.TryParseColor(cfg.Color, out Color color) ? color : DefaultColor;
 }

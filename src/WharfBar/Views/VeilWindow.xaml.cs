@@ -29,7 +29,12 @@ public partial class VeilWindow : Window
         base.OnSourceInitialized(e);
 
         _source = (HwndSource?)PresentationSource.FromVisual(this);
-        _source?.AddHook(WndProc);
+        if (_source is not null)
+        {
+            WindowOverlayStyles.ExcludeFromTaskSwitcher(_source.Handle);
+            _source.AddHook(WndProc);
+        }
+
         EnsureTransparentComposition();
         ClearSystemBackdrop();
         DockHitTest.ApplyPassthrough(_source?.Handle ?? IntPtr.Zero);
