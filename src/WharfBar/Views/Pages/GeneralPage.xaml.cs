@@ -42,6 +42,6 @@ public partial class GeneralPage : Page
     private void SaveAndApply()
     {
         Config.Save(Cfg);
-        WharfApp.TopBar?.ApplyConfigChanges();
+        WharfApp.ApplyTopBarChanges();
     }
 }

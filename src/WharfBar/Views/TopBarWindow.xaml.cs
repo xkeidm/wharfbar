@@ -1524,7 +1524,7 @@ public partial class TopBarWindow : Window
     /// ABN_POSCHANGED deadlocks (explorer waits for us, we wait for explorer) and the
     /// bar shows the wait cursor with dead clicks.
     /// </summary>
-    private void QueueApplyPlacement(bool reRegister = false)
+    internal void QueueApplyPlacement(bool reRegister = false)
     {
         if (reRegister)
         {

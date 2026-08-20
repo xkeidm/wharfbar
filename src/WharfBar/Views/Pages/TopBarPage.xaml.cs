@@ -187,7 +187,7 @@ public partial class TopBarPage : Page
     {
         Cfg.TopBar.StatusItems = TopBarStatusItemIds.Normalize(items);
         Config.Save(Cfg);
-        WharfApp.TopBar?.ApplyConfigChanges();
+        WharfApp.ApplyTopBarChanges();
         RebuildList();
     }
 

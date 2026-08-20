@@ -13,9 +13,9 @@ public partial class App : Application
     private SingleInstanceGuard? _singleInstance;
     private ConfigService? _config;
     private DockWindow? _dock;
+    private MonitorManager? _monitors;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
-    private TopBarEngine? _topBarEngine;
     private SettingsWindow? _settings;
     private VeilService? _veil;
 
@@ -25,8 +25,14 @@ public partial class App : Application
     /// <summary>Exposes the dock window for settings-driven updates.</summary>
     internal DockWindow? DockView => _dock;
 
-    /// <summary>The currently active <see cref="TopBarWindow"/> (same as <see cref="MainWindow"/>).</summary>
-    internal TopBarWindow? TopBar => MainWindow as TopBarWindow;
+    /// <summary>The primary top bar (MainWindow when a bar exists).</summary>
+    internal TopBarWindow? TopBar => _monitors?.PrimaryTopBar;
+
+    /// <summary>Applies top-bar settings to every per-monitor bar.</summary>
+    internal void ApplyTopBarChanges()
+    {
+        _monitors?.ApplyTopBarChanges();
+    }
 
     /// <summary>Exposes the veil service for settings pages and shutdown.</summary>
     internal VeilService? Veil => _veil;
@@ -113,22 +119,17 @@ public partial class App : Application
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
 
-        _topBarEngine = new TopBarEngine(_taskbar, _veil);
-        _topBarEngine.Initialize();
+        _monitors = new MonitorManager(_config, _taskbar, _veil);
+        _monitors.Initialize(); // creates engine + top bars + docks(empty for now)
 
-        MonitorInfo primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary)
-            ?? throw new InvalidOperationException("No primary monitor found.");
-
-        var topBar = new TopBarWindow(_topBarEngine, _config, _taskbar, _veil, primary);
-        MainWindow = topBar;
-        topBar.Show();
+        MainWindow = _monitors.PrimaryTopBar ?? CreateHiddenUtilityWindow();
 
         _dock = new DockWindow(config, _taskbar);
         _dock.Show();
 
         // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which
         // RestoreContentBackground on MainWindow — re-assert top bar translucent/mica.
-        topBar.ApplyConfigChanges();
+        _monitors.ApplyTopBarChanges();
 
         // Own tray icon only (quit menu). Not reading system status tray icons.
         _tray = new TrayIconService();
@@ -147,6 +148,19 @@ public partial class App : Application
             () => _veil?.ReassertBackdrop());
     }
 
+    private static Window CreateHiddenUtilityWindow()
+    {
+        var window = new Window
+        {
+            Width = 0,
+            Height = 0,
+            ShowInTaskbar = false,
+            WindowStyle = WindowStyle.None,
+            Visibility = Visibility.Hidden,
+        };
+        return window;
+    }
+
     /// <summary>
     /// Rebuilds the top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
     /// Removes the old AppBar only — does <strong>not</strong> restore the Windows taskbar.
@@ -155,7 +169,7 @@ public partial class App : Application
     /// </summary>
     internal void RecreateTopBar()
     {
-        if (_config is null || _taskbar is null || _veil is null || _topBarEngine is null)
+        if (_config is null || _taskbar is null || _veil is null || _monitors is null)
         {
             return;
         }
@@ -170,7 +184,7 @@ public partial class App : Application
         try
         {
             // Ctor only — AppBar registers in OnSourceInitialized during Show.
-            next = new TopBarWindow(_topBarEngine, _config, _taskbar, _veil, old.Monitor);
+            next = new TopBarWindow(_monitors.Engine, _config, _taskbar, _veil, old.Monitor);
             old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
             prepared = true;
             MainWindow = next;
@@ -209,8 +223,7 @@ public partial class App : Application
         _taskbar?.Restore();
         _taskbar = null;
 
-        _topBarEngine?.Dispose();
-        _topBarEngine = null;
+        _monitors?.Dispose();
 
         _tray?.Dispose();
         _tray = null;

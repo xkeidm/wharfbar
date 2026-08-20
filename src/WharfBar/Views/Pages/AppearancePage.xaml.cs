@@ -120,7 +120,7 @@ public partial class AppearancePage : Page
         }
         else
         {
-            WharfApp.TopBar?.ApplyConfigChanges();
+            WharfApp.ApplyTopBarChanges();
         }
     }
 
@@ -133,7 +133,7 @@ public partial class AppearancePage : Page
 
         Cfg.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(v);
         Config.Save(Cfg);
-        WharfApp.TopBar?.ApplyConfigChanges();
+        WharfApp.ApplyTopBarChanges();
     }
 
     private void UpdateOpacityCardVisibility(string mode)
