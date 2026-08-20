@@ -8,7 +8,7 @@ namespace WharfBar.Models;
 /// </summary>
 internal sealed class AppConfig
 {
-    internal const int CurrentSchemaVersion = 1;
+    internal const int CurrentSchemaVersion = 2;
 
     internal const string ThemeSystem = "system";
     internal const string ThemeLight = "light";
@@ -32,6 +32,8 @@ internal sealed class AppConfig
     public VeilConfig Veil { get; set; } = new();
 
     public List<PinnedApp> PinnedApps { get; set; } = [];
+
+    public List<MonitorConfig> Monitors { get; set; } = [];
 }
 
 /// <summary>Per-monitor visibility settings under <see cref="AppConfig.Monitors"/>.</summary>
