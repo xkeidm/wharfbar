@@ -141,6 +141,67 @@ internal sealed class MonitorManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Rebuilds every top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
+    /// Removes old AppBars only — does <strong>not</strong> restore the Windows taskbar.
+    /// Constructs the next window first (no AppBar until Show), then ABM_REMOVE on old;
+    /// on failure, re-registers the old AppBar and keeps it in <see cref="_topBars"/>.
+    /// </summary>
+    internal void RecreateTopBars()
+    {
+        if (_engine is null)
+        {
+            return;
+        }
+
+        TopBarWindow? oldPrimary = PrimaryTopBar;
+        List<TopBarWindow> windows = _topBars.ToList();
+        foreach (TopBarWindow old in windows)
+        {
+            TopBarWindow? next = null;
+            var prepared = false;
+            try
+            {
+                // Ctor only — AppBar registers in OnSourceInitialized during Show.
+                next = new TopBarWindow(_engine, _config, _taskbar, _veil, old.Monitor);
+                old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
+                prepared = true;
+                next.Show(); // AppBar registers in OnSourceInitialized
+                int index = _topBars.IndexOf(old);
+                if (index >= 0)
+                {
+                    _topBars[index] = next;
+                }
+            }
+            catch
+            {
+                if (next is not null)
+                {
+                    try
+                    {
+                        next.PrepareForRecreate();
+                        next.Close();
+                    }
+                    catch
+                    {
+                        // Best-effort discard.
+                    }
+                }
+
+                if (prepared)
+                {
+                    old.AbortRecreate();
+                }
+
+                continue;
+            }
+
+            old.Close();
+        }
+
+        RefreshPrimaryOwnership();
+    }
+
     private void RefreshPrimaryOwnership()
     {
         // Kept as a no-op hook for Task 11 (MainWindow assignment happens in App).

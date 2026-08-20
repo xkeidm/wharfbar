@@ -162,60 +162,12 @@ public partial class App : Application
     }
 
     /// <summary>
-    /// Rebuilds the top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
-    /// Removes the old AppBar only — does <strong>not</strong> restore the Windows taskbar.
-    /// Constructs the next window first (no AppBar until Show), then ABM_REMOVE on old;
-    /// on failure, re-registers the old AppBar and keeps it as MainWindow.
+    /// Rebuilds every top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
+    /// Removes old AppBars only — does <strong>not</strong> restore the Windows taskbar.
     /// </summary>
     internal void RecreateTopBar()
     {
-        if (_config is null || _taskbar is null || _veil is null || _monitors is null)
-        {
-            return;
-        }
-
-        if (MainWindow is not TopBarWindow old)
-        {
-            return;
-        }
-
-        TopBarWindow? next = null;
-        var prepared = false;
-        try
-        {
-            // Ctor only — AppBar registers in OnSourceInitialized during Show.
-            next = new TopBarWindow(_monitors.Engine, _config, _taskbar, _veil, old.Monitor);
-            old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
-            prepared = true;
-            MainWindow = next;
-            next.Show();
-        }
-        catch
-        {
-            if (next is not null)
-            {
-                try
-                {
-                    // Drop failed next without restoring the taskbar (Quit path only Restores).
-                    next.PrepareForRecreate();
-                    next.Close();
-                }
-                catch
-                {
-                    // Best-effort discard.
-                }
-            }
-
-            MainWindow = old;
-            if (prepared)
-            {
-                old.AbortRecreate();
-            }
-
-            return;
-        }
-
-        old.Close();
+        _monitors?.RecreateTopBars();
     }
 
     protected override void OnExit(ExitEventArgs e)
