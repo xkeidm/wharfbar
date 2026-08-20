@@ -107,7 +107,7 @@ Each `TopBarWindow` registers its own `AppBar` with its own HWND (`ABM_NEW`). Th
 - **Monitor change:** re-enumerate, diff against current window sets, create/close windows, re-apply placements, refresh `MainWindow` if primary changed.
 - **Config change (settings):** live reconcile (enable/disable per monitor).
 - **Exit:** close all windows, `ABM_REMOVE` all AppBars, restore taskbars (existing path).
-- `App.MainWindow` remains the primary monitor's `TopBarWindow` (preserves shutdown/activation semantics); others are auxiliary windows.
+- `App.MainWindow` is the primary monitor's `TopBarWindow` when that monitor's top bar is enabled; otherwise the first enabled top bar in enumeration order; if no top bar is enabled at all, a hidden utility window (the `MonitorManager` message-only window) serves as `MainWindow` so `Shutdown`/activation semantics hold. All other top bars are auxiliary windows.
 
 ## 6. Settings UI — "Ekranlar" Section
 
