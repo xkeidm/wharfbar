@@ -14,6 +14,24 @@ public class MonitorIdentityMatcherTests
         new(deviceId, deviceName, "Test Display", topBar, dock);
 
     [Fact]
+    public void Matches_DeviceIdMatchIsCaseInsensitive_ReturnsTrue()
+    {
+        var live = Monitor("PCI\\VEN_A", "\\\\.\\DISPLAY1", primary: false);
+        var config = Entry("pci\\ven_a", "\\\\.\\DISPLAY1", topBar: true, dock: false);
+
+        Assert.True(MonitorIdentityMatcher.Matches(config, live));
+    }
+
+    [Fact]
+    public void Matches_DifferentDeviceId_ReturnsFalse()
+    {
+        var live = Monitor("PCI\\VEN_A", "\\\\.\\DISPLAY1", primary: false);
+        var config = Entry("PCI\\VEN_B", "\\\\.\\DISPLAY1", topBar: true, dock: false);
+
+        Assert.False(MonitorIdentityMatcher.Matches(config, live));
+    }
+
+    [Fact]
     public void Resolve_MatchingByDeviceId_ReturnsConfiguredEntry()
     {
         var live = Monitor("PCI\\VEN_1", "\\\\.\\DISPLAY2", primary: false);

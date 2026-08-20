@@ -34,24 +34,33 @@ internal sealed class AppConfig
     public List<PinnedApp> PinnedApps { get; set; } = [];
 }
 
-/// <summary>
-/// Per-monitor visibility settings under <see cref="AppConfig.Monitors"/>.
-/// <see cref="DeviceId"/> is the EnumDisplayDevices registry path, stable across reboots;
-/// <see cref="DeviceName"/> (e.g. "\\.\DISPLAY1") is a fallback match key because the display
-/// number can renumber on replug. <see cref="Name"/> is a display-only friendly name.
-/// </summary>
-internal sealed record MonitorConfig(
-    string DeviceId,
-    string DeviceName,
-    string Name,
-    bool TopBar,
-    bool Dock)
+/// <summary>Per-monitor visibility settings under <see cref="AppConfig.Monitors"/>.</summary>
+internal sealed record MonitorConfig
 {
-    /// <summary>Unconfigured entry (matches nothing; Resolve synthesizes defaults).</summary>
     public MonitorConfig()
-        : this(string.Empty, string.Empty, string.Empty, false, false)
     {
     }
+
+    public MonitorConfig(string deviceId, string deviceName, string name, bool topBar, bool dock)
+    {
+        DeviceId = deviceId;
+        DeviceName = deviceName;
+        Name = name;
+        TopBar = topBar;
+        Dock = dock;
+    }
+
+    public string DeviceId { get; set; } = string.Empty;
+
+    /// <summary>szDevice (e.g. "\\\\.\\DISPLAY1"); secondary match key when DeviceId is empty.</summary>
+    public string DeviceName { get; set; } = string.Empty;
+
+    /// <summary>Display-only friendly name (e.g. "DELL U2720Q"); refreshed on save.</summary>
+    public string Name { get; set; } = string.Empty;
+
+    public bool TopBar { get; set; }
+
+    public bool Dock { get; set; }
 }
 
 /// <summary>Dock surface backdrop styles (<see cref="DockConfig.Surface"/>).</summary>
