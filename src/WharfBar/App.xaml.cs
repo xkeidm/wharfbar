@@ -13,7 +13,6 @@ public partial class App : Application
 {
     private SingleInstanceGuard? _singleInstance;
     private ConfigService? _config;
-    private DockWindow? _dock;
     private MonitorManager? _monitors;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
@@ -23,8 +22,9 @@ public partial class App : Application
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
 
-    /// <summary>Exposes the dock window for settings-driven updates.</summary>
-    internal DockWindow? DockView => _dock;
+    /// <summary>Exposes the primary dock window for settings-driven updates.</summary>
+    internal DockWindow? DockView => _monitors?.Docks.FirstOrDefault(d => d.Monitor.IsPrimary)
+        ?? _monitors?.Docks.FirstOrDefault();
 
     /// <summary>The primary top bar (MainWindow when a bar exists).</summary>
     internal TopBarWindow? TopBar => _monitors?.PrimaryTopBar;
@@ -33,6 +33,13 @@ public partial class App : Application
     internal void ApplyTopBarChanges()
     {
         _monitors?.ApplyTopBarChanges();
+    }
+
+    /// <summary>Reconciles and applies dock settings to every per-monitor dock.</summary>
+    internal void ApplyDockChanges()
+    {
+        _monitors?.Reconcile();
+        _monitors?.ApplyDockConfigChanges();
     }
 
     /// <summary>Exposes the veil service for settings pages and shutdown.</summary>
@@ -121,18 +128,9 @@ public partial class App : Application
         _taskbar.CaptureAndHide();
 
         _monitors = new MonitorManager(_config, _taskbar, _veil);
-        _monitors.Initialize(); // creates engine + top bars + docks(empty for now)
+        _monitors.Initialize(); // creates engine + top bars + docks
 
         MainWindow = _monitors.PrimaryTopBar ?? CreateHiddenUtilityWindow();
-
-        MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
-        if (primary is null)
-        {
-            throw new InvalidOperationException("No primary monitor found to host the dock.");
-        }
-
-        _dock = new DockWindow(config, _taskbar, primary);
-        _dock.Show();
 
         // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which
         // RestoreContentBackground on MainWindow — re-assert top bar translucent/mica.
@@ -192,9 +190,6 @@ public partial class App : Application
 
         _settings?.Close();
         _settings = null;
-
-        _dock?.Close();
-        _dock = null;
 
         _singleInstance?.Dispose();
         _singleInstance = null;

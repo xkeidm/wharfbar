@@ -21,6 +21,7 @@ internal sealed class MonitorManager : IDisposable
     private readonly VeilService _veil;
     private readonly MonitorMessageWindow _messageWindow;
     private readonly List<TopBarWindow> _topBars = new();
+    private readonly List<DockWindow> _docks = new();
     private IReadOnlyList<MonitorInfo> _monitors = Array.Empty<MonitorInfo>();
     private TopBarEngine? _engine;
     private bool _sourceConfigured;
@@ -40,6 +41,8 @@ internal sealed class MonitorManager : IDisposable
     }
 
     internal IReadOnlyList<TopBarWindow> TopBars => _topBars;
+
+    internal IReadOnlyList<DockWindow> Docks => _docks;
 
     internal TopBarWindow? PrimaryTopBar =>
         _topBars.FirstOrDefault(b => b.Monitor.IsPrimary) ?? _topBars.FirstOrDefault();
@@ -122,6 +125,32 @@ internal sealed class MonitorManager : IDisposable
             bar.Show();
         }
 
+        List<MonitorInfo> desiredDocks = _monitors
+            .Where(m => IsEnabled(m.DeviceId, MonitorPart.Dock))
+            .ToList();
+
+        for (int i = _docks.Count - 1; i >= 0; i--)
+        {
+            DockWindow dock = _docks[i];
+            if (!desiredDocks.Any(m => m.DeviceId == dock.Monitor.DeviceId))
+            {
+                dock.Close();
+                _docks.RemoveAt(i);
+            }
+        }
+
+        foreach (MonitorInfo monitor in desiredDocks)
+        {
+            if (_docks.Any(d => d.Monitor.DeviceId == monitor.DeviceId))
+            {
+                continue;
+            }
+
+            var dock = new DockWindow(_config.Current, _taskbar, monitor);
+            _docks.Add(dock);
+            dock.Show();
+        }
+
         RefreshPrimaryOwnership();
     }
 
@@ -138,6 +167,14 @@ internal sealed class MonitorManager : IDisposable
         foreach (TopBarWindow bar in _topBars)
         {
             bar.ApplyConfigChanges();
+        }
+    }
+
+    internal void ApplyDockConfigChanges()
+    {
+        foreach (DockWindow dock in _docks)
+        {
+            dock.ApplyConfigChanges();
         }
     }
 
@@ -298,6 +335,13 @@ internal sealed class MonitorManager : IDisposable
     {
         _messageWindow.DisplaySettingsChanged -= OnDisplayChanged;
         _messageWindow.Dispose();
+
+        foreach (DockWindow dock in _docks)
+        {
+            dock.Close();
+        }
+
+        _docks.Clear();
 
         foreach (TopBarWindow bar in _topBars)
         {

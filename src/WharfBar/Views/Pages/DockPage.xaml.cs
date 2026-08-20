@@ -72,6 +72,6 @@ public partial class DockPage : Page
     private void SaveAndApply()
     {
         Config.Save(Cfg);
-        WharfApp.DockView?.ApplyConfigChanges();
+        WharfApp.ApplyDockChanges();
     }
 }
