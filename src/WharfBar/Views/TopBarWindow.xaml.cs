@@ -1625,12 +1625,12 @@ public partial class TopBarWindow : Window
                 {
                     Source = item.Icon,
                     Tag = item,
-                    Width = 20,
-                    Height = 20,
+                    Width = 16,
+                    Height = 16,
                     // Real tray captures can be 16–24px; scale into the fixed box (up/down).
                     Stretch = Stretch.Uniform,
                     Cursor = Cursors.Hand,
-                    Margin = new Thickness(1, 0, 1, 0),
+                    Margin = new Thickness(3, 0, 3, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
                 image.MouseDown += OnTrayMirrorItemMouseDown;
