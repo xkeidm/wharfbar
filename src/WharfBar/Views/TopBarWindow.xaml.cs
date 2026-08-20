@@ -138,6 +138,14 @@ public partial class TopBarWindow : Window
         _engine.Media.SessionsChanged += OnMediaSessionsChanged;
         MediaHost.Attach(_engine.Media);
 
+        if (_engine.Media.HasActiveSession)
+        {
+            // The engine already holds the session (created before this window exists), so no
+            // event fires after subscription on create/recreate — apply the initial state so a
+            // rebuilt window shows the same media button as the pre-recreate one.
+            OnMediaChanged(this, EventArgs.Empty);
+        }
+
         _engine.TrayMirror.Changed += OnTrayMirrorChanged;
         ApplyTrayMirror(_engine.TrayMirror.Items);
 
