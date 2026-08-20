@@ -154,7 +154,6 @@ internal sealed class MonitorManager : IDisposable
             return;
         }
 
-        TopBarWindow? oldPrimary = PrimaryTopBar;
         List<TopBarWindow> windows = _topBars.ToList();
         foreach (TopBarWindow old in windows)
         {
@@ -202,9 +201,17 @@ internal sealed class MonitorManager : IDisposable
         RefreshPrimaryOwnership();
     }
 
+    /// <summary>
+    /// Keeps the "primary top bar = MainWindow" invariant that <see cref="WindowAppearance"/>
+    /// and WPF-UI's <c>RestoreContentBackground</c> rely on. Runs after every reconcile and
+    /// bar recreate. Never nulls MainWindow — the disable-all-bars case is out of scope here.
+    /// </summary>
     private void RefreshPrimaryOwnership()
     {
-        // Kept as a no-op hook for Task 11 (MainWindow assignment happens in App).
+        if (PrimaryTopBar is not null && System.Windows.Application.Current is { } app)
+        {
+            app.MainWindow = PrimaryTopBar;
+        }
     }
 
     internal bool IsEnabled(string deviceId, MonitorPart part)
