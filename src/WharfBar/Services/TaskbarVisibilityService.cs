@@ -29,6 +29,7 @@ internal sealed class TaskbarVisibilityService
     private int _expandingWorkArea;
     private int _pendingBroadcastExpand;
     private int _watchBusy;
+    private readonly object _reservationLock = new();
     private readonly Dictionary<string, int> _reservedBottomByMonitor = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
@@ -41,13 +42,17 @@ internal sealed class TaskbarVisibilityService
     /// </summary>
     internal void SetDockReservation(MonitorInfo monitor, int bottomPx)
     {
-        int current = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
-        if (current == bottomPx)
+        lock (_reservationLock)
         {
-            return;
+            int current = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
+            if (current == bottomPx)
+            {
+                return;
+            }
+
+            _reservedBottomByMonitor[monitor.DeviceId] = Math.Max(0, bottomPx);
         }
 
-        _reservedBottomByMonitor[monitor.DeviceId] = Math.Max(0, bottomPx);
         ExpandWorkAreaBottom(monitor, broadcast: true);
     }
 
@@ -120,7 +125,13 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
-        foreach (KeyValuePair<string, int> pair in _reservedBottomByMonitor)
+        KeyValuePair<string, int>[] snapshot;
+        lock (_reservationLock)
+        {
+            snapshot = _reservedBottomByMonitor.ToArray();
+        }
+
+        foreach (KeyValuePair<string, int> pair in snapshot)
         {
             MonitorInfo? monitor = MonitorNative.Enumerate().FirstOrDefault(m =>
                 string.Equals(m.DeviceId, pair.Key, StringComparison.OrdinalIgnoreCase));
@@ -412,7 +423,12 @@ internal sealed class TaskbarVisibilityService
             bool restoreRaced = Volatile.Read(ref _restored) != 0;
             if (!restoreRaced)
             {
-                int reserved = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
+                int reserved;
+                lock (_reservationLock)
+                {
+                    reserved = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
+                }
+
                 if (TaskbarNative.TryExpandWorkAreaBottom(monitor, reserved, broadcast))
                 {
                     return;
