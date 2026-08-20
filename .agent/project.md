@@ -22,7 +22,10 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere);
   `config.pinnedApps` seed/fallback + dinamik kısayol oluşturma/silme.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
-- **v1 monitör:** Yalnızca **birincil** monitör.
+- **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
+  monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
+  kendi monitöründe AppBar, ikincil monitörlerde `SPI_SETWORKAREA` yedeği. Veil birincil
+  monitörle sınırlı.
 - **Global menü yok** — top bar File/Edit benzeri uygulama menüsü taşımaz.
 
 ## Stack (özet)

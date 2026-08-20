@@ -77,10 +77,9 @@
    [`../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
    plan: [`../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md`](../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md)
    (kod çalışma ağacında; manuel UI doğrulaması bekliyor)
-10. İkincil monitör / work-area stratejisi
-11. UWP/Store ikonları (tam yol)
-12. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
-13. Bildirim merkezi benzeri içerik aynası (ADR-005 hâlâ reddediyor; ayrı onay gerekir)
+10. UWP/Store ikonları (tam yol)
+11. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
+12. Bildirim merkezi benzeri içerik aynası (ADR-005 hâlâ reddediyor; ayrı onay gerekir)
 
 ### Bilinçli ertelenenler / yasaklar
 

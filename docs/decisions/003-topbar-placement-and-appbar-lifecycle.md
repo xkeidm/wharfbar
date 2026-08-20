@@ -57,7 +57,9 @@ Bu, görev çubuğunun kendi davranışıyla da tutarlıdır.
 ## Sonuçlar
 
 - Faz 3’te backdrop eklenirken `SetWindowPos` tabanlı yerleşime dokunulmamalı.
-- Çoklu monitör desteği (v1 dışı) `Display.GetPrimaryMonitorBounds` noktasından genişler.
+- Çoklu monitör desteği: `Display.GetMonitorBounds` arayüzü uygulandı (bar ve dock buradan
+  kendi monitörünün geometrisini alır); her bar kendi monitöründe AppBar kaydeder (hedef
+  monitöre taşınıp `ABM_NEW`). Veil birincil monitörle kalır (`GetPrimaryMonitorBounds`).
 - Süreç zorla öldürülürse (`Stop-Process -Force`, güç kesintisi) hiçbir yönetilen çıkış yolu
   çalışmaz; bu senaryoda asılı work area kaçınılmazdır ve çözümü explorer restart’tır.
   README ve `AGENTS.md` bu uyarıyı içerir.

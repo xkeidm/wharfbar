@@ -23,6 +23,7 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 | Hedef | Not |
 |-------|-----|
 | Üst AppBar | `ABE_TOP`, work area rezervasyonu |
+| Çoklu monitör | Monitör bazında top bar / dock aç-kapat; her bar kendi monitöründe AppBar |
 | Dock overlay | Topmost; AppBar şart değil (ADR-001) |
 | Pinned / running apps | Canlı TaskBar `.lnk` + `EnumWindows`/AUMID; `SHGetFileInfo`; config seed/fallback (ADR-005) |
 | Tepsi hibrit + ayna | Durum simülasyonu + native overflow düğmesi; üçüncü taraf ikon aynası belgelenmiş comctl32 `TB_*` mesajlarıyla (ADR-009); gizli ikonlar native overflow'da |
@@ -36,7 +37,6 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 
 ## Non-goals (v1)
 
-- İkincil monitörlerde AppBar / work-area rezervasyonu
 - UWP / Store paket ikonları (AppxManifest yolu)
 - Sistem / üçüncü taraf tepsi ikonlarını `ReadProcessMemory` / enjeksiyon / belgelenmemiş
   NotifyIcon enumeration ile okuma. (ADR-009: belgelenmiş comctl32 `TB_*` mesajlarıyla
@@ -50,7 +50,7 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 
 ## Başarı kriterleri (v1)
 
-- Maximize edilmiş pencereler top bar altına girmiyor (birincil monitör).
+- Maximize edilmiş pencereler top bar altına girmiyor (etkin her monitör).
 - Uygulama temiz kapanınca rezerve alan geri geliyor; görev çubuğu önceki durumuna dönüyor (ADR-005).
 - Dock, TaskBar pinlerini / çalışan uygulamaları yansıtıyor; config fallback boş klasörde devreye giriyor.
 - Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward); gizli ikonlar için

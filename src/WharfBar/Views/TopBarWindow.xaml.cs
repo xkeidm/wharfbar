@@ -1401,6 +1401,7 @@ public partial class TopBarWindow : Window
         {
             QueueApplyPlacement(reRegister: true);
             _engine.TrayMirror.Reenumerate();
+            ((App)Application.Current).Monitors?.Refresh();
             return IntPtr.Zero;
         }
 

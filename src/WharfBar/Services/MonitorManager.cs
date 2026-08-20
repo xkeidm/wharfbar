@@ -38,6 +38,7 @@ internal sealed class MonitorManager : IDisposable
         _veil = veil;
         _messageWindow = new MonitorMessageWindow();
         _messageWindow.DisplaySettingsChanged += OnDisplayChanged;
+        _messageWindow.SettingsChanged += OnSettingsChanged;
     }
 
     internal IReadOnlyList<TopBarWindow> TopBars => _topBars;
@@ -331,6 +332,26 @@ internal sealed class MonitorManager : IDisposable
         }
     }
 
+    private void OnSettingsChanged(object? sender, EventArgs e)
+    {
+        // Our own SPI_SETWORKAREA writes and theme changes arrive here; re-applying
+        // placements is idempotent (SetDockReservation short-circuits on equal values).
+        System.Windows.Threading.Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            RefreshAllPlacements();
+        }
+        else
+        {
+            dispatcher.BeginInvoke(RefreshAllPlacements);
+        }
+    }
+
     private static bool MonitorSetsEqual(IReadOnlyList<MonitorInfo> a, IReadOnlyList<MonitorInfo> b)
     {
         if (a.Count != b.Count)
@@ -358,6 +379,7 @@ internal sealed class MonitorManager : IDisposable
     public void Dispose()
     {
         _messageWindow.DisplaySettingsChanged -= OnDisplayChanged;
+        _messageWindow.SettingsChanged -= OnSettingsChanged;
         _messageWindow.Dispose();
 
         foreach (DockWindow dock in _docks)

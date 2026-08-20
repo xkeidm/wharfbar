@@ -26,11 +26,17 @@ bildirimlerini işle (ör. `ABN_POSCHANGED`, `ABN_FULLSCREENAPP`, `ABN_WINDOWARR
 içeriden `ABM_SETPOS` deadlock (üst barda wait cursor, tıklama yok). `BeginInvoke` +
 aynı rect’te SETPOS atla. Fullscreen gizleme ve yeniden konumlandırma buradan bağlanır.
 
-### Çoklu monitör (v1 sınırı)
+### Çoklu monitör
 
-`SHAppBarMessage` tarihsel olarak **birincil monitör** ile daha uyumludur. İkincil monitör rezervasyonu güvenilir olmayabilir.
+AppBar `ABM_NEW` sırasında pencerenin bulunduğu monitöre bağlanır; bar önce hedef monitöre
+taşınıp sonra kaydedilirse her bar kendi monitöründe kenar rezerve eder. Yerleşim
+`Display.GetMonitorBounds` (ADR-003) ile ilgili monitörün fiziksel piksel sınırından hesaplanır;
+her monitör config'te ayrı açılır/kapanır (`monitors`).
 
-**v1 kararı:** Yalnızca birincil monitör. İleride yedek: `SystemParametersInfo(SPI_SETWORKAREA)` ile manuel work area (dikkatli kullan; diğer shell bileşenleriyle çakışabilir).
+Birincil monitörde bu yol görev çubuğuyla birebir çalışır. İkincil monitörlerde shell
+uyumluluğu daha kırılgan olabildiğinden yedek olarak `SystemParametersInfo(SPI_SETWORKAREA)`
+ile manuel work area genişletmesi uygulanır (dikkatli kullan; diğer shell bileşenleriyle
+çakışabilir — bkz. boundaries "Yap").
 
 ### Explorer çöküşü / yeniden başlama
 
@@ -201,8 +207,8 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
 6. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
 7. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
 
-v1: yalnızca birincil monitör work area. Çoklu monitör `SPI_SETWORKAREA` ayrı onay
-(boundaries “önce sor”).
+Çoklu monitör: work area her monitör için o monitöre göre genişletilir; dock rezervasyonu
+`SetDockReservation(Monitor, heightPx)` ile monitör bazında (bkz. boundaries "Yap").
 
 Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 

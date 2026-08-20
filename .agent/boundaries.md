@@ -17,6 +17,9 @@
 - **Windows görev çubuğunu WharfBar çalışırken gizleme / auto-hide** — başlatmada durumu
   yakala; çıkış ve crash yollarında **önceki duruma geri yükle** (ADR-005; `ABM_REMOVE`
   ile aynı disiplin). Kalıcı (WharfBar kapalıyken) bozma yok.
+- **Çoklu monitör** AppBar / `SPI_SETWORKAREA` work-area: monitör bazında top bar / dock
+  (`monitors` config; per-monitor aç-kapat), her bar kendi monitöründe AppBar; ikincil
+  monitörlerde shell uyumluluğu kırılgansa `SPI_SETWORKAREA` yedeği (kullanıcı onaylı).
 - Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
@@ -32,7 +35,6 @@
 
 ## Önce sor (kullanıcı onayı)
 
-- v1’de **çoklu monitör** AppBar / `SPI_SETWORKAREA` work-area hack’i
 - **UWP/Store** ikon desteği (tam AppxManifest yolu)
 - Registry `Run` ile autostart (tercih Startup klasörü)
 - `AllowUnsafeBlocks` açmak

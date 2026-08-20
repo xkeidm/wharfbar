@@ -2,7 +2,9 @@
 
 `src/WharfBar/Views/TopBarWindow.xaml` (+ `.xaml.cs`).
 
-Yükseklik 30 DIP, **AppBar** (work area rezerve), birincil monitör, her zaman üstte.
+Yükseklik 30 DIP, **AppBar** (work area rezerve), her zaman üstte. Her etkin monitör için
+ayrı bar kurulur (per-monitor; her bar kendi monitöründe AppBar, bar önce o monitöre taşınıp
+kaydedilir). Görünürlük `monitors` config ile monitör bazında açılır/kapanır.
 Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
 `transparent` / `tint` (`AllowsTransparency=true` — Mica ile asla birlikte değil).
 
