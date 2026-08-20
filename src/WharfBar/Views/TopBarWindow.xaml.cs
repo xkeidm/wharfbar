@@ -149,6 +149,18 @@ public partial class TopBarWindow : Window
         _engine.TrayMirror.Changed += OnTrayMirrorChanged;
         ApplyTrayMirror(_engine.TrayMirror.Items);
 
+        // The shell binds an AppBar to the monitor the window occupies at ABM_NEW time.
+        // Move onto the target monitor first so a secondary bar reserves its own edge.
+        RECT home = Monitor.Bounds;
+        NativeMethods.SetWindowPos(
+            _source.Handle,
+            IntPtr.Zero,
+            home.Left,
+            home.Top,
+            home.Width,
+            1,
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+
         _appBar.Register();
         ApplyPlacement();
 
@@ -1312,7 +1324,7 @@ public partial class TopBarWindow : Window
         {
             uint dpi = Display.GetDpi(hwnd);
             int heightPx = Display.DipToPixels(BarHeightDip, dpi);
-            RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
+            RECT monitor = Display.GetMonitorBounds(hwnd);
 
             if (monitor.Width <= 0 || heightPx <= 0)
             {
