@@ -8,14 +8,23 @@ namespace WharfBar.Views.Pages;
 
 public partial class MonitorsPage : Page
 {
+    private bool _isLoading = true;
+
     public MonitorsPage()
     {
         InitializeComponent();
         RefreshList();
+        Loaded += OnFirstLoaded;
     }
 
     private App WharfApp => (App)Application.Current;
     private MonitorManager? Monitors => WharfApp.Monitors;
+
+    private void OnFirstLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnFirstLoaded;
+        _isLoading = false;
+    }
 
     private sealed class Row
     {
@@ -56,19 +65,27 @@ public partial class MonitorsPage : Page
 
     private void OnTopBarToggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading)
+        {
+            return;
+        }
+
         if (sender is System.Windows.Controls.Primitives.ToggleButton { Tag: string deviceId } toggle)
         {
             Monitors?.SetPartEnabled(deviceId, MonitorPart.TopBar, toggle.IsChecked == true);
-            RefreshList();
         }
     }
 
     private void OnDockToggled(object sender, RoutedEventArgs e)
     {
+        if (_isLoading)
+        {
+            return;
+        }
+
         if (sender is System.Windows.Controls.Primitives.ToggleButton { Tag: string deviceId } toggle)
         {
             Monitors?.SetPartEnabled(deviceId, MonitorPart.Dock, toggle.IsChecked == true);
-            RefreshList();
         }
     }
 }
