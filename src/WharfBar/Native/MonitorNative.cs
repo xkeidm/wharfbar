@@ -51,6 +51,60 @@ internal static class MonitorNative
     private const string Dxva2 = "dxva2.dll";
     private const string User32 = "user32.dll";
 
+    internal static IReadOnlyList<MonitorInfo> Enumerate()
+    {
+        var list = new List<MonitorInfo>();
+
+        void EnumerateOne(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor)
+        {
+            var info = new MONITORINFOEX { cbSize = (uint)Marshal.SizeOf<MONITORINFOEX>() };
+            if (!GetMonitorInfo(hMonitor, ref info))
+            {
+                return;
+            }
+
+            string deviceId = string.Empty;
+            string friendly = string.Empty;
+            var device = new DISPLAY_DEVICE { cb = (uint)Marshal.SizeOf<DISPLAY_DEVICE>() };
+            if (EnumDisplayDevices(info.szDevice, 0, ref device, 0))
+            {
+                deviceId = device.DeviceID ?? string.Empty;
+                friendly = device.DeviceString ?? string.Empty;
+            }
+
+            bool primary = (info.dwFlags & NativeMethods.MONITORINFOF_PRIMARY) != 0;
+            uint dpi = Display.DefaultDpi;
+            if (NativeMethods.GetDpiForMonitor(hMonitor, NativeMethods.MDT_EFFECTIVE_DPI, out uint dpiX, out uint dpiY) == 0 && dpiX > 0)
+            {
+                dpi = dpiX;
+            }
+
+            list.Add(new MonitorInfo(
+                hMonitor,
+                deviceId,
+                info.szDevice,
+                friendly,
+                primary,
+                info.rcMonitor,
+                info.rcWork,
+                dpi));
+        }
+
+        bool Callback(IntPtr hMonitor, IntPtr hdc, ref RECT rect, IntPtr _)
+        {
+            EnumerateOne(hMonitor, hdc, ref rect);
+            return true;
+        }
+
+        _ = EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, Callback, IntPtr.Zero);
+
+        return list
+            .OrderByDescending(m => m.IsPrimary)
+            .ThenBy(m => m.Bounds.Left)
+            .ThenBy(m => m.Bounds.Top)
+            .ToList();
+    }
+
     [DllImport(User32, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumDelegate lpfnEnum, IntPtr dwData);

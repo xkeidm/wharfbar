@@ -52,4 +52,35 @@ internal static class Display
 
         return new RECT { Left = 0, Top = 0, Right = 0, Bottom = 0 };
     }
+
+    /// <summary>
+    /// Full bounds of the monitor currently hosting <paramref name="hwnd"/> (nearest, not
+    /// default-to-primary). Physical pixels. Falls back to the primary bounds on failure.
+    /// </summary>
+    internal static RECT GetMonitorBounds(IntPtr hwnd)
+    {
+        IntPtr monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+
+        if (monitor != IntPtr.Zero && NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return info.rcMonitor;
+        }
+
+        return GetPrimaryMonitorBounds(hwnd);
+    }
+
+    /// <summary>Work area of the monitor hosting <paramref name="hwnd"/> (nearest). Physical pixels.</summary>
+    internal static RECT GetMonitorWorkArea(IntPtr hwnd)
+    {
+        IntPtr monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTONEAREST);
+        var info = new MONITORINFO { cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>() };
+
+        if (monitor != IntPtr.Zero && NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return info.rcWork;
+        }
+
+        return GetPrimaryMonitorWorkArea(hwnd);
+    }
 }

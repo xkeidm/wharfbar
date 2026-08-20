@@ -188,6 +188,9 @@ internal static class NativeMethods
     internal const uint SWP_HIDEWINDOW = 0x0080;
 
     internal const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
+    internal const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
+    internal const uint MONITORINFOF_PRIMARY = 0x00000001;
+    internal const uint MDT_EFFECTIVE_DPI = 0;
 
     /// <summary>Primary-monitor work area (SPI). Pair with <see cref="SPI_SETWORKAREA"/>.</summary>
     internal const uint SPI_GETWORKAREA = 0x0030;
@@ -515,6 +518,9 @@ internal static class NativeMethods
 
     [DllImport("ole32.dll")]
     internal static extern int PropVariantClear(ref PROPVARIANT pvar);
+
+    [DllImport("Shcore.dll", SetLastError = true)]
+    internal static extern int GetDpiForMonitor(IntPtr hmonitor, uint dpiType, out uint dpiX, out uint dpiY);
 }
 
 [StructLayout(LayoutKind.Sequential)]
