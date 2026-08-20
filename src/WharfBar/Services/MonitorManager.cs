@@ -298,6 +298,30 @@ internal sealed class MonitorManager : IDisposable
         return entry;
     }
 
+    /// <summary>Persists a per-monitor visibility toggle and reconciles immediately.</summary>
+    internal void SetPartEnabled(string deviceId, MonitorPart part, bool enabled)
+    {
+        MonitorInfo? live = _monitors.FirstOrDefault(m =>
+            string.Equals(m.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
+        if (live is null)
+        {
+            return;
+        }
+
+        MonitorConfig entry = UpsertEntry(live);
+        if (part == MonitorPart.TopBar)
+        {
+            entry.TopBar = enabled;
+        }
+        else
+        {
+            entry.Dock = enabled;
+        }
+
+        _config.Save(_config.Current);
+        Reconcile();
+    }
+
     private void OnDisplayChanged(object? sender, EventArgs e)
     {
         Refresh();

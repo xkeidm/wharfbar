@@ -22,6 +22,9 @@ public partial class App : Application
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
 
+    /// <summary>Exposes the monitor manager for the settings pages.</summary>
+    internal MonitorManager? Monitors => _monitors;
+
     /// <summary>Exposes the primary dock window for settings-driven updates.</summary>
     internal DockWindow? DockView => _monitors?.Docks.FirstOrDefault(d => d.Monitor.IsPrimary)
         ?? _monitors?.Docks.FirstOrDefault();
