@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Linq;
 using WharfBar.Native;
 
 namespace WharfBar.Services;
@@ -28,37 +29,36 @@ internal sealed class TaskbarVisibilityService
     private int _expandingWorkArea;
     private int _pendingBroadcastExpand;
     private int _watchBusy;
-    private int _reservedBottomPx;
+    private readonly Dictionary<string, int> _reservedBottomByMonitor = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
 
     internal bool IsHidden => _hidden;
 
     /// <summary>
-    /// Bottom strip reserved for the always-visible dock (physical px, 0 = none).
-    /// Read on the work-area thread; written by the dock on config changes.
+    /// Updates the dock reservation for <paramref name="monitor"/> and re-announces that
+    /// monitor's work area so maximized apps resize to the new bottom edge.
     /// </summary>
-    internal int ReservedBottomPx
+    internal void SetDockReservation(MonitorInfo monitor, int bottomPx)
     {
-        get => Volatile.Read(ref _reservedBottomPx);
-        private set => Volatile.Write(ref _reservedBottomPx, Math.Max(0, value));
-    }
-
-    /// <summary>
-    /// Updates the dock reservation and re-announces the work area so maximized apps
-    /// resize to the new bottom edge. The announcement is a one-shot broadcast — the
-    /// shell re-asserts the hidden taskbar's phantom strip in response, and the silent
-    /// maintenance expansion (which triggers nothing) heals it.
-    /// </summary>
-    internal void SetDockReservation(int bottomPx)
-    {
-        if (ReservedBottomPx == bottomPx)
+        int current = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
+        if (current == bottomPx)
         {
             return;
         }
 
-        ReservedBottomPx = bottomPx;
-        ExpandWorkAreaBottom(broadcast: true);
+        _reservedBottomByMonitor[monitor.DeviceId] = Math.Max(0, bottomPx);
+        ExpandWorkAreaBottom(monitor, broadcast: true);
+    }
+
+    // Temporary compatibility shim (removed in Task 13).
+    internal void SetDockReservation(int bottomPx)
+    {
+        MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
+        if (primary is not null)
+        {
+            SetDockReservation(primary, bottomPx);
+        }
     }
 
     /// <summary>True while a tray peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
@@ -110,8 +110,8 @@ internal sealed class TaskbarVisibilityService
     }
 
     /// <summary>
-    /// Re-expands the primary work-area bottom after AppBar <c>SETPOS</c> (shell may restore
-    /// the phantom taskbar strip). No-op when not hidden.
+    /// Re-expands the work-area bottom for every reserved monitor after AppBar
+    /// <c>SETPOS</c> (shell may restore the phantom taskbar strip). No-op when not hidden.
     /// </summary>
     internal void EnsureWorkAreaExpanded()
     {
@@ -120,7 +120,15 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
-        ExpandWorkAreaBottom();
+        foreach (KeyValuePair<string, int> pair in _reservedBottomByMonitor)
+        {
+            MonitorInfo? monitor = MonitorNative.Enumerate().FirstOrDefault(m =>
+                string.Equals(m.DeviceId, pair.Key, StringComparison.OrdinalIgnoreCase));
+            if (monitor is not null)
+            {
+                ExpandWorkAreaBottom(monitor);
+            }
+        }
     }
 
     /// <summary>
@@ -174,7 +182,11 @@ internal sealed class TaskbarVisibilityService
 
             _peekTracker.Begin(DateTime.UtcNow);
             // Keep maximized apps from jumping when the shell reclaims the bottom strip.
-            ExpandWorkAreaBottom();
+            MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
+            if (primary is not null)
+            {
+                ExpandWorkAreaBottom(primary);
+            }
             return true;
         }
         catch (Exception ex)
@@ -262,7 +274,11 @@ internal sealed class TaskbarVisibilityService
             // Silent expansion: a SPIF_SENDCHANGE broadcast makes the shell re-assert the
             // hidden taskbar's phantom reservation, which needs another expansion — an
             // endless grow/shrink loop for maximized windows. Only startup announces.
-            ExpandWorkAreaBottom(broadcast);
+            MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
+            if (primary is not null)
+            {
+                ExpandWorkAreaBottom(primary, broadcast);
+            }
 
             // Re-notifying on every no-op hide cancels dock auto-hide animation
             // (WorkAreaChanged → ApplyPlacement snaps Y back to Hidden).
@@ -365,11 +381,10 @@ internal sealed class TaskbarVisibilityService
         }
     }
 
-    private void ExpandWorkAreaBottom(bool broadcast = false)
+    private void ExpandWorkAreaBottom(MonitorInfo monitor, bool broadcast = false)
     {
         if (Interlocked.Exchange(ref _expandingWorkArea, 1) != 0)
         {
-            // Coalesce; remember dropped announcements so the in-flight run re-queues them.
             if (broadcast)
             {
                 Interlocked.Exchange(ref _pendingBroadcastExpand, 1);
@@ -380,10 +395,7 @@ internal sealed class TaskbarVisibilityService
 
         try
         {
-            // SPI_SETWORKAREA with SPIF_SENDCHANGE broadcasts to every top-level window
-            // and can block the caller for ~1s on some systems. Run it off the UI thread;
-            // keep the guard so at most one expansion is in flight.
-            ThreadPool.QueueUserWorkItem(RunExpandWorkAreaBottom, broadcast);
+            ThreadPool.QueueUserWorkItem(RunExpandWorkAreaBottom, (monitor, broadcast));
         }
         catch (Exception ex)
         {
@@ -396,15 +408,17 @@ internal sealed class TaskbarVisibilityService
     {
         try
         {
-            bool broadcast = state is true;
+            var (monitor, broadcast) = ((MonitorInfo, bool))state!;
             bool restoreRaced = Volatile.Read(ref _restored) != 0;
-            if (!restoreRaced && TaskbarNative.TryExpandPrimaryWorkAreaBottom(ReservedBottomPx, broadcast))
+            if (!restoreRaced)
             {
-                return;
+                int reserved = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
+                if (TaskbarNative.TryExpandWorkAreaBottom(monitor, reserved, broadcast))
+                {
+                    return;
+                }
             }
 
-            // Restore may have run while the expansion was queued or in flight; undo it so
-            // exit never leaves the work area stuck expanded past the baseline.
             if (restoreRaced || Volatile.Read(ref _restored) != 0)
             {
                 if (_haveBaselineWorkArea)
@@ -422,7 +436,11 @@ internal sealed class TaskbarVisibilityService
             Interlocked.Exchange(ref _expandingWorkArea, 0);
             if (Interlocked.Exchange(ref _pendingBroadcastExpand, 0) == 1)
             {
-                ExpandWorkAreaBottom(broadcast: true);
+                MonitorInfo? monitor = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
+                if (monitor is not null)
+                {
+                    ExpandWorkAreaBottom(monitor, broadcast: true);
+                }
             }
         }
     }

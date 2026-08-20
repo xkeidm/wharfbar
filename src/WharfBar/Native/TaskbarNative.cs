@@ -316,6 +316,40 @@ internal static class TaskbarNative
             broadcast ? NativeMethods.SPIF_SENDCHANGE : 0);
     }
 
+    /// <summary>
+    /// Expands <paramref name="monitor"/>'s work-area bottom to its edge (minus an optional dock
+    /// reservation strip). SPI_SETWORKAREA applies to the monitor containing the rect. Silent
+    /// (no SPIF_SENDCHANGE) except when <paramref name="broadcast"/> is true.
+    /// </summary>
+    internal static bool TryExpandWorkAreaBottom(MonitorInfo monitor, int reservedBottomPx, bool broadcast)
+    {
+        RECT work = monitor.WorkArea;
+        if (work.Width <= 0 || work.Height <= 0)
+        {
+            return false;
+        }
+
+        int targetBottom = monitor.Bounds.Bottom - Math.Max(0, reservedBottomPx);
+        if (!AppBarPlacement.NeedsBottomExpand(work.Bottom, targetBottom))
+        {
+            return true;
+        }
+
+        var expanded = new RECT
+        {
+            Left = work.Left,
+            Top = work.Top,
+            Right = work.Right,
+            Bottom = targetBottom,
+        };
+
+        return NativeMethods.SystemParametersInfo(
+            NativeMethods.SPI_SETWORKAREA,
+            0,
+            ref expanded,
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0);
+    }
+
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>
     internal static bool TrySetPrimaryWorkArea(RECT work)
     {
