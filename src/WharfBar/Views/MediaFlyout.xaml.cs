@@ -45,6 +45,16 @@ public partial class MediaFlyout : UserControl
         _sessionSwitchDirection = 0;
     }
 
+    internal void Detach()
+    {
+        if (_service is not null)
+        {
+            _service.Changed -= OnChanged;
+            _service.SessionsChanged -= OnSessionsChanged;
+            _service = null;
+        }
+    }
+
     private void OnChanged(object? sender, EventArgs e)
     {
         if (_service is not null)

@@ -275,8 +275,8 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Reserves the dock strip at the primary work-area bottom when the dock is always
-    /// visible (auto-hide off), so maximized apps stop at the dock's top edge. In
+    /// Reserves the dock strip at the target monitor's work-area bottom when the dock is
+    /// always visible (auto-hide off), so maximized apps stop at the dock's top edge. In
     /// auto-hide mode nothing is reserved and maximized apps cover the full bottom.
     /// </summary>
     private void ApplyWorkAreaReservation()
@@ -734,10 +734,10 @@ public partial class DockWindow : Window
             return false;
         }
 
-        uint dpi = Display.GetDpi(hwnd);
+        uint dpi = Monitor.Dpi;
         int heightPx = Display.DipToPixels(MaxHeightDip, dpi);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-        RECT monitor = Display.GetMonitorBounds(hwnd);
+        RECT monitor = Monitor.Bounds;
 
         if (monitor.Width <= 0 || heightPx <= 0)
         {
@@ -762,9 +762,8 @@ public partial class DockWindow : Window
 
     private EdgeProbeContext BuildEdgeProbe()
     {
-        IntPtr hwnd = _source!.Handle;
-        uint dpi = Display.GetDpi(hwnd);
-        RECT monitor = Display.GetMonitorBounds(hwnd);
+        uint dpi = Monitor.Dpi;
+        RECT monitor = Monitor.Bounds;
 
         // Use last SetWindowPos geometry — Measure() on the 50 ms poll stalls the UI
         // thread (laggy hover slide, delayed top-bar menus).

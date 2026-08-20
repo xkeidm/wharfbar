@@ -35,6 +35,15 @@ public partial class BrightnessFlyout : UserControl
         RebuildMonitorList();
     }
 
+    internal void Detach()
+    {
+        if (_service is not null)
+        {
+            _service.MonitorsChanged -= OnMonitorsChanged;
+            _service = null;
+        }
+    }
+
     internal void Refresh()
     {
         _service?.RefreshMonitors();

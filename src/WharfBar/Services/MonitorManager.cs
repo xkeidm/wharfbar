@@ -135,6 +135,7 @@ internal sealed class MonitorManager : IDisposable
             DockWindow dock = _docks[i];
             if (!desiredDocks.Any(m => m.DeviceId == dock.Monitor.DeviceId))
             {
+                _taskbar.SetDockReservation(dock.Monitor, 0);
                 dock.Close();
                 _docks.RemoveAt(i);
             }

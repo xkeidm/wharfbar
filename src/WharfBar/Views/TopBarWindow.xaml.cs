@@ -660,6 +660,8 @@ public partial class TopBarWindow : Window
     {
         WindowAppearance.MainWindowChromeClobbered -= OnMainWindowChromeClobbered;
         QuickSettingsHost.Detach();
+        MediaHost.Detach();
+        BrightnessHost.Detach();
         _engine.Status.Changed -= OnStatusChanged;
         _engine.Volume.Changed -= OnVolumeChanged;
         _engine.Media.Changed -= OnMediaChanged;
