@@ -56,16 +56,6 @@ internal sealed class TaskbarVisibilityService
         ExpandWorkAreaBottom(monitor, broadcast: true);
     }
 
-    // Temporary compatibility shim (removed in Task 13).
-    internal void SetDockReservation(int bottomPx)
-    {
-        MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
-        if (primary is not null)
-        {
-            SetDockReservation(primary, bottomPx);
-        }
-    }
-
     /// <summary>True while a tray peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
     internal bool IsTrayPeekActive => _peekTracker.IsActive;
 

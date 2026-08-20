@@ -94,11 +94,12 @@ public partial class DockWindow : Window
         ((DockWindow)d).SetWindowY((int)Math.Round((double)e.NewValue));
     }
 
-    internal DockWindow(AppConfig config, TaskbarVisibilityService taskbar)
+    internal DockWindow(AppConfig config, TaskbarVisibilityService taskbar, MonitorInfo monitor)
     {
         ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(taskbar);
 
+        Monitor = monitor;
         InitializeComponent();
 
         _config = config;
@@ -121,6 +122,9 @@ public partial class DockWindow : Window
             HorizontalPaddingDip,
             VerticalPaddingDip);
     }
+
+    /// <summary>The monitor this dock window is anchored to.</summary>
+    internal MonitorInfo Monitor { get; }
 
     /// <summary>
     /// Re-applies config-driven settings (icon size, auto-hide).
@@ -279,13 +283,13 @@ public partial class DockWindow : Window
     {
         if (_source is null || _autoHide.Enabled || !TryGetPlacementGeometry(out PlacementGeometry geo))
         {
-            _taskbar.SetDockReservation(0);
+            _taskbar.SetDockReservation(Monitor, 0);
             return;
         }
 
         uint dpi = Display.GetDpi(_source.Handle);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-        _taskbar.SetDockReservation(geo.HeightPx + bottomGapPx);
+        _taskbar.SetDockReservation(Monitor, geo.HeightPx + bottomGapPx);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -733,7 +737,7 @@ public partial class DockWindow : Window
         uint dpi = Display.GetDpi(hwnd);
         int heightPx = Display.DipToPixels(MaxHeightDip, dpi);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-        RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
+        RECT monitor = Display.GetMonitorBounds(hwnd);
 
         if (monitor.Width <= 0 || heightPx <= 0)
         {
@@ -760,7 +764,7 @@ public partial class DockWindow : Window
     {
         IntPtr hwnd = _source!.Handle;
         uint dpi = Display.GetDpi(hwnd);
-        RECT monitor = Display.GetPrimaryMonitorBounds(hwnd);
+        RECT monitor = Display.GetMonitorBounds(hwnd);
 
         // Use last SetWindowPos geometry — Measure() on the 50 ms poll stalls the UI
         // thread (laggy hover slide, delayed top-bar menus).

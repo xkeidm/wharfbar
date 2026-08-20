@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Windows;
 using System.Windows.Interop;
 using WharfBar.Models;
@@ -124,7 +125,13 @@ public partial class App : Application
 
         MainWindow = _monitors.PrimaryTopBar ?? CreateHiddenUtilityWindow();
 
-        _dock = new DockWindow(config, _taskbar);
+        MonitorInfo? primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary);
+        if (primary is null)
+        {
+            throw new InvalidOperationException("No primary monitor found to host the dock.");
+        }
+
+        _dock = new DockWindow(config, _taskbar, primary);
         _dock.Show();
 
         // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which
