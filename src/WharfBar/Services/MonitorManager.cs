@@ -80,7 +80,8 @@ internal sealed class MonitorManager : IDisposable
         foreach (MonitorInfo monitor in _monitors)
         {
             MonitorConfig entry = MonitorIdentityMatcher.Resolve(_config.Current.Monitors, monitor);
-            if (FindEntry(monitor.DeviceId) is null)
+            bool isNew = !_config.Current.Monitors.Any(c => ReferenceEquals(c, entry));
+            if (isNew)
             {
                 _config.Current.Monitors.Add(entry);
                 persisted = true;
