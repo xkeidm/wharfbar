@@ -15,6 +15,7 @@ public partial class App : Application
     private DockWindow? _dock;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
+    private TopBarEngine? _topBarEngine;
     private SettingsWindow? _settings;
     private VeilService? _veil;
 
@@ -112,7 +113,13 @@ public partial class App : Application
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
 
-        var topBar = new TopBarWindow(_taskbar, _config, _veil);
+        _topBarEngine = new TopBarEngine(_taskbar, _veil);
+        _topBarEngine.Initialize();
+
+        MonitorInfo primary = MonitorNative.Enumerate().FirstOrDefault(m => m.IsPrimary)
+            ?? throw new InvalidOperationException("No primary monitor found.");
+
+        var topBar = new TopBarWindow(_topBarEngine, _config, _taskbar, _veil, primary);
         MainWindow = topBar;
         topBar.Show();
 
@@ -148,7 +155,7 @@ public partial class App : Application
     /// </summary>
     internal void RecreateTopBar()
     {
-        if (_config is null || _taskbar is null || _veil is null)
+        if (_config is null || _taskbar is null || _veil is null || _topBarEngine is null)
         {
             return;
         }
@@ -163,7 +170,7 @@ public partial class App : Application
         try
         {
             // Ctor only — AppBar registers in OnSourceInitialized during Show.
-            next = new TopBarWindow(_taskbar, _config, _veil);
+            next = new TopBarWindow(_topBarEngine, _config, _taskbar, _veil, old.Monitor);
             old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
             prepared = true;
             MainWindow = next;
@@ -201,6 +208,9 @@ public partial class App : Application
     {
         _taskbar?.Restore();
         _taskbar = null;
+
+        _topBarEngine?.Dispose();
+        _topBarEngine = null;
 
         _tray?.Dispose();
         _tray = null;

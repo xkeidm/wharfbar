@@ -27,22 +27,12 @@ public partial class TopBarWindow : Window
     private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
     private const DwmCornerPreference Corners = DwmCornerPreference.DoNotRound;
 
+    private readonly TopBarEngine _engine;
     private readonly TaskbarVisibilityService _taskbar;
     private readonly ConfigService _config;
     private readonly VeilService _veil;
-    private readonly TrayOverflowInvoker _trayOverflow;
-    private readonly NotificationCenterInvoker _notifications = new();
     private AppBar? _appBar;
     private WindowAppearance? _appearance;
-    private StatusService? _status;
-    private VolumeService? _volume;
-    private AudioMixerService? _mixer;
-    private QuickSettingsService? _quick;
-    private NightLightService? _nightLight;
-    private WifiService? _wifi;
-    private BluetoothService? _bluetooth;
-    private ProjectionService? _projection;
-    private MonitorBrightnessService? _monitorBrightness;
     private HwndSource? _source;
     private uint _taskbarCreatedMessage;
     private bool _isApplyingPlacement;
@@ -62,21 +52,23 @@ public partial class TopBarWindow : Window
     private Dictionary<string, FrameworkElement>? _statusElements;
     private bool _batteryPresent = false;
     private bool _volumeAvailable = true;
-    private MediaSessionService? _media;
     private bool _mediaActive;
     private bool _mediaClosePending;
-    private TrayMirrorService? _trayMirror;
     private bool _trayMirrorActive;
     private readonly Dictionary<string, Image> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
-    internal TopBarWindow(TaskbarVisibilityService taskbar, ConfigService config, VeilService veil)
+    /// <summary>The monitor this bar is attached to (physical-pixel geometry).</summary>
+    internal MonitorInfo Monitor { get; }
+
+    internal TopBarWindow(TopBarEngine engine, ConfigService config, TaskbarVisibilityService taskbar, VeilService veil, MonitorInfo monitor)
     {
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
         _config = config ?? throw new ArgumentNullException(nameof(config));
         _veil = veil ?? throw new ArgumentNullException(nameof(veil));
-        _trayOverflow = new TrayOverflowInvoker(_taskbar);
+        Monitor = monitor;
 
         // Must be set before InitializeComponent — WPF locks AllowsTransparency after creation.
         AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(
@@ -127,35 +119,27 @@ public partial class TopBarWindow : Window
         WindowAppearance.MainWindowChromeClobbered += OnMainWindowChromeClobbered;
         ApplyBackgroundAppearance();
 
-        _status = new StatusService();
-        _status.Changed += (_, _) => ApplyStatus(_status.Snapshot);
-        ApplyStatus(_status.Snapshot);
+        _engine.Status.Changed += OnStatusChanged;
+        ApplyStatus(_engine.Status.Snapshot);
 
-        _volume = new VolumeService();
-        _volume.Changed += (_, _) => ApplyVolume(_volume.Snapshot);
-        ApplyVolume(_volume.Snapshot);
+        _engine.Volume.Changed += OnVolumeChanged;
+        ApplyVolume(_engine.Volume.Snapshot);
 
-        _mixer = new AudioMixerService(_volume);
-        _nightLight = new NightLightService();
-        _wifi = new WifiService();
-        _bluetooth = new BluetoothService();
-        _projection = new ProjectionService();
-        _quick = new QuickSettingsService(_nightLight, _veil);
-        QuickSettingsHost.Attach(_volume, _mixer, _quick, _wifi, _bluetooth, _projection);
+        QuickSettingsHost.Attach(
+            _engine.Volume,
+            _engine.Mixer,
+            _engine.QuickSettings,
+            _engine.Wifi,
+            _engine.Bluetooth,
+            _engine.Projection);
+        BrightnessHost.Attach(_engine.MonitorBrightness);
 
-        _monitorBrightness = new MonitorBrightnessService();
-        BrightnessHost.Attach(_monitorBrightness);
+        _engine.Media.Changed += OnMediaChanged;
+        _engine.Media.SessionsChanged += OnMediaSessionsChanged;
+        MediaHost.Attach(_engine.Media);
 
-        _media = new MediaSessionService();
-        _media.Changed += OnMediaChanged;
-        _media.SessionsChanged += OnMediaSessionsChanged;
-        MediaHost.Attach(_media);
-        _ = _media.InitializeAsync();
-
-        TrayMirrorService mirror = new(Dispatcher, _taskbar);
-        _trayMirror = mirror;
-        mirror.Changed += (_, _) => ApplyTrayMirror(mirror.Items);
-        mirror.Reenumerate();
+        _engine.TrayMirror.Changed += OnTrayMirrorChanged;
+        ApplyTrayMirror(_engine.TrayMirror.Items);
 
         _appBar.Register();
         ApplyPlacement();
@@ -318,7 +302,7 @@ public partial class TopBarWindow : Window
         CloseFlyouts();
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            new Action(() => _trayOverflow.TryOpen()));
+            new Action(() => _engine.TrayOverflow.TryOpen()));
     }
 
     private void OnVolumeClick(object sender, MouseButtonEventArgs e)
@@ -513,7 +497,7 @@ public partial class TopBarWindow : Window
         CloseFlyouts();
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
-            new Action(() => _notifications.TryOpen()));
+            new Action(() => _engine.Notifications.TryOpen()));
     }
 
     private void OnBrightnessClick(object sender, MouseButtonEventArgs e)
@@ -656,24 +640,11 @@ public partial class TopBarWindow : Window
     {
         WindowAppearance.MainWindowChromeClobbered -= OnMainWindowChromeClobbered;
         QuickSettingsHost.Detach();
-        _status?.Dispose();
-        _status = null;
-        _mixer?.Dispose();
-        _mixer = null;
-        _quick?.Dispose();
-        _quick = null;
-        _wifi?.Dispose();
-        _wifi = null;
-        _bluetooth?.Dispose();
-        _bluetooth = null;
-        _volume?.Dispose();
-        _volume = null;
-        _monitorBrightness?.Dispose();
-        _monitorBrightness = null;
-        _media?.Dispose();
-        _media = null;
-        _trayMirror?.Dispose();
-        _trayMirror = null;
+        _engine.Status.Changed -= OnStatusChanged;
+        _engine.Volume.Changed -= OnVolumeChanged;
+        _engine.Media.Changed -= OnMediaChanged;
+        _engine.Media.SessionsChanged -= OnMediaSessionsChanged;
+        _engine.TrayMirror.Changed -= OnTrayMirrorChanged;
     }
 
     private void OnMainWindowChromeClobbered()
@@ -747,21 +718,22 @@ public partial class TopBarWindow : Window
         ApplyStatusItemLayout();
     }
 
+    private void OnStatusChanged(object? sender, EventArgs e) => ApplyStatus(_engine.Status.Snapshot);
+
+    private void OnVolumeChanged(object? sender, EventArgs e) => ApplyVolume(_engine.Volume.Snapshot);
+
+    private void OnTrayMirrorChanged(object? sender, EventArgs e) => ApplyTrayMirror(_engine.TrayMirror.Items);
+
     private void OnMediaChanged(object? sender, EventArgs e)
     {
-        if (_media is null)
-        {
-            return;
-        }
-
-        _mediaActive = _media.HasActiveSession;
-        SetPlainToolTip(MediaButton, BuildMediaTooltip(_media.Snapshot));
+        _mediaActive = _engine.Media.HasActiveSession;
+        SetPlainToolTip(MediaButton, BuildMediaTooltip(_engine.Media.Snapshot));
         ApplyStatusItemLayout();
     }
 
     private void OnMediaSessionsChanged(object? sender, EventArgs e)
     {
-        _mediaActive = _media?.HasActiveSession ?? false;
+        _mediaActive = _engine.Media.HasActiveSession;
         ApplyStatusItemLayout();
     }
 
@@ -1408,7 +1380,7 @@ public partial class TopBarWindow : Window
         if (_taskbarCreatedMessage != 0 && (uint)msg == _taskbarCreatedMessage)
         {
             QueueApplyPlacement(reRegister: true);
-            _trayMirror?.Reenumerate();
+            _engine.TrayMirror.Reenumerate();
             return IntPtr.Zero;
         }
 
@@ -1417,7 +1389,7 @@ public partial class TopBarWindow : Window
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
                 QueueApplyPlacement();
-                _ = Dispatcher.BeginInvoke(new Action(() => _monitorBrightness?.RefreshMonitors()));
+                _ = Dispatcher.BeginInvoke(new Action(() => _engine.MonitorBrightness.RefreshMonitors()));
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGED:
@@ -1676,6 +1648,6 @@ public partial class TopBarWindow : Window
     private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
     {
         // Routes by source: classic toolbar (TB_*) or UIA fallback (25H2+).
-        _trayMirror?.Click(item, kind);
+        _engine.TrayMirror.Click(item, kind);
     }
 }
