@@ -61,11 +61,14 @@ internal sealed class ConfigService
                 return ReplaceWithDefault("deserialized null");
             }
 
-            if (loaded.SchemaVersion != AppConfig.CurrentSchemaVersion)
+            if (loaded.SchemaVersion > AppConfig.CurrentSchemaVersion)
             {
                 return ReplaceWithDefault($"unsupported schemaVersion {loaded.SchemaVersion}");
             }
 
+            bool monitorsKeyMissing = !JsonRootHasProperty(json, "monitors");
+            bool monitorsMigrated = NeedsMonitorsMigration(loaded, monitorsKeyMissing);
+            MigrateMonitors(loaded);
             double originalIconSize = loaded.Dock?.IconSize ?? DockConfig.DefaultIconSize;
             int originalCatalogVersion = loaded.TopBar?.StatusCatalogVersion ?? 0;
             Current = Normalize(loaded);
@@ -75,8 +78,10 @@ internal sealed class ConfigService
                 Current.TopBar.StatusItems);
             bool catalogChanged = Current.TopBar.StatusCatalogVersion != originalCatalogVersion;
             bool iconChanged = Math.Abs(Current.Dock.IconSize - originalIconSize) > 0.01;
+            bool monitorsChanged = monitorsMigrated
+                || MonitorCountChanged(loaded.Monitors, Current.Monitors);
 
-            if (iconChanged || statusChanged || catalogChanged || veilKeyMissing)
+            if (iconChanged || statusChanged || catalogChanged || veilKeyMissing || monitorsChanged)
             {
                 Save(Current);
             }
@@ -137,6 +142,39 @@ internal sealed class ConfigService
             },
             Veil = new VeilConfig(),
         };
+    }
+
+    internal static bool NeedsMonitorsMigration(AppConfig loaded, bool monitorsKeyMissing)
+        => monitorsKeyMissing || loaded.SchemaVersion < AppConfig.CurrentSchemaVersion;
+
+    internal static AppConfig MigrateMonitors(AppConfig config)
+    {
+        config.SchemaVersion = AppConfig.CurrentSchemaVersion;
+        config.Monitors ??= [];
+        return config;
+    }
+
+    private static bool MonitorCountChanged(IReadOnlyList<MonitorConfig>? loaded, IReadOnlyList<MonitorConfig> current)
+    {
+        if (loaded is null)
+        {
+            return current.Count > 0;
+        }
+
+        if (loaded.Count != current.Count)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < current.Count; i++)
+        {
+            if (!string.Equals(loaded[i]?.DeviceId, current[i].DeviceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private AppConfig ReplaceWithDefault(string reason)
@@ -219,6 +257,7 @@ internal sealed class ConfigService
             DockConfig.MaxIconSize);
         config.Dock.Surface = DockSurfaceStyles.NormalizeStyle(config.Dock.Surface);
         config.PinnedApps ??= [];
+        config.Monitors = MonitorConfigNormalizer.Normalize(config.Monitors).ToList();
 
         for (int i = config.PinnedApps.Count - 1; i >= 0; i--)
         {
