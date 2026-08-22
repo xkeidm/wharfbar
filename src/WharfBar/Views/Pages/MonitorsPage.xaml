@@ -5,11 +5,14 @@
       Title="Ekranlar">
 
     <StackPanel Margin="24,24,24,24" MaxWidth="720" HorizontalAlignment="Left">
-        <TextBlock Text="Ekranlar" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock Text="Ekranlar"
+                   FontSize="28"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
         <TextBlock Text="Top bar ve dock'u hangi monitörlerde göstereceğinizi seçin. Görünüm ayarları tüm ekranlarda ortaktır."
                    Margin="0,4,0,20"
                    TextWrapping="Wrap"
-                   Opacity="0.7" />
+                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
 
         <ItemsControl x:Name="MonitorList">
             <ItemsControl.ItemTemplate>
@@ -23,24 +26,38 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
 
-                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,16,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="{Binding Name}" FontSize="14" FontWeight="Medium" />
-                                    <Border Background="{DynamicResource AccentTextFillColorPrimaryBrush}"
+                                    <TextBlock Text="{Binding Name}"
+                                               FontSize="14"
+                                               FontWeight="Medium"
+                                               Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    <Border Background="{DynamicResource AccentFillColorDefaultBrush}"
                                             CornerRadius="4"
                                             Padding="6,1"
                                             Margin="8,0,0,0"
                                             Visibility="{Binding PrimaryBadgeVisibility}">
-                                        <TextBlock Text="Birincil" FontSize="11" Foreground="White" />
+                                        <TextBlock Text="Birincil"
+                                                   FontSize="11"
+                                                   Foreground="White" />
                                     </Border>
                                 </StackPanel>
-                                <TextBlock Text="{Binding DeviceName}" FontSize="12" Opacity="0.6" Margin="0,2,0,0" />
+                                <TextBlock Text="{Binding DeviceName}"
+                                           FontSize="12"
+                                           Margin="0,2,0,0"
+                                           Foreground="{DynamicResource TextFillColorTertiaryBrush}" />
                             </StackPanel>
 
-                            <TextBlock Grid.Column="1" Text="Üst bar" VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <ui:ToggleSwitch Grid.Column="1"
+                            <TextBlock Grid.Column="1"
+                                       Text="Üst bar"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <ui:ToggleSwitch Grid.Column="2"
                                              Margin="0,0,24,0"
                                              VerticalAlignment="Center"
                                              Tag="{Binding DeviceId}"
@@ -48,8 +65,12 @@
                                              Checked="OnTopBarToggled"
                                              Unchecked="OnTopBarToggled" />
 
-                            <TextBlock Grid.Column="2" Text="Dock" VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <ui:ToggleSwitch Grid.Column="2"
+                            <TextBlock Grid.Column="3"
+                                       Text="Dock"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                            <ui:ToggleSwitch Grid.Column="4"
                                              VerticalAlignment="Center"
                                              Tag="{Binding DeviceId}"
                                              IsChecked="{Binding Dock}"
