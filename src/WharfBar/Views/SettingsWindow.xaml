@@ -62,7 +62,7 @@
                 <ui:NavigationViewItem Content="Ekranlar"
                                        TargetPageType="{x:Type pages:MonitorsPage}">
                     <ui:NavigationViewItem.Icon>
-                        <ui:SymbolIcon Symbol="ComputerDesktop24" />
+                        <ui:SymbolIcon Symbol="DualScreenDesktop24" />
                     </ui:NavigationViewItem.Icon>
                 </ui:NavigationViewItem>
 
