@@ -68,6 +68,10 @@ public partial class AppearancePage : Page
         {
             ApplicationThemeManager.Apply(AppThemePreference.Resolve());
         }
+
+        // Direct library applies retarget Application.MainWindow's backdrop/chrome
+        // regardless of the configured top-bar background mode — re-assert every bar.
+        WharfApp.ApplyTopBarChanges();
     }
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
@@ -91,6 +95,9 @@ public partial class AppearancePage : Page
         }
 
         Config.Save(Cfg);
+
+        // See OnAccentStyleChanged: library applies rewrite MainWindow chrome; re-assert bars.
+        WharfApp.ApplyTopBarChanges();
     }
 
     private void OnBackgroundModeChanged(object sender, SelectionChangedEventArgs e)

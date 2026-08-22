@@ -61,7 +61,7 @@ internal sealed class WindowAppearance
 
         // Swaps the theme resource dictionaries. Passing our backdrop explicitly keeps WPF-UI
         // from force-applying its default one to Application.MainWindow.
-        ApplicationThemeManager.Apply(theme, _backdrop, updateAccent: false);
+        EnsureApplicationTheme(theme, _backdrop);
         RaiseMainWindowChromeClobberedIfNeeded();
 
         // Plain Window (not FluentWindow) does not always get this from WPF-UI; set it so the
@@ -87,7 +87,8 @@ internal sealed class WindowAppearance
         Dwm.SetCornerPreference(_hwnd, _corners);
 
         ApplicationTheme theme = AppThemePreference.Resolve();
-        ApplicationThemeManager.Apply(theme, WindowBackdropType.None, updateAccent: false);
+        EnsureApplicationTheme(theme, WindowBackdropType.None);
+        RaiseMainWindowChromeClobberedIfNeeded();
         Dwm.SetImmersiveDarkMode(_hwnd, theme == ApplicationTheme.Dark);
 
         ClearSystemBackdrop();
@@ -113,17 +114,38 @@ internal sealed class WindowAppearance
         SetLayeredWindowBackground(brush);
     }
 
+    /// <summary>
+    /// Runs <see cref="ApplicationThemeManager.Apply"/> only when the cached app theme
+    /// actually differs. WPF-UI replaces its theme dictionary on EVERY call and then
+    /// repaints <c>Application.MainWindow</c> content opaque (RestoreContentBackground);
+    /// with backdrop None that opaque paint is never cleared again. Skipping redundant
+    /// global applies keeps per-window mode switches from clobbering the main window.
+    /// </summary>
+    private static void EnsureApplicationTheme(ApplicationTheme theme, WindowBackdropType backdrop)
+    {
+        if (ApplicationThemeManager.GetAppTheme() == theme)
+        {
+            return;
+        }
+
+        ApplicationThemeManager.Apply(theme, backdrop, updateAccent: false);
+    }
+
     /// <summary>Call when the system reports a theme or colourization change.</summary>
     internal void Refresh() => Apply();
 
     private void RaiseMainWindowChromeClobberedIfNeeded()
     {
         Window? main = Application.Current?.MainWindow;
-        if (main is null || ReferenceEquals(main, _window) || !main.AllowsTransparency)
+        if (main is null || ReferenceEquals(main, _window))
         {
             return;
         }
 
+        // Raised for every non-main window Apply, regardless of AllowsTransparency:
+        // RestoreContentBackground paints an opaque SystemColors.WindowColor over the main
+        // window in translucent modes AND on top of a live Mica backdrop alike — both need
+        // the owner to re-assert its configured background.
         MainWindowChromeClobbered?.Invoke();
     }
 
