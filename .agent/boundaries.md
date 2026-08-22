@@ -26,11 +26,15 @@
   `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
   `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) salt-okunur okuyup üst
   barda çizmek + `SendMessage` ile tıklama forward. Gizli/overflow ikonlar kapsam dışı (yalnızca
-  açık popup'ta var) → `Win+B` düğmesi korunur. **25H2+ UIA fallback:** klasik `ToolbarWindow32`
+  açık popup'ta var) → `Win+B` düğmesi korunur. **Ayna yalnızca birincil monitörün üst barında
+  görünür** (ikincil barlarda `trayMirror` bölümü hiç oluşmaz). **25H2+ UIA fallback:** klasik
+  `ToolbarWindow32`
   kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
   `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'dan yakalanıp buton rect'inden
   kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
-  tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez.
+  tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Stealth peek'te DWM cloak
+  reddedilirse **WS_EX_LAYERED + alpha 0** yedeği kullanılır (UIA görünürlüğü korunur, flash yok);
+  o da başarısızsa peek açılmaz.
 
 
 ## Önce sor (kullanıcı onayı)

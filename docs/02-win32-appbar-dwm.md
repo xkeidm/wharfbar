@@ -107,8 +107,13 @@ Top bar göstergeleri için:
   filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)`
   ile park+cloak'lı taskbar'ın kendi içeriğini çekip butonun `Image` çocuk rect'ini kırpar
   (gerçek ikon, flash yok; başarısızsa `TrayLetterGlyph` fallback). UIA
-  çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
-  (cloak + ekran dışı park) ile okunur, flash yok. Tıklama: sol → `InvokePattern` (stealth-peek);
+   çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
+   (cloak + ekran dışı park) ile okunur, flash yok. DWM cloak bazı makinelerde reddedilir
+   (`DwmSetWindowAttribute` S_OK dönmez) → `TrySetTrayVisibleStealth` o durumda
+   **WS_EX_LAYERED + alpha 0** yedeğiyle görünmezlik sağlar (UIA `IsWindowVisible=true` görmeye
+   devam eder); o da başarısızsa peek açılmaz, poll atlanır. Ayna yalnızca birincil monitörün
+   üst barına işlenir (ikincil barlarda `trayMirror` bölümü oluşmaz). Tıklama: sol →
+   `InvokePattern` (stealth-peek);
   sağ/çift → UIA ifade edemediği için görünür peek + `SendInputMouse` fiziksel tıklama (kısa
   flash; overflow deseniyle aynı).
 
