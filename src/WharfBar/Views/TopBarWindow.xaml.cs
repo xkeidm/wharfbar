@@ -146,8 +146,13 @@ public partial class TopBarWindow : Window
             OnMediaChanged(this, EventArgs.Empty);
         }
 
-        _engine.TrayMirror.Changed += OnTrayMirrorChanged;
-        ApplyTrayMirror(_engine.TrayMirror.Items);
+        // System tray mirrors only on the primary bar (ADR-009): secondary bars keep the
+        // tray section collapsed — _trayMirrorActive stays false there.
+        if (Monitor.IsPrimary)
+        {
+            _engine.TrayMirror.Changed += OnTrayMirrorChanged;
+            ApplyTrayMirror(_engine.TrayMirror.Items);
+        }
 
         // The shell binds an AppBar to the monitor the window occupies at ABM_NEW time.
         // Move onto the target monitor first so a secondary bar reserves its own edge.
@@ -666,13 +671,23 @@ public partial class TopBarWindow : Window
         _engine.Volume.Changed -= OnVolumeChanged;
         _engine.Media.Changed -= OnMediaChanged;
         _engine.Media.SessionsChanged -= OnMediaSessionsChanged;
-        _engine.TrayMirror.Changed -= OnTrayMirrorChanged;
+        if (Monitor.IsPrimary)
+        {
+            _engine.TrayMirror.Changed -= OnTrayMirrorChanged;
+        }
     }
 
     private void OnMainWindowChromeClobbered()
     {
         // Dock (or any secondary WindowAppearance.Apply) rewrites MainWindow via WPF-UI
         // RestoreContentBackground — re-assert translucent/mica without recreating the AppBar.
+        // Only the current MainWindow reacts: every bar subscribes to the static event, and
+        // a secondary re-applying here would raise the event again (mutual recursion).
+        if (!ReferenceEquals(Application.Current?.MainWindow, this))
+        {
+            return;
+        }
+
         if (Dispatcher.CheckAccess())
         {
             ApplyBackgroundAppearance();
