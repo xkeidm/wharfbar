@@ -141,6 +141,8 @@ internal static class NativeMethods
 
     internal const uint GW_OWNER = 4;
     internal const int GWL_EXSTYLE = -20;
+    internal const int WS_EX_LAYERED = 0x00080000;
+    internal const uint LWA_ALPHA = 0x2;
     internal const int WS_EX_TRANSPARENT = 0x00000020;
     internal const int WS_EX_APPWINDOW = 0x00040000;
     internal const int WS_EX_TOOLWINDOW = 0x00000080;
@@ -484,6 +486,10 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetLayeredWindowAttributes(IntPtr hWnd, uint crKey, byte bAlpha, uint dwFlags);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);

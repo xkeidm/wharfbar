@@ -19,6 +19,10 @@ namespace WharfBar.Services;
 internal sealed class TrayMirrorService : IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(1500);
+    private const int PeekSettleMs = 160;
+    private const int HoldMinMs = 1500;
+    private const int HoldMaxMs = 20000;
+    private const double TopBarHeightDip = 30d;
 
     private readonly Dispatcher _dispatcher;
     private readonly TaskbarVisibilityService _taskbar;
@@ -26,6 +30,13 @@ internal sealed class TrayMirrorService : IDisposable
     private ImageSource? _fallback;
     private IntPtr _lastToolbar;
     private bool _disposed;
+    private int _clickBusy;
+
+    // UIA tree is torn down/rebuilt around every peek; a single empty read right after
+    // SW_SHOW is usually that rebuild, not "user closed every tray app". Hold the last
+    // good snapshot for up to two consecutive empty reads before clearing the mirror.
+    private IReadOnlyList<TrayMirrorItem> _lastGoodUiaItems = [];
+    private int _consecutiveEmptyUiaReads;
 
     internal TrayMirrorService(Dispatcher dispatcher, TaskbarVisibilityService taskbar)
     {
@@ -42,14 +53,29 @@ internal sealed class TrayMirrorService : IDisposable
 
     /// <summary>
     /// Replays a click on a mirrored tray icon. Routes to the source the item came from: the
-    /// classic toolbar (mouse messages at the item rect) or UIA (Invoke for left; physical click
-    /// on the peeked real taskbar for right/double — UIA cannot express those).
+    /// classic toolbar (mouse messages at the item rect) or UIA (visible peek so the app's own
+    /// flyout/menu anchors next to the top bar, then physical click where UIA can't express it).
     /// </summary>
     internal void Click(TrayMirrorItem item, TrayClick kind)
     {
-        if (item.Tag is AutomationElement element)
+        if (item.Tag is AutomationElement)
         {
-            ClickUia(element, kind);
+            if (Interlocked.Exchange(ref _clickBusy, 1) != 0)
+            {
+                return;
+            }
+
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    ClickUia(item, kind);
+                }
+                finally
+                {
+                    Interlocked.Exchange(ref _clickBusy, 0);
+                }
+            });
             return;
         }
 
@@ -118,7 +144,7 @@ internal sealed class TrayMirrorService : IDisposable
     private IReadOnlyList<TrayMirrorItem> PollUia()
     {
         // UIA only exposes the tray children while the taskbar is shown. Stealth-park it
-        // (cloak + off-screen) for the read, then re-hide — no visible flash.
+        // (cloak/alpha + shown) for the read, then re-hide — no visible flash.
         if (!_taskbar.BeginTrayPeek(stealth: true))
         {
             return [];
@@ -126,6 +152,10 @@ internal sealed class TrayMirrorService : IDisposable
 
         try
         {
+            // The show tears down and rebuilds the shell's XAML content; reading immediately
+            // yields an empty/partial tree (mirror icons blink away for a poll cycle).
+            Thread.Sleep(PeekSettleMs);
+
             IntPtr tray = TrayUiaReader.FindTrayHwnd();
             if (!TrayUiaReader.TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons))
             {
@@ -141,6 +171,19 @@ internal sealed class TrayMirrorService : IDisposable
                 items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
             }
 
+            if (items.Count == 0)
+            {
+                _consecutiveEmptyUiaReads++;
+                if (_lastGoodUiaItems.Count > 0 && _consecutiveEmptyUiaReads < 3)
+                {
+                    return _lastGoodUiaItems;
+                }
+
+                return items;
+            }
+
+            _consecutiveEmptyUiaReads = 0;
+            _lastGoodUiaItems = items;
             return items;
         }
         finally
@@ -200,28 +243,26 @@ internal sealed class TrayMirrorService : IDisposable
         return new TrayMirrorItem(key, button.CommandId, index, button.Tooltip, icon);
     }
 
-    private void ClickUia(AutomationElement element, TrayClick kind)
+    private void ClickUia(TrayMirrorItem item, TrayClick kind)
     {
-        if (kind == TrayClick.Left)
+        // The stored element is captured during a peek; the shell tears its XAML tree down
+        // when we hide the bar again, so by click time it is usually dead — Invoke/rect
+        // would silently no-op. Resolve a FRESH element from the live tree once the
+        // visible peek has brought the tray back.
+        AutomationElement stale = item.Tag as AutomationElement ?? throw new InvalidOperationException("UIA mirror click without an element.");
+        int appPid;
+        try
         {
-            // Invoke works from the stealth peek — no flash, no cursor jump.
-            if (_taskbar.BeginTrayPeek(stealth: true))
-            {
-                try
-                {
-                    TrayUiaReader.TryInvoke(element);
-                }
-                finally
-                {
-                    _taskbar.EndTrayPeek();
-                }
-            }
-
-            return;
+            appPid = stale.Current.ProcessId;
+        }
+        catch (Exception)
+        {
+            appPid = 0;
         }
 
-        // Right / double click need a real mouse at the button's on-screen position — UIA has no
-        // such gesture. Peek visibly (real position) and replay a physical click, then re-hide.
+        // Visible peek: the app's flyout/menu anchors to the REAL taskbar, so it must be
+        // genuinely on-screen for the user to see anything. Stealth invoke alone made the
+        // flyout open against an invisible bar ("nothing happens").
         if (!_taskbar.BeginTrayPeek(stealth: false))
         {
             return;
@@ -229,21 +270,150 @@ internal sealed class TrayMirrorService : IDisposable
 
         try
         {
-            Rect rect = TrayUiaReader.GetScreenRect(element);
-            if (rect.IsEmpty || rect.Width <= 0 || rect.Height <= 0)
+            TrayPeekDiagnostics.LogNote($"click begin kind={kind} key='{item.Key}'");
+
+            Thread.Sleep(PeekSettleMs);
+
+            // Park the real bar directly under the top bar near the cursor so the app's
+            // flyout/context menu opens next to the mirrored icon instead of at the bottom.
+            int anchorX = CursorX();
+            bool moved = TaskbarNative.TryMoveTrayNear(anchorX, TopBarBottomY(anchorX));
+            TrayPeekDiagnostics.LogNote($"click move={moved} anchorX={anchorX}");
+
+            // The shell rebuilds its XAML content around show/move; poll for the live
+            // button briefly instead of trusting one immediate read.
+            AutomationElement? target = null;
+            int liveButtons = 0;
+            for (int attempt = 0; attempt < 8 && target is null; attempt++)
             {
-                return;
+                Thread.Sleep(120);
+                target = ResolveLiveButton(item, out liveButtons);
             }
 
-            SendInputMouse.Click(
-                (int)(rect.Left + rect.Width / 2),
-                (int)(rect.Top + rect.Height / 2),
-                kind);
+            TrayPeekDiagnostics.LogNote(
+                target is not null
+                    ? $"click live-found buttons={liveButtons}"
+                    : $"click live-MISSING buttons={liveButtons}");
+
+            Rect targetRect = target is not null
+                ? TrayUiaReader.GetScreenRect(target)
+                : Rect.Empty;
+            if (targetRect.IsEmpty)
+            {
+                // Last resort: whatever rect the stored element still reports.
+                targetRect = TrayUiaReader.GetScreenRect(stale);
+            }
+
+            TrayPeekDiagnostics.LogNote(
+                $"click rect={targetRect.Left:F0},{targetRect.Top:F0},{targetRect.Right:F0},{targetRect.Bottom:F0} empty={targetRect.IsEmpty}");
+
+            // Physical input for every kind — InvokePattern is unverified on the 25H2 XAML
+            // tray buttons, while a real click is exactly what a human would have done.
+            if (!targetRect.IsEmpty && targetRect.Width > 0 && targetRect.Height > 0)
+            {
+                SendInputMouse.Click(
+                    (int)(targetRect.Left + targetRect.Width / 2),
+                    (int)(targetRect.Top + targetRect.Height / 2),
+                    kind);
+                TrayPeekDiagnostics.LogNote("click sent");
+            }
+            else
+            {
+                bool invoked = TrayUiaReader.TryInvoke(target ?? stale);
+                TrayPeekDiagnostics.LogNote($"click invoke-fallback={invoked}");
+            }
+
+            HoldPeekWhileFlyoutFocused(appPid);
         }
         finally
         {
+            TaskbarNative.RestoreMovedTray();
             _taskbar.EndTrayPeek();
+            TrayPeekDiagnostics.LogNote("click end");
         }
+    }
+
+    /// <summary>
+    /// Fresh UIA button matching the mirrored item's key; null when gone. Names with live
+    /// state (EarTrumpet percent) churn, so fall back to a case-insensitive/trimmed match
+    /// and then to a unique substring containment.
+    /// </summary>
+    private static AutomationElement? ResolveLiveButton(TrayMirrorItem item, out int buttonCount)
+    {
+        buttonCount = 0;
+        try
+        {
+            if (!TrayUiaReader.TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons))
+            {
+                return null;
+            }
+
+            buttonCount = buttons.Count;
+            string key = item.Key.Trim();
+            foreach (UiaTrayButton b in buttons)
+            {
+                if (string.Equals(b.Name?.Trim(), key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return b.Element;
+                }
+            }
+
+            UiaTrayButton? contained = buttons
+                .Where(b => !string.IsNullOrWhiteSpace(b.Name))
+                .FirstOrDefault(b =>
+                    b.Name!.Contains(key, StringComparison.OrdinalIgnoreCase)
+                    || key.Contains(b.Name.Trim(), StringComparison.OrdinalIgnoreCase));
+            return contained?.Element;
+        }
+        catch (Exception ex)
+        {
+            TrayPeekDiagnostics.LogNote($"click resolve error: {ex.Message}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Keeps the peeked bar up while its flyout/menu has focus (min hold, bounded max), then
+    /// lets the caller re-hide. Runs on the click's background thread.
+    /// </summary>
+    private void HoldPeekWhileFlyoutFocused(int appPid)
+    {
+        DateTime start = DateTime.UtcNow;
+        while ((DateTime.UtcNow - start).TotalMilliseconds < HoldMaxMs)
+        {
+            Thread.Sleep(250);
+            double elapsed = (DateTime.UtcNow - start).TotalMilliseconds;
+            IntPtr foreground = NativeMethods.GetForegroundWindow();
+            _ = NativeMethods.GetWindowThreadProcessId(foreground, out uint foregroundPid);
+            bool flyoutFocused = appPid != 0 && foregroundPid == (uint)appPid;
+            if (elapsed >= HoldMinMs && !flyoutFocused && !TrayOverflowNative.IsOverflowVisible())
+            {
+                break;
+            }
+        }
+    }
+
+    private static int CursorX()
+    {
+        return NativeMethods.GetCursorPos(out POINT point) ? point.X : 0;
+    }
+
+    private static int TopBarBottomY(int anchorX)
+    {
+        IReadOnlyList<MonitorInfo> monitors = MonitorNative.Enumerate();
+        MonitorInfo? monitor = monitors.FirstOrDefault(m =>
+                m.Bounds.Left <= anchorX && anchorX < m.Bounds.Right && m.IsPrimary)
+            ?? monitors.FirstOrDefault(m => m.Bounds.Left <= anchorX && anchorX < m.Bounds.Right)
+            ?? monitors.FirstOrDefault(m => m.IsPrimary)
+            ?? monitors.FirstOrDefault();
+
+        if (monitor is null)
+        {
+            return 0;
+        }
+
+        int barPx = Display.DipToPixels(TopBarHeightDip, monitor.Dpi);
+        return monitor.Bounds.Top + barPx + 4;
     }
 
     private ImageSource Fallback => _fallback ??= BuildFallback();

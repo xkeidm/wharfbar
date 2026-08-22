@@ -172,7 +172,13 @@ internal sealed class TaskbarVisibilityService
         {
             if (stealth)
             {
-                TaskbarNative.SetTrayVisibleStealth();
+                // Cloak refused → a parked+shown tray could flash when explorer re-asserts
+                // position. Skip this read cycle instead of gambling on visibility.
+                if (!TaskbarNative.TrySetTrayVisibleStealth())
+                {
+                    return false;
+                }
+
                 _stealthPeek = true;
             }
             else
@@ -265,6 +271,10 @@ internal sealed class TaskbarVisibilityService
 
         try
         {
+            // Persistent stealth styling first: any show (ours or explorer's async sync)
+            // stays invisible while WharfBar runs. Idempotent; covers new secondaries.
+            TaskbarNative.EnsureTrayStealthStyles();
+
             bool trayWasVisible = TaskbarNative.IsAnyTrayVisible();
             if (trayWasVisible)
             {
@@ -356,6 +366,7 @@ internal sealed class TaskbarVisibilityService
 
             if (TaskbarNative.IsAnyTrayVisible())
             {
+                TaskbarNative.EnsureTrayStealthStyles();
                 TaskbarNative.SetTrayVisible(false);
             }
 

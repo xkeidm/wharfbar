@@ -17,6 +17,16 @@ internal static class TaskbarNative
     private static bool _trayParkedOffscreen;
     private static bool _trayCloakedForStealth;
 
+    /// <summary>
+    /// Original GWL_EXSTYLE of every tray hwnd whose stealth style (WS_EX_LAYERED |
+    /// WS_EX_TRANSPARENT, alpha 0) WharfBar applied. Styles persist for the whole run:
+    /// showing the primary bar makes explorer async-sync-show secondary bars even AFTER a
+    /// peek ended, so restoring styles per peek would let those late shows paint visibly.
+    /// With persistent styles any shell-driven show stays invisible; full visibility is
+    /// restored only for explicit user-facing peeks and at exit.
+    /// </summary>
+    private static readonly Dictionary<IntPtr, int> _stealthOriginalExStyles = new();
+
     internal static IntPtr FindTrayHwnd() =>
         NativeMethods.FindWindow(TrayClass, null);
 
@@ -82,8 +92,11 @@ internal static class TaskbarNative
         {
             shown++;
             ApplyTrayVisibility(hwnd, visible);
-            if (!visible)
+            ClearStealthGeometry(hwnd);
+            if (visible)
             {
+                // Full visibility is only wanted on explicit user-facing peeks / exit;
+                // the hide path keeps persistent stealth styles in place.
                 ClearStealthVisuals(hwnd);
             }
         });
@@ -130,6 +143,22 @@ internal static class TaskbarNative
                 | NativeMethods.SWP_NOACTIVATE);
     }
 
+    /// <summary>Enumerates only <c>Shell_SecondaryTrayWnd</c> windows (multi-monitor bars).</summary>
+    private static void ForEachSecondaryTrayHwnd(Action<IntPtr> action)
+    {
+        IntPtr secondary = IntPtr.Zero;
+        while (true)
+        {
+            secondary = NativeMethods.FindWindowEx(IntPtr.Zero, secondary, SecondaryTrayClass, null);
+            if (secondary == IntPtr.Zero)
+            {
+                break;
+            }
+
+            action(secondary);
+        }
+    }
+
     /// <summary>
     /// Primary via <c>FindWindow</c>, secondaries via <c>FindWindowEx</c>. Avoid
     /// <c>EnumWindows</c> on the UI thread — a hung top-level window stalls the callback
@@ -161,22 +190,46 @@ internal static class TaskbarNative
     }
 
     /// <summary>
-    /// Shows <c>Shell_TrayWnd</c> for UIA without a visible flash: DWM cloak + park below
-    /// the primary monitor, then <c>SW_SHOW</c>. Pair with <see cref="SetTrayVisible"/>(false).
+    /// Shows <c>Shell_TrayWnd</c> for UIA without a visible flash. Cloak path: DWM cloak +
+    /// park below the primary monitor, then <c>SW_SHOW</c>. Alpha path (cloak refused):
+    /// WS_EX_LAYERED|WS_EX_TRANSPARENT at alpha 0, shown in place without any move — moving
+    /// makes explorer re-sync secondary taskbars (visible blink each poll). Pair with
+    /// <see cref="SetTrayVisible"/>(false). Returns false when neither invisibility
+    /// mechanism applies; the caller must skip this peek.
     /// </summary>
-    internal static void SetTrayVisibleStealth()
+    internal static bool TrySetTrayVisibleStealth()
     {
         IntPtr hwnd = FindTrayHwnd();
         if (hwnd == IntPtr.Zero)
         {
             System.Diagnostics.Debug.WriteLine("WharfBar: Shell_TrayWnd not found (stealth)");
-            return;
+            return false;
         }
 
         // Cloak first so even a momentary shell snap to the bottom edge is not painted.
-        if (TrySetCloaked(hwnd, cloaked: true))
+        bool useAlpha = !TrySetCloaked(hwnd, cloaked: true);
+        _trayCloakedForStealth = !useAlpha;
+
+        if (useAlpha)
         {
-            _trayCloakedForStealth = true;
+            // This machine refuses DWM cloak on Shell_TrayWnd. Fall back to persistent
+            // stealth styling: WS_EX_LAYERED | WS_EX_TRANSPARENT at alpha 0 on every tray
+            // window. IsWindowVisible stays true so UIA keeps exposing the tray buttons,
+            // yet nothing composites — including explorer's async sync-show of secondary
+            // bars, which can land even AFTER the peek ended (restoring styles per peek
+            // let those late shows blink visibly). Do NOT move or resize anything here:
+            // a SetWindowPos alone provokes the same resync.
+            if (!EnsureTrayStealthStyle(hwnd))
+            {
+                TrayPeekDiagnostics.Log("stealth-skip-no-invisibility", hwnd, false);
+                return false;
+            }
+
+            ForEachSecondaryTrayHwnd(h => _ = EnsureTrayStealthStyle(h));
+
+            _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
+            TrayPeekDiagnostics.Log("stealth-show-alpha", hwnd, false);
+            return true;
         }
 
         if (NativeMethods.GetWindowRect(hwnd, out RECT rect) && rect.Width > 0 && rect.Height > 0)
@@ -207,9 +260,12 @@ internal static class TaskbarNative
         }
 
         _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
+
+        TrayPeekDiagnostics.Log("stealth-show", hwnd, _trayCloakedForStealth);
+        return true;
     }
 
-    /// <summary>Moves a stealth-parked tray back on-screen and uncloaks (peek upgrade).</summary>
+    /// <summary>Restores full tray visibility (un-park / uncloak / un-alpha; peek upgrade).</summary>
     internal static void UnparkTrayOnScreen()
     {
         IntPtr hwnd = FindTrayHwnd();
@@ -218,12 +274,151 @@ internal static class TaskbarNative
             return;
         }
 
-        ClearStealthVisuals(hwnd);
+        ForEachTrayHwnd(ClearStealthVisuals);
         _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
     }
 
-    private static void ClearStealthVisuals(IntPtr hwnd)
+    private static bool _trayMovedForClick;
+
+    /// <summary>
+    /// Moves the real taskbar strip so it sits directly below the top bar near
+    /// <paramref name="anchorX"/>, making app-drawn tray flyouts/menus anchor next to the
+    /// mirrored icon instead of the hidden bottom edge. Explorer re-asserts its AppBar
+    /// position, so the write is verified and retried briefly. Saves the original rect
+    /// once; pair with <see cref="RestoreMovedTray"/>. Returns false when the move would
+    /// not stick.
+    /// </summary>
+    internal static bool TryMoveTrayNear(int anchorX, int topY)
     {
+        IntPtr hwnd = FindTrayHwnd();
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!NativeMethods.GetWindowRect(hwnd, out RECT rect) || rect.Width <= 0 || rect.Height <= 0)
+        {
+            return false;
+        }
+
+        if (!_trayParkedOffscreen && !_trayMovedForClick)
+        {
+            _savedTrayRect = rect;
+            _haveSavedTrayRect = true;
+        }
+
+        RECT monitor = Display.GetMonitorBounds(hwnd);
+        if (monitor.Width <= 0)
+        {
+            return false;
+        }
+
+        // The tray cluster sits toward the right end of Shell_TrayWnd; bias accordingly.
+        int x = Math.Clamp(
+            anchorX - (int)(rect.Width * 0.75),
+            monitor.Left + 8,
+            monitor.Right - rect.Width - 8);
+        int y = Math.Clamp(topY, monitor.Top + 1, monitor.Bottom - rect.Height - 1);
+
+        bool moved = false;
+        for (int attempt = 0; attempt < 6; attempt++)
+        {
+            _ = NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                x,
+                y,
+                rect.Width,
+                rect.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            Thread.Sleep(60);
+            if (NativeMethods.GetWindowRect(hwnd, out RECT now)
+                && Math.Abs(now.Left - x) <= 4
+                && Math.Abs(now.Top - y) <= 4)
+            {
+                moved = true;
+                break;
+            }
+        }
+
+        _trayMovedForClick = true;
+        TrayPeekDiagnostics.Log(moved ? "move-ok" : "move-failed", hwnd, false);
+        return moved;
+    }
+
+    /// <summary>Puts a click-moved taskbar back at its original position.</summary>
+    internal static void RestoreMovedTray()
+    {
+        if (!_trayMovedForClick || !_haveSavedTrayRect)
+        {
+            return;
+        }
+
+        _trayMovedForClick = false;
+        IntPtr hwnd = FindTrayHwnd();
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        _ = NativeMethods.SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            _savedTrayRect.Left,
+            _savedTrayRect.Top,
+            _savedTrayRect.Width,
+            _savedTrayRect.Height,
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+    }
+
+    /// <summary>
+    /// Applies persistent stealth styling (layered + click-through + alpha 0) to every tray
+    /// hwnd present right now, including newly created secondaries. Idempotent.
+    /// </summary>
+    internal static void EnsureTrayStealthStyles()
+    {
+        ForEachTrayHwnd(h => _ = EnsureTrayStealthStyle(h));
+    }
+
+    private static bool EnsureTrayStealthStyle(IntPtr hwnd)
+    {
+        int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+        const int layeredTransparent =
+            NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT;
+        if (!_stealthOriginalExStyles.TryGetValue(hwnd, out int original))
+        {
+            original = exStyle;
+            _stealthOriginalExStyles[hwnd] = original;
+        }
+
+        if ((exStyle & layeredTransparent) != layeredTransparent)
+        {
+            _ = NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, exStyle | layeredTransparent);
+            if ((NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE) & layeredTransparent)
+                != layeredTransparent)
+            {
+                return false;
+            }
+        }
+
+        return NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 0, NativeMethods.LWA_ALPHA);
+    }
+
+    private static void ClearStealthGeometry(IntPtr hwnd)
+    {
+        if (_trayMovedForClick && _haveSavedTrayRect)
+        {
+            _trayMovedForClick = false;
+            _ = NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                _savedTrayRect.Left,
+                _savedTrayRect.Top,
+                _savedTrayRect.Width,
+                _savedTrayRect.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        }
+
         if (_trayParkedOffscreen && _haveSavedTrayRect)
         {
             _ = NativeMethods.SetWindowPos(
@@ -241,6 +436,20 @@ internal static class TaskbarNative
         {
             _ = TrySetCloaked(hwnd, cloaked: false);
             _trayCloakedForStealth = false;
+        }
+    }
+
+    /// <summary>Geometry cleanup plus full opacity/style restoration for one hwnd.</summary>
+    private static void ClearStealthVisuals(IntPtr hwnd)
+    {
+        ClearStealthGeometry(hwnd);
+
+        // Alpha restore runs while the window is still layered, then the bits drop —
+        // every intermediate state stays fully opaque.
+        if (_stealthOriginalExStyles.TryGetValue(hwnd, out int exStyle))
+        {
+            _ = NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA);
+            _ = NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, exStyle);
         }
     }
 
