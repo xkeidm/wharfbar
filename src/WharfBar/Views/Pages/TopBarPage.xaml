@@ -10,9 +10,26 @@
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <Style TargetType="CheckBox">
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+        </Style>
+        <Style x:Key="SectionDescription" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="16,14,16,14" />
+            <Setter Property="Margin" Value="0,0,0,8" />
         </Style>
     </Page.Resources>
 
@@ -22,12 +39,60 @@
             <!-- Page Title -->
             <TextBlock Text="Üst Çubuk" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
+            <!-- Live preview strip -->
+            <TextBlock Text="Önizleme" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="Değişiklikler üst çubuğa kaydedilince burada da görünür"
+                       Style="{StaticResource SectionDescription}" />
+            <Border Style="{StaticResource SectionCard}" Padding="12,10,12,10" Margin="0,0,0,24">
+                <Border CornerRadius="6" Background="#E6141414" Padding="12,6,12,6">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left cluster: system stats readout sample -->
+                        <TextBlock x:Name="SystemStatsPreviewText"
+                                   Grid.Column="0"
+                                   HorizontalAlignment="Left"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="#F2FFFFFF" />
+
+                        <!-- Right cluster: status item chips, current order -->
+                        <StackPanel x:Name="PreviewPanel" Grid.Column="1" Orientation="Horizontal" />
+                    </Grid>
+                </Border>
+            </Border>
+
+            <!-- Sistem İstatistikleri Section -->
+            <TextBlock Text="Sistem İstatistikleri" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="Windows logosunun yanında işlemci, ekran kartı ve bellek kullanımını göster"
+                       Style="{StaticResource SectionDescription}" />
+            <Border Style="{StaticResource SectionCard}" Margin="0,0,0,24">
+                <StackPanel>
+                    <ui:ToggleSwitch x:Name="SystemStatsToggle"
+                                     Content="CPU · GPU · RAM göstergesi"
+                                     FontSize="14"
+                                     Checked="OnSystemStatsToggled"
+                                     Unchecked="OnSystemStatsToggled" />
+                    <ui:ToggleSwitch x:Name="GpuPerAdapterToggle"
+                                     Content="Ekran kartlarını ayrı göster (GPU0 · GPU1)"
+                                     FontSize="14"
+                                     Margin="0,10,0,0"
+                                     Checked="OnGpuPerAdapterToggled"
+                                     Unchecked="OnGpuPerAdapterToggled" />
+                    <TextBlock Text="Kapalıyken tüm ekran kartları tek değerde birleşir"
+                               FontSize="12"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Margin="0,4,0,0" />
+                </StackPanel>
+            </Border>
+
             <!-- Durum Öğeleri Section -->
-            <TextBlock Text="Durum Öğeleri" FontSize="14" FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,4" />
-            <TextBlock Text="Üst çubuğun sağ tarafında gösterilecek simgeleri seçin ve sırasını belirleyin"
-                       FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       Margin="0,0,0,12" />
+            <TextBlock Text="Durum Öğeleri" Style="{StaticResource SectionHeader}" />
+            <TextBlock Text="Üst çubuğun sağ tarafında gösterilecek simgeleri seçin; ⋮⋮ tutamacından sürükleyerek sırasını belirleyin"
+                       Style="{StaticResource SectionDescription}" />
 
             <!-- Dynamically populated in code-behind -->
             <StackPanel x:Name="StatusItemsPanel" />

@@ -16,12 +16,14 @@ internal sealed class TopBarEngine : IDisposable
     internal WifiService Wifi { get; }
     internal BluetoothService Bluetooth { get; }
     internal ProjectionService Projection { get; }
+    internal NetworkDetailsService NetworkDetails { get; }
     internal QuickSettingsService QuickSettings { get; }
     internal MonitorBrightnessService MonitorBrightness { get; }
     internal MediaSessionService Media { get; }
     internal TrayMirrorService TrayMirror { get; }
     internal TrayOverflowInvoker TrayOverflow { get; }
     internal NotificationCenterInvoker Notifications { get; }
+    internal SystemStatsService SystemStats { get; }
 
     internal TopBarEngine(TaskbarVisibilityService taskbar, VeilService veil)
     {
@@ -40,26 +42,31 @@ internal sealed class TopBarEngine : IDisposable
         Wifi = new WifiService();
         Bluetooth = new BluetoothService();
         Projection = new ProjectionService();
+        NetworkDetails = new NetworkDetailsService();
         QuickSettings = new QuickSettingsService(NightLight, veil);
         MonitorBrightness = new MonitorBrightnessService();
         Media = new MediaSessionService();
         TrayMirror = new TrayMirrorService(dispatcher, taskbar);
+        SystemStats = new SystemStatsService();
     }
 
     internal void Initialize()
     {
         _ = Media.InitializeAsync();
         TrayMirror.Reenumerate();
+        SystemStats.Start();
     }
 
     public void Dispose()
     {
         TrayMirror.Dispose();
+        SystemStats.Dispose();
         Media.Dispose();
         MonitorBrightness.Dispose();
         QuickSettings.Dispose();
         Bluetooth.Dispose();
         Wifi.Dispose();
+        NetworkDetails.Dispose();
         Mixer.Dispose();
         Volume.Dispose();
         Status.Dispose();

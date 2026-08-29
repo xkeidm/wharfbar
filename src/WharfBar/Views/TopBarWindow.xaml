@@ -30,10 +30,16 @@
         <!-- ContextMenu / MenuItem: App.xaml BasedOn WPF-UI (do not redefine without BasedOn). -->
         <Style x:Key="StatusHit" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Padding" Value="6,5" />
             <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="MinHeight" Value="28" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1EFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="StatusGlyph" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppIconFontFamily}" />
@@ -107,6 +113,19 @@
                         </Canvas>
                     </Viewbox>
                 </Border>
+
+                <!-- System stats readout: "CPU 12% · GPU0 4% · GPU1 24% · RAM 47%" (SystemStatsService;
+                     GPU segments numbered only with topBar.showGpuPerAdapter and 2+ adapters).
+                     Hidden when topBar.showSystemStats is false; segments with no data drop out. -->
+                <TextBlock x:Name="SystemStatsText"
+                           Style="{StaticResource StatusLabel}"
+                           Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           Text="--">
+                    <TextBlock.ToolTip>
+                        <ToolTip Content="İşlemci · Ekran kartı · Bellek kullanımı" />
+                    </TextBlock.ToolTip>
+                </TextBlock>
             </StackPanel>
 
             <!-- Right cluster (runtime order from config; default LTR):

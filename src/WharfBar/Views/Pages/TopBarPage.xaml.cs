@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using WharfBar.Models;
 using WharfBar.Services;
@@ -8,13 +9,20 @@ using Wpf.Ui.Controls;
 namespace WharfBar.Views.Pages;
 
 /// <summary>
-/// Top bar settings page: status item visibility and ordering (PowerToys style).
+/// Top bar settings page: live preview, system-stats toggles, and status item
+/// visibility with drag-and-drop ordering.
 /// </summary>
 public partial class TopBarPage : Page
 {
+    private Point _dragOrigin;
+
     public TopBarPage()
     {
         InitializeComponent();
+        SystemStatsToggle.IsChecked = Cfg.TopBar.ShowSystemStats;
+        GpuPerAdapterToggle.IsChecked = Cfg.TopBar.ShowGpuPerAdapter;
+        UpdateGpuToggleState();
+        RebuildPreview();
         RebuildList();
     }
 
@@ -30,9 +38,9 @@ public partial class TopBarPage : Page
         var visibleSet = new HashSet<string>(visible, StringComparer.Ordinal);
 
         // Checked items first, in current order
-        for (int i = 0; i < visible.Count; i++)
+        foreach (string id in visible)
         {
-            AddCard(visible[i], isChecked: true, index: i, total: visible.Count);
+            AddCard(id, isChecked: true);
         }
 
         // Unchecked items
@@ -40,12 +48,12 @@ public partial class TopBarPage : Page
         {
             if (!visibleSet.Contains(id))
             {
-                AddCard(id, isChecked: false, index: -1, total: visible.Count);
+                AddCard(id, isChecked: false);
             }
         }
     }
 
-    private void AddCard(string id, bool isChecked, int index, int total)
+    private void AddCard(string id, bool isChecked)
     {
         var border = new Border
         {
@@ -55,6 +63,8 @@ public partial class TopBarPage : Page
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 14, 16, 14),
             Margin = new Thickness(0, 0, 0, 8),
+            Tag = id,
+            AllowDrop = isChecked,
         };
 
         var grid = new Grid();
@@ -73,7 +83,7 @@ public partial class TopBarPage : Page
         Grid.SetColumn(icon, 0);
         grid.Children.Add(icon);
 
-        var checkBox = new CheckBox
+        var toggle = new ToggleSwitch
         {
             IsChecked = isChecked,
             Content = StatusItemName(id),
@@ -83,51 +93,100 @@ public partial class TopBarPage : Page
             FontWeight = FontWeights.Medium,
             Foreground = (Brush)FindResource("TextFillColorPrimaryBrush"),
         };
-        checkBox.Checked += OnStatusToggled;
-        checkBox.Unchecked += OnStatusToggled;
-        Grid.SetColumn(checkBox, 1);
-        grid.Children.Add(checkBox);
+        toggle.Checked += OnStatusToggled;
+        toggle.Unchecked += OnStatusToggled;
+        Grid.SetColumn(toggle, 1);
+        grid.Children.Add(toggle);
 
         if (isChecked)
         {
-            var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal };
-
-            var upBtn = new Wpf.Ui.Controls.Button
+            var handle = new SymbolIcon
             {
-                Content = "▲",
-                Tag = id,
-                IsEnabled = index > 0,
-                Padding = new Thickness(10, 4, 10, 4),
-                Margin = new Thickness(6, 0, 0, 0),
-                FontSize = 11,
+                Symbol = SymbolRegular.ReOrderDotsVertical24,
+                FontSize = 16,
+                Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(8, 0, 0, 0),
+                ToolTip = "Sürükleyerek sırayı değiştirin",
             };
-            upBtn.Click += OnMoveUp;
-            buttonPanel.Children.Add(upBtn);
+            Grid.SetColumn(handle, 2);
+            grid.Children.Add(handle);
 
-            var downBtn = new Wpf.Ui.Controls.Button
-            {
-                Content = "▼",
-                Tag = id,
-                IsEnabled = index < total - 1,
-                Padding = new Thickness(10, 4, 10, 4),
-                Margin = new Thickness(6, 0, 0, 0),
-                FontSize = 11,
-            };
-            downBtn.Click += OnMoveDown;
-            buttonPanel.Children.Add(downBtn);
-
-            Grid.SetColumn(buttonPanel, 2);
-            grid.Children.Add(buttonPanel);
+            border.PreviewMouseLeftButtonDown += OnCardMouseLeftButtonDown;
+            border.PreviewMouseMove += OnCardMouseMove;
+            border.DragOver += OnCardDragOver;
+            border.Drop += OnCardDrop;
         }
 
         border.Child = grid;
         StatusItemsPanel.Children.Add(border);
     }
 
+    // --- Drag & drop reorder ---
+
+    private void OnCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is Border)
+        {
+            _dragOrigin = e.GetPosition(null);
+        }
+    }
+
+    private void OnCardMouseMove(object sender, MouseEventArgs e)
+    {
+        if (sender is not Border { Tag: string id } || e.LeftButton is not MouseButtonState.Pressed)
+        {
+            return;
+        }
+
+        Point position = e.GetPosition(null);
+        double dx = position.X - _dragOrigin.X;
+        double dy = position.Y - _dragOrigin.Y;
+        if (Math.Abs(dx) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(dy) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        _ = DragDrop.DoDragDrop((Border)sender, id, DragDropEffects.Move);
+    }
+
+    private void OnCardDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.StringFormat)
+            ? DragDropEffects.Move
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnCardDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetData(DataFormats.StringFormat) is not string draggedId
+            || sender is not Border { Tag: string targetId }
+            || string.Equals(draggedId, targetId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        List<string> items = TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems);
+        int targetIndex = items.FindIndex(x => string.Equals(x, targetId, StringComparison.Ordinal));
+        if (targetIndex < 0 || !items.Remove(draggedId))
+        {
+            return;
+        }
+
+        items.Insert(items.IndexOf(targetId), draggedId);
+        PersistAndRebuild(items);
+    }
+
+    // --- Status item toggles ---
+
     private void OnStatusToggled(object sender, RoutedEventArgs e)
     {
-        if (sender is not CheckBox { Tag: string id, IsChecked: bool isChecked })
+        if (sender is not ToggleSwitch { Tag: string id, IsChecked: bool isChecked })
+        {
             return;
+        }
 
         List<string> items = TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems);
 
@@ -152,32 +211,6 @@ public partial class TopBarPage : Page
         PersistAndRebuild(items);
     }
 
-    private void OnMoveUp(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: string id })
-            return;
-
-        List<string> items = TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems);
-        int i = items.IndexOf(id);
-        if (i <= 0) return;
-
-        (items[i - 1], items[i]) = (items[i], items[i - 1]);
-        PersistAndRebuild(items);
-    }
-
-    private void OnMoveDown(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement { Tag: string id })
-            return;
-
-        List<string> items = TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems);
-        int i = items.IndexOf(id);
-        if (i < 0 || i >= items.Count - 1) return;
-
-        (items[i + 1], items[i]) = (items[i], items[i + 1]);
-        PersistAndRebuild(items);
-    }
-
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
         PersistAndRebuild(TopBarStatusItemIds.DefaultOrder.ToList());
@@ -189,7 +222,100 @@ public partial class TopBarPage : Page
         Config.Save(Cfg);
         WharfApp.ApplyTopBarChanges();
         RebuildList();
+        RebuildPreview();
     }
+
+    // --- System stats toggles ---
+
+    private void OnSystemStatsToggled(object sender, RoutedEventArgs e)
+    {
+        if (SystemStatsToggle.IsChecked is not bool isChecked)
+        {
+            return;
+        }
+
+        Cfg.TopBar.ShowSystemStats = isChecked;
+        Config.Save(Cfg);
+        UpdateGpuToggleState();
+        WharfApp.ApplyTopBarChanges();
+        RebuildPreview();
+    }
+
+    private void OnGpuPerAdapterToggled(object sender, RoutedEventArgs e)
+    {
+        if (GpuPerAdapterToggle.IsChecked is not bool isChecked)
+        {
+            return;
+        }
+
+        Cfg.TopBar.ShowGpuPerAdapter = isChecked;
+        Config.Save(Cfg);
+        WharfApp.ApplyTopBarChanges();
+        RebuildPreview();
+    }
+
+    private void UpdateGpuToggleState()
+    {
+        GpuPerAdapterToggle.IsEnabled = SystemStatsToggle.IsChecked == true;
+    }
+
+    // --- Live preview ---
+
+    private void RebuildPreview()
+    {
+        bool showStats = SystemStatsToggle.IsChecked == true;
+        SystemStatsPreviewText.Text = SystemStatsService.FormatText(
+            cpuPercent: 12.4,
+            gpuPercents: [4.2, 23.5],
+            ramPercent: 46.5,
+            showGpuPerAdapter: GpuPerAdapterToggle.IsChecked == true);
+        SystemStatsPreviewText.Visibility = showStats ? Visibility.Visible : Visibility.Collapsed;
+
+        PreviewPanel.Children.Clear();
+        foreach (string id in TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems))
+        {
+            PreviewPanel.Children.Add(CreatePreviewChip(id));
+        }
+    }
+
+    private static FrameworkElement CreatePreviewChip(string id)
+    {
+        var chip = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(14, 0, 0, 0),
+        };
+
+        var icon = new SymbolIcon
+        {
+            Symbol = StatusItemSymbol(id),
+            FontSize = 15,
+            Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+        };
+        chip.Children.Add(icon);
+
+        if (StatusItemPreviewText(id) is string sample)
+        {
+            chip.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = sample,
+                FontSize = 12,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(5, 0, 0, 0),
+                Foreground = new SolidColorBrush(Color.FromArgb(0xE6, 0xFF, 0xFF, 0xFF)),
+            });
+        }
+
+        return chip;
+    }
+
+    private static string? StatusItemPreviewText(string id) => id switch
+    {
+        TopBarStatusItemIds.DateTime => "14:32",
+        TopBarStatusItemIds.Battery => "%87",
+        _ => null,
+    };
 
     private static SymbolRegular StatusItemSymbol(string id) => id switch
     {
@@ -200,6 +326,7 @@ public partial class TopBarPage : Page
         TopBarStatusItemIds.ControlCenter => SymbolRegular.Settings24,
         TopBarStatusItemIds.Volume => SymbolRegular.Speaker224,
         TopBarStatusItemIds.Brightness => SymbolRegular.BrightnessHigh24,
+        TopBarStatusItemIds.Media => SymbolRegular.Play24,
         TopBarStatusItemIds.Network => SymbolRegular.Wifi124,
         TopBarStatusItemIds.Battery => SymbolRegular.Battery524,
         _ => SymbolRegular.Apps24,
@@ -214,6 +341,7 @@ public partial class TopBarPage : Page
         TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
         TopBarStatusItemIds.Volume => "Ses",
         TopBarStatusItemIds.Brightness => "Parlaklık (Monitörler)",
+        TopBarStatusItemIds.Media => "Medya",
         TopBarStatusItemIds.Network => "Ağ",
         TopBarStatusItemIds.Battery => "Pil",
         _ => id,

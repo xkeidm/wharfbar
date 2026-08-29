@@ -131,6 +131,15 @@ internal sealed class TopBarConfig
 
     /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
     public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
+
+    /// <summary>CPU/GPU/RAM readout beside the Windows logo (left cluster).</summary>
+    public bool ShowSystemStats { get; set; } = true;
+
+    /// <summary>
+    /// Show one GPU segment per physical adapter (GPU0/GPU1…) instead of a combined total.
+    /// Single-adapter systems display identically either way.
+    /// </summary>
+    public bool ShowGpuPerAdapter { get; set; } = true;
 }
 
 /// <summary>Veil (screen color overlay) settings under <see cref="AppConfig.Veil"/>.</summary>
