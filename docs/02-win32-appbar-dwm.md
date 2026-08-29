@@ -35,8 +35,10 @@ her monitör config'te ayrı açılır/kapanır (`monitors`).
 
 Birincil monitörde bu yol görev çubuğuyla birebir çalışır. İkincil monitörlerde shell
 uyumluluğu daha kırılgan olabildiğinden yedek olarak `SystemParametersInfo(SPI_SETWORKAREA)`
-ile manuel work area genişletmesi uygulanır (dikkatli kullan; diğer shell bileşenleriyle
-çakışabilir — bkz. boundaries "Yap").
+ile manuel work area genişletmesi planlanmıştı (dikkatli kullan; diğer shell bileşenleriyle
+çakışabilir — bkz. boundaries "Yap"). **25H2 (2026-08-29):** `SPI_SETWORKAREA` tüm sürümlerde
+`ERROR_INVALID_PARAMETER` ile reddediliyor; yedek yol ölü. Work area override'ı destekleyen
+bir shell gelene dek AppBar olmayan kenarlarda rezervasyon yapılamaz.
 
 ### Explorer çöküşü / yeniden başlama
 
@@ -112,10 +114,14 @@ Top bar göstergeleri için:
    (`DwmSetWindowAttribute` S_OK dönmez) → `TrySetTrayVisibleStealth` o durumda
    **WS_EX_LAYERED + alpha 0** yedeğiyle görünmezlik sağlar (UIA `IsWindowVisible=true` görmeye
    devam eder); o da başarısızsa peek açılmaz, poll atlanır. Ayna yalnızca birincil monitörün
-   üst barına işlenir (ikincil barlarda `trayMirror` bölümü oluşmaz). Tıklama: sol →
-   `InvokePattern` (stealth-peek);
-  sağ/çift → UIA ifade edemediği için görünür peek + `SendInputMouse` fiziksel tıklama (kısa
-  flash; overflow deseniyle aynı).
+   üst barına işlenir (ikincil barlarda `trayMirror` bölümü oluşmaz). Tıklama: tüm türler için
+   `SendInputMouse` fiziksel tıklama (`InvokePattern` 25H2 XAML tray butonlarında
+   doğrulanmadı; rect bulunamazsa son çare fallback). Uygulamanın flyout/menüsü park edilmiş
+   taskbar konumuna (alt kenar) ya da geri getirilen imlece göre açılır → `TrayMenuReanchor`
+   uygulamanın yeni beliren popup penceresini ayna ikonunun altına taşır (`SetWindowPos`,
+   work-area kelepçeli; `#32768` menü her zaman, diğer sınıflar yalnızca tıklanan butonun
+   çevresindeki tık bölgesinde aday; tam ekran overlay'ler hiçbir zaman). Eşleşme pid ile
+   DEĞİL: 25H2 XAML butonlarının tümü explorer pid'i raporlar.
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
 sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
@@ -173,13 +179,18 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
 **Seçilen hide yolu (plan):**
 
 1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + birincil `SPI_GETWORKAREA` +
-   `FindWindow("Shell_TrayWnd")` — restore için saklanır.
+   `FindWindow("Shell_TrayWnd")` — restore için saklanır. (25H2'de `ABM_GETSTATE`
+   güvenilmez: auto-hide açıkken de 0 döner.)
 2. **Gizleme:** `ShowWindow` + `SWP_HIDEWINDOW` (`FindWindow("Shell_TrayWnd")` ve
    `FindWindowEx` ile `Shell_SecondaryTrayWnd`; UI thread’de tam `EnumWindows` yok —
-   asılı bir pencere AppBar’da wait cursor bırakır) + `SPI_SETWORKAREA` (üst/sol/sağ
-   korunur; alt = monitör kenarı). `ABM_SETSTATE(ABS_AUTOHIDE)` kullanılmaz — explorer
-   kenar reveal ile çubuğu tekrar gösterir. Yalnızca `SW_HIDE` AppBar rezervasyonunu
-   bırakır; bu yüzden work area ayrıca genişletilir.
+   asılı bir pencere AppBar’da wait cursor bırakır). `ABM_SETSTATE(ABS_AUTOHIDE)` kullanılmaz —
+   explorer kenar reveal ile çubuğu tekrar gösterir. **25H2 gerçeği (2026-08-29, canlı ölçüm):**
+   `SW_HIDE` AppBar rezervasyonunu bırakır (~48px hayalet şerit) ve `SPI_SETWORKAREA` ile
+   work area genişletme **çalışmaz** — API her flag kombinasyonunda `ERROR_INVALID_PARAMETER (87)`
+   döndürür. Pencereyi taşımak/boyutlandırmak shell tarafından geri alınır; yabancı
+   `ABM_SETPOS` onaylansa bile work area değişmez; auto-hide canlıyken bile legacy AppBar
+   katmanı şeridi tutar (`ABM_GETAUTOHIDEBAR=0`). Sonuç: maximize pencereler alttaki şeride
+   saygı duyar — bilinen sınırlılık, ADR-005 ek notu.
 3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
    `EnsureWorkAreaExpanded()`. `ApplyPlacement` içinde `ReapplyHide` yok — gizleme +
    `SETPOS` `ABN_POSCHANGED` döngüsü üst barda wait cursor ve dock auto-hide iptali
@@ -202,18 +213,24 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
    re-hide) — görev çubuğu bu yüzden asla sonsuza dek görünür kalamaz.
    HWND gizli kalsa bile explorer görev çubuğu AppBar’ını
    yeniden `SETPOS` edebilir; work area altı daralmışsa en fazla 1 sn’de bir
-   `EnsureWorkAreaExpanded`. `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`) her üst düzey
-   pencereye broadcast yapar ve bu makinede ~1 sn bloklar — UI thread’i
-   donmaması için çağrı arka plan thread’e kaydırıldı (guard: aynı anda tek
-   genişletme; restore ile yarışan genişletme baseline’a geri alınır).
+   `EnsureWorkAreaExpanded` — **25H2+’ta `WorkAreaExpandPolicy` devre kesicisi
+   araya girer:** arka arkaya 2 kez `ERROR_INVALID_PARAMETER` alan çağrı 10 dk
+   boyunca atlanır (ölü API’ye saniyede bir vurmak yerine tek prob), 10 dk sonunda
+   tek prob ile yeniden denenir; `TaskbarCreated` (shell restart) kesiciyi sıfırlar.
+   `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`) her üst düzey pencereye broadcast yapar ve
+   sağlıklı shell’lerde ~1 sn bloklar — UI thread’i donmaması için çağrı arka plan
+   thread’e kaydırıldı (guard: aynı anda tek genişletme; restore ile yarışan
+   genişletme baseline’a geri alınır).
    `Shell_NotifyIcon` sonrası ve `TaskbarCreated` için `ReapplyHide`.
 5. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
-   `SPI_SETWORKAREA(baseline work area)`; izleme durur.
+   `SPI_SETWORKAREA(baseline work area)` (25H2+’ta SPI adımı devre kesicisiyle
+   atlanır; tray görünür olunca explorer şeridi kendi onaylatır); izleme durur.
 6. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
 7. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
 
-Çoklu monitör: work area her monitör için o monitöre göre genişletilir; dock rezervasyonu
-`SetDockReservation(Monitor, heightPx)` ile monitör bazında (bkz. boundaries "Yap").
+Çoklu monitör: work area genişletmesi her monitör için o monitöre göre hedeflenir
+(25H2+’ta API ölü — yukarıda); dock rezervasyonu `SetDockReservation(Monitor, heightPx)`
+ile monitör bazında (bkz. boundaries "Yap").
 
 Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
 
@@ -300,8 +317,13 @@ UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dl
 
 - `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`
 - `WlanEnumInterfaces(handle, NULL, &list)` — WLAN_INTERFACE_INFO_LIST (InterfaceGuid)
+- `WlanScan(handle, &guid, NULL, NULL, NULL)` — taramayı tetikler (sonuç asenkron; sonraki
+  GetAvailableNetworkList çağrılarının cache'inde görünür). Tetiklenmezse bayat cache listelenir.
 - `WlanGetAvailableNetworkList(handle, &guid, 0, NULL, &list)` — WLAN_AVAILABLE_NETWORK_LIST
-  (wlanProfileFlags & CONNECTED/HAS_PROFILE, wlanSignalQuality 0-100, bSecurityEnabled)
+  (dwFlags & CONNECTED/HAS_PROFILE, wlanSignalQuality 0-100, bSecurityEnabled).
+  **Tuzak:** Struct native layout'a birebir uymalı (628 bayt, `strProfileName` ilk alan,
+  `dwFlags`+`dwReserved` sonda, RSSI alanı yoktur) — `WlanStructLayoutTests` bunu kilitler.
+  Sapması SSID metnini kaydırıp sinyali bozuyordu. Boş SSID = gizli ağ.
 - `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — kalıcı profil
 - `WlanConnect(handle, &guid, &params)` — WLAN_CONNECTION_PARAMETERS (mode=profile)
 - `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection, ...)` — mevcut SSID
@@ -309,8 +331,14 @@ UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dl
 
 ### user32.dll — display topology (Quick Settings / Yansıt)
 
-- `QueryDisplayConfig(QDC_DATABASE_CURRENT, 0, NULL, 0, NULL, &topologyId)` — mevcut topoloji
-- `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES)`
+- `QueryDisplayConfig(QDC_DATABASE_CURRENT, 0, NULL, 0, NULL, &topologyId)` — mevcut topoloji.
+  **Tuzak:** Hibrit-GPU makinelerde (NVIDIA + AMD iGPU) ERROR_INVALID_PARAMETER (87) döner;
+  mod tahmini GetSystemMetrics geometrisinden yapılır (ProjectionService.GuessCurrentMode).
+  DISPLAYCONFIG_TOPOLOGY_ID değerleri 1, 2, 4, 8'dir (ardışık değil — wingdi.h).
+- `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY)` — topoloji değiştirmenin
+  kanıtlanmış tek güvenilir kombinasyonu. Ekstra flag'ler (SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+  SDC_ALLOW_CHANGES, SDC_SAVE_TO_DATABASE) hibrit-GPU'da 87 döndürüyor; SDC_APPLY +
+  SDC_VALIDATE birlikte de geçersizdir.
 
 ### user32.dll / powrprof.dll — güç eylemleri (Windows logo menüsü)
 

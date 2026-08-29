@@ -9,7 +9,7 @@
 - Mutex single-instance
 - Startup klasörü autostart
 - `SHGetFileInfo` ile klasik `.exe`/`.lnk` ikonları
-- Durum göstergelerini .NET API ile simüle etme
+- Durum göstergelerini .NET API ile okuma (hızlı ayarlar gerçek API'lerle: wlanapi + WinRT Radio/Bluetooth + SetDisplayConfig; ayrıntı docs/02)
 - WPF-UI backdrop / tema
 - DPI / display change / AppBar callback handler’ları
 - Fullscreen gizleme (bar/dock)
@@ -17,9 +17,10 @@
 - **Windows görev çubuğunu WharfBar çalışırken gizleme / auto-hide** — başlatmada durumu
   yakala; çıkış ve crash yollarında **önceki duruma geri yükle** (ADR-005; `ABM_REMOVE`
   ile aynı disiplin). Kalıcı (WharfBar kapalıyken) bozma yok.
-- **Çoklu monitör** AppBar / `SPI_SETWORKAREA` work-area: monitör bazında top bar / dock
-  (`monitors` config; per-monitor aç-kapat), her bar kendi monitöründe AppBar; ikincil
-  monitörlerde shell uyumluluğu kırılgansa `SPI_SETWORKAREA` yedeği (kullanıcı onaylı).
+- **Çoklu monitör** AppBar: monitör bazında top bar / dock (`monitors` config; per-monitor
+  aç-kapat), her bar kendi monitöründe AppBar. **`SPI_SETWORKAREA` yedeği 25H2+’ta ölü**
+  (API `ERROR_INVALID_PARAMETER` döndürür — `WorkAreaExpandPolicy` devre kesicisi atlar);
+  work-area override’ı destekleyen shell çıkana dek AppBar olmayan kenar rezervasyonu yok.
 - Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
@@ -31,10 +32,14 @@
   `ToolbarWindow32`
   kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
   `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'dan yakalanıp buton rect'inden
-  kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
-  tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Stealth peek'te DWM cloak
-  reddedilirse **WS_EX_LAYERED + alpha 0** yedeği kullanılır (UIA görünürlüğü korunur, flash yok);
-  o da başarısızsa peek açılmaz.
+   kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
+   tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Stealth peek'te DWM cloak
+   reddedilirse **WS_EX_LAYERED + alpha 0** yedeği kullanılır (UIA görünürlüğü korunur, flash yok);
+   o da başarısızsa peek açılmaz. **Popup re-anchor:** fiziksel tık sonrası tıklanan butonun
+   çevresinde yeni beliren popup penceresi (`TrayMenuReanchor`) ayna ikonunun altına taşınır —
+   belgelenmiş `SetWindowPos` yalnız; bellek okuma/enjeksiyon yok. Eşleşme **geometrik** (tık
+   bölgesi + boyut + `#32768` menü sınıfı; tam ekran overlay'ler hariç): 25H2 XAML tray
+   butonlarının hepsi explorer pid'i raporlar, pid ile eşleşme ayırt edemez.
 
 
 ## Önce sor (kullanıcı onayı)

@@ -40,6 +40,23 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir veya auto-hid
 Kalıcı (WharfBar kapalıyken de) görev çubuğu bozma yok. Zorla süreç öldürme restore’u
 atlayabilir → gotcha olarak dokümante.
 
+### 4. Ek not (2026-08-29): 25H2'de work-area genişletmesi yapılamaz
+
+Windows 11 25H2 (build 26200) canlı ölümleri: gizlenen görev çubuğunun ~48px AppBar
+rezervasyonu **hiçbir dış mekanizmayla kaldırılamaz** — `SPI_SETWORKAREA` her flag
+kombinasyonunda `ERROR_INVALID_PARAMETER (87)` döndürür; `Shell_TrayWnd` geometrisi shell
+tarafından geri alınır; `ABM_SETSTATE` yok sayılır; yabancı `ABM_SETPOS` onaylansa bile
+work area değişmez; auto-hide canlıyken bile legacy AppBar katmanı şeridi tutar
+(`ABM_GETAUTOHIDEBAR=0`). Bu nedenle WharfBar çalışırken maximize pencereler alt şeride
+saygı duyar ve "tam ekran tam dolmaz".
+
+Karar: sınırlılık kabul edilir; işlevsiz SPI çağrıları `WorkAreaExpandPolicy` devre
+kesicisiyle atlanır (2×87 → 10 dk skip; `TaskbarCreated` reset; tek prob re-probe).
+Auto-hide ortak yaşamı (SW_HIDE'ı bırakıp Windows auto-hide'a dayanma) değerlendirildi:
+25H2'de auto-hide legacy katmana bildirilmiyor + maximize ile bilinen z-order
+regresyonları var — reddedildi. Pencere bazlı telafi (maximize pencereleri elle
+büyütme) pencere yöneticisiyle sürekli savaş — reddedildi.
+
 ## Gerekçe
 
 - Config’teki demo pinler gerçek görev çubuğu pinlerini yansıtmaz; kullanıcı “yerine geçen”

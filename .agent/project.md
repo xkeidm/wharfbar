@@ -11,7 +11,9 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 ## Ürün
 
-- **Top bar:** Sol Windows logo (çizim) + menü (Hakkında / Kapat); sağda durum şeridi
+- **Top bar:** Sol Windows logo (çizim) + sistem istatistikleri (`CPU x% · GPU y% · RAM z%`;
+  çoklu GPU'da `GPU0/GPU1` ayrımı: `topBar.showGpuPerAdapter`;
+  `topBar.showSystemStats`, `SystemStatsService`) + menü (Hakkında / Kapat); sağda durum şeridi
   (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `media` →
   `network` → `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
@@ -24,8 +26,8 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
   monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
-  kendi monitöründe AppBar, ikincil monitörlerde `SPI_SETWORKAREA` yedeği. Veil birincil
-  monitörle sınırlı.
+  kendi monitöründe AppBar (`SPI_SETWORKAREA` yedeği 25H2+'ta ölü — ADR-005 ek notu).
+  Veil birincil monitörle sınırlı.
 - **Global menü yok** — top bar File/Edit benzeri uygulama menüsü taşımaz.
 
 ## Stack (özet)
@@ -52,7 +54,8 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 7. **Hit-testing + auto-hide** dock’ta uygulandı (`DockHitTest` + `DockAutoHideController`; `FullscreenState` köprüsü). Spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
    (ADR-006; `controlCenter` → Main, volume → Mixer); tepsi yalnızca kendi Quit menüsü.
-   Üst bar sol küme: Windows logo menüsü.
+   Üst bar sol küme: Windows logo menüsü + sistem istatistikleri (`GetSystemTimes` /
+   `GlobalMemoryStatusEx` / PDH `PdhAddEnglishCounterW`; GPU sayacı yoksa GPU bölümü gizlenir).
 9. **Tray aynası (ADR-009):** yabancı tepsi ikonları belgelenmiş comctl32 `TB_*` mesajlarıyla
    salt-okunur okunur + `SendMessage` click-forward; RPM/enjeksiyon/undocumented API **yasak**;
    gizli ikonlar kapsam dışı (`Win+B` kalır); sistem ikonları tooltip filtreyle düşülür.
@@ -125,6 +128,12 @@ ADR: [`../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../docs/decisi
 **Monitör Parlaklık Kontrolü:**
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
+**Sistem istatistikleri:** üst bar sol kümede Windows logosunun yanında
+`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, 2 sn poll; `topBar.showSystemStats`
+toggle Ayarlar → Üst Çubuk). GPU PDH `\GPU Engine(*)\Utilization Percentage`
+(`PdhAddEnglishCounterW`) — motor örnekleri LUID'e göre fiziksel adaptöre gruplanır;
+`topBar.showGpuPerAdapter` açıkken çoklu GPU'da `GPU0 x% · GPU1 y%` (kapalıyken tek
+toplam; tek GPU'da fark yok). Sayaç yoksa GPU bölümü gizlenir; ilk örnekte `--`.
 Faz 8 spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 Faz 8 plan: [`../docs/superpowers/plans/2026-08-10-dock-auto-hide.md`](../docs/superpowers/plans/2026-08-10-dock-auto-hide.md).
 Faz 9 spec: [`../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
