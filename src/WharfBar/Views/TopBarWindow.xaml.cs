@@ -55,7 +55,7 @@ public partial class TopBarWindow : Window
     private bool _mediaActive;
     private bool _mediaClosePending;
     private bool _trayMirrorActive;
-    private readonly Dictionary<string, Image> _trayMirrorImages = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Border> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
 
@@ -122,6 +122,10 @@ public partial class TopBarWindow : Window
         _engine.Status.Changed += OnStatusChanged;
         ApplyStatus(_engine.Status.Snapshot);
 
+        _engine.SystemStats.Changed += OnSystemStatsChanged;
+        ApplySystemStatsVisibility();
+        ApplySystemStats(_engine.SystemStats.Snapshot);
+
         _engine.Volume.Changed += OnVolumeChanged;
         ApplyVolume(_engine.Volume.Snapshot);
 
@@ -131,7 +135,8 @@ public partial class TopBarWindow : Window
             _engine.QuickSettings,
             _engine.Wifi,
             _engine.Bluetooth,
-            _engine.Projection);
+            _engine.Projection,
+            _engine.NetworkDetails);
         BrightnessHost.Attach(_engine.MonitorBrightness);
 
         _engine.Media.Changed += OnMediaChanged;
@@ -668,6 +673,7 @@ public partial class TopBarWindow : Window
         MediaHost.Detach();
         BrightnessHost.Detach();
         _engine.Status.Changed -= OnStatusChanged;
+        _engine.SystemStats.Changed -= OnSystemStatsChanged;
         _engine.Volume.Changed -= OnVolumeChanged;
         _engine.Media.Changed -= OnMediaChanged;
         _engine.Media.SessionsChanged -= OnMediaSessionsChanged;
@@ -756,6 +762,22 @@ public partial class TopBarWindow : Window
     }
 
     private void OnStatusChanged(object? sender, EventArgs e) => ApplyStatus(_engine.Status.Snapshot);
+
+    private void OnSystemStatsChanged(object? sender, EventArgs e)
+        => ApplySystemStats(_engine.SystemStats.Snapshot);
+
+    private void ApplySystemStats(SystemStatsSnapshot snapshot)
+    {
+        bool showGpuPerAdapter = _config.Current.TopBar?.ShowGpuPerAdapter != false;
+        SystemStatsText.Text = snapshot.DisplayText(showGpuPerAdapter);
+    }
+
+    private void ApplySystemStatsVisibility()
+    {
+        SystemStatsText.Visibility = _config.Current.TopBar?.ShowSystemStats != false
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
 
     private void OnVolumeChanged(object? sender, EventArgs e) => ApplyVolume(_engine.Volume.Snapshot);
 
@@ -1140,6 +1162,8 @@ public partial class TopBarWindow : Window
     internal void ApplyConfigChanges()
     {
         ApplyStatusItemLayout();
+        ApplySystemStatsVisibility();
+        ApplySystemStats(_engine.SystemStats.Snapshot);
         ApplyBackgroundAppearance();
     }
 
@@ -1416,6 +1440,9 @@ public partial class TopBarWindow : Window
 
         if (_taskbarCreatedMessage != 0 && (uint)msg == _taskbarCreatedMessage)
         {
+            // Fresh shell: re-arm the SPI_SETWORKAREA circuit breaker in case this explorer
+            // build accepts the API again.
+            WorkAreaExpandPolicy.Shared.Reset();
             QueueApplyPlacement(reRegister: true);
             _engine.TrayMirror.Reenumerate();
             ((App)Application.Current).Monitors?.Refresh();
@@ -1622,10 +1649,14 @@ public partial class TopBarWindow : Window
 
         foreach (TrayMirrorItem item in items)
         {
-            if (_trayMirrorImages.TryGetValue(item.Key, out Image? existing))
+            if (_trayMirrorImages.TryGetValue(item.Key, out Border? existing))
             {
                 // Icons can change in place (badges) — refresh Source on every poll.
-                existing.Source = item.Icon;
+                if (existing.Child is Image existingImage)
+                {
+                    existingImage.Source = item.Icon;
+                }
+
                 existing.Tag = item;
                 SetPlainToolTip(existing, item.Tooltip);
             }
@@ -1634,20 +1665,38 @@ public partial class TopBarWindow : Window
                 var image = new Image
                 {
                     Source = item.Icon,
-                    Tag = item,
                     Width = 16,
                     Height = 16,
                     // Real tray captures can be 16–24px; scale into the fixed box (up/down).
                     Stretch = Stretch.Uniform,
-                    Cursor = Cursors.Hand,
-                    Margin = new Thickness(3, 0, 3, 0),
                     VerticalAlignment = VerticalAlignment.Center,
                 };
-                image.MouseDown += OnTrayMirrorItemMouseDown;
-                image.MouseRightButtonUp += OnTrayMirrorItemRightUp;
-                SetPlainToolTip(image, item.Tooltip);
-                _trayMirrorImages[item.Key] = image;
-                TrayMirrorItems.Items.Add(image);
+
+                // Hit-friendly host: the bare 16×16 image is a tiny target inside a 30px bar
+                // (misclicks land on neighbors or the gap). A transparent, padded Border —
+                // same pattern as the other status buttons — gives a ~30×28 hit area with
+                // the icon centered. Hover highlight makes the real target visible; without
+                // it users aim at the 16px glyph and cannot tell when they are on target.
+                var hoverBrush = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF));
+                hoverBrush.Freeze();
+                var host = new Border
+                {
+                    Background = Brushes.Transparent,
+                    Width = 30,
+                    Height = 28,
+                    Cursor = Cursors.Hand,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Child = image,
+                    Tag = item,
+                };
+                host.MouseEnter += (_, _) => host.Background = hoverBrush;
+                host.MouseLeave += (_, _) => host.Background = Brushes.Transparent;
+                host.MouseDown += OnTrayMirrorItemMouseDown;
+                host.MouseRightButtonUp += OnTrayMirrorItemRightUp;
+                SetPlainToolTip(host, item.Tooltip);
+                _trayMirrorImages[item.Key] = host;
+                TrayMirrorItems.Items.Add(host);
             }
         }
 
@@ -1656,7 +1705,7 @@ public partial class TopBarWindow : Window
 
     private void OnTrayMirrorItemMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not Image { Tag: TrayMirrorItem item })
+        if (sender is not Border { Tag: TrayMirrorItem item } host)
         {
             return;
         }
@@ -1666,26 +1715,39 @@ public partial class TopBarWindow : Window
         // yok; MouseDown üzerinden ClickCount ile ayrıştırılır). Sıra: down/up, down/up, dblclk/up.
         if (e.ChangedButton == MouseButton.Left && e.ClickCount >= 2)
         {
-            ForwardTrayClick(item, TrayClick.DoubleLeft);
+            ForwardTrayClick(item, TrayClick.DoubleLeft, host);
         }
         else
         {
-            ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left);
+            ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left, host);
         }
     }
 
     private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
     {
         // Blocks the status-strip context menu when the click landed on a tray icon.
-        if (sender is Image { Tag: TrayMirrorItem })
+        if (sender is Border { Tag: TrayMirrorItem })
         {
             e.Handled = true;
         }
     }
 
-    private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind)
+    private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind, FrameworkElement source)
     {
-        // Routes by source: classic toolbar (TB_*) or UIA fallback (25H2+).
-        _engine.TrayMirror.Click(item, kind);
+        // Routes by source: classic toolbar (TB_*) or UIA fallback (25H2+). The icon's
+        // on-screen rect (physical px) lets the UIA path re-anchor the app's popup below it.
+        Rect anchor = Rect.Empty;
+        try
+        {
+            var topLeft = source.PointToScreen(new Point(0, 0));
+            var bottomRight = source.PointToScreen(new Point(source.ActualWidth, source.ActualHeight));
+            anchor = new Rect(topLeft, bottomRight);
+        }
+        catch
+        {
+            // Not yet rendered / no presentation source — re-anchor is skipped downstream.
+        }
+
+        _engine.TrayMirror.Click(item, kind, anchor);
     }
 }

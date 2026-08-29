@@ -278,98 +278,37 @@ internal static class TaskbarNative
         _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
     }
 
-    private static bool _trayMovedForClick;
-
     /// <summary>
-    /// Moves the real taskbar strip so it sits directly below the top bar near
-    /// <paramref name="anchorX"/>, making app-drawn tray flyouts/menus anchor next to the
-    /// mirrored icon instead of the hidden bottom edge. Explorer re-asserts its AppBar
-    /// position, so the write is verified and retried briefly. Saves the original rect
-    /// once; pair with <see cref="RestoreMovedTray"/>. Returns false when the move would
-    /// not stick.
+    /// Invisible-anchored click session: drops WS_EX_TRANSPARENT from the primary tray
+    /// (keeps LAYERED) and lifts its alpha to 1 so the unseen parked bar still receives
+    /// the synthetic mouse input at its coordinates. Layered-window hit testing follows
+    /// alpha: an alpha of 0 lets mouse messages pass through even without WS_EX_TRANSPARENT,
+    /// while any non-zero alpha (1 ≈ 0.4%) is optically invisible but hit-testable.
+    /// <see cref="EnsureTrayStealthStyles"/> restores WS_EX_TRANSPARENT and alpha 0 on the
+    /// next hide cycle.
     /// </summary>
-    internal static bool TryMoveTrayNear(int anchorX, int topY)
+    internal static void BeginTrayClickInput()
     {
         IntPtr hwnd = FindTrayHwnd();
         if (hwnd == IntPtr.Zero)
         {
-            return false;
+            return;
         }
 
-        if (!NativeMethods.GetWindowRect(hwnd, out RECT rect) || rect.Width <= 0 || rect.Height <= 0)
+        int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+        if ((exStyle & NativeMethods.WS_EX_TRANSPARENT) != 0)
         {
-            return false;
-        }
-
-        if (!_trayParkedOffscreen && !_trayMovedForClick)
-        {
-            _savedTrayRect = rect;
-            _haveSavedTrayRect = true;
-        }
-
-        RECT monitor = Display.GetMonitorBounds(hwnd);
-        if (monitor.Width <= 0)
-        {
-            return false;
-        }
-
-        // The tray cluster sits toward the right end of Shell_TrayWnd; bias accordingly.
-        int x = Math.Clamp(
-            anchorX - (int)(rect.Width * 0.75),
-            monitor.Left + 8,
-            monitor.Right - rect.Width - 8);
-        int y = Math.Clamp(topY, monitor.Top + 1, monitor.Bottom - rect.Height - 1);
-
-        bool moved = false;
-        for (int attempt = 0; attempt < 6; attempt++)
-        {
-            _ = NativeMethods.SetWindowPos(
+            _ = NativeMethods.SetWindowLong(
                 hwnd,
-                IntPtr.Zero,
-                x,
-                y,
-                rect.Width,
-                rect.Height,
-                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-            Thread.Sleep(60);
-            if (NativeMethods.GetWindowRect(hwnd, out RECT now)
-                && Math.Abs(now.Left - x) <= 4
-                && Math.Abs(now.Top - y) <= 4)
-            {
-                moved = true;
-                break;
-            }
+                NativeMethods.GWL_EXSTYLE,
+                exStyle & ~NativeMethods.WS_EX_TRANSPARENT);
         }
 
-        _trayMovedForClick = true;
-        TrayPeekDiagnostics.Log(moved ? "move-ok" : "move-failed", hwnd, false);
-        return moved;
+        _ = NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 1, NativeMethods.LWA_ALPHA);
     }
 
-    /// <summary>Puts a click-moved taskbar back at its original position.</summary>
-    internal static void RestoreMovedTray()
-    {
-        if (!_trayMovedForClick || !_haveSavedTrayRect)
-        {
-            return;
-        }
-
-        _trayMovedForClick = false;
-        IntPtr hwnd = FindTrayHwnd();
-        if (hwnd == IntPtr.Zero)
-        {
-            return;
-        }
-
-        _ = NativeMethods.SetWindowPos(
-            hwnd,
-            IntPtr.Zero,
-            _savedTrayRect.Left,
-            _savedTrayRect.Top,
-            _savedTrayRect.Width,
-            _savedTrayRect.Height,
-            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-    }
+    /// <summary>Reapplies full stealth styling after a click session.</summary>
+    internal static void EndTrayClickInput() => EnsureTrayStealthStyles();
 
     /// <summary>
     /// Applies persistent stealth styling (layered + click-through + alpha 0) to every tray
@@ -406,19 +345,6 @@ internal static class TaskbarNative
 
     private static void ClearStealthGeometry(IntPtr hwnd)
     {
-        if (_trayMovedForClick && _haveSavedTrayRect)
-        {
-            _trayMovedForClick = false;
-            _ = NativeMethods.SetWindowPos(
-                hwnd,
-                IntPtr.Zero,
-                _savedTrayRect.Left,
-                _savedTrayRect.Top,
-                _savedTrayRect.Width,
-                _savedTrayRect.Height,
-                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
-        }
-
         if (_trayParkedOffscreen && _haveSavedTrayRect)
         {
             _ = NativeMethods.SetWindowPos(
@@ -486,6 +412,11 @@ internal static class TaskbarNative
     /// </param>
     internal static bool TryExpandPrimaryWorkAreaBottom(int reservedBottomPx = 0, bool broadcast = false)
     {
+        if (!WorkAreaExpandPolicy.Shared.ShouldAttempt(DateTimeOffset.UtcNow))
+        {
+            return true; // known-broken SPI on this shell; treat as handled no-op
+        }
+
         IntPtr tray = FindTrayHwnd();
         IntPtr anchor = tray != IntPtr.Zero ? tray : NativeMethods.GetDesktopWindow();
 
@@ -518,11 +449,11 @@ internal static class TaskbarNative
             Bottom = targetBottom,
         };
 
-        return NativeMethods.SystemParametersInfo(
+        return RecordSetWorkArea(NativeMethods.SystemParametersInfo(
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0);
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0));
     }
 
     /// <summary>
@@ -532,6 +463,11 @@ internal static class TaskbarNative
     /// </summary>
     internal static bool TryExpandWorkAreaBottom(MonitorInfo monitor, int reservedBottomPx, bool broadcast)
     {
+        if (!WorkAreaExpandPolicy.Shared.ShouldAttempt(DateTimeOffset.UtcNow))
+        {
+            return true; // known-broken SPI on this shell; treat as handled no-op
+        }
+
         RECT work = monitor.WorkArea;
         if (work.Width <= 0 || work.Height <= 0)
         {
@@ -552,11 +488,11 @@ internal static class TaskbarNative
             Bottom = targetBottom,
         };
 
-        return NativeMethods.SystemParametersInfo(
+        return RecordSetWorkArea(NativeMethods.SystemParametersInfo(
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0);
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0));
     }
 
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>
@@ -567,10 +503,35 @@ internal static class TaskbarNative
             return false;
         }
 
-        return NativeMethods.SystemParametersInfo(
+        if (!WorkAreaExpandPolicy.Shared.ShouldAttempt(DateTimeOffset.UtcNow))
+        {
+            return false; // known-broken SPI on this shell; tray re-show restores the strip
+        }
+
+        return RecordSetWorkArea(NativeMethods.SystemParametersInfo(
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref work,
-            NativeMethods.SPIF_SENDCHANGE);
+            NativeMethods.SPIF_SENDCHANGE));
+    }
+
+    /// <summary>
+    /// Feeds the call outcome into the circuit breaker and surfaces the 25H2 rejection
+    /// (<c>ERROR_INVALID_PARAMETER</c>) once per circuit-open transition in debug output.
+    /// </summary>
+    private static bool RecordSetWorkArea(bool ok)
+    {
+        int error = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+        bool wasOpen = WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow);
+        WorkAreaExpandPolicy.Shared.RecordResult(ok, error, DateTimeOffset.UtcNow);
+        if (!ok && !wasOpen && WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow))
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"WharfBar: SPI_SETWORKAREA rejected (Win32 error {error}) — Windows 11 25H2 " +
+                "does not support work-area overrides; the hidden taskbar's bottom strip " +
+                "cannot be released. Maximized windows will respect the strip.");
+        }
+
+        return ok;
     }
 }
