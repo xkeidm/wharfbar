@@ -9,7 +9,6 @@ internal static class DisplayTopology
     internal const uint SDC_TOPOLOGY_EXTEND = 0x4;
     internal const uint SDC_TOPOLOGY_EXTERNAL = 0x8;
     internal const uint SDC_APPLY = 0x80;
-    internal const uint SDC_USE_SUPPLIED_DISPLAY_CONFIG = 0x20;
     internal const uint SDC_ALLOW_CHANGES = 0x400;
     internal const uint QDC_DATABASE_CURRENT = 0x2;
     private const int ERROR_SUCCESS = 0;
@@ -25,11 +24,39 @@ internal static class DisplayTopology
             ref topologyId) == ERROR_SUCCESS;
     }
 
-    internal static bool TryApplyTopology(uint flags) =>
+    private const int SM_CXSCREEN = 0;
+    private const int SM_CYSCREEN = 1;
+    private const int SM_XVIRTUALSCREEN = 76;
+    private const int SM_YVIRTUALSCREEN = 77;
+    private const int SM_CXVIRTUALSCREEN = 78;
+    private const int SM_CYVIRTUALSCREEN = 79;
+    private const int SM_CMONITORS = 80;
+
+    /// <summary>Aktif monitör sayısı + sanal/primary ekran geometrisi (GuessCurrentMode girdisi).</summary>
+    internal static (int Monitors, int VX, int VY, int VW, int VH, int PW, int PH) ReadMonitorMetrics() =>
+        (
+            GetSystemMetrics(SM_CMONITORS),
+            GetSystemMetrics(SM_XVIRTUALSCREEN),
+            GetSystemMetrics(SM_YVIRTUALSCREEN),
+            GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            GetSystemMetrics(SM_CYVIRTUALSCREEN),
+            GetSystemMetrics(SM_CXSCREEN),
+            GetSystemMetrics(SM_CYSCREEN)
+        );
+
+    [DllImport("user32.dll")]
+    private static extern int GetSystemMetrics(int nIndex);
+
+    /// <summary>
+    /// Topoloji değiştirmenin kanıtlanmış tek güvenilir kombinasyonu:
+    /// <c>topologyFlag | SDC_APPLY</c>. Eklenen her ekstra flag (SUPPLIED / ALLOW_CHANGES /
+    /// SAVE_TO_DATABASE) bu makinede ERROR_INVALID_PARAMETER döndürür.
+    /// </summary>
+    internal static bool TryApplyTopology(uint topologyFlag) =>
         SetDisplayConfig(
             0, IntPtr.Zero,
             0, IntPtr.Zero,
-            flags | SDC_APPLY | SDC_USE_SUPPLIED_DISPLAY_CONFIG | SDC_ALLOW_CHANGES) == ERROR_SUCCESS;
+            topologyFlag | SDC_APPLY) == ERROR_SUCCESS;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int QueryDisplayConfig(

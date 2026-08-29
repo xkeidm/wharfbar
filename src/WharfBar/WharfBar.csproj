@@ -8,6 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Custom Main (Program.cs) branches to the headless taskbar watchdog before WPF boots. -->
+    <EnableDefaultApplicationDefinition>false</EnableDefaultApplicationDefinition>
     <RootNamespace>WharfBar</RootNamespace>
     <AssemblyName>WharfBar</AssemblyName>
     <Version>0.1.0</Version>

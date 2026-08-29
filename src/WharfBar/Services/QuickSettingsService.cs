@@ -36,19 +36,24 @@ internal sealed record NetworkDetails(
 /// <summary>
 /// Quick Settings actions: network details, documented WinRT radio toggles where available,
 /// Settings URIs for the rest; Project opens the native Yansıt panel (no tray-icon mirroring).
+/// Radyo nesneleri bir kez keşfedilip cache'lenir ve StateChanged event'leriyle canlı tutulur —
+/// her toggle'da RequestAccessAsync + GetRadiosAsync turu atmak toggle'ı saniyelerce geciktiriyordu.
 /// </summary>
 internal sealed class QuickSettingsService : IDisposable
 {
     private readonly DispatcherTimer _timer;
+    private readonly Dispatcher _dispatcher;
     private bool _disposed;
     private bool _wifiOn = true;
     private bool _bluetoothOn;
     private bool _airplaneOn;
     private bool _radiosKnown;
-    private int _radioRefreshBusy;
+    private int _radioInitBusy;
     private readonly NightLightService _nightLight;
     private readonly VeilService _veil;
     private readonly EventHandler _onVeilChanged;
+
+    private readonly Dictionary<Windows.Devices.Radios.RadioKind, List<Windows.Devices.Radios.Radio>> _radios = [];
 
     /// <summary>
     /// Session truth for airplane mode after <em>we</em> toggled it. The OS flag
@@ -61,6 +66,7 @@ internal sealed class QuickSettingsService : IDisposable
     {
         _nightLight = nightLight;
         _veil = veil;
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _onVeilChanged = (_, _) =>
         {
             if (_disposed)
@@ -75,8 +81,8 @@ internal sealed class QuickSettingsService : IDisposable
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
-        _timer.Tick += (_, _) => OnPollTick();
-        _ = RefreshRadiosAsync();
+        _timer.Tick += (_, _) => Refresh();
+        _ = InitializeRadiosAsync();
     }
 
     internal NetworkDetails Network { get; private set; }
@@ -98,28 +104,20 @@ internal sealed class QuickSettingsService : IDisposable
 
         Refresh();
         _timer.Start();
-        _ = RefreshRadiosAsync();
+        _ = InitializeRadiosAsync();
     }
 
     internal void StopPolling() => _timer.Stop();
-
-    private void OnPollTick()
-    {
-        Refresh();
-        // Keep tiles live against external changes (Windows quick settings, radio switch).
-        _ = RefreshRadiosAsync();
-    }
 
     internal async Task ToggleTileAsync(string tileId)
     {
         switch (tileId)
         {
             case "wifi":
-                await SetRadioKindAsync(Windows.Devices.Radios.RadioKind.WiFi, !_wifiOn).ConfigureAwait(true);
+                await ToggleRadioKindAsync(Windows.Devices.Radios.RadioKind.WiFi).ConfigureAwait(true);
                 break;
             case "bluetooth":
-                await SetRadioKindAsync(Windows.Devices.Radios.RadioKind.Bluetooth, !_bluetoothOn)
-                    .ConfigureAwait(true);
+                await ToggleRadioKindAsync(Windows.Devices.Radios.RadioKind.Bluetooth).ConfigureAwait(true);
                 break;
             case "airplane":
                 await SetAirplaneAsync(!_airplaneOn).ConfigureAwait(true);
@@ -135,7 +133,6 @@ internal sealed class QuickSettingsService : IDisposable
                 break;
         }
 
-        await RefreshRadiosAsync().ConfigureAwait(true);
         Refresh();
     }
 
@@ -251,75 +248,182 @@ internal sealed class QuickSettingsService : IDisposable
         ];
     }
 
-    private async Task RefreshRadiosAsync()
+    /// <summary>Radyoları bir kez keşfeder, cache'ler ve StateChanged'e abone olur.</summary>
+    private async Task InitializeRadiosAsync()
     {
-        if (Interlocked.Exchange(ref _radioRefreshBusy, 1) != 0)
+        if (Interlocked.Exchange(ref _radioInitBusy, 1) != 0)
         {
             return;
         }
 
         try
         {
-            Windows.Devices.Radios.RadioAccessStatus access =
-                await Windows.Devices.Radios.Radio.RequestAccessAsync();
-            if (access != Windows.Devices.Radios.RadioAccessStatus.Allowed)
+            if (_radios.Count > 0 || !await EnsureRadioAccessAsync())
             {
                 return;
             }
 
             var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
-            bool wifi = false;
-            bool bt = false;
-            bool anyOn = false;
-            bool sawWifi = false;
-            bool sawBt = false;
-
             foreach (Windows.Devices.Radios.Radio radio in radios)
             {
-                bool on = radio.State == Windows.Devices.Radios.RadioState.On;
-                anyOn |= on;
-                if (radio.Kind == Windows.Devices.Radios.RadioKind.WiFi)
+                radio.StateChanged += OnRadioStateChanged;
+                if (radio.Kind is Windows.Devices.Radios.RadioKind.WiFi or Windows.Devices.Radios.RadioKind.Bluetooth)
                 {
-                    sawWifi = true;
-                    wifi |= on;
+                    if (!_radios.TryGetValue(radio.Kind, out var list))
+                    {
+                        list = [];
+                        _radios[radio.Kind] = list;
+                    }
+
+                    list.Add(radio);
                 }
-                else if (radio.Kind == Windows.Devices.Radios.RadioKind.Bluetooth)
-                {
-                    sawBt = true;
-                    bt |= on;
-                }
             }
 
-            _wifiOn = !sawWifi || wifi;
-            _bluetoothOn = sawBt && bt;
-
-            // Airplane mode is an OS flag, not "all radios off": turning Wi-Fi off must not
-            // light the airplane tile. Prefer the flag; fall back to the aggregate
-            // approximation only when the flag is not readable (no radio manager).
-            if (_airplaneSessionOverride is bool session)
-            {
-                _airplaneOn = session;
-            }
-            else if (TryReadSystemRadioState(out bool systemAirplane))
-            {
-                _airplaneOn = systemAirplane;
-            }
-            else
-            {
-                _airplaneOn = _radiosKnown
-                    ? (!wifi && !bt && (sawWifi || sawBt))
-                    : (!anyOn && (sawWifi || sawBt));
-            }
-
-            _radiosKnown = true;
+            UpdateRadioStates();
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"WharfBar: Radio refresh failed — {ex.Message}");
+            Debug.WriteLine($"WharfBar: Radio init failed — {ex.Message}");
         }
         finally
         {
-            Interlocked.Exchange(ref _radioRefreshBusy, 0);
+            Interlocked.Exchange(ref _radioInitBusy, 0);
+        }
+    }
+
+    private void OnRadioStateChanged(Windows.Devices.Radios.Radio sender, object args)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        // WinRT thread — UI state'ine dokunmadan dispatcher'a aktar.
+        _dispatcher.BeginInvoke(UpdateRadioStates);
+    }
+
+    private void UpdateRadioStates()
+    {
+        bool wifi = false;
+        bool bt = false;
+        foreach (var (kind, list) in _radios)
+        {
+            bool anyOn = list.Any(r => r.State == Windows.Devices.Radios.RadioState.On);
+            if (kind == Windows.Devices.Radios.RadioKind.WiFi)
+            {
+                wifi = anyOn;
+            }
+            else if (kind == Windows.Devices.Radios.RadioKind.Bluetooth)
+            {
+                bt = anyOn;
+            }
+        }
+
+        if (_radios.Count > 0)
+        {
+            _wifiOn = wifi;
+            _bluetoothOn = bt;
+            _radiosKnown = true;
+        }
+
+        UpdateAirplaneFlag();
+        Tiles = BuildTiles();
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateAirplaneFlag()
+    {
+        if (_airplaneSessionOverride is bool session)
+        {
+            _airplaneOn = session;
+        }
+        else if (TryReadSystemRadioState(out bool systemAirplane))
+        {
+            _airplaneOn = systemAirplane;
+        }
+        else
+        {
+            bool sawWifi = _radios.ContainsKey(Windows.Devices.Radios.RadioKind.WiFi);
+            bool sawBt = _radios.ContainsKey(Windows.Devices.Radios.RadioKind.Bluetooth);
+            _airplaneOn = _radiosKnown
+                ? !_wifiOn && !_bluetoothOn && (sawWifi || sawBt)
+                : false;
+        }
+    }
+
+    /// <summary>
+    /// Optimistik toggle: karoyu hemen çevir (Changed fırlat), sonra radyoyu arkada çevir.
+    /// Radyo değişimi ~100 ms sürüyor; eski akış tüm WinRT turunu bekleyip ondan sonra
+    /// UI'ı güncellediği için toggle saniyeler alıyormuş gibi hissettiriyordu.
+    /// </summary>
+    private async Task ToggleRadioKindAsync(Windows.Devices.Radios.RadioKind kind)
+    {
+        bool turnOn = kind == Windows.Devices.Radios.RadioKind.WiFi ? !_wifiOn : !_bluetoothOn;
+        if (kind == Windows.Devices.Radios.RadioKind.WiFi)
+        {
+            _wifiOn = turnOn;
+        }
+        else
+        {
+            _bluetoothOn = turnOn;
+        }
+
+        Tiles = BuildTiles();
+        Changed?.Invoke(this, EventArgs.Empty);
+
+        try
+        {
+            if (!await EnsureRadioAccessAsync())
+            {
+                OpenSettingsUri(kind == Windows.Devices.Radios.RadioKind.WiFi
+                    ? "ms-settings:network-wifi"
+                    : "ms-settings:bluetooth");
+                UpdateRadioStates();
+                return;
+            }
+
+            List<Windows.Devices.Radios.Radio>? targets = _radios.GetValueOrDefault(kind);
+            if (targets is null or { Count: 0 })
+            {
+                // Cache henüz hazır değil — tek seferlik keşif.
+                var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
+                targets = radios.Where(r => r.Kind == kind).ToList();
+            }
+
+            var state = turnOn
+                ? Windows.Devices.Radios.RadioState.On
+                : Windows.Devices.Radios.RadioState.Off;
+            foreach (Windows.Devices.Radios.Radio radio in targets)
+            {
+                Windows.Devices.Radios.RadioAccessStatus result = await radio.SetStateAsync(state);
+                if (result != Windows.Devices.Radios.RadioAccessStatus.Allowed)
+                {
+                    Debug.WriteLine($"WharfBar: {kind} SetStateAsync -> {result}");
+                }
+            }
+
+            UpdateRadioStates();
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: Radio toggle failed — {ex.Message}");
+            OpenSettingsUri("ms-settings:network");
+            UpdateRadioStates();
+        }
+    }
+
+    private async Task<bool> EnsureRadioAccessAsync()
+    {
+        try
+        {
+            Windows.Devices.Radios.RadioAccessStatus access =
+                await Windows.Devices.Radios.Radio.RequestAccessAsync();
+            return access == Windows.Devices.Radios.RadioAccessStatus.Allowed;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: Radio access failed — {ex.Message}");
+            return false;
         }
     }
 
@@ -349,75 +453,45 @@ internal sealed class QuickSettingsService : IDisposable
         return false;
     }
 
-    private async Task SetRadioKindAsync(Windows.Devices.Radios.RadioKind kind, bool turnOn)
-    {
-        try
-        {
-            Windows.Devices.Radios.RadioAccessStatus access =
-                await Windows.Devices.Radios.Radio.RequestAccessAsync();
-            if (access != Windows.Devices.Radios.RadioAccessStatus.Allowed)
-            {
-                OpenSettingsUri(kind == Windows.Devices.Radios.RadioKind.WiFi
-                    ? "ms-settings:network-wifi"
-                    : "ms-settings:bluetooth");
-                return;
-            }
-
-            var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
-            foreach (Windows.Devices.Radios.Radio radio in radios)
-            {
-                if (radio.Kind != kind)
-                {
-                    continue;
-                }
-
-                if (turnOn)
-                {
-                    await radio.SetStateAsync(Windows.Devices.Radios.RadioState.On);
-                }
-                else
-                {
-                    await radio.SetStateAsync(Windows.Devices.Radios.RadioState.Off);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"WharfBar: Radio toggle failed — {ex.Message}");
-            OpenSettingsUri("ms-settings:network");
-        }
-    }
-
     private async Task SetAirplaneAsync(bool enable)
     {
         try
         {
-            Windows.Devices.Radios.RadioAccessStatus access =
-                await Windows.Devices.Radios.Radio.RequestAccessAsync();
-            if (access != Windows.Devices.Radios.RadioAccessStatus.Allowed)
+            if (!await EnsureRadioAccessAsync())
             {
                 OpenSettingsUri("ms-settings:network-airplanemode");
                 return;
             }
 
-            var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
-            foreach (Windows.Devices.Radios.Radio radio in radios)
+            List<Windows.Devices.Radios.Radio>? targets =
+            [
+                .. _radios.GetValueOrDefault(Windows.Devices.Radios.RadioKind.WiFi) ?? [],
+                .. _radios.GetValueOrDefault(Windows.Devices.Radios.RadioKind.Bluetooth) ?? [],
+                .. _radios.GetValueOrDefault(Windows.Devices.Radios.RadioKind.MobileBroadband) ?? [],
+            ];
+            if (targets.Count == 0)
             {
-                if (radio.Kind is Windows.Devices.Radios.RadioKind.WiFi
-                    or Windows.Devices.Radios.RadioKind.Bluetooth
-                    or Windows.Devices.Radios.RadioKind.MobileBroadband)
-                {
-                    await radio.SetStateAsync(
-                        enable
-                            ? Windows.Devices.Radios.RadioState.Off
-                            : Windows.Devices.Radios.RadioState.On);
-                }
+                var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
+                targets = radios.Where(r => r.Kind
+                    is Windows.Devices.Radios.RadioKind.WiFi
+                        or Windows.Devices.Radios.RadioKind.Bluetooth
+                        or Windows.Devices.Radios.RadioKind.MobileBroadband).ToList();
+            }
+
+            var state = enable
+                ? Windows.Devices.Radios.RadioState.Off
+                : Windows.Devices.Radios.RadioState.On;
+            foreach (Windows.Devices.Radios.Radio radio in targets)
+            {
+                await radio.SetStateAsync(state);
             }
 
             // The OS flag does not follow radio-API toggles (and writing it needs admin) —
             // keep the tile honest with a session override.
             _airplaneOn = enable;
             _airplaneSessionOverride = enable;
+            Tiles = BuildTiles();
+            Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

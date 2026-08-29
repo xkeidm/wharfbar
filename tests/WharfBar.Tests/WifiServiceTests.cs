@@ -28,10 +28,11 @@ public class WifiServiceTests
     }
 
     [Fact]
-    public void SsidToString_EmptyOrAllNulls_ReturnsUnknown()
+    public void SsidToString_EmptyOrAllNulls_ReturnsHiddenNetwork()
     {
-        Assert.Equal("(Bilinmeyen ağ)", WifiService.SsidToString(Array.Empty<byte>()));
-        Assert.Equal("(Bilinmeyen ağ)", WifiService.SsidToString(new byte[32]));
+        // Boş SSID = gizli ağ (SSID yayınını kapatmış AP); "(Bilinmeyen ağ)" yanıltıcıydı.
+        Assert.Equal("(Gizli ağ)", WifiService.SsidToString(Array.Empty<byte>()));
+        Assert.Equal("(Gizli ağ)", WifiService.SsidToString(new byte[32]));
     }
 
     [Fact]
@@ -44,5 +45,17 @@ public class WifiServiceTests
     public void SsidToString_Utf8Kept()
     {
         Assert.Equal("Merhaba", WifiService.SsidToString(new byte[] { 0x4D, 0x65, 0x72, 0x68, 0x61, 0x62, 0x61 }));
+    }
+
+    [Fact]
+    public void SortNetworks_ConnectedFirst_ThenBySignal()
+    {
+        var a = new WifiNetworkInfo("weak", 10, false, false, false, null);
+        var b = new WifiNetworkInfo("strong", 90, false, false, false, null);
+        var c = new WifiNetworkInfo("connected", 20, false, false, true, "connected");
+
+        var sorted = WifiService.SortNetworks([a, b, c]);
+
+        Assert.Equal(["connected", "strong", "weak"], sorted.Select(n => n.Ssid));
     }
 }

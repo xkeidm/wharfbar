@@ -21,6 +21,7 @@ public partial class QuickSettingsFlyout : UserControl
     private WifiService? _wifi;
     private BluetoothService? _bluetooth;
     private ProjectionService? _projection;
+    private NetworkDetailsService? _networkDetails;
     private WifiNetworkInfo? _pendingWifiConnect;
     private bool _masterSliderUpdating;
     private bool _sessionSliderUpdating;
@@ -72,7 +73,8 @@ public partial class QuickSettingsFlyout : UserControl
     }
 
     internal void Attach(VolumeService volume, AudioMixerService mixer, QuickSettingsService quick,
-        WifiService wifi, BluetoothService bluetooth, ProjectionService projection)
+        WifiService wifi, BluetoothService bluetooth, ProjectionService projection,
+        NetworkDetailsService networkDetails)
     {
         Detach();
         _volume = volume;
@@ -81,11 +83,13 @@ public partial class QuickSettingsFlyout : UserControl
         _wifi = wifi;
         _bluetooth = bluetooth;
         _projection = projection;
+        _networkDetails = networkDetails;
         _volume.Changed += OnVolumeChanged;
         _mixer.Changed += OnMixerChanged;
         _quick.Changed += OnQuickChanged;
         _wifi.Changed += OnWifiChanged;
         _bluetooth.Changed += OnBluetoothChanged;
+        _networkDetails.Changed += OnNetworkDetailsChanged;
     }
 
     internal void Detach()
@@ -115,12 +119,18 @@ public partial class QuickSettingsFlyout : UserControl
             _bluetooth.Changed -= OnBluetoothChanged;
         }
 
+        if (_networkDetails is not null)
+        {
+            _networkDetails.Changed -= OnNetworkDetailsChanged;
+        }
+
         _volume = null;
         _mixer = null;
         _quick = null;
         _wifi = null;
         _bluetooth = null;
         _projection = null;
+        _networkDetails = null;
     }
 
     internal void ShowPage(QuickSettingsPage page)
@@ -162,6 +172,15 @@ public partial class QuickSettingsFlyout : UserControl
             _bluetooth?.StopPolling();
         }
 
+        if (page == QuickSettingsPage.Network)
+        {
+            _networkDetails?.StartPolling();
+        }
+        else
+        {
+            _networkDetails?.StopPolling();
+        }
+
         if (page == QuickSettingsPage.Project)
         {
             RefreshProjectPage();
@@ -189,6 +208,7 @@ public partial class QuickSettingsFlyout : UserControl
         _quick?.StopPolling();
         _wifi?.StopPolling();
         _bluetooth?.StopPolling();
+        _networkDetails?.StopPolling();
         WifiPasswordPanel.Visibility = Visibility.Collapsed;
     }
 
@@ -201,6 +221,8 @@ public partial class QuickSettingsFlyout : UserControl
     private void OnWifiChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshWifiPage);
 
     private void OnBluetoothChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshBluetoothPage);
+
+    private void OnNetworkDetailsChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshNetworkPage);
 
     private void RefreshAll()
     {
@@ -883,9 +905,10 @@ public partial class QuickSettingsFlyout : UserControl
 
         if (WifiNetworkList.Children.Count == 0 && _wifi.IsAvailable)
         {
+            bool radioOn = _quick?.IsWifiRadioOn ?? true;
             WifiNetworkList.Children.Add(new TextBlock
             {
-                Text = "Ağ bulunamadı",
+                Text = !radioOn ? "Wi-Fi kapalı" : "Ağlar aranıyor…",
                 Opacity = 0.55,
                 FontSize = 12,
                 Margin = new Thickness(4, 4, 0, 0),
@@ -1039,6 +1062,46 @@ public partial class QuickSettingsFlyout : UserControl
 
     private void ShowWifiError(string message) => WifiErrorText.Text = message;
 
+    private void RefreshNetworkPage()
+    {
+        if (_networkDetails is null || _page != QuickSettingsPage.Network)
+        {
+            return;
+        }
+
+        NetworkDetailsSnapshot snap = _networkDetails.Snapshot;
+
+        TrafficDownloadText.Text = snap.DownloadMbps is { } down
+            ? NetworkDetailsService.FormatMbps(down)
+            : "—";
+        TrafficUploadText.Text = snap.UploadMbps is { } up
+            ? NetworkDetailsService.FormatMbps(up)
+            : "—";
+
+        string kindLabel = snap.Kind switch
+        {
+            NetworkKind.WiFi => "Wi-Fi",
+            NetworkKind.Ethernet => "Ethernet",
+            NetworkKind.Offline => "Bağlantı yok",
+            _ => "Diğer ağ",
+        };
+
+        SetNetRow(NetAdapterName, snap.AdapterName);
+        SetNetRow(NetKind, snap.IsOnline || snap.Kind != NetworkKind.Offline ? kindLabel : null);
+        SetNetRow(NetIpv4, snap.Ipv4);
+        SetNetRow(NetIpv6, snap.Ipv6);
+        SetNetRow(NetGateway, snap.Gateway);
+        SetNetRow(NetDns, snap.Dns);
+        SetNetRow(NetMac, snap.Mac);
+        SetNetRow(NetLinkSpeed, snap.LinkSpeed);
+    }
+
+    private static void SetNetRow(TextBlock target, string? value)
+    {
+        target.Text = string.IsNullOrWhiteSpace(value) ? "—" : value;
+        target.ToolTip = string.IsNullOrWhiteSpace(value) ? null : CreateTip(value);
+    }
+
     private void RefreshBluetoothPage()
     {
         if (_bluetooth is null || _page != QuickSettingsPage.Bluetooth)
@@ -1096,9 +1159,10 @@ public partial class QuickSettingsFlyout : UserControl
 
         if (BluetoothDeviceList.Children.Count == 0)
         {
+            bool radioOn = _quick?.IsBluetoothRadioOn ?? true;
             BluetoothDeviceList.Children.Add(new TextBlock
             {
-                Text = "Eşleşmiş cihaz yok",
+                Text = !radioOn ? "Bluetooth kapalı — cihazları görmek için açın" : "Eşleşmiş cihaz yok",
                 Opacity = 0.55,
                 FontSize = 12,
                 Margin = new Thickness(4, 4, 0, 0),

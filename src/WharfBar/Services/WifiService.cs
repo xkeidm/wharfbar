@@ -105,9 +105,16 @@ internal sealed class WifiService : IDisposable
             len++;
         }
 
+        return SsidToString(ssid, len);
+    }
+
+    internal static string SsidToString(byte[] ssid, int length)
+    {
+        int len = Math.Min(Math.Max(length, 0), Math.Min(ssid.Length, 32));
         if (len == 0)
         {
-            return "(Bilinmeyen ağ)";
+            // Boş SSID = yayınını kapatmış AP (gizli ağ).
+            return "(Gizli ağ)";
         }
 
         byte[] slice = ssid[..len];
@@ -122,6 +129,13 @@ internal sealed class WifiService : IDisposable
         >= 25 => 2,
         _ => 1,
     };
+
+    /// <summary>Bağlı ağ en üste; ardından sinyal gücüne göre azalan.</summary>
+    internal static IReadOnlyList<WifiNetworkInfo> SortNetworks(IEnumerable<WifiNetworkInfo> networks) =>
+        networks
+            .OrderByDescending(n => n.IsConnected)
+            .ThenByDescending(n => n.Signal)
+            .ToList();
 
     private static string BuildProfileXml(string ssid, string? password)
     {
@@ -168,6 +182,8 @@ internal sealed class WifiService : IDisposable
             }
 
             IsAvailable = true;
+            // Tarama asenkron tamamlanır; sonuç sonraki poll'ların cache'inde görünür.
+            WlanApi.Scan(handle, guid);
             if (!WlanApi.TryGetNetworks(handle, guid, out List<WlanApi.RawNetwork> raw))
             {
                 Networks = [];
@@ -175,15 +191,15 @@ internal sealed class WifiService : IDisposable
                 return;
             }
 
-            Networks = raw
+            Networks = SortNetworks(raw
                 .Select(n => new WifiNetworkInfo(
-                    SsidToString(n.Ssid),
+                    SsidToString(n.Ssid, n.SsidLength),
                     n.Signal,
                     n.Secured,
                     n.HasProfile,
                     n.Connected,
                     n.ProfileName))
-                .ToList();
+                .ToList());
             Changed?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)

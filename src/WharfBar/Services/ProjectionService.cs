@@ -15,13 +15,15 @@ internal sealed class ProjectionService
 {
     internal ProjectionMode? Current { get; private set; }
 
-    /// <summary>DISPLAYCONFIG_TOPOLOGY_ID 1..4 aynı sırada ProjectionMode'a karşılık gelir.</summary>
+    /// <summary>
+    /// DISPLAYCONFIG_TOPOLOGY_ID gerçek değerleri (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8.
+    /// </summary>
     internal static ProjectionMode? FromTopologyId(uint id) => id switch
     {
         1 => ProjectionMode.InternalOnly,
         2 => ProjectionMode.Clone,
-        3 => ProjectionMode.Extend,
-        4 => ProjectionMode.ExternalOnly,
+        4 => ProjectionMode.Extend,
+        8 => ProjectionMode.ExternalOnly,
         _ => null,
     };
 
@@ -41,9 +43,34 @@ internal sealed class ProjectionService
         }
         else
         {
-            Debug.WriteLine("WharfBar: QueryDisplayConfig failed");
-            Current = null;
+            // Hibrit-GPU makinelerinde (ör. NVIDIA + AMD iGPU) topology veritabanı
+            // ERROR_INVALID_PARAMETER döndürür; geometriden tahmin et.
+            Debug.WriteLine("WharfBar: QueryDisplayConfig failed — guessing from monitor metrics");
+            (int monitors, int vx, int vy, int vw, int vh, int pw, int ph) = DisplayTopology.ReadMonitorMetrics();
+            Current = GuessCurrentMode(monitors, vx, vy, vw, vh, pw, ph);
         }
+    }
+
+    /// <summary>
+    /// Aktif monitör sayısı + sanal ekran geometrisinden mod tahmini.
+    /// Tek monitör InternalOnly/ExternalOnly'yi ayırt edemez — InternalOnly varsayar.
+    /// </summary>
+    internal static ProjectionMode? GuessCurrentMode(
+        int monitors, int virtualX, int virtualY, int virtualW, int virtualH,
+        int primaryW, int primaryH)
+    {
+        if (monitors <= 0)
+        {
+            return null;
+        }
+
+        if (monitors == 1)
+        {
+            return ProjectionMode.InternalOnly;
+        }
+
+        bool singleArea = virtualW == primaryW && virtualH == primaryH;
+        return singleArea ? ProjectionMode.Clone : ProjectionMode.Extend;
     }
 
     internal bool TryApply(ProjectionMode mode)

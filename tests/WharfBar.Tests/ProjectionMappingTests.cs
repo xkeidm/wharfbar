@@ -7,20 +7,24 @@ namespace WharfBar.Tests;
 public class ProjectionMappingTests
 {
     [Theory]
+    // DISPLAYCONFIG_TOPOLOGY_ID gerçek değerleri (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8
     [InlineData(1, (int)ProjectionMode.InternalOnly)]
     [InlineData(2, (int)ProjectionMode.Clone)]
-    [InlineData(3, (int)ProjectionMode.Extend)]
-    [InlineData(4, (int)ProjectionMode.ExternalOnly)]
+    [InlineData(4, (int)ProjectionMode.Extend)]
+    [InlineData(8, (int)ProjectionMode.ExternalOnly)]
     public void FromTopologyId_MapsKnownIds(uint id, int expectedIndex)
     {
         Assert.Equal((ProjectionMode)expectedIndex, ProjectionService.FromTopologyId(id));
     }
 
-    [Fact]
-    public void FromTopologyId_UnknownId_IsNull()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(3)]
+    [InlineData(5)]
+    [InlineData(99)]
+    public void FromTopologyId_UnknownId_IsNull(uint id)
     {
-        Assert.Null(ProjectionService.FromTopologyId(0));
-        Assert.Null(ProjectionService.FromTopologyId(99));
+        Assert.Null(ProjectionService.FromTopologyId(id));
     }
 
     [Fact]

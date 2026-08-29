@@ -260,6 +260,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <DockPanel Grid.Row="0" Margin="0,0,0,12">
@@ -279,30 +280,114 @@
                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                         CornerRadius="8"
                         Padding="14,12"
-                        Margin="0,0,0,12">
-                    <StackPanel>
-                        <DockPanel>
-                            <TextBlock x:Name="NetworkGlyphLarge"
-                                       FontFamily="{DynamicResource AppIconFontFamily}"
-                                       FontSize="22"
+                        Margin="0,0,0,10">
+                    <DockPanel>
+                        <TextBlock x:Name="NetworkGlyphLarge"
+                                   FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="22"
+                                   VerticalAlignment="Center"
+                                   Text="&#xE839;" />
+                        <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="NetworkTitleText"
+                                       FontWeight="SemiBold"
+                                       FontSize="14"
+                                       Text="Ağ" />
+                            <TextBlock x:Name="NetworkSubtitleText"
+                                       FontSize="12"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap"
+                                       Text="—" />
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <!-- Canlı trafik: ↓ indirme · ↑ yükleme (2 sn'de bir güncellenir) -->
+                <Border Grid.Row="2"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                        CornerRadius="8"
+                        Padding="14,9"
+                        Margin="0,0,0,10">
+                    <DockPanel>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="14"
                                        VerticalAlignment="Center"
-                                       Text="&#xE839;" />
-                            <StackPanel Margin="12,0,0,0" VerticalAlignment="Center">
-                                <TextBlock x:Name="NetworkTitleText"
-                                           FontWeight="SemiBold"
-                                           FontSize="14"
-                                           Text="Ağ" />
-                                <TextBlock x:Name="NetworkSubtitleText"
-                                           FontSize="12"
-                                           Opacity="0.75"
-                                           TextWrapping="Wrap"
-                                           Text="—" />
-                            </StackPanel>
+                                       Text="&#xE896;" />
+                            <TextBlock x:Name="TrafficDownloadText"
+                                       Margin="6,0,0,0"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Text="—" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="14"
+                                       VerticalAlignment="Center"
+                                       Text="&#xE898;" />
+                            <TextBlock x:Name="TrafficUploadText"
+                                       Margin="6,0,0,0"
+                                       FontSize="13"
+                                       VerticalAlignment="Center"
+                                       Text="—" />
+                        </StackPanel>
+                        <TextBlock FontSize="11"
+                                   Opacity="0.6"
+                                   VerticalAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   Text="Anlık trafik" />
+                    </DockPanel>
+                </Border>
+
+                <!-- Özellikler (Windows ağ özellikleri düzeni) -->
+                <Border Grid.Row="3"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14,10"
+                        Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.75"
+                                   Margin="0,0,0,6"
+                                   Text="Özellikler" />
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="Adaptör" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetAdapterName" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="Tür" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetKind" FontSize="12" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="IPv4 adresi" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetIpv4" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="IPv6 adresi" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetIpv6" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="Ağ geçidi" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetGateway" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="DNS" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetDns" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="MAC adresi" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetMac" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
+                        </DockPanel>
+                        <DockPanel Margin="0,2,0,0">
+                            <TextBlock Text="Bağlantı hızı" Opacity="0.6" FontSize="12" Width="88" VerticalAlignment="Center" />
+                            <TextBlock x:Name="NetLinkSpeed" FontSize="12" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Text="—" />
                         </DockPanel>
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Row="2">
+                <StackPanel Grid.Row="4">
                     <Button Content="Ağ ayarlarını aç"
                             Margin="0,0,0,8"
                             Padding="12,8"
@@ -314,18 +399,10 @@
                             HorizontalContentAlignment="Left"
                             Click="OnOpenWifiSettingsClick" />
                     <Button Content="Ethernet ayarları"
-                            Margin="0,0,0,8"
                             Padding="12,8"
                             HorizontalContentAlignment="Left"
                             Click="OnOpenEthernetSettingsClick" />
                 </StackPanel>
-
-                <TextBlock Grid.Row="3"
-                           Margin="0,8,0,0"
-                           FontSize="11"
-                           Opacity="0.6"
-                           TextWrapping="Wrap"
-                           Text="Durum .NET ağ API’lerinden okunur; sistem tepsi ikonları aynalanmaz." />
             </Grid>
 
             <!-- WIFI -->

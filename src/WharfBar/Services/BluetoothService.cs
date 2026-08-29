@@ -7,10 +7,19 @@ namespace WharfBar.Services;
 
 internal sealed record BluetoothDeviceInfo(string Id, string Name, bool IsConnected);
 
-/// <summary>Eşleşmiş Bluetooth cihazlarını listeler; bağlı olanlar işaretlenir.</summary>
+/// <summary>
+/// Eşleşmiş Bluetooth cihazlarını listeler; bağlı olanlar işaretlenir.
+/// Pairing.IsPaired radyo yeni açıldığında / kapalıyken yanlış (false) dönebiliyor
+/// (AEP cache'i cold), bu yüzden System.Devices.Aep.IsPaired property'siyle birleştirilir.
+/// </summary>
 internal sealed class BluetoothService : IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
+    private static readonly string[] AdditionalProperties =
+    [
+        "System.Devices.Aep.IsConnected",
+        "System.Devices.Aep.IsPaired",
+    ];
 
     private readonly DispatcherTimer _timer;
     private bool _disposed;
@@ -53,16 +62,23 @@ internal sealed class BluetoothService : IDisposable
     {
         try
         {
-            DeviceInformationCollection devices = await DeviceInformation.FindAllAsync(BluetoothDevice.GetDeviceSelector());
+            DeviceInformationCollection devices = await DeviceInformation.FindAllAsync(
+                BluetoothDevice.GetDeviceSelector(), AdditionalProperties);
             var result = new List<BluetoothDeviceInfo>();
             foreach (DeviceInformation device in devices)
             {
-                if (!device.Pairing.IsPaired)
+                device.Properties.TryGetValue(ConnectedProperty, out object? aepConnected);
+                device.Properties.TryGetValue(PairedProperty, out object? aepPaired);
+                bool paired = device.Pairing.IsPaired || aepPaired is true;
+                if (!paired)
                 {
                     continue;
                 }
 
-                bool connected = await TryGetConnectedAsync(device.Id);
+                // Aep.IsConnected container bazında güvenilir; yoksa FromIdAsync'e düş.
+                bool connected = aepConnected is bool b
+                    ? b
+                    : await TryGetConnectedAsync(device.Id);
                 result.Add(new BluetoothDeviceInfo(
                     device.Id,
                     string.IsNullOrWhiteSpace(device.Name) ? "(Adsız cihaz)" : device.Name,
@@ -77,6 +93,9 @@ internal sealed class BluetoothService : IDisposable
             Debug.WriteLine($"WharfBar: Bluetooth refresh failed — {ex.Message}");
         }
     }
+
+    private const string ConnectedProperty = "System.Devices.Aep.IsConnected";
+    private const string PairedProperty = "System.Devices.Aep.IsPaired";
 
     private static async Task<bool> TryGetConnectedAsync(string deviceId)
     {

@@ -27,10 +27,14 @@ internal struct WLAN_INTERFACE_INFO_LIST
     public WLAN_INTERFACE_INFO InterfaceInfo;
 }
 
+/// <summary>
+/// wlanapi.h'taki native layout'un birebir kopyası — alan sırası/boyut testle kilitli
+/// (WlanStructLayoutTests: toplam 628 bayt, dwFlags offset 620). Geçmişte struct sapmıştı
+/// ve SSID metni kayıyordu; değiştirmeden önce testleri güncelle.
+/// </summary>
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 internal struct WLAN_AVAILABLE_NETWORK
 {
-    public uint wlanProfileFlags;
     [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)]
     public string strProfileName;
     public DOT11_SSID dot11Ssid;
@@ -44,10 +48,10 @@ internal struct WLAN_AVAILABLE_NETWORK
     public uint bMorePhyTypes;
     public uint wlanSignalQuality;
     public uint bSecurityEnabled;
-    public uint dot11AuthAlgorithm;
-    public uint dot11CipherAlgorithm;
-    public uint bDot11Rssi;
-    public int wlanRssi;
+    public uint dot11DefaultAuthAlgorithm;
+    public uint dot11DefaultCipherAlgorithm;
+    public uint dwFlags;
+    public uint dwReserved;
 }
 
 [StructLayout(LayoutKind.Sequential)]
@@ -114,7 +118,14 @@ internal static class WlanApi
     private const uint wlan_intf_opcode_current_connection = 7;
     private const int InterfaceListHeaderBytes = 8;
 
-    internal readonly record struct RawNetwork(byte[] Ssid, int Signal, bool Secured, bool HasProfile, bool Connected, string? ProfileName);
+    internal readonly record struct RawNetwork(
+        byte[] Ssid,
+        int SsidLength,
+        int Signal,
+        bool Secured,
+        bool HasProfile,
+        bool Connected,
+        string? ProfileName);
 
     [DllImport("wlanapi.dll")]
     private static extern uint WlanOpenHandle(uint dwClientVersion, IntPtr pReserved, out uint pdwNegotiatedVersion, out IntPtr phClientHandle);
@@ -133,6 +144,9 @@ internal static class WlanApi
 
     [DllImport("wlanapi.dll")]
     private static extern uint WlanQueryInterface(IntPtr hClientHandle, ref Guid pInterfaceGuid, uint OpCode, IntPtr pReserved, out uint pdwDataSize, out IntPtr ppData, IntPtr pWlanOpcodeValueType);
+
+    [DllImport("wlanapi.dll")]
+    private static extern uint WlanScan(IntPtr hClientHandle, ref Guid pInterfaceGuid, IntPtr pDot11Ssid, IntPtr pIeData, IntPtr pReserved);
 
     [DllImport("wlanapi.dll")]
     private static extern void WlanFreeMemory(IntPtr pMemory);
@@ -179,6 +193,12 @@ internal static class WlanApi
         }
     }
 
+    /// <summary>WlanScan tetikler; sonuç asenkron gelir, sonraki GetAvailableNetworkList çağrılarında görünür.</summary>
+    internal static void Scan(IntPtr handle, Guid guid)
+    {
+        WlanScan(handle, ref guid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);
+    }
+
     internal static bool TryGetNetworks(IntPtr handle, Guid guid, out List<RawNetwork> networks)
     {
         networks = [];
@@ -195,13 +215,15 @@ internal static class WlanApi
             for (int i = 0; i < list.dwNumberOfItems; i++)
             {
                 WLAN_AVAILABLE_NETWORK n = Marshal.PtrToStructure<WLAN_AVAILABLE_NETWORK>(itemPtr + i * stride);
+                bool hasProfile = (n.dwFlags & WLAN_AVAILABLE_NETWORK_HAS_PROFILE) != 0;
                 networks.Add(new RawNetwork(
                     n.dot11Ssid.ucSSID,
+                    (int)n.dot11Ssid.uSSIDLength,
                     (int)n.wlanSignalQuality,
                     n.bSecurityEnabled != 0,
-                    (n.wlanProfileFlags & WLAN_AVAILABLE_NETWORK_HAS_PROFILE) != 0,
-                    (n.wlanProfileFlags & WLAN_AVAILABLE_NETWORK_CONNECTED) != 0,
-                    (n.wlanProfileFlags & WLAN_AVAILABLE_NETWORK_HAS_PROFILE) != 0 ? n.strProfileName : null));
+                    hasProfile,
+                    (n.dwFlags & WLAN_AVAILABLE_NETWORK_CONNECTED) != 0,
+                    hasProfile && !string.IsNullOrEmpty(n.strProfileName) ? n.strProfileName : null));
             }
 
             return true;
