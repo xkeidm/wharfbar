@@ -25,6 +25,7 @@ internal sealed class TaskbarVisibilityService
     private int _hooksAttached;
     private bool _hidden;
     private readonly TrayPeekTracker _peekTracker = new(AppBarPlacement.TrayPeekMaxDuration);
+    private readonly TaskbarWatchdogStateStore _watchdogStore = new(TaskbarWatchdog.DefaultDirectory());
     private bool _stealthPeek;
     private int _expandingWorkArea;
     private int _pendingBroadcastExpand;
@@ -33,6 +34,13 @@ internal sealed class TaskbarVisibilityService
     private readonly Dictionary<string, int> _reservedBottomByMonitor = new(StringComparer.OrdinalIgnoreCase);
     private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
+    private Task? _restoreTask;
+
+    /// <summary>
+    /// Restore tamamlandığından emin olmak için çıkış yollarında beklenen üst sınır.
+    /// Ölçülen en kötü blok ~13 sn idi; tavan iki katından fazla.
+    /// </summary>
+    internal static readonly TimeSpan RestoreWaitTimeout = TimeSpan.FromSeconds(30);
 
     internal bool IsHidden => _hidden;
 
@@ -70,6 +78,23 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
+        // Self-heal: a leftover state file means the previous run died without restoring
+        // (hard crash — corrupting-state exceptions skip managed handlers). Show the tray
+        // BEFORE capturing so the baseline reflects the user's real taskbar and this
+        // startup repairs the desktop even if the watchdog itself failed.
+        TaskbarWatchdogState? stale = _watchdogStore.Load();
+        if (stale is not null)
+        {
+            try
+            {
+                TaskbarNative.SetTrayVisible(true);
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar stale taskbar heal failed: {ex.Message}");
+            }
+        }
+
         // Capture AppBar state only. Do not trust IsWindowVisible for restore:
         // auto-hide taskbars often report false when slid away, which would
         // permanently leave the tray hidden after exit.
@@ -82,10 +107,64 @@ internal sealed class TaskbarVisibilityService
 
         Interlocked.Exchange(ref _restored, 0);
 
+        SaveWatchdogState();
+
         AttachShutdownHooks();
         // First announcement must reach already-maximized windows (broadcast).
         ApplyHide(broadcast: true);
         StartKeepHiddenWatch();
+        SpawnWatchdog();
+    }
+
+    /// <summary>
+    /// Persists the taskbar baseline for the watchdog process. File present = taskbar
+    /// hidden by this process generation and not yet restored.
+    /// </summary>
+    private void SaveWatchdogState()
+    {
+        try
+        {
+            _watchdogStore.Save(new TaskbarWatchdogState
+            {
+                Pid = Environment.ProcessId,
+                ProcessStartTime = Process.GetCurrentProcess().StartTime,
+                BaselineState = _baselineState,
+                WorkAreaLeft = _baselineWorkArea.Left,
+                WorkAreaTop = _baselineWorkArea.Top,
+                WorkAreaRight = _baselineWorkArea.Right,
+                WorkAreaBottom = _baselineWorkArea.Bottom,
+                HaveWorkArea = _haveBaselineWorkArea,
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar watchdog state save failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>Starts the out-of-process taskbar watchdog (best effort).</summary>
+    private void SpawnWatchdog()
+    {
+        try
+        {
+            string? exePath = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(exePath))
+            {
+                return;
+            }
+
+            _ = Process.Start(new ProcessStartInfo
+            {
+                FileName = exePath,
+                Arguments = "--taskbar-watchdog",
+                UseShellExecute = false,
+                CreateNoWindow = true,
+            });
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar watchdog spawn failed: {ex.Message}");
+        }
     }
 
     internal void ReapplyHide()
@@ -240,6 +319,49 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
+        // Shell calls inside RestoreCore can block for many seconds when some top-level
+        // window answers the SPI_SETWORKAREA broadcast slowly (measured 12.6 s once).
+        // Running them on the UI thread stalled the still-visible bar window until the
+        // broadcast finished — the "closes late" symptom. Kick to background; exit paths
+        // wait for completion explicitly (WaitForRestore / RestoreBlocking).
+        _restoreTask = Task.Run(RestoreCore);
+    }
+
+    /// <summary>
+    /// Crash/exit paths where nothing is visible anymore and the process is going away:
+    /// run the restore synchronously (a background thread might be killed mid-restore).
+    /// </summary>
+    internal void RestoreBlocking()
+    {
+        if (Interlocked.Exchange(ref _restored, 1) != 0)
+        {
+            WaitForRestore(RestoreWaitTimeout);
+            return;
+        }
+
+        if (Volatile.Read(ref _captured) == 0)
+        {
+            return;
+        }
+
+        RestoreCore();
+    }
+
+    /// <summary>Waits until the background restore finishes (no-op when not started).</summary>
+    internal void WaitForRestore(TimeSpan timeout)
+    {
+        try
+        {
+            _restoreTask?.Wait(timeout);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: WaitForRestore failed — {ex.Message}");
+        }
+    }
+
+    private void RestoreCore()
+    {
         _peekTracker.Reset();
         _stealthPeek = false;
         StopKeepHiddenWatch();
@@ -259,6 +381,11 @@ internal sealed class TaskbarVisibilityService
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar taskbar restore failed: {ex.Message}");
+        }
+        finally
+        {
+            // Watchdog polls this file: gone → parent restored, watchdog exits.
+            _watchdogStore.Delete();
         }
     }
 
@@ -471,13 +598,13 @@ internal sealed class TaskbarVisibilityService
 
         if (System.Windows.Application.Current is { } app)
         {
-            app.Exit += (_, _) => Restore();
-            app.SessionEnding += (_, _) => Restore();
-            app.DispatcherUnhandledException += (_, _) => Restore();
+            app.Exit += (_, _) => RestoreBlocking();
+            app.SessionEnding += (_, _) => RestoreBlocking();
+            app.DispatcherUnhandledException += (_, _) => RestoreBlocking();
         }
 
-        AppDomain.CurrentDomain.ProcessExit += (_, _) => Restore();
-        AppDomain.CurrentDomain.UnhandledException += (_, _) => Restore();
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => RestoreBlocking();
+        AppDomain.CurrentDomain.UnhandledException += (_, _) => RestoreBlocking();
 
         // Closing the console that owns `dotnet run` does not run WPF OnExit reliably;
         // CTRL_CLOSE_EVENT does — restore here before the process is torn down.
@@ -495,11 +622,11 @@ internal sealed class TaskbarVisibilityService
             case NativeMethods.CTRL_CLOSE_EVENT:
             case NativeMethods.CTRL_LOGOFF_EVENT:
             case NativeMethods.CTRL_SHUTDOWN_EVENT:
-                Restore();
+                RestoreBlocking();
                 return true; // restored; system still ends the process shortly
             case NativeMethods.CTRL_C_EVENT:
             case NativeMethods.CTRL_BREAK_EVENT:
-                Restore();
+                RestoreBlocking();
                 return false; // allow default terminate
             default:
                 return false;

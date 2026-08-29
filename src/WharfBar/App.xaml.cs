@@ -180,7 +180,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        _taskbar?.Restore();
+        TaskbarVisibilityService? taskbar = _taskbar;
+        taskbar?.Restore();
         _taskbar = null;
 
         _monitors?.Dispose();
@@ -196,6 +197,12 @@ public partial class App : Application
 
         _singleInstance?.Dispose();
         _singleInstance = null;
+
+        // Restore was kicked to a background thread in OnClosing (shell calls can block
+        // for many seconds on a slow WM_SETTINGCHANGE broadcast). The bar/tray visuals
+        // are gone by now, so waiting here only delays the invisible process exit — but
+        // never exit before the taskbar/work-area restore is guaranteed complete.
+        taskbar?.WaitForRestore(TaskbarVisibilityService.RestoreWaitTimeout);
         base.OnExit(e);
     }
 }
