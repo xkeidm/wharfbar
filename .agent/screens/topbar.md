@@ -50,7 +50,9 @@ Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
 `QuickSettingsFlyout` — tek Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; ana pencerenin
 Mica'sıyla ilgisi yok); Main / Mixer /
 Network sekmeleri paylaşılır (ADR-006). Mixer: varsayılan aygıt + dropdown + uygulama
-oturumları. Açılış noktası tıklanan ikona göre sekme seçer. Popup `VerticalOffset=10` ile
+oturumları. Network: bağlantı kartı + canlı ↓/↑ trafik satırı + "Özellikler" bölümü
+(adaptör, tür, IPv4/IPv6, ağ geçidi, DNS, MAC, bağlantı hızı — `NetworkDetailsService`,
+sayfa açıkken 2 sn poll; Windows ağ özellikleri düzeni). Açılış noktası tıklanan ikona göre sekme seçer. Popup `VerticalOffset=10` ile
 barın altında hafif boşluk bırakır; sağ kenarda da 12px boşluk (kök Border `Margin="0,0,12,0"`,
 ekran sağ kenarına clamp'li açılır). Yüzey border'sız, yuvarlatılmış köşeler + yarı saydam
 (`FlyoutSurface`: tema `ApplicationBackgroundBrush` rengi, %85 alfa — arkadaki içerik hafifçe

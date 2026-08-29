@@ -27,10 +27,10 @@ penceresini kapatmak uygulamayı öldürmez).
 
 > ⚠️ **Çalıştırmadan önce oku.** Uygulama açıkken ekranın üstünde bir şerit alan rezerve edilir
 > ve Windows görev çubuğu gizlenir. Süreç zorla sonlandırılırsa (`Stop-Process -Force`,
-> `dotnet run` konsolunu kapatmak) restore / `ABM_REMOVE` atlanabilir: görev çubuğu veya üst
-> work area asılı kalır. Düzeltmesi: Görev Yöneticisi’nden **Windows Gezgini’ni yeniden başlat**.
-> Normal kapatmada (tepsi Quit / Alt+F4) her ikisi de geri gelir. `run.bat` kullan; ham
-> `dotnet run` konsolunu kapatma.
+> `dotnet run` konsolunu kapatmak) **görev çubuğu watchdog alt süreci tarafından ~0.5 sn içinde
+> geri getirilir**; yalnızca rezerve AppBar şeridi asılı kalabilir — onun düzeltmesi Görev
+> Yöneticisi'nden **Windows Gezgini'ni yeniden başlatmak**tır. Normal kapatmada (tepsi Quit /
+> Alt+F4) her ikisi de geri gelir. `run.bat` kullan; ham `dotnet run` konsolunu kapatma.
 
 İkinci bir örnek başlatılamaz (named Mutex); çalışan örnek varken `dotnet run` sessizce çıkar.
 

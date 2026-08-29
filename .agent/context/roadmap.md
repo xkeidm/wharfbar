@@ -39,6 +39,22 @@
   ikonlar `Win+B`'de kalır). **25H2+ UIA fallback ✓ (manuel doğrulandı):** klasik toolbar
   kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + `TrayCapture` (PrintWindow
   ile gerçek ikon yakalama) + UIA `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
+- **Sistem istatistikleri ✓ (kod; manuel doğrulama bekliyor)** — üst bar sol kümede Windows
+  logosunun yanında `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (2 sn poll;
+  `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
+  via `PdhAddEnglishCounterW`; GPU sayacı yoksa GPU bölümü gizlenir), saf hesap metotları
+  unit testli (`SystemStatsTests`, 26 test), `topBar.showSystemStats` toggle
+  (Ayarlar → Üst Çubuk). **GPU başına gösterim ✓ (kod):** motor örnekleri örnek adındaki
+  LUID'e göre fiziksel adaptöre gruplanır; `topBar.showGpuPerAdapter` açıkken çoklu GPU'da
+  `GPU0 x% · GPU1 y%` (LUID sırası; Görev Yöneticisi numaralandırmasından farklı olabilir).
+  Ayarlar → Üst Çubuk sayfası yenilendi: canlı önizleme şeridi, ToggleSwitch'ler,
+  durum öğelerinde ⋮⋮ sürükle-bırak sıralama (manuel doğrulama bekliyor).
+- **Görev çubuğu watchdog ✓ (kod + uçtan uca doğrulandı 2026-08-25)** — PDH `PtrToStringUni`
+  AV'si (`PDH_FMT_COUNTERVALUE` 8↔16 bayt ABI hatası; düzeltildi + ABI testi) yönetilen
+  handler'ları atladığı için `WharfBar.exe --taskbar-watchdog` alt süreci baseline'ı
+  (`%LOCALAPPDATA%/WharfBar/taskbar-watchdog.json`) izleyip restore'suz ölümde görev çubuğunu
+  geri getirir; açılışta stale dosya self-heal. AppBar rezervasyonu kapsam dışı (explorer restart).
+  Force-kill testi: ~0.5 sn'de tray görünür.
 
 ## Yapılacaklar listesi (öncelikli)
 

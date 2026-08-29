@@ -45,9 +45,10 @@ dotnet test                       # tests/WharfBar.Tests (xUnit)
 - `src/WharfBar/Views/Pages/` — ayar sayfaları (`General`, `Appearance`, `Dock`, `TopBar`, `About`)
 
 > **Uyarı:** Uygulamayı çalıştırmak üst kenarda AppBar alanı rezerve eder. Süreci zorla
-> sonlandırma (`Stop-Process -Force`, hata ayıklayıcıyı koparma) `ABM_REMOVE` yolunu atlar ve
-> rezerve alan asılı kalır; düzeltmek için `explorer.exe` yeniden başlatılır. Pencereyi normal
-> yoldan kapat.
+> sonlandırma (`Stop-Process -Force`, hata ayıklayıcıyı koparma) `ABM_REMOVE` yolunu atlar;
+> **görev çubuğu** artık watchdog alt süreci tarafından ~0.5 sn içinde geri getirilir, ancak
+> rezerve AppBar şeridi asılı kalır — onun düzeltmesi `explorer.exe` yeniden başlatmaktır.
+> Pencereyi normal yoldan kapat.
 
 Makinede yalnızca .NET 9 SDK kurulu olabilir; bu sorun değil, `net8.0-windows10.0.19041.0`
 hedefini derleyebilir. **`global.json` ile 8.x’e sabitleme** — 8.x SDK yoksa derleme kırılır.
@@ -56,7 +57,7 @@ hedefini derleyebilir. **`global.json` ile 8.x’e sabitleme** — 8.x SDK yoksa
 
 - **Asla:** Çıkışta AppBar kaydını (`ABM_REMOVE`) veya görev çubuğu restore’unu unutma; Mica ile `AllowsTransparency=true` birlikte kullanma; yabancı tepsi ikonlarını bellek/undocumented yolla okuma.
 - **Yap (ADR-005):** WharfBar çalışırken görev çubuğunu gizle/auto-hide; çıkış/crash’te önceki duruma geri yükle. Dock: canlı TaskBar pin + running. Tepsi: hibrit (native overflow düğmesi; tam ayna yok).
-- **v1:** Yalnızca birincil monitör; UWP/Store ikonları sınırlı; durum göstergeleri .NET API ile simüle edilir.
+- **v1:** Yalnızca birincil monitör; UWP/Store ikonları sınırlı. Hızlı ayarlar (Wi-Fi/BT/yansıt) gerçek API'lerle çalışır (wlanapi, WinRT Radio, SetDisplayConfig); top bar network tooltip'i .NET ağ API'si heuristic'iyle kalır.
 - Ayrıntı: [`.agent/boundaries.md`](.agent/boundaries.md)
 
 ## Doküman güncelleme

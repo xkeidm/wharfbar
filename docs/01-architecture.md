@@ -93,6 +93,7 @@ src/WharfBar/
     DockAutoHideController.cs   # kenar bandı poll, show/hide animasyon, state makinesi
     AutostartService.cs         # Startup klasörü .lnk; AppConfig.autostart ile senkron
     StatusService.cs            # Saat + ağ/pil (.NET / GetSystemPowerStatus)
+    SystemStatsService.cs       # CPU/GPU/RAM örnekleme (GetSystemTimes / GlobalMemoryStatusEx / PDH)
     MediaSessionSelector.cs     # oturum seçim politikası: en son aktif; MoveCurrent halka (ADR-008)
     MediaSessionService.cs      # SMTC izleme: snapshot + oynat/duraklat/ileri/geri + seçici (ADR-008)
     MonitorBrightnessService.cs # Monitör tarama, DDC/CI + WMI parlaklık oku/yaz (debounced)
@@ -100,12 +101,15 @@ src/WharfBar/
     AudioMixerService.cs        # aygıt + uygulama karıştırıcı
     QuickSettingsService.cs     # hızlı ayar karoları / ağ eylemleri (veil karosu dahil)
     WifiService.cs              # Wlan API ile ağ listesi + bağlanma (QS Wifi sayfası)
+    NetworkDetailsService.cs    # Ağ sayfası "Özellikler": IP/gateway/DNS/MAC/link hızı + canlı ↓/↑ (IPv4 byte delta)
     BluetoothService.cs         # eşleşmiş BT cihazları + bağlı durumu (QS Bluetooth sayfası)
     NightLightService.cs        # CloudStore best-effort gece ışığı okuma/yazma + oturum override
     ProjectionService.cs        # SetDisplayConfig ile yansıtma modları (QS Project sayfası)
     VeilService.cs              # kaplama durumu, fade, hotkey host, config kalıcılığı (ADR-007)
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
-    TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore
+    TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore + watchdog spawn/self-heal
+    TaskbarWatchdogState.cs     # watchdog baseline JSON store (%LOCALAPPDATA%/WharfBar)
+    TaskbarWatchdog.cs          # --taskbar-watchdog modu: restore'suz ölümde görev çubuğunu dışarıdan geri getirir
     TaskbarPinnedAppsSource.cs  # User Pinned\TaskBar .lnk tarama + watcher
     RunningAppsSource.cs        # EnumWindows arka plan + AUMID gruplama
     DockAppsComposer.cs         # pin + running birleşik liste
@@ -162,7 +166,8 @@ Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
 | `DockWindow` | Alt overlay; canlı pin/running strip; hover ölçek (yalnız hover'daki ikon, 1.3×); sağ tık bağlam menüsü (Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici çalıştır, Dosya konumunu aç, Yeni pencere); katmanlı pencere + tema renkli yüzey (Mica/Acrylic); AppBar yok |
-| `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore |
+| `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore. Baseline watchdog state dosyasına yazılır, `--taskbar-watchdog` alt süreci spawn edilir; stale dosya varsa açılışta tray önce gösterilir (self-heal) |
+| `TaskbarWatchdog` | Headless mod (`Program.Main` dallanır, WPF başlamaz): PID + start-time izler, restore'suz ölümde baseline'ı uygular. PID reuse ve yeni-instance dosya yenilemesi güvenli |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar` `.lnk` tarama; değişiklik watcher |
 | `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
 | `DockAppsComposer` | Pin + running birleşik `DockAppItem` listesi (Sabitler solda, sabit olmayan çalışanlar ayırıcı ile sağda); `pinnedApps` fallback |
@@ -182,6 +187,8 @@ Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 | `AppThemePreference` | `theme` alanı → `ApplicationTheme` |
 | `AutostartService` | Startup klasörü `WharfBar.lnk`; `autostart` true/false ile oluştur/sil |
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
+| `NetworkDetailsService` | Ağ sayfası "Özellikler" (2 sn poll, sayfa açıkken): aktif adaptör (Wi-Fi > Ethernet önceliği) → IP/gateway/DNS/MAC/link hızı; canlı ↓/↑ Mbps `GetIPv4Statistics` byte-delta'sından, sayaç sıfırlaması/süre 0 → null ("—"). Saf hesap metotları unit testli |
+| `SystemStatsService` | Üst bar sol küme CPU/GPU/RAM okuması (2 sn poll); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, lokalizasyondan bağımsız). GPU motor örnekleri örnek adındaki LUID'e göre fiziksel adaptöre gruplanır (`ParseAdapterKey`/`GroupByAdapters`); yazılımsal adaptörler (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) dışlanır: Windows onları D3D adaptörü olarak sayar ama fiziksel GPU değildir ve Görev Yöneticisi de listelemez. `topBar.showGpuPerAdapter` açıkken `GPU0 x% · GPU1 y%`, kapalıyken tek toplam. Saf hesap metotları unit testli |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
 | `TrayMirrorService` | Tray toolbar'ı 1.5 sn poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar; tıklama forward (ADR-009) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
@@ -209,8 +216,9 @@ Uygulanan (Faz 1–9):
 1. `App.OnStartup` → `SingleInstanceGuard.TryAcquire()`; mutex alınamazsa `Shutdown()`
 2. `ConfigService.LoadOrCreate()` → `%AppData%/WharfBar/config.json`; `AppThemePreference` uygulanır
 3. `AutostartService.Apply(config.Autostart)` — Startup klasörü kısayolunu senkronlar
-4. `TaskbarVisibilityService.CaptureAndHide()` — `ABM_GETSTATE` + `Shell_TrayWnd` görünürlük baseline;
-   ardından `ShowWindow(SW_HIDE)` ile gizle
+4. `TaskbarVisibilityService.CaptureAndHide()` — stale watchdog dosyası varsa tray önce gösterilir
+   (self-heal); `ABM_GETSTATE` + `Shell_TrayWnd` görünürlük baseline; baseline watchdog dosyasına
+   yazılır; ardından `ShowWindow(SW_HIDE)` ile gizle ve `--taskbar-watchdog` alt süreci spawn edilir
 5. `TopBarWindow.Show()` — AppBar + sol Windows menü + `StatusService` / overflow
 6. `DockWindow.Show(config)` — overlay; `DockAppsComposer` ile canlı pin/running; AppBar kaydı yok
 7. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
@@ -284,6 +292,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
   "topBar": {
     "backgroundMode": "tint",
     "tintOpacity": 40,
+    "showSystemStats": true,
+    "showGpuPerAdapter": true,
     "statusCatalogVersion": 4,
     "statusItems": [
       "trayOverflow",
@@ -321,6 +331,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). Güncel **4**: eksik `controlCenter` `volume` önüne, eksik `brightness` `volume` sonrasına, eksik `media` `brightness` sonrasına eklenir (`Ensure*`; eski sürüm açılışta 4'e taşınır — ADR-008) |
 | `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, … `media` dahil, … `battery`). Soft alan (`schemaVersion` 1) |
+| `topBar.showSystemStats` | Sol kümede Windows logosunun yanındaki `CPU x% · GPU y% · RAM z%` okuması (varsayılan **`true`**; soft bool — eksik alan varsayılana düşer). GPU sayacı yoksa GPU bölümü gösterilmez |
+| `topBar.showGpuPerAdapter` | Birden çok fiziksel GPU varsa GPU bölümlerini numaralandır (`GPU0 x% · GPU1 y%`); kapalıyken tek toplam segment (varsayılan **`true`**; soft bool). Tek GPU'da iki mod da aynı görünür |
 | `veil.enabled` | Kaplama açık/kapalı (kalıcı; QS karosu + kısayol + sayfa toggle'ı yazar). Varsayılan **`false`** |
 | `veil.color` | Kaplama rengi `#RRGGBB` (soft; geçersiz/eksik → `VeilNormalizer` varsayılan **`#4A90D9`**, küçük harfe normalleştirilir; `#RGB` kabul edilir) |
 | `veil.opacity` | 0–100 kaplama gücü; yüklemede `ClampOpacity` (varsayılan **40**). Siyah + yüksek opaklık = parlaklık azaltma (ayrı kontrol yok) |
