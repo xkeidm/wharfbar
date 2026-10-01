@@ -48,6 +48,8 @@ public class WindowOverlayStylesTests
         }
     }
 
+    private static readonly WndProcDelegate WndProc = new(DefWindowProc);
+
     private static IntPtr CreateDummyWindow()
     {
         const string className = "WharfBarTestsOverlayDummy";
@@ -55,7 +57,7 @@ public class WindowOverlayStylesTests
         var wndClass = new WNDCLASSEX
         {
             cbSize = Marshal.SizeOf<WNDCLASSEX>(),
-            lpfnWndProc = Marshal.GetFunctionPointerForDelegate(new WndProcDelegate(DefWindowProc)),
+            lpfnWndProc = Marshal.GetFunctionPointerForDelegate(WndProc),
             lpszClassName = className,
         };
         RegisterClassEx(ref wndClass);
