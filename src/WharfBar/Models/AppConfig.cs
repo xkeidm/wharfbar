@@ -31,6 +31,8 @@ internal sealed class AppConfig
 
     public VeilConfig Veil { get; set; } = new();
 
+    public IslandConfig Island { get; set; } = new();
+
     public List<PinnedApp> PinnedApps { get; set; } = [];
 
     public List<MonitorConfig> Monitors { get; set; } = [];
@@ -220,4 +222,42 @@ internal static class VeilNormalizer
         color = Color.FromRgb((byte)r, (byte)g, (byte)b);
         return true;
     }
+}
+
+/// <summary>Island (clipboard geçmişi + bırakılan dosyalar) ayarları.</summary>
+internal sealed class IslandConfig
+{
+    internal const bool DefaultEnabled = true;
+
+    internal const int DefaultRetentionDays = 30;
+
+    internal const int DefaultMaxItems = 200;
+
+    /// <summary>Geçmişin nerede tutulacağı.</summary>
+    internal enum PersistenceMode
+    {
+        /// <summary>Yalnız bellekte; WharfBar kapanınca silinir. Varsayılan.</summary>
+        Session,
+
+        /// <summary>Diske yazılır; <c>RetentionDays</c> ile budanır.</summary>
+        Persistent,
+    }
+
+    public bool Enabled { get; set; } = DefaultEnabled;
+
+    public PersistenceMode Persistence { get; set; } = PersistenceMode.Session;
+
+    /// <summary>Persistent modda kaç gün geriye bakılır.</summary>
+    public int RetentionDays { get; set; } = DefaultRetentionDays;
+
+    /// <summary>Kayıt sayısı sert tavanı (gün limitinden bağımsız).</summary>
+    public int MaxItems { get; set; } = DefaultMaxItems;
+}
+
+/// <summary>Pure static normalization helpers for <see cref="IslandConfig"/> (unit-tested).</summary>
+internal static class IslandNormalizer
+{
+    internal static int ClampRetentionDays(int value) => Math.Clamp(value, 1, 3650);
+
+    internal static int ClampMaxItems(int value) => Math.Clamp(value, 10, 5000);
 }

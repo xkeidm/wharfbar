@@ -54,6 +54,7 @@ internal sealed class ConfigService
             string json = File.ReadAllText(ConfigPath);
             bool topBarKeyMissing = !JsonRootHasProperty(json, "topBar");
             bool veilKeyMissing = !JsonRootHasProperty(json, "veil");
+            bool islandKeyMissing = !JsonRootHasProperty(json, "island");
             AppConfig? loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
 
             if (loaded is null)
@@ -81,7 +82,8 @@ internal sealed class ConfigService
             bool monitorsChanged = monitorsMigrated
                 || MonitorCountChanged(loaded.Monitors, Current.Monitors);
 
-            if (iconChanged || statusChanged || catalogChanged || veilKeyMissing || monitorsChanged)
+            if (iconChanged || statusChanged || catalogChanged || veilKeyMissing
+                || islandKeyMissing || monitorsChanged)
             {
                 Save(Current);
             }
@@ -141,6 +143,7 @@ internal sealed class ConfigService
                 TintOpacity = TopBarBackgroundModes.DefaultOpacity,
             },
             Veil = new VeilConfig(),
+            Island = new IslandConfig(),
         };
     }
 
@@ -216,6 +219,9 @@ internal sealed class ConfigService
         config.Veil ??= new VeilConfig();
         config.Veil.Opacity = VeilNormalizer.ClampOpacity(config.Veil.Opacity);
         config.Veil.Color = VeilNormalizer.NormalizeColor(config.Veil.Color);
+        config.Island ??= new IslandConfig();
+        config.Island.RetentionDays = IslandNormalizer.ClampRetentionDays(config.Island.RetentionDays);
+        config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
