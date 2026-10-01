@@ -65,7 +65,7 @@ ve pencerelerin üstüne iner — mevcut `QuickSettingsPopup`/`MediaPopup` ile a
 | `Native/ClipboardNative.cs` | `AddClipboardFormatListener` / `RemoveClipboardFormatListener`, `OpenClipboard` / `CloseClipboard`, `GetClipboardData` (`CF_UNICODETEXT`), `RegisterClipboardFormatW` (`CanIncludeInClipboardHistory`), `GetClipboardOwner`, metin yazma |
 | `Models/IslandEntry.cs` | `internal enum IslandEntryKind { Text, File }` + `internal sealed record IslandEntry(long Id, IslandEntryKind Kind, string Text, string? FilePath, DateTime CapturedAtUtc, string? SourceApp)` |
 | `Services/IslandService.cs` | Yaşam döngüsü: STA okuma thread'i, `ClipboardMessageWindow` kurulumu, yakalama/ekleme/silme **orkestrasyonu**, `Changed` olayı, `Snapshot`. Saf mantık `IslandPruner`'a devredilir |
-| `Services/IslandStore.cs` | `island.json` atomik okuma/yazma + `File.Replace`; bozuk dosyada `.bak` |
+| `Services/IslandStore.cs` | `island.json` atomik **değiştirilir** yazma (tmp + `File.Replace`) ve kilitli okuma/yazma (`Load`/`Save` tek kilit paylaşır); bozuk dosyada `.bak`, ikinci bozulmada `.bak.1`e döndürme; kayıt başına toleranslı okuma (bilinmeyen `kind` → `Text`, çözümlenemeyen alan → o kayıt atılır) + 64 MB boyut tavanı. **Sıralamaz** — sıra tüketicinin işidir |
 | `Services/IslandPruner.cs` | **Saf:** gün/`MaxItems`/`Session` budama, dedupe, arama eşleştirme, önizleme biçimlendirme, bırakma yolu üretimi (test edilebilir saf çekirdek) |
 | `Services/ClipboardMessageWindow.cs` | Mesaj-only `HwndSource` (`ParentWindow = -3`), `WM_CLIPBOARDUPDATE` |
 | `Views/IslandFlyout.xaml(.cs)` | Panel: arama kutusu + `ScrollViewer`/`ItemsControl` liste |
@@ -149,7 +149,7 @@ Yeni animasyon altyapısı eklenmez.
 | Durum | Davranış |
 |-------|----------|
 | Pano başka uygulamada kilitli | STA worker'da birkaç kısa bekleyerek yeniden dene, olmazsa **sessizce düşür**. UI thread'inde asla yeniden deneme |
-| Bozuk `island.json` | `.bak` + boş liste. **Açılışı asla kilitlemez** (`ConfigService` davranışı) |
+| Bozuk `island.json` | `.bak` + boş liste (ikinci bozulmada eski yedek `.bak.1`e döner). **Açılışı asla kilitlemez** (`ConfigService` davranışı) — aynı sebeple 64 MB'ı aşan dosya ve tek bozuk *alan* (bilinmeyen `kind`, bozuk `capturedAtUtc`/`id`) tüm geçmişi düşürmez |
 | Disk yazma hatası | Bellekteki liste çalışmaya devam eder, sonraki değişiklikte tekrar denenir, kullanıcıya gösterilmez |
 | Dosya kopyalama hatası | O dosya atlanır, kalanlar işlenir |
 | Çıkışta bekleyen yazım | `Dispose` sırasında flush (mevcut `Restore` / `WaitForRestore` disiplini) |
