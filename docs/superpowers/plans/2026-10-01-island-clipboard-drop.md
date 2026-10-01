@@ -536,13 +536,27 @@ git commit -m "feat(island): saf cekirdek - dedupe, budama, arama ve onizleme"
 - Modify: `src/WharfBar/Services/ConfigService.cs` (satır 55-56, 84, 216-218)
 - Test: `tests/WharfBar.Tests/IslandConfigTests.cs`
 
+> **⚠️ Bu görev tamamlandı ve aşağıdaki "Produces" bloğu UYGULANMADI (ledger R14).**
+> `Persistence` enum olarak değil **`string`** olarak saklanıyor; `PersistenceMode` enum'u
+> tamamen kaldırıldı. Gerekçe: enum-typed config alanı repoda bir ilkti ve iki kırılganlık
+> yaratıyordu — `"persistence": 7` sessizce geçiyordu ve kullanıcının yazacağı
+> `"persistence": "Persistent"` **string'i `JsonException` fırlatıp TÜM config'i
+> sıfırlıyordu** (pinned apps / monitörler / veil rengi gidiyordu). Repo'daki her eşdeğer alan
+> zaten string + normalize (`NormalizeTheme`, `DockSurfaceStyles.NormalizeStyle`,
+> `TopBarBackgroundModes.NormalizeMode`); bu görevde aynı kalıba geçildi.
+> **Gerçek üretilen sözleşme:** `const string PersistenceSession = "session"`,
+> `const string PersistencePersistent = "persistent"`, `const string DefaultPersistence =
+> PersistenceSession`, `bool Enabled`, `string Persistence`, `int RetentionDays`,
+> `int MaxItems`, ve `IslandNormalizer.NormalizePersistence(string?)`.
+> Aşağıdaki enum bloklarını **"olması gereken" gibi uygulama.**
+
 **Interfaces:**
 - Consumes: `WharfBar.Models.IslandEntry` (Task 1) — bu görevde kullanılmaz, sadece aynı assembly'de durur.
 - Produces:
-  - `namespace WharfBar` → `internal sealed class IslandConfig`:
+  - `namespace WharfBar.Models` → `internal sealed class IslandConfig`:
     - `const bool DefaultEnabled = true`, `const int DefaultRetentionDays = 30`, `const int DefaultMaxItems = 200`
-    - `enum PersistenceMode { Session, Persistent }` (iç içe)
-    - `bool Enabled`, `PersistenceMode Persistence`, `int RetentionDays`, `int MaxItems`
+    - ~~`enum PersistenceMode { Session, Persistent }` (iç içe)~~ → **bkz. yukarıdaki uyarı: yerine `string` + `NormalizePersistence`**
+    - `bool Enabled`, ~~`PersistenceMode Persistence`~~ **→ `string Persistence`**, `int RetentionDays`, `int MaxItems`
   - `namespace WharfBar` → `internal static class IslandNormalizer`:
     - `static int ClampRetentionDays(int value)` → `Math.Clamp(value, 1, 3650)`
     - `static int ClampMaxItems(int value)` → `Math.Clamp(value, 10, 5000)`
@@ -1624,7 +1638,7 @@ internal sealed class IslandService : IDisposable
             Config.MaxItems,
             DateTimeOffset.UtcNow,
             Config.RetentionDays,
-            Config.Persistence == IslandConfig.PersistenceMode.Persistent);
+            IslandNormalizer.NormalizePersistence(Config.Persistence) == IslandConfig.PersistencePersistent);
 
         ApplySnapshot(merged, entry, raiseEntryAdded: true);
     }
@@ -1675,7 +1689,7 @@ internal sealed class IslandService : IDisposable
         {
             merged = IslandPruner.Prepend(
                 merged, e, Config.MaxItems, DateTimeOffset.UtcNow,
-                Config.RetentionDays, Config.Persistence == IslandConfig.PersistenceMode.Persistent);
+                Config.RetentionDays, IslandNormalizer.NormalizePersistence(Config.Persistence) == IslandConfig.PersistencePersistent);
             last = e;
         }
 
@@ -1775,7 +1789,7 @@ internal sealed class IslandService : IDisposable
         _entries.Clear();
         _entries.AddRange(next);
 
-        if (Config.Persistence == IslandConfig.PersistenceMode.Persistent)
+        if (IslandNormalizer.NormalizePersistence(Config.Persistence) == IslandConfig.PersistencePersistent)
         {
             ScheduleSave();
         }
@@ -2639,7 +2653,7 @@ public partial class IslandPage : Page
             return;
         }
 
-        Cfg.Island.Persistence = (IslandConfig.PersistenceMode)PersistenceGroup.SelectedIndex;
+        Cfg.Island.Persistence = (PersistenceCombo.SelectedIndex == 1) ? IslandConfig.PersistencePersistent : IslandConfig.PersistenceSession;
         SaveAndApply();
     }
 
