@@ -78,15 +78,21 @@ internal static class ClipboardNative
 
     // OpenProcess / QueryFullProcessImageName / CloseHandle / PROCESS_QUERY_LIMITED_INFORMATION
     // bilerek burada tekrar edilmiyor: bunlar pano ile ilgili değil, genel süreç adı çözümlemesi.
-    // Kanonik bildirimler NativeMethods'ta; aynı işi yapan tek çağrı noktası
-    // RunningAppsSource.TryGetProcessPath'te (Services/RunningAppsSource.cs:153-181).
+    // Kanonik bildirimler için NativeMethods'a bak; aynı işi yapan bir çağrı noktası da
+    // RunningAppsSource.TryGetProcessPath'te (Services/RunningAppsSource.cs:153-181). Buradaki
+    // GetOwnerProcessName, onun Path.GetFileNameWithoutExtension uygulanmış hâlidir.
 
     /// <summary>Mesaj-only pencereye pano değişim dinleyicisini ekler.</summary>
     internal static bool AddListener(IntPtr hwnd) => hwnd != IntPtr.Zero && AddClipboardFormatListener(hwnd);
 
     /// <summary>
-    /// Dinleyiciyi kaldırır. <c>RemoveClipboardFormatListener</c> idempotent'tir — kayıt yoksa da
-    /// başarılı döner — bu yüzden dönüş değeri yok sayılabilir.
+    /// Dinleyiciyi kaldırır. <c>RemoveClipboardFormatListener</c> idempotent <b>değildir</b>:
+    /// pencere kayıtlı değilse <c>FALSE</c> + <c>ERROR_INVALID_WINDOW</c> (0x57) döner —
+    /// ölçüldü (5/5 deneme): kayıt varken ilk <c>Remove</c> <c>TRUE</c>, ikinci ve sonrakiler
+    /// <c>0x57</c>; hiç eklenmemiş pencere de <c>0x57</c> verir. Bu yüzden yalnızca <b>kayıtlıyken
+    /// ve yalnızca bir kez</b> çağrılmalıdır; ikinci bir çağrı güvenli bir çağrıyı hata olarak
+    /// raporlar. <c>ClipboardMessageWindow.Dispose</c> <c>_disposed</c> bayrağıyla bunu garanti
+    /// eder.
     /// </summary>
     internal static void RemoveListener(IntPtr hwnd)
     {
@@ -101,8 +107,10 @@ internal static class ClipboardNative
     /// içeriği geçmişe almak istemiyor demektir ve kaydedilmemelidir.
     /// </summary>
     /// <remarks>
-    /// <c>false</c>'in üç farklı nedeni vardır (pano kilitli / metin yok / opt-out) ve hepsi
-    /// ayrı <c>Debug.WriteLine</c> ile loglanır; yoksa çağıran taraf teşhis edemez.
+    /// <c>false</c>'in dört farklı nedeni vardır (pano kilitli / metin yok / opt-out işareti /
+    /// opt-out okunamadı) ve hepsi ayrı <c>Debug.WriteLine</c> ile loglanır; yoksa çağıran taraf
+    /// teşhis edemez. İki opt-out yolunun ikisi de <c>historyOptOut = true</c> ile kapanır, yani
+    /// belirsizlikte içerik kaydedilmez.
     /// </remarks>
     internal static bool TryReadText(out string? text, out bool historyOptOut, out int byteCount)
     {
@@ -121,7 +129,19 @@ internal static class ClipboardNative
         try
         {
             uint optOutId = RegisterFormatId(CanIncludeInClipboardHistoryFormat);
-            if (optOutId != 0 && IsClipboardFormatAvailable(optOutId))
+            if (optOutId == 0)
+            {
+                // The opt-out format id is unknown, so the opt-out flag cannot be read at all.
+                // Capturing anyway would silently override a password manager's "do not keep
+                // this" — so we fail closed: historyOptOut = true suppresses the capture. The
+                // format is registered by every modern Windows shell, so this path should not
+                // change behaviour in practice.
+                Debug.WriteLine("[WharfBar] RegisterClipboardFormatW(CanIncludeInClipboardHistory) failed; opt-out check skipped and capture suppressed.");
+                historyOptOut = true;
+                return false;
+            }
+
+            if (IsClipboardFormatAvailable(optOutId))
             {
                 IntPtr optOut = GetClipboardData(optOutId);
                 if (optOut != IntPtr.Zero && ReadDword(optOut) == 0)
