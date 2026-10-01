@@ -107,6 +107,69 @@ internal static class TaskbarNative
         }
     }
 
+    /// <summary>
+    /// Physical-pixel gap between the primary work-area bottom and the monitor bottom —
+    /// the taskbar's (or another appbar's) bottom reservation. >0 while the hidden
+    /// taskbar's phantom AppBar registration still holds the strip.
+    /// </summary>
+    internal static bool TryGetPrimaryWorkAreaGapPx(out int gapPx)
+    {
+        gapPx = 0;
+        IntPtr tray = FindTrayHwnd();
+        IntPtr anchor = tray != IntPtr.Zero ? tray : NativeMethods.GetDesktopWindow();
+        IntPtr monitor = NativeMethods.MonitorFromWindow(anchor, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        var info = new MONITORINFO
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
+        };
+        if (monitor == IntPtr.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return false;
+        }
+
+        gapPx = info.rcMonitor.Bottom - info.rcWork.Bottom;
+        return gapPx >= 0;
+    }
+
+    /// <summary>
+    /// With the auto-hide STATE on (strip release, ADR-005 note 5) explorer parks
+    /// Shell_TrayWnd at a ~2px bottom sliver and clamps every move; the click path drops
+    /// the state first, which releases the clamp, and this then slides the (alpha-0
+    /// invisible) tray fully on-screen so forwarded clicks land on real coordinates.
+    /// </summary>
+    internal static void EnsureTrayOnScreen(IntPtr hwnd)
+    {
+        if (!NativeMethods.GetWindowRect(hwnd, out RECT rect) || rect.Height <= 0)
+        {
+            return;
+        }
+
+        IntPtr monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        var info = new MONITORINFO
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
+        };
+        if (monitor == IntPtr.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return;
+        }
+
+        int parkedTop = info.rcMonitor.Bottom - 2;
+        if (rect.Top < parkedTop)
+        {
+            return; // not parked
+        }
+
+        _ = NativeMethods.SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            info.rcMonitor.Left,
+            info.rcMonitor.Bottom - rect.Height,
+            rect.Width,
+            rect.Height,
+            NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+    }
+
     private static void ApplyTrayVisibility(IntPtr hwnd, bool visible)
     {
         if (visible)
@@ -125,6 +188,7 @@ internal static class TaskbarNative
                     | NativeMethods.SWP_NOSIZE
                     | NativeMethods.SWP_NOZORDER
                     | NativeMethods.SWP_NOACTIVATE);
+            EnsureTrayOnScreen(hwnd);
             return;
         }
 
@@ -371,11 +435,17 @@ internal static class TaskbarNative
         ClearStealthGeometry(hwnd);
 
         // Alpha restore runs while the window is still layered, then the bits drop —
-        // every intermediate state stays fully opaque.
+        // every intermediate state stays fully opaque. The stealth bits are stripped
+        // explicitly rather than trusting the captured "original": a previous run that
+        // died (hard kill) left them applied, so the captured original can itself be
+        // poisoned (restore would then leave a visible-but-click-through taskbar).
         if (_stealthOriginalExStyles.TryGetValue(hwnd, out int exStyle))
         {
             _ = NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 255, NativeMethods.LWA_ALPHA);
-            _ = NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, exStyle);
+            _ = NativeMethods.SetWindowLong(
+                hwnd,
+                NativeMethods.GWL_EXSTYLE,
+                exStyle & ~(NativeMethods.WS_EX_LAYERED | NativeMethods.WS_EX_TRANSPARENT));
         }
     }
 
@@ -453,7 +523,7 @@ internal static class TaskbarNative
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0));
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom);
     }
 
     /// <summary>
@@ -492,7 +562,7 @@ internal static class TaskbarNative
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0));
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom);
     }
 
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>
@@ -512,26 +582,37 @@ internal static class TaskbarNative
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref work,
-            NativeMethods.SPIF_SENDCHANGE));
+            NativeMethods.SPIF_SENDCHANGE), work.Bottom);
     }
 
     /// <summary>
-    /// Feeds the call outcome into the circuit breaker and surfaces the 25H2 rejection
-    /// (<c>ERROR_INVALID_PARAMETER</c>) once per circuit-open transition in debug output.
+    /// Feeds the call outcome into the circuit breaker. The API's return value is not trusted:
+    /// 25H2 also answers <c>TRUE</c> while changing nothing, so the work area is read back and
+    /// compared against <paramref name="expectedBottom"/>. Only a call that actually moved the
+    /// edge counts as success; the first dead-API result per circuit-open transition is surfaced
+    /// in debug output.
     /// </summary>
-    private static bool RecordSetWorkArea(bool ok)
+    private static bool RecordSetWorkArea(bool ok, int expectedBottom)
     {
         int error = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
+        bool effectApplied = ok
+            && TryGetPrimaryWorkArea(out RECT readBack)
+            && readBack.Bottom == expectedBottom;
+
         bool wasOpen = WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow);
-        WorkAreaExpandPolicy.Shared.RecordResult(ok, error, DateTimeOffset.UtcNow);
-        if (!ok && !wasOpen && WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow))
+        WorkAreaExpandPolicy.Shared.RecordResult(ok, error, effectApplied, DateTimeOffset.UtcNow);
+        if (WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow) && !wasOpen)
         {
             System.Diagnostics.Debug.WriteLine(
-                $"WharfBar: SPI_SETWORKAREA rejected (Win32 error {error}) — Windows 11 25H2 " +
-                "does not support work-area overrides; the hidden taskbar's bottom strip " +
-                "cannot be released. Maximized windows will respect the strip.");
+                ok
+                    ? "WharfBar: SPI_SETWORKAREA reported success but the work area did not move — " +
+                      "Windows 11 25H2 does not support work-area overrides; the hidden taskbar's " +
+                      "bottom strip stays reserved. Maximized windows will respect the strip."
+                    : $"WharfBar: SPI_SETWORKAREA rejected (Win32 error {error}) — Windows 11 25H2 " +
+                      "does not support work-area overrides; the hidden taskbar's bottom strip " +
+                      "cannot be released. Maximized windows will respect the strip.");
         }
 
-        return ok;
+        return ok && effectApplied;
     }
 }

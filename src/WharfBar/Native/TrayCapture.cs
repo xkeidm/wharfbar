@@ -53,7 +53,7 @@ internal static class TrayCapture
             return false;
         }
 
-        if (!TryCaptureWindow(tray, out BitmapSource? capture))
+        if (!TryCaptureWindow(tray, out BitmapSource? capture) || capture is null)
         {
             return false;
         }
@@ -70,7 +70,74 @@ internal static class TrayCapture
 
         var cropped = new CroppedBitmap(capture, crop);
         cropped.Freeze();
+
+        // PrintWindow reports success even when it painted nothing (taskbar not shown), which
+        // used to publish solid black squares. Reject a glyph-less crop so the caller falls
+        // back to a letter glyph instead.
+        if (IsBlankCapture(cropped, new Int32Rect(0, 0, cropped.PixelWidth, cropped.PixelHeight)))
+        {
+            return false;
+        }
+
         icon = cropped;
+        return true;
+    }
+
+    /// <summary>
+    /// True when the region carries no glyph: fully transparent, or a single solid fill across
+    /// every pixel (a black DIB, an unpainted background, a bare button plate). Pure and
+    /// unit-tested — see <c>TrayCaptureTests</c>.
+    /// </summary>
+    internal static bool IsBlankCapture(BitmapSource source, Int32Rect region)
+    {
+        if (region.Width <= 0 || region.Height <= 0
+            || region.X < 0 || region.Y < 0
+            || region.X + region.Width > source.PixelWidth
+            || region.Y + region.Height > source.PixelHeight)
+        {
+            return true;
+        }
+
+        int bytesPerPixel = Math.Max(1, source.Format.BitsPerPixel / 8);
+        int stride = region.Width * bytesPerPixel;
+        var buffer = new byte[stride * region.Height];
+        source.CopyPixels(region, buffer, stride, 0);
+
+        if (bytesPerPixel < 4)
+        {
+            // No alpha channel to inspect: a uniform fill is blank, anything else is content.
+            for (int i = bytesPerPixel; i < buffer.Length; i++)
+            {
+                if (buffer[i] != buffer[0])
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        int first = 0;
+        for (int i = 0; i < buffer.Length; i += 4)
+        {
+            if (buffer[i + 3] == 0)
+            {
+                return true;
+            }
+
+            int pixel = (buffer[i + 3] << 24) | (buffer[i + 2] << 16) | (buffer[i + 1] << 8) | buffer[i];
+            if (i == 0)
+            {
+                first = pixel;
+                continue;
+            }
+
+            if (pixel != first)
+            {
+                return false;
+            }
+        }
+
         return true;
     }
 

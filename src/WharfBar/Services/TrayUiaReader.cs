@@ -41,43 +41,28 @@ internal static class TrayUiaReader
     /// </summary>
     internal static IntPtr FindTrayHwnd() => NativeMethods.FindWindow(TrayClass, null);
 
-    internal static bool TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons)
+    /// <summary>
+    /// Enumerates tray app buttons. Roots at the DESKTOP element, not at
+    /// <c>Shell_TrayWnd</c>: with the auto-hide state on (strip release, ADR-005 note 5)
+    /// explorer parks and clamps the tray window at a ~2px edge sliver and that window's
+    /// UIA subtree virtualizes away — but the desktop-root walk still reaches the live
+    /// <c>SystemTray.NormalButton</c> elements, so reads need no peek/show at all.
+    /// MUST run on an STA thread (desktop-scope UIA walks return empty on MTA).
+    /// Returns null when the walk fails; an empty list means no icons exposed.
+    /// </summary>
+    internal static IReadOnlyList<UiaTrayButton>? TryGetTrayButtons()
     {
-        buttons = [];
-
-        IntPtr tray = FindTrayHwnd();
-        if (tray == IntPtr.Zero)
-        {
-            return false;
-        }
-
-        AutomationElement? root;
-        try
-        {
-            root = AutomationElement.FromHandle(tray);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"WharfBar: UIA tray root failed — {ex.Message}");
-            return false;
-        }
-
-        if (root is null)
-        {
-            return false;
-        }
-
         AutomationElementCollection found;
         try
         {
-            found = root.FindAll(
+            found = AutomationElement.RootElement.FindAll(
                 TreeScope.Descendants,
                 new PropertyCondition(AutomationElement.ClassNameProperty, AppButtonClass));
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar: UIA tray scan failed — {ex.Message}");
-            return false;
+            return null;
         }
 
         var result = new List<UiaTrayButton>();
@@ -99,8 +84,7 @@ internal static class TrayUiaReader
             }
         }
 
-        buttons = result;
-        return true;
+        return result;
     }
 
     /// <summary>Left-click via UIA InvokePattern (works on the UI thread, STA).</summary>

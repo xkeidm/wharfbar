@@ -81,13 +81,19 @@ internal sealed class TaskbarVisibilityService
         // Self-heal: a leftover state file means the previous run died without restoring
         // (hard crash — corrupting-state exceptions skip managed handlers). Show the tray
         // BEFORE capturing so the baseline reflects the user's real taskbar and this
-        // startup repairs the desktop even if the watchdog itself failed.
+        // startup repairs the desktop even if the watchdog itself failed. The strip-
+        // release state (ABS_AUTOHIDE) survives process death, so the saved baseline
+        // state is re-applied here too — otherwise the poisoned auto-hide state would be
+        // captured as "the user's baseline" and every later restore would leave the
+        // taskbar parked and hidden.
         TaskbarWatchdogState? stale = _watchdogStore.Load();
         if (stale is not null)
         {
             try
             {
                 TaskbarNative.SetTrayVisible(true);
+                TaskbarNative.SetState(stale.BaselineState);
+                Thread.Sleep(250); // let explorer re-assert the strip before the capture below
             }
             catch (Exception ex)
             {
@@ -375,8 +381,6 @@ internal sealed class TaskbarVisibilityService
             {
                 _ = TaskbarNative.TrySetPrimaryWorkArea(_baselineWorkArea);
             }
-
-            _hidden = false;
         }
         catch (Exception ex)
         {
@@ -384,14 +388,68 @@ internal sealed class TaskbarVisibilityService
         }
         finally
         {
+            _hidden = false;
             // Watchdog polls this file: gone → parent restored, watchdog exits.
             _watchdogStore.Delete();
         }
     }
 
-    private void ApplyHide(bool broadcast = false)
+    private int _iconRefreshDepth; // tray mirror's transient state=0 read window
+
+    /// <summary>
+    /// Starts a tray-icon refresh window: drops the auto-hide state (tray unparks and
+    /// re-exposes its buttons) and suppresses <see cref="EnsureStripReleased"/> until
+    /// <see cref="EndIconRefresh"/>. Refcounted.
+    /// </summary>
+    internal void BeginIconRefresh()
     {
-        if (Volatile.Read(ref _restored) != 0)
+        Interlocked.Increment(ref _iconRefreshDepth);
+        if (TaskbarNative.GetState() == NativeMethods.ABS_AUTOHIDE)
+        {
+            TaskbarNative.SetState(0);
+        }
+    }
+
+    /// <summary>Ends a refresh window and re-applies the strip release.</summary>
+    internal void EndIconRefresh()
+    {
+        if (Interlocked.Decrement(ref _iconRefreshDepth) == 0)
+        {
+            EnsureStripReleased();
+        }
+    }
+
+    /// <summary>
+    /// Keeps the hidden taskbar's phantom bottom strip out of the work area by holding
+    /// <c>ABS_AUTOHIDE</c> (ADR-005 note 5). Re-asserted whenever the gap is detected
+    /// again (explorer re-registers its AppBar after settings events / shell restarts).
+    /// The tray mirror drops the state transiently around clicks and icon refreshes.
+    /// </summary>
+    private void EnsureStripReleased()
+    {
+        if (Volatile.Read(ref _iconRefreshDepth) > 0)
+        {
+            return;
+        }
+
+        if (Volatile.Read(ref _restored) != 0 || Volatile.Read(ref _captured) == 0)
+        {
+            return;
+        }
+
+        if (!TaskbarNative.TryGetPrimaryWorkAreaGapPx(out int gapPx) || gapPx <= 0)
+        {
+            return;
+        }
+
+        if (TaskbarNative.GetState() != NativeMethods.ABS_AUTOHIDE)
+        {
+            TaskbarNative.SetState(NativeMethods.ABS_AUTOHIDE);
+        }
+    }
+
+    private void ApplyHide(bool broadcast = false)
+    {        if (Volatile.Read(ref _restored) != 0)
         {
             return;
         }
@@ -401,6 +459,19 @@ internal sealed class TaskbarVisibilityService
             // Persistent stealth styling first: any show (ours or explorer's async sync)
             // stays invisible while WharfBar runs. Idempotent; covers new secondaries.
             TaskbarNative.EnsureTrayStealthStyles();
+
+            // One-time strip release (ADR-005 note 5): briefly flipping the taskbar to
+            // auto-hide STATE makes explorer drop its bottom AppBar registration; the
+            // ~48px phantom strip then stays out of the work area across show/hide
+            // cycles and baseline state, so maximized windows natively cover the full
+            // screen. The state must return to baseline afterwards: while auto-hide is
+            // on, explorer parks Shell_TrayWnd at a ~2px edge sliver (and clamps every
+            // move), which blinds the UIA tray mirror. The drop needs the auto-hide
+            // state to PERSIST a few seconds — flipping straight back cancels it and
+            // explorer re-registers the strip, so the restore runs on a background
+            // delay. Explorer may re-create the registration later; every ApplyHide
+            // re-checks the gap and re-runs the flip (TaskbarCreated included).
+            EnsureStripReleased();
 
             bool trayWasVisible = TaskbarNative.IsAnyTrayVisible();
             if (trayWasVisible)
@@ -496,6 +567,8 @@ internal sealed class TaskbarVisibilityService
                 TaskbarNative.EnsureTrayStealthStyles();
                 TaskbarNative.SetTrayVisible(false);
             }
+
+            EnsureStripReleased();
 
             // HWND can stay hidden while explorer re-SETPOS the taskbar AppBar (~48px
             // phantom strip). Re-expand on a slow cadence — 10 Hz SPI_GETWORKAREA

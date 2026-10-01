@@ -21,6 +21,28 @@
   aç-kapat), her bar kendi monitöründe AppBar. **`SPI_SETWORKAREA` yedeği 25H2+’ta ölü**
   (API `ERROR_INVALID_PARAMETER` döndürür — `WorkAreaExpandPolicy` devre kesicisi atlar);
   work-area override’ı destekleyen shell çıkana dek AppBar olmayan kenar rezervasyonu yok.
+- **Gizli görev çubuğu + maximize kaplaması (ADR-005 notu 5, 2026-09-30'da tekrar doğrulandı):**
+  gizleme akışı `ABM_SETSTATE(ABS_AUTOHIDE)` verir ve çalışırken o state'te kalır —
+  explorer çubuğu ~2px kıskaca park eder, alt rezervasyon work-area'dan çıkar, maximize
+  pencereler tam ekran kaplar. WharfBar çalışırken ölçüldü: `ABM_GETSTATE=1`, görev çubuğu
+  görünmez, `SPI_GETWORKAREA.Bottom`=1080 → **alt boşluk 0**; uygulama kapalıyken 1032/48.
+  `SW_HIDE` tek başına yetmez (~48px hayalet bırakır). Maximize pencerelere harici `SetWindowPos`
+  müdahalesi YASAK (Firefox/WinForms pencere yöneticisiyle 7 ms'lik savaş üretir — denendi,
+  söküldü).
+- **Ölçüm tuzağı:** `ABM_SETSTATE`/`ABM_SETPOS` **yalnızca kayıtlı bir AppBar** çağırdığında
+  etkilidir; dışarıdan prob etmek `TRUE` dönüp hiçbir şey yapmaz ve "API ölü" yanlış sonucunu
+  üretir (2026-09-30'da bu hataya düşüldü). `SPI_SETWORKAREA` ise gerçekten sessiz bir no-op'tur;
+  devre kesicisi (`WorkAreaExpandPolicy`) bu yüzden dönüş değerine değil **etkiye** bakar.
+- **Tepsi ikonu yakalama PEEK'in içinde olmak zorunda:** `PrintWindow(PW_RENDERFULLCONTENT)`
+  tray `IsWindowVisible=False` iken DIB'e piksel yazmadan `TRUE` döner → siyah bitmap. alpha 0
+  engel **değildir**; belirleyici peek'in açık olması. `TryRefreshViaBlip` ikonları
+  `EndTrayPeek`'ten önce yakalar. `TrayCapture.IsBlankCapture` boş kırpımayı reddeder →
+  harf glifi fallback. Yakalama peek dışına taşınırsa siyah kare geri gelir.
+  Tray aynası parklı tray'de UIA ile okunamaz:
+  okumalar desktop-root'tan özel STA dispatcher thread'inde; tazeleme/tıklama
+  maximize-yokken ~0.5 sn'lik state blip'i ile; boş okuma aynayı temizlemez (son iyi
+  snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
+  geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
 - Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,

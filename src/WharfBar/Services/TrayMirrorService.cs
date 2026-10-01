@@ -33,6 +33,7 @@ internal sealed class TrayMirrorService : IDisposable
     private readonly Dispatcher _dispatcher;
     private readonly TaskbarVisibilityService _taskbar;
     private readonly System.Threading.Timer _timer;
+    private Dispatcher? _staDispatcher;
     private ImageSource? _fallback;
     private IntPtr _lastToolbar;
     private bool _disposed;
@@ -44,19 +45,55 @@ internal sealed class TrayMirrorService : IDisposable
     // good snapshot for up to two consecutive empty reads before clearing the mirror.
     private IReadOnlyList<TrayMirrorItem> _lastGoodUiaItems = [];
     private int _consecutiveEmptyUiaReads;
+    // Once UIA has delivered icons, the mirror source is locked for the session: the
+    // classic toolbar can transiently reappear during state blips (unpark windows) and
+    // its differently-keyed items would wipe and re-add the whole mirror on every flip.
+    private bool _uiaLocked;
 
     internal TrayMirrorService(Dispatcher dispatcher, TaskbarVisibilityService taskbar)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _taskbar = taskbar ?? throw new ArgumentNullException(nameof(taskbar));
-        _timer = new System.Threading.Timer(_ => Poll(), null, PollInterval, PollInterval);
+
+        // Desktop-scope UIA walks (TrayUiaReader) return empty/throw on MTA threads and
+        // need a pumping STA apartment, so every read runs on this dedicated STA
+        // dispatcher thread; timers/clicks just schedule work onto it.
+        var staThread = new Thread(() =>
+        {
+            _staDispatcher = Dispatcher.CurrentDispatcher;
+            Dispatcher.Run();
+        })
+        {
+            IsBackground = true,
+            Name = "WharfBar.TrayMirror",
+        };
+        staThread.SetApartmentState(ApartmentState.STA);
+        staThread.Start();
+
+        _timer = new System.Threading.Timer(
+            _ => _ = _staDispatcher?.BeginInvoke(Poll, DispatcherPriority.Background),
+            null,
+            PollInterval,
+            PollInterval);
+    }
+
+    /// <summary>Queues <paramref name="action"/> onto the STA dispatcher and waits for it.</summary>
+    private T RunOnSta<T>(Func<T> action)
+    {
+        Dispatcher? dispatcher = _staDispatcher;
+        if (dispatcher is null)
+        {
+            throw new InvalidOperationException("Tray mirror STA worker not started.");
+        }
+
+        return dispatcher.Invoke(action, DispatcherPriority.Send);
     }
 
     internal event EventHandler? Changed;
 
     internal IReadOnlyList<TrayMirrorItem> Items { get; private set; } = [];
 
-    internal void Reenumerate() => _ = Task.Run(Poll);
+    internal void Reenumerate() => _ = _staDispatcher?.BeginInvoke(Poll, DispatcherPriority.Background);
 
     /// <summary>
     /// Replays a click on a mirrored tray icon. Routes to the source the item came from: the
@@ -115,6 +152,7 @@ internal sealed class TrayMirrorService : IDisposable
 
         _disposed = true;
         _timer.Dispose();
+        _staDispatcher?.BeginInvokeShutdown(DispatcherPriority.Send);
     }
 
     private void Poll()
@@ -127,7 +165,7 @@ internal sealed class TrayMirrorService : IDisposable
         try
         {
             IntPtr toolbar = TrayToolbar.FindToolbarHwnd();
-            if (toolbar != IntPtr.Zero)
+            if (toolbar != IntPtr.Zero && !_uiaLocked)
             {
                 _lastToolbar = toolbar;
                 Publish(PollToolbar(toolbar));
@@ -163,53 +201,166 @@ internal sealed class TrayMirrorService : IDisposable
 
     private IReadOnlyList<TrayMirrorItem> PollUia()
     {
-        // UIA only exposes the tray children while the taskbar is shown. Stealth-park it
-        // (cloak/alpha + shown) for the read, then re-hide — no visible flash.
-        if (!_taskbar.BeginTrayPeek(stealth: true))
+        // Desktop-root UIA read (TrayUiaReader). While the strip-release auto-hide state
+        // is on, explorer virtualizes the tray content away and this read returns empty;
+        // a state blip (see TryRefreshViaBlip) re-exposes it only when that is invisible.
+        // Poll itself already runs on the STA worker (queued there by the timer), so a
+        // direct call — RunOnSta here would deadlock on the queue it is blocking.
+        IReadOnlyList<UiaTrayButton>? buttons = TrayUiaReader.TryGetTrayButtons();
+        if (buttons is null || buttons.Count == 0)
         {
-            return [];
+            IReadOnlyList<TrayMirrorItem>? blip = TryRefreshViaBlip();
+            if (blip is { Count: > 0 })
+            {
+                _consecutiveEmptyUiaReads = 0;
+                _lastGoodUiaItems = blip;
+                _uiaLocked = true;
+                return blip;
+            }
         }
 
+        // Null (walk failed/blip skipped) and empty (virtualized parked tray) both mean
+        // "no fresh data" — fall through to the last-good grace instead of publishing an
+        // empty snapshot that would collapse the mirror 200ms after every refresh.
+        buttons ??= [];
+
+        IntPtr tray = TrayUiaReader.FindTrayHwnd();
+
+        var items = new List<TrayMirrorItem>(buttons.Count);
+        for (int i = 0; i < buttons.Count; i++)
+        {
+            UiaTrayButton b = buttons[i];
+            // Key by name: most tray apps keep a stable tooltip; state-bearing names
+            // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
+            items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
+        }
+
+        if (items.Count == 0)
+        {
+            // While the strip-release auto-hide state is on, empty reads are the shell
+            // virtualizing the parked tray, not "the user closed every tray app" — so
+            // the last good snapshot stays on the bar (frozen) until a blip refresh
+            // (possible only when nothing is maximized) updates or truly empties it.
+            _consecutiveEmptyUiaReads++;
+            if (_lastGoodUiaItems.Count > 0)
+            {
+                return _lastGoodUiaItems;
+            }
+
+            return items;
+        }
+
+        _consecutiveEmptyUiaReads = 0;
+        _lastGoodUiaItems = items;
+        if (items.Count > 0)
+        {
+            _uiaLocked = true;
+        }
+
+        return items;
+    }
+
+    /// <summary>At most one state blip per this interval — the blip flaps the work area.</summary>
+    private static readonly TimeSpan BlipMinInterval = TimeSpan.FromSeconds(60);
+    private DateTime _lastBlip;
+
+    /// <summary>
+    /// Briefly shows the tray so the shell re-exposes its buttons, reads them, and captures the
+    /// icons <b>while the peek is still open</b> — PrintWindow needs a shown, rendered window;
+    /// once the peek ends the tray is hidden again and every capture comes back a solid black
+    /// DIB. Icons captured inside the peek are returned ready to publish; null when the blip was
+    /// throttled, skipped, or the read came back empty. Runs on the STA worker (Poll already does).
+    /// </summary>
+    private IReadOnlyList<TrayMirrorItem>? TryRefreshViaBlip()
+    {
+        if ((DateTime.UtcNow - _lastBlip) < BlipMinInterval || _clickBusy != 0)
+        {
+            return null;
+        }
+
+        if (HasMaximizedWindowOnPrimary())
+        {
+            return null;
+        }
+
+        _lastBlip = DateTime.UtcNow;
+        TaskbarNative.SetState(0);
+        _taskbar.BeginIconRefresh();
         try
         {
-            // The show tears down and rebuilds the shell's XAML content; reading immediately
-            // yields an empty/partial tree (mirror icons blink away for a poll cycle).
-            Thread.Sleep(PeekSettleMs);
-
-            IntPtr tray = TrayUiaReader.FindTrayHwnd();
-            if (!TrayUiaReader.TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons))
+            if (_taskbar.BeginTrayPeek(stealth: true))
             {
-                return [];
-            }
-
-            var items = new List<TrayMirrorItem>(buttons.Count);
-            for (int i = 0; i < buttons.Count; i++)
-            {
-                UiaTrayButton b = buttons[i];
-                // Key by name: most tray apps keep a stable tooltip; state-bearing names
-                // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
-                items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
-            }
-
-            if (items.Count == 0)
-            {
-                _consecutiveEmptyUiaReads++;
-                if (_lastGoodUiaItems.Count > 0 && _consecutiveEmptyUiaReads < 3)
+                // The tray may still sit at its parked position when the state drops; slide it
+                // fully on-screen (no clamp at state 0) so the UIA rects line up with the
+                // window's own coordinate space before the crop is computed.
+                IntPtr tray = TrayUiaReader.FindTrayHwnd();
+                if (tray != IntPtr.Zero)
                 {
-                    return _lastGoodUiaItems;
+                    TaskbarNative.EnsureTrayOnScreen(tray);
+                }
+
+                Thread.Sleep(PeekSettleMs);
+
+                IReadOnlyList<UiaTrayButton>? read = TrayUiaReader.TryGetTrayButtons();
+                if (read is null || read.Count == 0)
+                {
+                    return null;
+                }
+
+                var items = new List<TrayMirrorItem>(read.Count);
+                for (int i = 0; i < read.Count; i++)
+                {
+                    UiaTrayButton b = read[i];
+                    // Key by name: most tray apps keep a stable tooltip; state-bearing names
+                    // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
+                    items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
                 }
 
                 return items;
             }
-
-            _consecutiveEmptyUiaReads = 0;
-            _lastGoodUiaItems = items;
-            return items;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: tray icon refresh blip failed — {ex.Message}");
         }
         finally
         {
             _taskbar.EndTrayPeek();
+            _taskbar.EndIconRefresh();
         }
+
+        return null;
+    }
+
+    /// <summary>True when a maximized top-level window sits on the primary monitor.</summary>
+    private static bool HasMaximizedWindowOnPrimary()
+    {
+        bool maximized = false;
+        NativeMethods.EnumWindows((hwnd, _) =>
+        {
+            if (maximized
+                || !NativeMethods.IsWindowVisible(hwnd)
+                || NativeMethods.IsIconic(hwnd)
+                || !NativeMethods.IsZoomed(hwnd))
+            {
+                return true;
+            }
+
+            IntPtr monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+            var info = new MONITORINFO
+            {
+                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
+            };
+            if (monitor == IntPtr.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info)
+                || (info.dwFlags & NativeMethods.MONITORINFOF_PRIMARY) == 0)
+            {
+                return true;
+            }
+
+            maximized = true;
+            return false;
+        }, IntPtr.Zero);
+        return maximized;
     }
 
     /// <summary>
@@ -273,21 +424,17 @@ internal sealed class TrayMirrorService : IDisposable
         // would silently no-op. Resolve a FRESH element from the live tree once the
         // visible peek has brought the tray back.
         AutomationElement stale = item.Tag as AutomationElement ?? throw new InvalidOperationException("UIA mirror click without an element.");
-        int appPid;
-        try
-        {
-            appPid = stale.Current.ProcessId;
-        }
-        catch (Exception)
-        {
-            appPid = 0;
-        }
 
         // Invisible anchored click: persistent stealth styles stay on (alpha 0 — the real
         // bar never becomes visible); we drop only the click-through bit so the parked bar
         // receives the synthetic input at its bottom-edge position. App flyouts/menus anchor
         // to their icon rect THERE and render normally — they belong to the app, not to the
         // bar, so no Windows taskbar ever appears.
+        // State blip first: while ABS_AUTOHIDE is on, explorer parks the tray off-screen
+        // and clamps it, so forwarded clicks would land outside the monitor. Dropping the
+        // state for the interaction lets the tray sit at its normal on-screen position;
+        // ApplyHide re-applies auto-hide when the peek ends (gap re-check).
+        TaskbarNative.SetState(0);
         if (!_taskbar.BeginTrayPeek(stealth: true))
         {
             TrayPeekDiagnostics.LogNote("click peek FAILED");
@@ -372,7 +519,12 @@ internal sealed class TrayMirrorService : IDisposable
                 TrayPeekDiagnostics.LogNote($"click invoke-fallback={invoked}");
             }
 
-            HoldPeekWhileFlyoutFocused(appPid, cts.Token);
+            // The app's flyout/menu is its own top-level popup and survives the tray
+            // re-hide, so the peek is not held while it is focused — ending the peek
+            // immediately keeps the work-area flap (maximized-window shrink) to a
+            // fraction of a second. Wait briefly so the popup spawns and
+            // TrayMenuReanchor can latch its geometry before the state flips back.
+            Thread.Sleep(300);
         }
         catch (Exception ex)
         {
@@ -396,12 +548,13 @@ internal sealed class TrayMirrorService : IDisposable
     /// in <see cref="TrayButtonMatcher"/> (exact → containment for named keys; unnamed items
     /// resolve by their poll-time index — never containment, which would hit the wrong app).
     /// </summary>
-    private static AutomationElement? ResolveLiveButton(TrayMirrorItem item, out int buttonCount)
+    private AutomationElement? ResolveLiveButton(TrayMirrorItem item, out int buttonCount)
     {
         buttonCount = 0;
         try
         {
-            if (!TrayUiaReader.TryGetTrayButtons(out IReadOnlyList<UiaTrayButton> buttons))
+            IReadOnlyList<UiaTrayButton>? buttons = RunOnSta(() => TrayUiaReader.TryGetTrayButtons());
+            if (buttons is null)
             {
                 return null;
             }

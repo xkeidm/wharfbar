@@ -50,12 +50,59 @@ work area değişmez; auto-hide canlıyken bile legacy AppBar katmanı şeridi t
 (`ABM_GETAUTOHIDEBAR=0`). Bu nedenle WharfBar çalışırken maximize pencereler alt şeride
 saygı duyar ve "tam ekran tam dolmaz".
 
-Karar: sınırlılık kabul edilir; işlevsiz SPI çağrıları `WorkAreaExpandPolicy` devre
-kesicisiyle atlanır (2×87 → 10 dk skip; `TaskbarCreated` reset; tek prob re-probe).
+O günkü karar: sınırlılık kabul edilir; işlevsiz SPI çağrıları `WorkAreaExpandPolicy`
+devre kesicisiyle atlanır (2×87 → 10 dk skip; `TaskbarCreated` reset; tek prob re-probe).
 Auto-hide ortak yaşamı (SW_HIDE'ı bırakıp Windows auto-hide'a dayanma) değerlendirildi:
 25H2'de auto-hide legacy katmana bildirilmiyor + maximize ile bilinen z-order
-regresyonları var — reddedildi. Pencere bazlı telafi (maximize pencereleri elle
-büyütme) pencere yöneticisiyle sürekli savaş — reddedildi.
+regresyonları var — reddedildi (bu red geçerli kalmaya devam eder).
+
+### 5. Ek not (2026-08-30, final): ABS_AUTOHIDE kalıcı + adaptif tray blip'i
+
+> **2026-09-30 tekrar ölçümü — karar doğrulandı, değiştirilmedi.** WharfBar **çalışırken**
+> ölçüldü: `ABM_GETSTATE=1`, `Shell_TrayWnd` görünmez ve ~2px kıskaca parklı (top=1078),
+> `SPI_GETWORKAREA.Bottom`=**1080** → **alt boşluk 0**, yani maximize pencereler tam ekran
+> kaplıyor. Uygulama kapalıyken 1032/48'e dönüyor. 9 child dahil `DesktopWindowContentBridge`
+> gizli → XAML hayaleti yok. `SPI_SETWORKAREA` ise gerçekten sessiz bir no-op; devre kesicisi
+> bu yüzden dönüş değerine değil **etkiye** bakacak şekilde güncellendi.
+>
+> **Ölçüm tuzağı:** `ABM_SETSTATE`/`ABM_SETPOS` yalnızca **kayıtlı bir AppBar** çağırdığında
+> etkilidir. Kayıt dışı bir süreçten çağrılırsa `TRUE` döner ama hiçbir şey olmaz — 2026-09-30'da
+> bu yüzden "25H2'de work-area genişletme imkânsız" sonucuna varıldı ve **yanlış** bulundu.
+> Bu API'leri yalnızca WharfBar çalışırken ölç.
+
+**Pencere bazlı telafi denendi, kaldırıldı.** `SetWinEventHook(EVENT_OBJECT_LOCATIONCHANGE)`
+ile maximize bandındaki pencereleri `SetWindowPos` ile uzatan ilk uygulama, uygulama
+pencere yöneticileriyle savaştı: Firefox ve WinForms, maximize edilmiş pencerelerinin
+önbelleğe alınmış sınırlarını yeniden dayatıyor (canlı ölçüm: `SetWindowPos ok=True` ama
+rect 7 ms'de bir geri alınıyor, pencere titriyor ve maximize state'i bozuluyor). Dünkü
+"pencere yöneticisiyle savaş" gerekçesi bu yüzden haklı çıktı; yaklaşım tamamen söküldü.
+
+**Gerçek çözüm — native auto-hide state:** gizleme akışı `ABM_SETSTATE(ABS_AUTOHIDE)`
+verir ve çalışma süresince o state'te kalır (HWND gizli). Canlı ölçüm: auto-hide
+state'te explorer görev çubuğunu ~2px'lik kenar kıskacına park eder ve alt AppBar
+rezervasyonunu work-area'dan çıkarır (`rcWork` bottomGap 48 → 0) — maximize pencereler
+alt şeridi hiç savaşmadan kapatır; hiçbir pencereye dokunulmaz.
+
+**Tray aynası bu state'te iki kısıtla çalışır** (park edilmiş pencerenin XAML içeriği
+UIA'ya tamamen virtualize olur; `SWP_NOSENDCHANGING` ile taşıma, `WM_MOUSEMOVE` hover,
+reveal tetikleme — hepsi canlı ölü):
+1. Okumalar **desktop-root'tan** (`RootElement.FindAll(SystemTray.NormalButton)`), özel
+   **STA dispatcher thread'inde** (MTA'da masaüstü-altı UIA yürüyüşü boş döner; pump'suz
+   STA'da kilitlenme). Park edilmişken okuma yine boş olur — butonlar ancak tray
+   unpark edildiğinde var olur.
+2. Bu yüzden **adaptif blip**: en fazla 60 sn'de bir ve birincil monitörde maximize
+   pencere YOKKEN state 0'a düşürülüp ~0.5 sn'lik okuma penceresi açılır. Maximize
+   pencere varken blip atlanır (work-area flap'i maximize pencereyi görünür şekilde
+   kısaltır) ve **son iyi snapshot ekranda donuk kalır** — boş okumalar aynayı
+   temizlemez. Sağ tık / sol tık da aynı blip'i kullanır (tıklama koordinatları için
+   tray unpark şart); flap bu yüzden tıklama anında ~0.5 sn sürer.
+
+**Çıkış restorasyonu:** `SetState(baseline)` + `SetTrayVisible(true)` — state 0 + tray
+görünür olunca explorer kaydı yeniden oluşturur (doğrulandı), şerit döner. **Zorla kill
+zehirlenmesi:** ABS_AUTOHIDE state süreç ölümünden sağ çıkar; bir sonraki açılış stale
+watchdog dosyasından kayıtlı baseline state'i geri yükleyip öyle yakalar (yoksa
+zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — canlı yaşandı).
+`SPI_SETWORKAREA` devre kesicisi yedek olarak durur.
 
 ## Gerekçe
 

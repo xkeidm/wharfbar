@@ -35,10 +35,18 @@ her monitör config'te ayrı açılır/kapanır (`monitors`).
 
 Birincil monitörde bu yol görev çubuğuyla birebir çalışır. İkincil monitörlerde shell
 uyumluluğu daha kırılgan olabildiğinden yedek olarak `SystemParametersInfo(SPI_SETWORKAREA)`
-ile manuel work area genişletmesi planlanmıştı (dikkatli kullan; diğer shell bileşenleriyle
-çakışabilir — bkz. boundaries "Yap"). **25H2 (2026-08-29):** `SPI_SETWORKAREA` tüm sürümlerde
-`ERROR_INVALID_PARAMETER` ile reddediliyor; yedek yol ölü. Work area override'ı destekleyen
-bir shell gelene dek AppBar olmayan kenarlarda rezervasyon yapılamaz.
+ ile manuel work area genişletmesi planlanmıştı (dikkatli kullan; diğer shell bileşenleriyle
+çakışabilir — bkz. boundaries "Yap"). **25H2 (2026-08-29):** `SPI_SETWORKAREA` çalışmıyor;
+yedek yol ölü. Work area override'ı destekleyen bir shell gelene dek **alt şeridi yalnızca
+`ABM_SETSTATE(ABS_AUTOHIDE)` ile bırakmak mümkündür** (aşağıdaki görev çubuğu gizleme
+bölümü) — `SPI_SETWORKAREA`'ya gerek yok.
+
+> **Tuzak (2026-09-30):** Bu API'ye dışarıdan (kayıtlı **olmayan** bir süreçten) bakıp
+> "25H2'de her şey ölü" sonucuna varmak yanıltıcıdır. `SPI_SETWORKAREA` gerçekten
+> `TRUE` dönüp **sessizce hiçbir şey yapmıyor** (ölçüldü) — ama alt şeridin bırakılması
+> zaten bu yola değil, `ABM_SETSTATE(ABS_AUTOHIDE)`'ye bağlıdır ve o **çalışır**.
+> Aynı şekilde `ABM_SETSTATE`'i de kayıt dışı bir süreçten prob etmek yanlış negatif verir:
+> yalnızca **kayıtlı bir AppBar**'ın çağrısı etkilidir. Ölçümü WharfBar çalışırken yap.
 
 ### Explorer çöküşü / yeniden başlama
 
@@ -106,14 +114,32 @@ Top bar göstergeleri için:
   dönünce ayna UI Automation'a düşer: `Shell_TrayWnd → … → TaskbarFrameAutomationPeer` altındaki
   `SystemTray.NormalButton` butonları (ad + `AutomationElement`); sistem ikonları farklı
   class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`) + giriş göstergesi tooltip
-  filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)`
-  ile park+cloak'lı taskbar'ın kendi içeriğini çekip butonun `Image` çocuk rect'ini kırpar
-  (gerçek ikon, flash yok; başarısızsa `TrayLetterGlyph` fallback). UIA
-   çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
-   (cloak + ekran dışı park) ile okunur, flash yok. DWM cloak bazı makinelerde reddedilir
-   (`DwmSetWindowAttribute` S_OK dönmez) → `TrySetTrayVisibleStealth` o durumda
-   **WS_EX_LAYERED + alpha 0** yedeğiyle görünmezlik sağlar (UIA `IsWindowVisible=true` görmeye
-   devam eder); o da başarısızsa peek açılmaz, poll atlanır. Ayna yalnızca birincil monitörün
+filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)`
+   ile park+cloak'lı taskbar'ın kendi içeriğini çekip butonun `Image` çocuk rect'ini kırpar
+   (gerçek ikon, flash yok; başarısızsa `TrayLetterGlyph` fallback). UIA
+    çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
+    (cloak + ekran dışı park) ile okunur, flash yok. DWM cloak bazı makinelerde reddedilir
+    (`DwmSetWindowAttribute` S_OK dönmez) → `TrySetTrayVisibleStealth` o durumda
+    **WS_EX_LAYERED + alpha 0** yedeğiyle görünmezlik sağlar (UIA `IsWindowVisible=true` görmeye
+    devam eder); o da başarısızsa peek açılmaz, poll atlanır.
+
+   > **İkon yakalaması PEEK'in İÇİNDE olmak zorunda (2026-09-30, canlı ölçüm + düzeltme).**
+   > `PrintWindow(PW_RENDERFULLCONTENT)` görev çubuğu **`IsWindowVisible=False` iken DIB'e hiç
+   > piksel yazmaz ama `TRUE` döner** → `1920x48` tamamen siyah (`[0,0,0,255]`) bitmap
+   > "başarılı" diye yayınlanır ve üst bar **siyah kareler** gösterir. Ölçülen fark:
+   >
+   > | Durum | `IsWindowVisible` | Kırpılan pikseller |
+   > |---|---|---|
+   > | peek kapalı (yarış) | `False` | `[0,0,0,255]` ×9 — düz siyah |
+   > | peek açık | `True` | `[67,67,67] [68,68,68] [33,33,33]…` — gerçek görev çubuğu |
+   >
+   > **alpha 0 `PrintWindow`'i engellemiyor** — tek belirleyici `IsWindowVisible`, yani peek'in
+   > açık olması. `TryRefreshViaBlip` ikonları **kendi `finally`'inden (`EndTrayPeek`) önce**
+   > yakalar ve hazır `TrayMirrorItem` listesi döndürür; `PollUia` yalnız o listeyi kullanır.
+   > Kalıcı savunma: `TrayCapture.IsBlankCapture` tek renkli/tam saydam kırpımayı reddeder →
+   > çağıran taraf harf glifine düşer, **artık siyah kare mümkün değildir**
+> (`TrayCaptureTests` ile testli).
+   Ayna yalnızca birincil monitörün
    üst barına işlenir (ikincil barlarda `trayMirror` bölümü oluşmaz). Tıklama: tüm türler için
    `SendInputMouse` fiziksel tıklama (`InvokePattern` 25H2 XAML tray butonlarında
    doğrulanmadı; rect bulunamazsa son çare fallback). Uygulamanın flyout/menüsü park edilmiş
@@ -182,15 +208,39 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
    `FindWindow("Shell_TrayWnd")` — restore için saklanır. (25H2'de `ABM_GETSTATE`
    güvenilmez: auto-hide açıkken de 0 döner.)
 2. **Gizleme:** `ShowWindow` + `SWP_HIDEWINDOW` (`FindWindow("Shell_TrayWnd")` ve
-   `FindWindowEx` ile `Shell_SecondaryTrayWnd`; UI thread’de tam `EnumWindows` yok —
-   asılı bir pencere AppBar’da wait cursor bırakır). `ABM_SETSTATE(ABS_AUTOHIDE)` kullanılmaz —
-   explorer kenar reveal ile çubuğu tekrar gösterir. **25H2 gerçeği (2026-08-29, canlı ölçüm):**
-   `SW_HIDE` AppBar rezervasyonunu bırakır (~48px hayalet şerit) ve `SPI_SETWORKAREA` ile
-   work area genişletme **çalışmaz** — API her flag kombinasyonunda `ERROR_INVALID_PARAMETER (87)`
-   döndürür. Pencereyi taşımak/boyutlandırmak shell tarafından geri alınır; yabancı
-   `ABM_SETPOS` onaylansa bile work area değişmez; auto-hide canlıyken bile legacy AppBar
-   katmanı şeridi tutar (`ABM_GETAUTOHIDEBAR=0`). Sonuç: maximize pencereler alttaki şeride
-   saygı duyar — bilinen sınırlılık, ADR-005 ek notu.
+`FindWindowEx` ile `Shell_SecondaryTrayWnd`; UI thread’de tam `EnumWindows` yok —
+    asılı bir pencere AppBar’da wait cursor bırakır). **(Tarihsel: `ABM_SETSTATE` eskiden
+    edge-reveal kaygısıyla kullanılmıyordu — 2026-08-30'da şerit çözümünün kendisi oldu.)**
+
+   **25H2 gerçeği (2026-08-29 ölçüm, 2026-09-30 tekrar doğrulandı — Win11 25H2 build 26200.9457):**
+   `SW_HIDE` tek başına AppBar rezervasyonunu bırakır (~48px hayalet şerit) ve
+   `SPI_SETWORKAREA` ile genişletme **çalışmaz** (ölçüldü: `TRUE` dönüyor, work area
+   değişmiyor; bazı çağrı biçimleri ayrıca `ERROR_INVALID_PARAMETER (87)` veriyor).
+
+   **Çözüm — native auto-hide state (ADR-005 notu 5, çalıştığı doğrulandı):** gizleme akışı
+   `ABM_SETSTATE(ABS_AUTOHIDE)` verir ve çalışma süresince o state'te kalır. Explorer görev
+   çubuğunu ~2px'lik kenar kıskacına park eder ve **alt rezervasyonu work-area'dan çıkarır**.
+   WharfBar çalışırken ölçülen tablo:
+
+   | | `ABM_GETSTATE` | `Shell_TrayWnd` görünür | tray top | `SPI_GETWORKAREA.Bottom` | alt boşluk |
+   |---|---|---|---|---|---|
+   | uygulama kapalı | 0 | True | 1032 | 1032 | 48 |
+   | **uygulama çalışırken** | **1** | **False** | **1078** (park) | **1080** | **0** |
+
+   → maximize pencereler alt şeridi **tam ekran** kaplar, hiçbir pencereye müdahale edilmez
+   (maximize telafisi `SetWindowPos` ile denendi ve 7 ms'lik savaş ürettiği için söküldü).
+   Aynı ölçümde 9 child'ın hepsi gizli (`DesktopWindowContentBridge` dahil) → XAML hayaleti yok.
+
+   > **Ölçüm tuzağı (2026-09-30):** `ABM_SETSTATE`/`ABM_SETPOS` **yalnızca kayıtlı bir AppBar**
+   > çağırdığında etkilidir. Kayıt dışı bir süreçten çağrılırsa `TRUE` döner ama hiçbir şey
+   > olmaz — bu, "API ölü" yanlış sonucuna yol açar. Doğrulama WharfBar çalışırken yapılır.
+
+   Tray aynası parklı tray'de
+    okunamaz (XAML içeriği virtualize): desktop-root UIA okumaları özel STA dispatcher
+    thread'inden yapılır; tazeleme/tıklama maximize yokken ~0.5 sn'lik state blip'i
+    ister; boş okuma aynayı temizlemez (son iyi snapshot donuk kalır). Restore,
+    `SetState(baseline)` + `SetTrayVisible(true)`; zorla kill sonrası stale watchdog
+    dosyası baseline state'i geri yükler.
 3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
    `EnsureWorkAreaExpanded()`. `ApplyPlacement` içinde `ReapplyHide` yok — gizleme +
    `SETPOS` `ABN_POSCHANGED` döngüsü üst barda wait cursor ve dock auto-hide iptali
