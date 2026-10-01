@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Text;
 using WharfBar.Models;
@@ -74,9 +75,19 @@ internal static class IslandPruner
     }
 
     /// <summary>
-    /// Gün limiti + kayıt sayısı tavanını uygular. <paramref name="persistent"/> false ise
-    /// gün limiti yok sayılır (oturumluk modda eski kayıtlar da tutulur).
+    /// Gün limiti + kayıt sayısı tavanını uygular. <paramref name="entries"/> en yenisi başta
+    /// olacak şekilde sıralı beklenir: <c>Take</c> baştan kestiği için sıra korunur, kayıtlar
+    /// yeniden sıralanmaz. <paramref name="persistent"/> false ise gün limiti yok sayılır
+    /// (oturumluk modda eski kayıtlar da tutulur).
     /// </summary>
+    /// <remarks>
+    /// <paramref name="retentionDays"/> 0 (veya altı) "sınırsız" <b>anlamına gelmez</b>:
+    /// ayar yolu (<c>IslandNormalizer.ClampRetentionDays</c>) değeri 1..3650'e sıkıştırdığı
+    /// için <c>&gt; 0</c> dalı her zaman alınır; <c>&lt;= 0</c> yalnızca bu metodu doğrudan
+    /// çağıran testler için geçerlidir ve gün limitini uygulamaz. Sınırın tam kendisindeki
+    /// kayıt (<c>&gt;=</c> karşılaştırması) <b>kalır</b>. <paramref name="maxItems"/> 0 veya
+    /// altıysa sonuç boştur — tavan 1'e yükseltilmez.
+    /// </remarks>
     internal static IReadOnlyList<IslandEntry> Prune(
         IReadOnlyList<IslandEntry> entries,
         int maxItems,
@@ -92,7 +103,7 @@ internal static class IslandPruner
             kept = kept.Where(e => e.CapturedAtUtc >= cutoff);
         }
 
-        return kept.Take(Math.Max(1, maxItems)).ToList();
+        return kept.Take(Math.Max(0, maxItems)).ToList();
     }
 
     /// <summary>Kaydın arama sorgusuyla eşleşip eşleşmediği. Boş sorgu her şeyi eşleştirir.</summary>
@@ -172,21 +183,26 @@ internal static class IslandPruner
     }
 
     /// <summary>
-    /// Ad çakışması için dosya adı üretir. <paramref name="suffix"/> 0 ise ad değişmez;
-    /// aksi halde uzantıdan önce " (n)" eklenir (klasörler ve uzantısız adlar dahil).
+    /// Ad çakışması için dosya adı üretir. Kural <b>yalnızca dosya adı</b> üzerinde uygulanır:
+    /// önce <c>Path.GetFileName</c> ile yol bileşeni atılır, sonra <paramref name="suffix"/>
+    /// 0 ise ad olduğu gibi döner, aksi halde uzantıdan önce " (n)" eklenir (uzantısız adlar
+    /// dahil). Dönen değer daima yalın bir dosya adıdır — yol, çağıran taraf
+    /// <c>Path.Combine(DropRoot, sonuç)</c> ile kurulur. Böylece nokta içeren bir dizin adı
+    /// (<c>my.dir</c>) yol biçimini bozamaz.
     /// </summary>
     internal static string BuildDropFileName(string fileName, int suffix)
     {
+        string name = Path.GetFileName(fileName);
         if (suffix <= 0)
         {
-            return fileName;
+            return name;
         }
 
         string marker = string.Format(CultureInfo.InvariantCulture, " ({0})", suffix);
-        int dot = fileName.LastIndexOf('.');
+        int dot = name.LastIndexOf('.');
         return dot > 0
-            ? string.Concat(fileName.AsSpan(0, dot), marker, fileName.AsSpan(dot))
-            : string.Concat(fileName, marker);
+            ? string.Concat(name.AsSpan(0, dot), marker, name.AsSpan(dot))
+            : string.Concat(name, marker);
     }
 
     private static bool IsSameContent(IslandEntry a, IslandEntry b) =>

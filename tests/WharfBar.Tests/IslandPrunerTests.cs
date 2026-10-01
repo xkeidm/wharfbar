@@ -60,6 +60,18 @@ public class IslandPrunerTests
     }
 
     [Fact]
+    public void Prepend_Accepts_Empty_Current()
+    {
+        IslandEntry only = Text("ilk", NowUtc);
+
+        IReadOnlyList<IslandEntry> result = IslandPruner.Prepend(
+            [], only, 200, Now, 30, persistent: true);
+
+        Assert.Single(result);
+        Assert.Equal(only, result[0]);
+    }
+
+    [Fact]
     public void Prepend_Keeps_NonConsecutive_Duplicates()
     {
         IslandEntry b = Text("other", NowUtc.AddMinutes(-5));
@@ -84,6 +96,33 @@ public class IslandPrunerTests
 
         Assert.Single(result);
         Assert.Equal("fresh", result[0].Text);
+    }
+
+    [Fact]
+    public void Prune_Keeps_Entry_Exactly_At_RetentionBoundary()
+    {
+        IslandEntry boundary = Text("tam sınır", NowUtc.AddDays(-30));
+        IslandEntry justPast = Text("bir saniye geç", NowUtc.AddDays(-30).AddSeconds(-1));
+
+        IReadOnlyList<IslandEntry> result = IslandPruner.Prune(
+            [boundary, justPast], 200, Now, retentionDays: 30, persistent: true);
+
+        Assert.Single(result);
+        Assert.Equal("tam sınır", result[0].Text);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Prune_Returns_Empty_When_MaxItems_Is_NotPositive(int maxItems)
+    {
+        var entries = new System.Collections.Generic.List<IslandEntry>
+        {
+            Text("a", NowUtc),
+            Text("b", NowUtc.AddMinutes(-1)),
+        };
+
+        Assert.Empty(IslandPruner.Prune(entries, maxItems, Now, 30, persistent: true));
     }
 
     [Fact]
@@ -145,6 +184,12 @@ public class IslandPrunerTests
     }
 
     [Fact]
+    public void FormatPreview_ReturnsEmpty_ForEmptyText()
+    {
+        Assert.Equal(string.Empty, IslandPruner.FormatPreview(string.Empty));
+    }
+
+    [Fact]
     public void FormatPreview_KeepsShortTextIntact()
     {
         Assert.Equal("kısa", IslandPruner.FormatPreview("kısa"));
@@ -159,12 +204,30 @@ public class IslandPrunerTests
         Assert.Equal("2 gün önce", IslandPruner.FormatRelativeTime(NowUtc.AddDays(-2), Now));
     }
 
+    [Fact]
+    public void FormatRelativeTime_Clamps_FutureTimestamps_ToNow()
+    {
+        Assert.Equal("şimdi", IslandPruner.FormatRelativeTime(NowUtc.AddMinutes(10), Now));
+        Assert.Equal("şimdi", IslandPruner.FormatRelativeTime(NowUtc.AddDays(3), Now));
+    }
+
     [Theory]
     [InlineData("rapor.pdf", 0, "rapor.pdf")]
     [InlineData("rapor.pdf", 2, "rapor (2).pdf")]
     [InlineData("arsiv.tar.gz", 3, "arsiv.tar (3).gz")]
     [InlineData("noext", 1, "noext (1)")]
+    [InlineData("my.folder", 1, "my (1).folder")]
     public void BuildDropFileName_AppendsSuffix_BeforeExtension(string input, int suffix, string expected)
+    {
+        Assert.Equal(expected, IslandPruner.BuildDropFileName(input, suffix));
+    }
+
+    [Theory]
+    [InlineData(@"C:\my.dir\file", 1, "file (1)")]
+    [InlineData(@"D:\a.b\c\rapor.pdf", 2, "rapor (2).pdf")]
+    [InlineData(@"C:\my.dir\file", 0, "file")]
+    public void BuildDropFileName_Uses_Only_FileName_Part_OfFullPath(
+        string input, int suffix, string expected)
     {
         Assert.Equal(expected, IslandPruner.BuildDropFileName(input, suffix));
     }
