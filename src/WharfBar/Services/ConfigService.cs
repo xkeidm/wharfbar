@@ -220,6 +220,7 @@ internal sealed class ConfigService
         config.Veil.Opacity = VeilNormalizer.ClampOpacity(config.Veil.Opacity);
         config.Veil.Color = VeilNormalizer.NormalizeColor(config.Veil.Color);
         config.Island ??= new IslandConfig();
+        config.Island.Persistence = IslandNormalizer.NormalizePersistence(config.Island.Persistence);
         config.Island.RetentionDays = IslandNormalizer.ClampRetentionDays(config.Island.RetentionDays);
         config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);

@@ -233,19 +233,19 @@ internal sealed class IslandConfig
 
     internal const int DefaultMaxItems = 200;
 
-    /// <summary>Geçmişin nerede tutulacağı.</summary>
-    internal enum PersistenceMode
-    {
-        /// <summary>Yalnız bellekte; WharfBar kapanınca silinir. Varsayılan.</summary>
-        Session,
+    /// <summary><c>session</c> — yalnız bellekte; WharfBar kapanınca silinir.</summary>
+    internal const string PersistenceSession = "session";
 
-        /// <summary>Diske yazılır; <c>RetentionDays</c> ile budanır.</summary>
-        Persistent,
-    }
+    /// <summary><c>persistent</c> — diske yazılır; <c>RetentionDays</c> ile budanır.</summary>
+    internal const string PersistencePersistent = "persistent";
+
+    /// <summary>Çözülemeyen <c>Persistence</c> değerlerinin düştüğü mod.</summary>
+    internal const string DefaultPersistence = PersistenceSession;
 
     public bool Enabled { get; set; } = DefaultEnabled;
 
-    public PersistenceMode Persistence { get; set; } = PersistenceMode.Session;
+    /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
+    public string Persistence { get; set; } = DefaultPersistence;
 
     /// <summary>Persistent modda kaç gün geriye bakılır.</summary>
     public int RetentionDays { get; set; } = DefaultRetentionDays;
@@ -260,4 +260,12 @@ internal static class IslandNormalizer
     internal static int ClampRetentionDays(int value) => Math.Clamp(value, 1, 3650);
 
     internal static int ClampMaxItems(int value) => Math.Clamp(value, 10, 5000);
+
+    /// <summary>Returns the canonical lowercase mode, or <see cref="IslandConfig.DefaultPersistence"/> when unresolvable.</summary>
+    internal static string NormalizePersistence(string? persistence)
+    {
+        return string.Equals(persistence, IslandConfig.PersistencePersistent, StringComparison.OrdinalIgnoreCase)
+            ? IslandConfig.PersistencePersistent
+            : IslandConfig.DefaultPersistence;
+    }
 }

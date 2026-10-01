@@ -28,13 +28,41 @@ public class IslandConfigTests
         Assert.Equal(expected, IslandNormalizer.ClampMaxItems(input));
     }
 
+    [Theory]
+    [InlineData("session", "session")]
+    [InlineData("Session", "session")]
+    [InlineData("SESSION", "session")]
+    [InlineData("persistent", "persistent")]
+    [InlineData("Persistent", "persistent")]
+    [InlineData("PERSISTENT", "persistent")]
+    public void NormalizePersistence_AcceptsKnownValuesInAnyCasing(string input, string expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizePersistence(input));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("garbage")]
+    [InlineData("7")]
+    public void NormalizePersistence_Unresolvable_FallsBackToDefault(string? input)
+    {
+        Assert.Equal("session", IslandNormalizer.NormalizePersistence(input));
+    }
+
     [Fact]
     public void Defaults_MatchSpec()
     {
+        Assert.True(IslandConfig.DefaultEnabled);
+        Assert.Equal("session", IslandConfig.DefaultPersistence);
+        Assert.Equal(30, IslandConfig.DefaultRetentionDays);
+        Assert.Equal(200, IslandConfig.DefaultMaxItems);
+
         var config = new IslandConfig();
         Assert.True(config.Enabled);
-        Assert.Equal(IslandConfig.PersistenceMode.Session, config.Persistence);
-        Assert.Equal(IslandConfig.DefaultRetentionDays, config.RetentionDays);
-        Assert.Equal(IslandConfig.DefaultMaxItems, config.MaxItems);
+        Assert.Equal("session", config.Persistence);
+        Assert.Equal(30, config.RetentionDays);
+        Assert.Equal(200, config.MaxItems);
     }
 }
