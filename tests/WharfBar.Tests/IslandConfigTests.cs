@@ -18,6 +18,7 @@ public class IslandConfigTests
     }
 
     [Theory]
+    [InlineData(-5, 10)]
     [InlineData(0, 10)]
     [InlineData(9, 10)]
     [InlineData(200, 200)]
