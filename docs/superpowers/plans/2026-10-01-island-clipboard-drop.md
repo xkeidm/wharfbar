@@ -722,6 +722,10 @@ git commit -m "feat(island): config blogu - kalicilik, gun limiti, kayit tavani"
     - `ctor()` — mesaj-only `HwndSource` açar, dinleyiciyi kaydeder
     - `event EventHandler? ClipboardChanged`
     - `void Dispose()`
+  - `IslandStore.Load()` yalnizca `Persistence == Persistent` iken, kurucuda bir kez cagrilir; sonuc
+    `CapturedAtUtc`ye gore yeniden eskiye siralanir, kullanicinin `MaxItems`/`RetentionDays
+    ayariyla budanir ve `_nextId` en yuksek yuklenen `Id`den seed`lenir (aksi halde yeni
+    kayitlar eskilerle cakisir)
 
 - [ ] **Step 1: `ClipboardNative.cs` oluştur**
 
@@ -1433,6 +1437,10 @@ git commit -m "feat(island): atomik kalici depo, bozuk dosyada .bak"
   - `void Clear()`
   - `void DeleteDroppedFiles()`
   - `void Dispose()`
+  - `IslandStore.Load()` yalnizca `Persistence == Persistent` iken, kurucuda bir kez cagrilir; sonuc
+    `CapturedAtUtc`ye gore yeniden eskiye siralanir, kullanicinin `MaxItems`/`RetentionDays
+    ayariyla budanir ve `_nextId` en yuksek yuklenen `Id`den seed`lenir (aksi halde yeni
+    kayitlar eskilerle cakisir)
 
 - [ ] **Step 1: `IslandService.cs` oluştur**
 
@@ -1470,7 +1478,7 @@ internal sealed class IslandService : IDisposable
     private System.Threading.Timer? _saveTimer;
     private long _nextId;
     private bool _disposed;
-    private bool _savePending;
+    private volatile bool _savePending;
 
     internal IslandService(Dispatcher dispatcher, IslandStore store, IslandConfig config)
     {
@@ -1499,6 +1507,41 @@ internal sealed class IslandService : IDisposable
         {
             StartListening();
         }
+
+        LoadPersisted();
+    }
+
+    /// <summary>
+    /// Persistent modda kayıtlı geçmişi geri yükler. Depo ham kayıt döndürür ve sıra garantisi
+    /// vermez (serileştiricidir; elle düzenlenmiş dosyayı gizlice yeniden sıralamak
+    /// kullanıcının dosyasını değiştirmek olurdu) — bu yüzden sıralama ve budama burada,
+    /// kullanicinin ayarlariyla yapilir.
+    /// </summary>
+    private void LoadPersisted()
+    {
+        if (_disposed || Config.Persistence != IslandConfig.PersistencePersistent)
+        {
+            return;
+        }
+
+        IReadOnlyList<IslandEntry> loaded = _store.Load();
+        if (loaded.Count == 0)
+        {
+            return;
+        }
+
+        var ordered = loaded
+            .OrderByDescending(e => e.CapturedAtUtc)
+            .ToList();
+
+        // Id monotonik olmali: yeniden yuklenen en yuksek Id'den devam et, aksi halde
+        // yeni kayitlar eski kayitlarin Id'leriyle cakisir.
+        _nextId = ordered.Count > 0 ? ordered.Max(e => e.Id) : 0;
+
+        Commit(
+            IslandPruner.Prune(ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, persistent: true),
+            added: null,
+            raiseEntryAdded: false);
     }
 
     internal IslandConfig Config { get; private set; }
