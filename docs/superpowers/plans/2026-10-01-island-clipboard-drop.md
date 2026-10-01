@@ -748,7 +748,6 @@ internal static class ClipboardNative
     internal const int WM_CLIPBOARDUPDATE = 0x031D;
 
     private const ushort CF_UNICODETEXT = 13;
-    private const uint GMEM_MOVEABLE = 0x0002;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
@@ -774,28 +773,20 @@ internal static class ClipboardNative
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetClipboardData(uint format, IntPtr data);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GlobalAlloc(uint flags, IntPtr bytes);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern IntPtr GlobalLock(IntPtr mem);
 
-    [DllImport("user32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool GlobalUnlock(IntPtr mem);
 
-    [DllImport("user32.dll")]
+    [DllImport("kernel32.dll")]
     private static extern IntPtr GlobalFree(IntPtr mem);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern int MultiByteToWideChar(
-        uint codePage, uint flags, byte[]? multiByte, int multiByteCount, StringBuilder? wideChar, int wideCharCount);
 
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    private static extern int WideCharToMultiByte(
-        uint codePage, uint flags, string wideChar, int wideCharCount, byte[]? multiByte, int multiByteCount, IntPtr defaultChar, IntPtr usedDefaultChar);
 
-    [DllImport("user32.dll")]
-    private static extern uint GetClipboardSequenceNumber();
 
     [DllImport("user32.dll")]
     private static extern IntPtr GetClipboardOwner();
@@ -803,8 +794,8 @@ internal static class ClipboardNative
     [DllImport("user32.dll")]
     private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool OpenProcess(uint access, bool inheritHandle, uint processId);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr OpenProcess(uint access, bool inheritHandle, uint processId);
 
     [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
@@ -903,40 +894,18 @@ internal static class ClipboardNative
 
         try
         {
-            int byteCount = Utf8ByteCount(text) + 1;
-            IntPtr mem = GlobalAlloc(GMEM_MOVEABLE, new IntPtr(byteCount));
+            // CF_UNICODETEXT is a UTF-16LE format: byte count and content must both be UTF-16.
+            // Writing UTF-8 here corrupts any non-ASCII text for readers, including our own
+            // TryReadText — Turkish characters included. Marshal.StringToHGlobalUni does both.
+            IntPtr mem = Marshal.StringToHGlobalUni(text);
             if (mem == IntPtr.Zero)
             {
                 return false;
             }
 
-            IntPtr block = GlobalLock(mem);
-            if (block == IntPtr.Zero)
-            {
-                _ = GlobalFree(mem);
-                return false;
-            }
-
-            try
-            {
-                var utf8 = new byte[byteCount];
-                int written = WideCharToMultiByte(65001, 0, text, text.Length, utf8, byteCount, IntPtr.Zero, IntPtr.Zero);
-                if (written <= 0)
-                {
-                    return false;
-                }
-
-                utf8[written] = 0;
-                Marshal.Copy(utf8, 0, block, byteCount);
-            }
-            finally
-            {
-                _ = GlobalUnlock(mem);
-            }
-
             if (!EmptyClipboard())
             {
-                _ = GlobalFree(mem);
+                Marshal.FreeHGlobal(mem);
                 return false;
             }
 
