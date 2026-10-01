@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -63,37 +64,35 @@ internal static class ClipboardNative
     [DllImport("kernel32.dll")]
     private static extern IntPtr GlobalFree(IntPtr mem);
 
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern IntPtr GlobalSize(IntPtr mem);
+
     [DllImport("user32.dll")]
     private static extern IntPtr GetClipboardOwner();
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
 
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern IntPtr OpenProcess(uint access, bool inheritHandle, uint processId);
-
-    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool QueryFullProcessImageName(IntPtr process, uint flags, StringBuilder name, ref int size);
-
-    [DllImport("kernel32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CloseHandle(IntPtr handle);
-
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern uint RegisterClipboardFormatW(string format);
 
-    private const uint PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+    // OpenProcess / QueryFullProcessImageName / CloseHandle / PROCESS_QUERY_LIMITED_INFORMATION
+    // bilerek burada tekrar edilmiyor: bunlar pano ile ilgili değil, genel süreç adı çözümlemesi.
+    // Kanonik bildirimler NativeMethods'ta; aynı işi yapan tek çağrı noktası
+    // RunningAppsSource.TryGetProcessPath'te (Services/RunningAppsSource.cs:153-181).
 
     /// <summary>Mesaj-only pencereye pano değişim dinleyicisini ekler.</summary>
     internal static bool AddListener(IntPtr hwnd) => hwnd != IntPtr.Zero && AddClipboardFormatListener(hwnd);
 
-    /// <summary>Dinleyiciyi kaldırır (idempotent olmayan Win32 çağrısı — yalnız bir kez çağrılır).</summary>
+    /// <summary>
+    /// Dinleyiciyi kaldırır. <c>RemoveClipboardFormatListener</c> idempotent'tir — kayıt yoksa da
+    /// başarılı döner — bu yüzden dönüş değeri yok sayılabilir.
+    /// </summary>
     internal static void RemoveListener(IntPtr hwnd)
     {
-        if (hwnd != IntPtr.Zero)
+        if (hwnd != IntPtr.Zero && !RemoveClipboardFormatListener(hwnd))
         {
-            _ = RemoveClipboardFormatListener(hwnd);
+            Debug.WriteLine($"[WharfBar] RemoveClipboardFormatListener failed: 0x{Marshal.GetLastWin32Error():X8}");
         }
     }
 
@@ -101,6 +100,10 @@ internal static class ClipboardNative
     /// Panodaki metni okur. <paramref name="historyOptOut"/> true ise kaynak uygulama
     /// içeriği geçmişe almak istemiyor demektir ve kaydedilmemelidir.
     /// </summary>
+    /// <remarks>
+    /// <c>false</c>'in üç farklı nedeni vardır (pano kilitli / metin yok / opt-out) ve hepsi
+    /// ayrı <c>Debug.WriteLine</c> ile loglanır; yoksa çağıran taraf teşhis edemez.
+    /// </remarks>
     internal static bool TryReadText(out string? text, out bool historyOptOut, out int byteCount)
     {
         text = null;
@@ -109,35 +112,42 @@ internal static class ClipboardNative
 
         if (!OpenClipboard(IntPtr.Zero))
         {
+            // 0x800401D0 = CLIPBRD_E_CANT_OPEN: another process holds the clipboard lock.
+            // Frequent and normal, but it is the single most common cause of a dropped copy.
+            Debug.WriteLine($"[WharfBar] OpenClipboard failed: 0x{Marshal.GetLastWin32Error():X8}");
             return false;
         }
 
         try
         {
             uint optOutId = RegisterFormatId(CanIncludeInClipboardHistoryFormat);
-            if (optOutId != 0
-                && IsClipboardFormatAvailable(optOutId)
-                && GetClipboardData(optOutId) != IntPtr.Zero
-                && ReadDword(GetClipboardData(optOutId)) == 0)
+            if (optOutId != 0 && IsClipboardFormatAvailable(optOutId))
             {
-                historyOptOut = true;
-                return false;
+                IntPtr optOut = GetClipboardData(optOutId);
+                if (optOut != IntPtr.Zero && ReadDword(optOut) == 0)
+                {
+                    historyOptOut = true;
+                    return false;
+                }
             }
 
             if (!IsClipboardFormatAvailable(CF_UNICODETEXT))
             {
+                Debug.WriteLine("[WharfBar] clipboard holds no CF_UNICODETEXT (non-text copy).");
                 return false;
             }
 
             IntPtr handle = GetClipboardData(CF_UNICODETEXT);
             if (handle == IntPtr.Zero)
             {
+                Debug.WriteLine($"[WharfBar] GetClipboardData(CF_UNICODETEXT) failed: 0x{Marshal.GetLastWin32Error():X8}");
                 return false;
             }
 
             IntPtr block = GlobalLock(handle);
             if (block == IntPtr.Zero)
             {
+                Debug.WriteLine($"[WharfBar] GlobalLock failed: 0x{Marshal.GetLastWin32Error():X8}");
                 return false;
             }
 
@@ -169,6 +179,7 @@ internal static class ClipboardNative
 
         if (!OpenClipboard(IntPtr.Zero))
         {
+            Debug.WriteLine($"[WharfBar] OpenClipboard failed (write): 0x{Marshal.GetLastWin32Error():X8}");
             return false;
         }
 
@@ -179,12 +190,14 @@ internal static class ClipboardNative
             IntPtr mem = GlobalAlloc(GMEM_MOVEABLE, new IntPtr(byteCount));
             if (mem == IntPtr.Zero)
             {
+                Debug.WriteLine($"[WharfBar] GlobalAlloc failed: 0x{Marshal.GetLastWin32Error():X8}");
                 return false;
             }
 
             IntPtr block = GlobalLock(mem);
             if (block == IntPtr.Zero)
             {
+                Debug.WriteLine($"[WharfBar] GlobalLock failed: 0x{Marshal.GetLastWin32Error():X8}");
                 _ = GlobalFree(mem);
                 return false;
             }
@@ -202,14 +215,26 @@ internal static class ClipboardNative
                 _ = GlobalUnlock(mem);
             }
 
+            // EmptyClipboard() irreversibly discards the user's previous copy. Every failure
+            // past this point must therefore free mem AND log — the old copy is already gone and
+            // cannot be restored by us. Allocating and filling mem BEFORE the wipe keeps that
+            // window down to this single call.
             if (!EmptyClipboard())
             {
+                Debug.WriteLine($"[WharfBar] EmptyClipboard failed: 0x{Marshal.GetLastWin32Error():X8}");
                 _ = GlobalFree(mem);
                 return false;
             }
 
-            // SetClipboardData takes ownership on success; it must NOT be freed here.
-            return SetClipboardData(CF_UNICODETEXT, mem) != IntPtr.Zero;
+            // SetClipboardData takes ownership on success; it must NOT be freed then.
+            if (SetClipboardData(CF_UNICODETEXT, mem) == IntPtr.Zero)
+            {
+                Debug.WriteLine($"[WharfBar] SetClipboardData failed: 0x{Marshal.GetLastWin32Error():X8}");
+                _ = GlobalFree(mem);
+                return false;
+            }
+
+            return true;
         }
         finally
         {
@@ -229,26 +254,33 @@ internal static class ClipboardNative
         _ = GetWindowThreadProcessId(owner, out uint pid);
         if (pid == 0)
         {
+            Debug.WriteLine("[WharfBar] GetWindowThreadProcessId returned pid 0 for the clipboard owner.");
             return null;
         }
 
-        IntPtr process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
+        IntPtr process = NativeMethods.OpenProcess(NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION, false, pid);
         if (process == IntPtr.Zero)
         {
+            // Normal for elevated / other-session owners (ERROR_ACCESS_DENIED = 0x5).
+            Debug.WriteLine($"[WharfBar] OpenProcess failed for pid {pid}: 0x{Marshal.GetLastWin32Error():X8}");
             return null;
         }
 
         try
         {
-            int size = 1024;
-            var name = new StringBuilder(size);
-            return QueryFullProcessImageName(process, 0, name, ref size)
-                ? Path.GetFileNameWithoutExtension(name.ToString())
-                : null;
+            var name = new StringBuilder(1024);
+            int size = name.Capacity;
+            if (!NativeMethods.QueryFullProcessImageName(process, 0, name, ref size))
+            {
+                Debug.WriteLine($"[WharfBar] QueryFullProcessImageName failed for pid {pid}: 0x{Marshal.GetLastWin32Error():X8}");
+                return null;
+            }
+
+            return Path.GetFileNameWithoutExtension(name.ToString());
         }
         finally
         {
-            _ = CloseHandle(process);
+            _ = NativeMethods.CloseHandle(process);
         }
     }
 
@@ -264,11 +296,23 @@ internal static class ClipboardNative
         return _historyFormatId;
     }
 
+    /// <summary>
+    /// "CanIncludeInClipboardHistory" bloğundaki DWORD'u okur. Blok 4 bayttan kısaysa okunmaz
+    /// (taşma okuma) ve 0 döner — yani içerik geçmişe alınmaz: güvenli taraf opt-out'tur.
+    /// </summary>
     private static int ReadDword(IntPtr handle)
     {
+        IntPtr size = GlobalSize(handle);
+        if (size < sizeof(int))
+        {
+            Debug.WriteLine($"[WharfBar] CanIncludeInClipboardHistory block is smaller than a DWORD ({size} bytes).");
+            return 0;
+        }
+
         IntPtr block = GlobalLock(handle);
         if (block == IntPtr.Zero)
         {
+            Debug.WriteLine($"[WharfBar] GlobalLock failed (opt-out block): 0x{Marshal.GetLastWin32Error():X8}");
             return 0;
         }
 
