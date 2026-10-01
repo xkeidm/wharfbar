@@ -748,6 +748,7 @@ internal static class ClipboardNative
     internal const int WM_CLIPBOARDUPDATE = 0x031D;
 
     private const ushort CF_UNICODETEXT = 13;
+       private const uint GMEM_MOVEABLE = 0x0002;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
@@ -894,23 +895,51 @@ internal static class ClipboardNative
 
         try
         {
-            // CF_UNICODETEXT is a UTF-16LE format: byte count and content must both be UTF-16.
-            // Writing UTF-8 here corrupts any non-ASCII text for readers, including our own
-            // TryReadText — Turkish characters included. Marshal.StringToHGlobalUni does both.
-            IntPtr mem = Marshal.StringToHGlobalUni(text);
+            // CF_UNICODETEXT is NUL-terminated UTF-16LE and must match TryReadText's
+            // PtrToStringUni, or Turkish characters corrupt for every reader — including us.
+            int byteCount = (text.Length + 1) * 2;
+            IntPtr mem = GlobalAlloc(GMEM_MOVEABLE, new IntPtr(byteCount));
             if (mem == IntPtr.Zero)
             {
                 return false;
             }
 
-            if (!EmptyClipboard())
+            IntPtr block = GlobalLock(mem);
+            if (block == IntPtr.Zero)
             {
-                Marshal.FreeHGlobal(mem);
+                _ = GlobalFree(mem);
                 return false;
             }
 
-            // SetClipboardData takes ownership on success; it must NOT be freed here.
-            return SetClipboardData(CF_UNICODETEXT, mem) != IntPtr.Zero;
+            try
+            {
+                byte[] utf16 = Encoding.Unicode.GetBytes(text);
+                Marshal.Copy(utf16, 0, block, utf16.Length);
+                Marshal.WriteInt16(block, utf16.Length, 0);
+            }
+            finally
+            {
+                _ = GlobalUnlock(mem);
+            }
+
+            // EmptyClipboard() irrevocably discards the user's previous copy, so every
+            // failure after this point must free mem AND log: the old copy is already gone.
+            if (!EmptyClipboard())
+            {
+                _ = GlobalFree(mem);
+                System.Diagnostics.Debug.WriteLine($"[WharfBar] EmptyClipboard failed: 0x{Marshal.GetLastWin32Error():X8}");
+                return false;
+            }
+
+            // SetClipboardData takes ownership on success; it must NOT be freed then.
+            if (SetClipboardData(CF_UNICODETEXT, mem) == IntPtr.Zero)
+            {
+                _ = GlobalFree(mem);
+                System.Diagnostics.Debug.WriteLine($"[WharfBar] SetClipboardData failed: 0x{Marshal.GetLastWin32Error():X8}");
+                return false;
+            }
+
+            return true;
         }
         finally
         {
@@ -987,15 +1016,10 @@ internal static class ClipboardNative
     }
 
     private static int Utf8ByteCount(string? text) =>
-        string.IsNullOrEmpty(text)
-            ? 0
-            : MultiByteToWideChar(0, 0, Encoding.UTF8.GetBytes(text), Encoding.UTF8.GetByteCount(text), null, 0) == 0
-                ? Encoding.UTF8.GetByteCount(text)
-                : Encoding.UTF8.GetByteCount(text);
+        string.IsNullOrEmpty(text) ? 0 : Encoding.UTF8.GetByteCount(text);
 }
 ```
 
-**Not:** `Path` kullanıldığı için dosyanın başına `using System.IO;` ekle. `Utf8ByteCount` yukarıdaki hâliyle sadeleştirilebilir — `Encoding.UTF8.GetByteCount(text)` yeterlidir; yukarıdaki sürümdeki `MultiByteToWideChar` çağrısı gereksizdir ve **kaldırılmalıdır**. Doğru gövde şudur:
 
 ```csharp
     private static int Utf8ByteCount(string? text) =>
@@ -1086,7 +1110,6 @@ internal sealed class ClipboardMessageWindow : IDisposable
 Run: `dotnet build WharfBar.sln -v quiet --nologo`
 Expected: `0 Hata`.
 
-`Utf8ByteCount`'ın sadeleştirilmiş hâli ile derleniyorsa `MultiByteToWideChar` bildirimi kullanılmadığı için CS0169 uyarısı verebilir — bu durumda o P/Invoke bildirimini de sil.
 
 - [ ] **Step 4: Commit**
 
@@ -1798,7 +1821,10 @@ internal sealed class IslandService : IDisposable
 
         _savePending = false;
         List<IslandEntry> snapshot = [.. _entries];
-        ThreadPool.QueueUserWorkItem(_ => _store.Save(snapshot));
+
+        // Kucuk liste: senkron yazmak UI thread'ini anlamli bicimde bloklamaz, ama kapanista
+        // kuyruga atmak sureci cikisyla yaristirir ve son kopyalamayi sessizce dusururdu.
+        _store.Save(snapshot);
     }
 
     public void Dispose()
