@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -151,6 +152,8 @@ public partial class TopBarWindow : Window
             OnMediaChanged(this, EventArgs.Empty);
         }
 
+        AttachIsland();
+
         // System tray mirrors only on the primary bar (ADR-009): secondary bars keep the
         // tray section collapsed — _trayMirrorActive stays false there.
         if (Monitor.IsPrimary)
@@ -203,7 +206,8 @@ public partial class TopBarWindow : Window
     /// </summary>
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen && !MediaPopup.IsOpen)
+        if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen && !MediaPopup.IsOpen
+            && !IslandPopup.IsOpen)
         {
             return;
         }
@@ -212,7 +216,8 @@ public partial class TopBarWindow : Window
         {
             if (IsWithin(hit, QuickSettingsHost)
                 || IsWithin(hit, BrightnessHost)
-                || IsWithin(hit, MediaHost))
+                || IsWithin(hit, MediaHost)
+                || IsWithin(hit, IslandHost))
             {
                 return;
             }
@@ -221,7 +226,8 @@ public partial class TopBarWindow : Window
                 || IsWithin(hit, VolumeButton)
                 || IsWithin(hit, NetworkButton)
                 || IsWithin(hit, BrightnessButton)
-                || IsWithin(hit, MediaButton))
+                || IsWithin(hit, MediaButton)
+                || IsWithin(hit, IslandPill))
             {
                 return;
             }
@@ -600,8 +606,243 @@ public partial class TopBarWindow : Window
         AnimateFlyoutOpen(MediaHost);
     }
 
+    private bool _islandClosePending;
+    private bool _islandPulseRunning;
+
+    /// <summary>
+    /// Island servisi. Adı bilerek <c>Island</c>, <c>IslandService</c> değil: C#'ta bir özelliğin
+    /// adı tip adıyla aynı olursa sınıf gövdesindeki o ad özelliğe bağlanır ve aynı sınıftaki
+    /// tip referansları bozulur. Engine servisi Dispose sonrası null yapar, o yüzden null
+    /// kontrolü yazılı kalıyor.
+    /// </summary>
+    private IslandService? Island => _engine.Island;
+
+    /// <summary>Adaya tıkla: panel açıkken kapatır, kapalıyken açar.</summary>
+    private void OnIslandPillClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleIsland();
+    }
+
+    private void ToggleIsland()
+    {
+        IslandService? island = Island;
+        if (island is null || !island.Config.Enabled)
+        {
+            return;
+        }
+
+        if (IslandPopup.IsOpen)
+        {
+            CloseIsland();
+            return;
+        }
+
+        CancelPendingClose(IslandHost, ref _islandClosePending);
+
+        // Aynı anda tek panel açık olsun (Media/Brightness ile aynı kalıp): ada tıklamak
+        // başka bir flyout'u kapatmadan kendisini açmamalı.
+        CloseFlyouts();
+        IslandPopup.IsOpen = true;
+    }
+
+    private void CloseIsland(bool animate = true)
+    {
+        if (!IslandPopup.IsOpen)
+        {
+            _islandClosePending = false;
+            return;
+        }
+
+        if (animate && !_islandClosePending)
+        {
+            _islandClosePending = true;
+            AnimateFlyoutClose(IslandHost, () =>
+            {
+                _islandClosePending = false;
+                IslandPopup.IsOpen = false;
+            });
+        }
+        else
+        {
+            CancelPendingClose(IslandHost, ref _islandClosePending);
+            IslandPopup.IsOpen = false;
+        }
+    }
+
+    private void OnIslandPopupOpened(object sender, EventArgs e)
+    {
+        CancelPendingClose(IslandHost, ref _islandClosePending);
+
+        // Abonelik burada kurulur, pencere kurulurken değil: liste yalnız panel açıkken
+        // güncellenir (IslandHost.Detach, OnPanelClosed'da bunu tersine çevirir).
+        if (Island is { } island)
+        {
+            IslandHost.Attach(island);
+        }
+
+        IslandHost.OnPanelOpened();
+        AnimateFlyoutOpen(IslandHost);
+    }
+
+    private void OnIslandPopupClosed(object sender, EventArgs e) => IslandHost.OnPanelClosed();
+
+    private void OnIslandKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            CloseIsland();
+            e.Handled = true;
+            return;
+        }
+
+        // Ok/Enter/Delete yalnız panelde tüketilir; dışarıda bırakılırsa arama kutusu da
+        // ok tuşlarını yer.
+        e.Handled = IslandHost.HandleNavigationKey(e.Key);
+    }
+
+    private void AttachIsland()
+    {
+        // Yalnızca birincil bar: pano dinleyicisi ve kayıt listesi uygulama genelinde tek
+        // tane, ikinci bir ada aynı listeyi ikinci kez gösterirdi (ADR-009'daki tray aynası
+        // kuralının aynısı).
+        if (!Monitor.IsPrimary)
+        {
+            return;
+        }
+
+        IslandService? island = Island;
+        if (island is null)
+        {
+            UpdateIslandPill();
+            return;
+        }
+
+        island.Changed += OnIslandChanged;
+        island.EntryAdded += OnIslandEntryAdded;
+        UpdateIslandPill();
+    }
+
+    private void DetachIsland()
+    {
+        if (Island is { } island)
+        {
+            island.Changed -= OnIslandChanged;
+            island.EntryAdded -= OnIslandEntryAdded;
+        }
+
+        IslandHost.Detach();
+    }
+
+    // IslandService bildirimleri tanım gereği UI dispatcher'ında yükselir
+    // (IslandService.RaiseChanged): atlamak gerekmiyor.
+    private void OnIslandChanged(object? sender, EventArgs e) => UpdateIslandPill();
+
+    private void OnIslandEntryAdded(object? sender, EventArgs e)
+    {
+        UpdateIslandPill();
+        PulseIslandPill();
+    }
+
+    /// <summary>
+    /// Pill'in görünümünü servis durumuna göre tazeler: ada yalnızca birincil barda ve ada
+    /// açıkken görünür, önizleme en yeni kaydı gösterir.
+    /// </summary>
+    private void UpdateIslandPill()
+    {
+        IslandService? island = Island;
+        bool available = island is not null && island.Config.Enabled && Monitor.IsPrimary;
+        if (!available || island is null)
+        {
+            IslandPill.Visibility = Visibility.Collapsed;
+
+            // Ayar kapatıldıysa açık panel ekranda asılı kalmasın.
+            if (IslandPopup.IsOpen)
+            {
+                CloseIsland(animate: false);
+            }
+
+            return;
+        }
+
+        IslandPill.Visibility = Visibility.Visible;
+        IslandEntry? latest = island.Latest;
+
+        // Glyph'ler panelin satır glifleriyle aynı kaynaktan gelir (emoji/escape dizisi; MDL2
+        // kodu doğrulanmadan XAML'e girmez — yanlış kod noktası parse hatasıyla prosesi
+        // düşürür).
+        IslandGlyph.Text = latest is not null && latest.Kind == IslandEntryKind.File
+            ? IslandFlyout.FileGlyph
+            : IslandFlyout.TextGlyph;
+        IslandPreviewText.Text = latest is null ? "Boş" : IslandPruner.FormatPreview(latest.Text);
+        IslandCountText.Text = island.Entries.Count > 0
+            ? island.Entries.Count.ToString(CultureInfo.CurrentCulture)
+            : string.Empty;
+    }
+
+    /// <summary>
+    /// Yeni kayıt geldiğinde kısa nabız. Ölçek, RenderTransform'un ScaleX/ScaleY'sine
+    /// animasyonla verilir; <c>RenderTransform</c>'un kendisine <c>DoubleAnimation</c>
+    /// bağlamak tip uyuşmazlığıdır ve FillBehavior.HoldEnd, AutoReverse ile birlikte
+    /// kullanılınca ada kalıcı olarak %6 büyük bırakır.
+    /// </summary>
+    private void PulseIslandPill()
+    {
+        if (_islandPulseRunning || IslandPill.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        var transform = IslandPill.RenderTransform as ScaleTransform;
+        if (transform is null)
+        {
+            transform = new ScaleTransform(1, 1);
+            IslandPill.RenderTransformOrigin = new Point(0.5, 0.5);
+            IslandPill.RenderTransform = transform;
+        }
+
+        _islandPulseRunning = true;
+        var pulse = new DoubleAnimation(1d, 1.06d, TimeSpan.FromMilliseconds(160))
+        {
+            AutoReverse = true,
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+        pulse.Completed += (_, _) => _islandPulseRunning = false;
+        transform.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
+        transform.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
+    }
+
+    private void OnIslandDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnIslandPillDrop(object sender, DragEventArgs e)
+    {
+        e.Handled = true;
+
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop) || Island is not { } island)
+        {
+            return;
+        }
+
+        if (e.Data.GetData(DataFormats.FileDrop) is string[] paths && paths.Length > 0)
+        {
+            island.AddDroppedFiles(paths);
+
+            // Kopyalama STA worker'da olur ve liste ancak bitince değişir; kullanıcıya
+            // kabul edildiğini şimdi göster (EntryAdded gelince zaten bir nabız daha oynar).
+            PulseIslandPill();
+        }
+    }
+
     private void CloseFlyouts(bool animate = true)
     {
+        CloseIsland(animate);
         CloseQuickSettings(animate);
         CloseBrightness(animate);
         CloseMedia(animate);
@@ -672,6 +913,7 @@ public partial class TopBarWindow : Window
         QuickSettingsHost.Detach();
         MediaHost.Detach();
         BrightnessHost.Detach();
+        DetachIsland();
         _engine.Status.Changed -= OnStatusChanged;
         _engine.SystemStats.Changed -= OnSystemStatsChanged;
         _engine.Volume.Changed -= OnVolumeChanged;
@@ -1165,6 +1407,11 @@ public partial class TopBarWindow : Window
         ApplySystemStatsVisibility();
         ApplySystemStats(_engine.SystemStats.Snapshot);
         ApplyBackgroundAppearance();
+
+        // Ayar sayfası IslandService.ApplyConfig'u ayrıca çağırır; yine de burada
+        // tazelenir — ada görünürlüğü servisin Enabled alanına bağlı ve pencere kendi
+        // görünümünü aynı "config uygulandı" geçişinde yenilemeli.
+        UpdateIslandPill();
     }
 
     private void PersistBackground(string mode, int? opacity = null)

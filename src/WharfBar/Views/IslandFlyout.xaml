@@ -1,0 +1,56 @@
+<UserControl x:Class="WharfBar.Views.IslandFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Width="420"
+             MaxHeight="440"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+
+    <Border x:Name="FlyoutRoot"
+            Background="{DynamicResource ApplicationBackgroundBrush}"
+            CornerRadius="12"
+            Padding="12"
+            Margin="0,0,12,0"
+            SnapsToDevicePixels="True">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <!-- Arama kutusu. Yer tutucu aynı hücrede üstte durur; IsHitTestVisible=False
+                 olduğu için odak arama kutusunda kalır (tıklanınca yazmaya devam eder). -->
+            <Grid Grid.Row="0" Margin="0,0,0,8">
+                <TextBox x:Name="SearchBox"
+                         Padding="8,5"
+                         VerticalContentAlignment="Center"
+                         TextChanged="OnSearchChanged" />
+                <TextBlock x:Name="SearchPlaceholder"
+                           Margin="9,0,0,0"
+                           VerticalAlignment="Center"
+                           Opacity="0.5"
+                           IsHitTestVisible="False"
+                           Text="Ara…" />
+            </Grid>
+
+            <!-- Liste düz StackPanel: Popup içinde iç içe Popup odak kaçırıp listeyi
+                 görünmez yapıyor (docs/04-gotchas.md). Sanalizasyon yok, üst sınır
+                 code-behind'de (MaxRenderedRows). -->
+            <ScrollViewer x:Name="ListScroll"
+                          Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="EntryListPanel" />
+            </ScrollViewer>
+
+            <!-- Alt bilgi: boş liste ya da sınır nedeniyle kurulmayan kayıt sayısı. -->
+            <TextBlock x:Name="HintText"
+                       Grid.Row="2"
+                       Margin="2,8,2,0"
+                       FontSize="11"
+                       Opacity="0.55"
+                       TextWrapping="Wrap"
+                       Visibility="Collapsed" />
+        </Grid>
+    </Border>
+</UserControl>

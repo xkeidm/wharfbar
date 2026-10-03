@@ -55,6 +55,22 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
+        <!-- Island pilli: ortadaki tek hedef. Diğer statü butonları gibi hover ile geri
+             bildirim verir; 30 DIP'lik şeritte hedefi görünmez kılan yerleşim yanlış tıklamaya
+             yol açıyor. -->
+        <Style x:Key="IslandPillHit" TargetType="Border">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#1EFFFFFF" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <!-- Single-line clock+date (tr-TR abbreviations); sits beside notification bell. -->
         <Style x:Key="ClockCombinedLabel" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
@@ -127,6 +143,39 @@
                     </TextBlock.ToolTip>
                 </TextBlock>
             </StackPanel>
+
+            <!-- Island: pano geçmişi + bırakılan dosya alanı. Yalnızca birincil monitörün
+                 barında görünür (UpdateIslandPill), çünkü pano dinleyicisi ve kayıt listesi
+                 uygulama genelinde tek tane; her barda bir ada çıkması aynı listeyi iki kez
+                 göstermek ve hangi panelin açık olduğunu belirsizleştirmek olurdu.
+                 Drop/DragOver/MouseLeftButtonUp tek blokta bağlıdır: aynı öğe iki adımda
+                 düzenlenip biri atlanırsa olay sessizce ölü kalır. -->
+            <Border x:Name="IslandPill"
+                    Style="{StaticResource IslandPillHit}"
+                    Visibility="Collapsed"
+                    AllowDrop="True"
+                    MouseLeftButtonUp="OnIslandPillClick"
+                    Drop="OnIslandPillDrop"
+                    DragOver="OnIslandDragOver">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="IslandGlyph"
+                               Text="&#x2261;"
+                               FontSize="12"
+                               Margin="0,0,6,0"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="IslandPreviewText"
+                               Text="Bo&#x15F;"
+                               FontSize="12"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="240"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="IslandCountText"
+                               Margin="8,0,0,0"
+                               FontSize="12"
+                               Opacity="0.6"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
 
             <!-- Right cluster (runtime order from config; default LTR):
                  trayMirror · overflow · dateTime · notifications · controlCenter · volume · network · battery -->
@@ -284,6 +333,21 @@
                    VerticalOffset="10"
                    Opened="OnMediaPopupOpened">
                 <local:MediaFlyout x:Name="MediaHost" />
+            </Popup>
+
+            <!-- Island paneli: aynı Popup kalıbı (StaysOpen=True, PopupAnimation=None —
+                 açılış/kapanış animasyonu code-behind'de). Panelin içinde ikinci bir Popup
+                 yok: liste ScrollViewer + StackPanel'dir (docs/04-gotchas.md). -->
+            <Popup x:Name="IslandPopup"
+                   Placement="Bottom"
+                   PlacementTarget="{Binding ElementName=IslandPill}"
+                   StaysOpen="True"
+                   AllowsTransparency="True"
+                   PopupAnimation="None"
+                   VerticalOffset="10"
+                   Opened="OnIslandPopupOpened"
+                   Closed="OnIslandPopupClosed">
+                <local:IslandFlyout x:Name="IslandHost" PreviewKeyDown="OnIslandKeyDown" />
             </Popup>
         </Grid>
     </Border>
