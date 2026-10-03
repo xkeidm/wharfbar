@@ -20,7 +20,11 @@ namespace WharfBar.Services;
 /// </summary>
 internal sealed class TrayMirrorService : IDisposable
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(1500);
+    internal static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(1500);
+
+    /// <summary>At most one state blip per this interval — the blip flaps the work area.</summary>
+    internal static readonly TimeSpan BlipMinInterval = TimeSpan.FromSeconds(60);
+
     private const int PeekSettleMs = 160;
     private const int HoldMinMs = 750;
     private const int HoldMaxMs = 20000;
@@ -31,13 +35,38 @@ internal sealed class TrayMirrorService : IDisposable
     private const int LiveResolvePollMs = 100;
 
     /// <summary>
-    /// Kaç ardışık boş UIA okuması boyunca son iyi snapshot tutulur. Eşik <b>sınırlı
-    /// olmalı</b>: blip tazelemesi hem 60 sn'de bir kısıtlıdır hem de pencerelerden biri
-    /// maximize olduğu hiç çalışmaz, dolayısıyla sınırsız bir tolerans aynayı kalıcı olarak
-    /// dondurur — kullanıcı bir pencereyi maximize edip bir tray uygulamasını kapatırsa
-    /// barda ölü bir ikon kalır ve tıklaması bayat bir UIA öğesine gider.
+    /// Kaç ardışık boş UIA okuması boyunca son iyi snapshot tutulur. Sabit <b>değil,
+    /// türetilir</b>: eşik bir <b>tam blip aralığını</b> aşmak zorunda, çünkü park
+    /// halinde (25H2'de explorer tray'i sanallaştırır) doğrudan okuma her
+    /// <see cref="PollInterval"/>'da boş döner ve yalnızca blip ikonları geri getirir; blip de
+    /// <see cref="BlipMinInterval"/> ile kısıtlıdır. Daha kısa bir eşik, aynayı o boşluğun
+    /// ortasında temizler ve ikonlar her blip döngüsünde kaybolup geri gelir — ölçülen
+    /// regresyon: 3 okuma × 1.5 sn = 4.5 sn grace, 60 sn'lik boşluğun yalnızca %7.5'inde
+    /// ikonları görünür kılıyordu. <c>+2</c> tolerans: tam blip aralığı dolduğunda yeni blip
+    /// henüz bir sonraki zamanlayıcı dilimini bekler, iki okuma bu kenar dalgalanmasını yutar.
     /// </summary>
-    private const int EmptyReadGraceReads = 3;
+    internal static readonly int EmptyReadGraceReads =
+        (int)Math.Ceiling(BlipMinInterval.TotalMilliseconds / PollInterval.TotalMilliseconds) + 2;
+
+    /// <summary>
+    /// Bir blip neden ikon döndürmedi. Boş okuma grace'i tam olarak bu ayrımı ister:
+    /// yalnız <see cref="ConfirmedEmpty"/> tray hakkında <b>kanıttır</b> (tray gösterildi,
+    /// yine de boş okundu); diğer her değer "hiç bakmadık" demektir ve grace sürdürülür.
+    /// </summary>
+    internal enum TrayBlipOutcome
+    {
+        /// <summary>Hiç denenmedi: throttle, tıklamada, ya da birincilde maximize pencere. Kanıt değil.</summary>
+        Skipped,
+
+        /// <summary>Denendi ama peek açılmadı / UIA gezintisi patladı — tray hiç okunmadı. Kanıt değil.</summary>
+        Inconclusive,
+
+        /// <summary>Denendi, tray gösterildi ve okuma boş döndü: tray gerçekten boş.</summary>
+        ConfirmedEmpty,
+
+        /// <summary>Denendi ve ikon okundu (ayrıca döndürüldü).</summary>
+        Refreshed,
+    }
 
     private readonly Dispatcher _dispatcher;
     private readonly TaskbarVisibilityService _taskbar;
@@ -52,7 +81,8 @@ internal sealed class TrayMirrorService : IDisposable
     // UIA tree is torn down/rebuilt around every peek; a single empty read right after
     // SW_SHOW is usually that rebuild, not "user closed every tray app". Hold the last
     // good snapshot for EmptyReadGraceReads consecutive empty reads before clearing the
-    // mirror — the grace must stay BOUNDED, see the empty branch in PollUia.
+    // mirror — the grace must stay BOUNDED but also outlast a whole blip interval, see
+    // the empty branch in PollUia.
     private IReadOnlyList<TrayMirrorItem> _lastGoodUiaItems = [];
     private int _consecutiveEmptyUiaReads;
     // Once UIA has delivered icons, the mirror source is locked for the session: the
@@ -217,9 +247,10 @@ internal sealed class TrayMirrorService : IDisposable
         // Poll itself already runs on the STA worker (queued there by the timer), so a
         // direct call — RunOnSta here would deadlock on the queue it is blocking.
         IReadOnlyList<UiaTrayButton>? buttons = TrayUiaReader.TryGetTrayButtons();
+        TrayBlipOutcome blipOutcome = TrayBlipOutcome.Skipped;
         if (buttons is null || buttons.Count == 0)
         {
-            IReadOnlyList<TrayMirrorItem>? blip = TryRefreshViaBlip();
+            IReadOnlyList<TrayMirrorItem>? blip = TryRefreshViaBlip(out blipOutcome);
             if (blip is { Count: > 0 })
             {
                 _consecutiveEmptyUiaReads = 0;
@@ -229,8 +260,8 @@ internal sealed class TrayMirrorService : IDisposable
             }
         }
 
-        // Null (walk failed/blip skipped) and empty (virtualized parked tray) both mean
-        // "no fresh data" — fall through to the last-good grace instead of publishing an
+        // Null (walk failed), empty (virtualized parked tray) and a blip that proved nothing all
+        // mean "no fresh data" — fall through to the last-good grace instead of publishing an
         // empty snapshot that would collapse the mirror 200ms after every refresh.
         buttons ??= [];
 
@@ -250,19 +281,29 @@ internal sealed class TrayMirrorService : IDisposable
             // While the strip-release auto-hide state is on, an empty read is usually the shell
             // virtualizing the parked tray, not "the user closed every tray app" — so the last
             // good snapshot is held for a BOUNDED number of polls (EmptyReadGraceReads) before
-            // the mirror is cleared. The bound is the whole point: a maximized window blocks the
-            // blip refresh entirely and the 60 s blip throttle leaves long gaps, so an unbounded
-            // hold froze the mirror for the rest of the session.
+            // the mirror is cleared. The bound must outlast a WHOLE blip interval: the blip is
+            // the only thing that re-exposes the parked tray and it runs at most once per
+            // BlipMinInterval, so a shorter grace blanks the mirror in the middle of every
+            // throttle gap (measured regression: 3 reads x 1.5 s of grace against a 60 s gap —
+            // icons visible 7.5 % of the time).
+            //
+            // A blip that actually RAN and came back empty is the answer the grace was waiting
+            // for — the tray was shown and still had nothing — so it clears at once. A
+            // throttled / blocked / failed blip never looked at the tray and keeps holding.
             _consecutiveEmptyUiaReads++;
-            if (ShouldHoldSnapshotOnEmptyRead(_consecutiveEmptyUiaReads, _lastGoodUiaItems.Count))
+            if (ShouldHoldSnapshotOnEmptyRead(
+                    _consecutiveEmptyUiaReads,
+                    _lastGoodUiaItems.Count,
+                    blipOutcome == TrayBlipOutcome.ConfirmedEmpty))
             {
                 return _lastGoodUiaItems;
             }
 
-            // Grace exhausted: the tray really is empty. Drop the held snapshot too, otherwise a
-            // later single empty read would resurrect the stale items — and their UIA elements
-            // with them, which is what a mirrored click forwards to.
+            // Grace exhausted, or the tray proven empty: it really is empty. Drop the held
+            // snapshot too, otherwise a later single empty read would resurrect the stale items —
+            // and their UIA elements with them, which is what a mirrored click forwards to.
             _lastGoodUiaItems = [];
+            _consecutiveEmptyUiaReads = 0;
             return items;
         }
 
@@ -279,39 +320,71 @@ internal sealed class TrayMirrorService : IDisposable
     /// <summary>
     /// Pure: does an empty UIA read keep the held snapshot on the bar, or clear the mirror?
     /// Clear the moment the grace is used up — a bounded freeze is a grace period, not a cache.
+    /// <paramref name="trayConfirmedEmptyByBlip"/> short-circuits the grace: a blip that really
+    /// ran already proved the tray has nothing, which is what the grace was waiting for.
     /// </summary>
-    internal static bool ShouldHoldSnapshotOnEmptyRead(int consecutiveEmptyReads, int heldItemCount) =>
-        consecutiveEmptyReads < EmptyReadGraceReads && heldItemCount > 0;
+    internal static bool ShouldHoldSnapshotOnEmptyRead(
+        int consecutiveEmptyReads,
+        int heldItemCount,
+        bool trayConfirmedEmptyByBlip) =>
+        !trayConfirmedEmptyByBlip
+        && consecutiveEmptyReads < EmptyReadGraceReads
+        && heldItemCount > 0;
 
-    /// <summary>At most one state blip per this interval — the blip flaps the work area.</summary>
-    private static readonly TimeSpan BlipMinInterval = TimeSpan.FromSeconds(60);
+    /// <summary>
+    /// Pure: what a blip that actually ran proves. Split out of the peek plumbing so the
+    /// "only a shown tray counts as evidence" rule is testable without Win32 — the caller must
+    /// never hand <see cref="TrayBlipOutcome.ConfirmedEmpty"/> to a blip that never looked.
+    /// </summary>
+    internal static TrayBlipOutcome ClassifyBlipRead(bool trayShown, bool readWalkFailed, int readCount) =>
+        !trayShown || readWalkFailed ? TrayBlipOutcome.Inconclusive
+            : readCount > 0 ? TrayBlipOutcome.Refreshed
+            : TrayBlipOutcome.ConfirmedEmpty;
+
     private DateTime _lastBlip;
 
     /// <summary>
     /// Briefly shows the tray so the shell re-exposes its buttons, reads them, and captures the
     /// icons <b>while the peek is still open</b> — PrintWindow needs a shown, rendered window;
     /// once the peek ends the tray is hidden again and every capture comes back a solid black
-    /// DIB. Icons captured inside the peek are returned ready to publish; null when the blip was
-    /// throttled, skipped, or the read came back empty. Runs on the STA worker (Poll already does).
+    /// DIB. Icons captured inside the peek are returned ready to publish; null whenever
+    /// <paramref name="outcome"/> is not <see cref="TrayBlipOutcome.Refreshed"/>. Runs on the
+    /// STA worker (Poll already does).
     /// </summary>
-    private IReadOnlyList<TrayMirrorItem>? TryRefreshViaBlip()
+    /// <param name="outcome">
+    /// Neden ikon dönmedi — boş okuma grace'inin hammaddesi. Yalnız
+    /// <see cref="TrayBlipOutcome.ConfirmedEmpty"/> kanıttır.
+    /// </param>
+    private IReadOnlyList<TrayMirrorItem>? TryRefreshViaBlip(out TrayBlipOutcome outcome)
     {
+        // Cheap gates first: HasMaximizedWindowOnPrimary enumerates every top-level window and
+        // must not run on the (common) throttled poll.
         if ((DateTime.UtcNow - _lastBlip) < BlipMinInterval || _clickBusy != 0)
         {
+            outcome = TrayBlipOutcome.Skipped;
             return null;
         }
 
         if (HasMaximizedWindowOnPrimary())
         {
+            // Deliberately does NOT stamp _lastBlip: the blip flaps the work area, which a
+            // maximized window would visibly absorb — so it is skipped, and the next poll is
+            // free to blip the moment the window leaves the screen. That is what resolves the
+            // mirror (icons back, or proven empty) within one poll of the block lifting.
+            outcome = TrayBlipOutcome.Skipped;
             return null;
         }
 
         _lastBlip = DateTime.UtcNow;
         TaskbarNative.SetState(0);
         _taskbar.BeginIconRefresh();
+        bool shown = false;
+        bool readWalkFailed = true;
+        int readCount = 0;
         try
         {
-            if (_taskbar.BeginTrayPeek(stealth: true))
+            shown = _taskbar.BeginTrayPeek(stealth: true);
+            if (shown)
             {
                 // The tray may still sit at its parked position when the state drops; slide it
                 // fully on-screen (no clamp at state 0) so the UIA rects line up with the
@@ -325,21 +398,22 @@ internal sealed class TrayMirrorService : IDisposable
                 Thread.Sleep(PeekSettleMs);
 
                 IReadOnlyList<UiaTrayButton>? read = TrayUiaReader.TryGetTrayButtons();
-                if (read is null || read.Count == 0)
+                readWalkFailed = read is null;
+                readCount = read?.Count ?? 0;
+                if (read is { Count: > 0 })
                 {
-                    return null;
-                }
+                    var items = new List<TrayMirrorItem>(read.Count);
+                    for (int i = 0; i < read.Count; i++)
+                    {
+                        UiaTrayButton b = read[i];
+                        // Key by name: most tray apps keep a stable tooltip; state-bearing names
+                        // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
+                        items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
+                    }
 
-                var items = new List<TrayMirrorItem>(read.Count);
-                for (int i = 0; i < read.Count; i++)
-                {
-                    UiaTrayButton b = read[i];
-                    // Key by name: most tray apps keep a stable tooltip; state-bearing names
-                    // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
-                    items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, TryCaptureIcon(tray, b.Element, b.Name), b.Element));
+                    outcome = TrayBlipOutcome.Refreshed;
+                    return items;
                 }
-
-                return items;
             }
         }
         catch (Exception ex)
@@ -352,6 +426,10 @@ internal sealed class TrayMirrorService : IDisposable
             _taskbar.EndIconRefresh();
         }
 
+        // Peek that never opened, or a UIA walk that threw: nothing was read, so nothing is
+        // proved — the grace keeps holding. Only a shown tray that read back zero buttons is
+        // evidence of an empty tray.
+        outcome = ClassifyBlipRead(shown, readWalkFailed, readCount);
         return null;
     }
 
