@@ -99,12 +99,17 @@ internal sealed class IslandService : IDisposable
         _saveTimer = new System.Threading.Timer(
             _ => OnSaveTimerTick(), null, Timeout.Infinite, Timeout.Infinite);
 
+        // Yükleme, dinleyiciyi kurmadan ÖNCE (ApplyConfig ile aynı sıra): StartListening ile
+        // pano dinlemesi açılır açılmaz bir kopyalama gelebilir ve STA worker
+        // Interlocked.Increment(ref _nextId) çalıştırabilir; LoadPersisted'taki Math.Max
+        // yazmayı yutar ve aynı Id iki kayda düşer. Yükleme önce yapılınca pencere tamamen
+        // kapanır (id sayacı yalnız UI'da ilerler).
+        LoadPersisted();
+
         if (Config.Enabled)
         {
             StartListening();
         }
-
-        LoadPersisted();
     }
 
     internal IslandConfig Config { get; private set; }
@@ -159,24 +164,19 @@ internal sealed class IslandService : IDisposable
             .OrderByDescending(e => e.CapturedAtUtc)
             .ToList();
 
-        // Id monotonik olmali: yeniden yuklenen en yuksek Id'den devam et, aksi halde
-        // yeni kayitlar eski kayitlarin Id'leriyle cakisir. Math.Max: sayici geri
+        // Id monotonik olmali: ilk kurulumda (oturum kaydi yokken) yeni kayitlarin sayaci
+        // 1'den baslar ve yuklenen kayitlarin Id'leriyle cakisir. Math.Max: sayici geri
         // alinamaz, daha once uretilmis bir Id'ye dusmemek icin yalnizca yuksege cikarilir.
         _nextId = Math.Max(_nextId, ordered.Max(e => e.Id));
 
         // Oturumluk -> kalici gecisi: oturumun kayitlari hala listede ama diskte YOK
         // (session modunda ScheduleSave calismaz). Yalnizca diskten okunanlari yazmak
         // ("degistirmek") kullaniciyi bu oturumda kopyaladiklarindan sessizce atardi,
-        // bu yuzden iki liste tek liste olusturulup birlikte budanir (Id cakismasi
-        // yine olmaz: Math.Max yukarida, DistinctBy asagida).
+        // bu yuzden iki liste tek liste olusturulup birlikte budanir.
         bool merging = _entries.Count > 0;
         if (merging)
         {
-            ordered = _entries
-                .Concat(ordered)
-                .DistinctBy(e => e.Id)
-                .OrderByDescending(e => e.CapturedAtUtc)
-                .ToList();
+            ordered = MergeWithSession(ordered);
         }
 
         IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
@@ -199,6 +199,50 @@ internal sealed class IslandService : IDisposable
         // Budanmış hâli diske geri yaz: kullanıcı tavanı düşürdüyse (ya da gün limiti
         // dolduysa) dosya bir sonraki açılışta aynı budanmış listeyi verir.
         Commit(pruned, added: null, raiseEntryAdded: false);
+    }
+
+    /// <summary>
+    /// Oturum kayıtlarıyla diske yazılmış geçmişi tek listede birleştirir (en yenisi başta).
+    /// UI thread'inde çağrılır.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Id birleştirme anahtarı olamaz.</b> Her süreç 1'den başladığı için oturum ve
+    /// kalıcı kayıtlar aynı Id'yi taşır; <c>DistinctBy(e =&gt; e.Id)</c> ilkini (oturum kaydını)
+    /// saklayıp kalıcı kaydı sessizce düşürüyordu. Varsayılan kalıcılık modu <c>session</c>
+    /// (<c>AppConfig.Persistence</c>) olduğu için bu yaygın yoldu: ölçüldü — 10 kalıcı + 3
+    /// oturum kaydı → 10 kayıt; <c>kalici-1..3</c> hem listeden hem <c>island.json</c>'dan
+    /// silindi (<c>Commit</c> → <c>ScheduleSave</c> dosyayı geri yazdı, diskte 7/10 kaldı).</para>
+    /// <para><b>Kimlik yerine içerik:</b> <c>(Kind, Text, FilePath)</c> üçlüsü —
+    /// <c>IslandPruner.IsSameContent</c> ile aynı kurallar (<c>Text</c> ordinal,
+    /// <c>FilePath</c> ordinal-ignore-case). Liste yeniden eskiye sıralandığı için ilk görülen
+    /// kayıt en yenisidir ve kazanır.</para>
+    /// <para><b>Yüklenen kayıtların Id'si <c>_nextId</c>'nin üstüne kaydırılır.</b> Önceki süreç
+    /// neslinin sayacı anlamsızdır (her açılışta 1'den başlar), ama aynı Id iki kayıtta durursa
+    /// <see cref="Remove"/>'un Id karşılaştırması ve <see cref="QueueDeleteOfDropped"/>'in üyelik
+    /// hesabı yanılır. Oturum kayıtlarının Id'si korunur: UI'da tutulan kayıt referansları
+    /// (seçili öğe, <c>Remove</c>/<c>PutBack</c> argümanı) geçerli kalsın.</para>
+    /// </remarks>
+    private List<IslandEntry> MergeWithSession(IReadOnlyList<IslandEntry> loaded)
+    {
+        var renumbered = new List<IslandEntry>(loaded.Count);
+        foreach (IslandEntry e in loaded)
+        {
+            renumbered.Add(e with { Id = Interlocked.Increment(ref _nextId) });
+        }
+
+        var seen = new HashSet<IslandEntry>(EntryContentComparer.Instance);
+        var merged = new List<IslandEntry>(_entries.Count + renumbered.Count);
+        foreach (IslandEntry e in _entries
+            .Concat(renumbered)
+            .OrderByDescending(x => x.CapturedAtUtc))
+        {
+            if (seen.Add(e))
+            {
+                merged.Add(e);
+            }
+        }
+
+        return merged;
     }
 
     /// <summary>UI thread'inde çağrılır.</summary>
@@ -573,10 +617,27 @@ internal sealed class IslandService : IDisposable
         int deleted = 0;
         try
         {
+            // ReparsePoint işaretli dizinlere (junction / sembolik bağ) GİRİLMEZ.
+            // Path.GetFullPath reparse noktalarını çözmediği için Drop içine yerleştirilmiş
+            // bir junction, taramayı Drop DIŞINA çıkarıyor (ölçüldü: …\Drop\baglanti\
+            // tehlikeli.docx listeleniyordu) ve TryDeleteDropCopy'nin ön ek kontrolü o yolu
+            // "Drop altında" sayıyor — yani Drop dışındaki dosya sessizce siliniyordu.
+            // Uygulama Drop'a düz dosya yazdığı için burada yalnız kullanıcının koyduğu
+            // bağ vardır; Hidden/System atlanması önceki SearchOption aşırı yüklemesiyle
+            // aynı davranışı korur.
+            var options = new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                ReturnSpecialDirectories = false,
+                MatchType = MatchType.Simple,
+                AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
+            };
+
             // AllDirectories: Drop altındaki (örn. tarih-saat) alt klasör düzeni de kapsanır.
             // Enumeratörün verdiği yollar zaten Drop altındadır ama aynı guard yine de
             // uygulanır: tek doğrulama noktası (TryDeleteDropCopy) iki yol için de geçerli.
-            foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            foreach (string path in Directory.EnumerateFiles(root, "*", options))
             {
                 if (TryDeleteDropCopy(path, prefix))
                 {
@@ -882,5 +943,30 @@ internal sealed class IslandService : IDisposable
 
         _staDispatcher?.BeginInvokeShutdown(DispatcherPriority.Send);
         _staDispatcher = null;
+    }
+
+    /// <summary>
+    /// Kayıt eşitliği <b>içerik</b> üzerinden: aynı <c>(Kind, Text, FilePath)</c> üçlüsü aynı
+    /// kayıttır. Id bilinçli olarak <b>karşılaştırılmaz</b> — her süreç 1'den başladığı için
+    /// oturum ve kalıcı kayıtlar aynı Id'yi taşıyabilir (bkz. <see cref="MergeWithSession"/>).
+    /// Kurallar <c>IslandPruner.IsSameContent</c> ile aynıdır; o metot private olduğu için
+    /// burada tekrarlanıyor (saf karşılaştırma, tek satır).
+    /// </summary>
+    private sealed class EntryContentComparer : IEqualityComparer<IslandEntry>
+    {
+        internal static readonly EntryContentComparer Instance = new();
+
+        public bool Equals(IslandEntry? x, IslandEntry? y) =>
+            ReferenceEquals(x, y)
+            || (x is not null
+                && y is not null
+                && x.Kind == y.Kind
+                && string.Equals(x.Text, y.Text, StringComparison.Ordinal)
+                && string.Equals(x.FilePath, y.FilePath, StringComparison.OrdinalIgnoreCase));
+
+        public int GetHashCode(IslandEntry obj) => HashCode.Combine(
+            (int)obj.Kind,
+            obj.Text is null ? 0 : StringComparer.Ordinal.GetHashCode(obj.Text),
+            obj.FilePath is null ? 0 : StringComparer.OrdinalIgnoreCase.GetHashCode(obj.FilePath));
     }
 }
