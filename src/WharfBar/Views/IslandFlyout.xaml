@@ -35,11 +35,14 @@
 
             <!-- Liste düz StackPanel: Popup içinde iç içe Popup odak kaçırıp listeyi
                  görünmez yapıyor (docs/04-gotchas.md). Sanalizasyon yok, üst sınır
-                 code-behind'de (MaxRenderedRows). -->
+                 code-behind'de (MaxRenderedRows).
+                 Focusable=False: tek odak kaybettiren yol dikey ScrollBar'a tıklamak;
+                 odak oraya kaçarsa Enter/Delete/↑↓ çalışır ama harfler kaybolur. -->
             <ScrollViewer x:Name="ListScroll"
                           Grid.Row="1"
                           VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled">
+                          HorizontalScrollBarVisibility="Disabled"
+                          Focusable="False">
                 <StackPanel x:Name="EntryListPanel" />
             </ScrollViewer>
 

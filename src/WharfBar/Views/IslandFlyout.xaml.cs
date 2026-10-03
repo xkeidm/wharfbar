@@ -42,13 +42,16 @@ public sealed partial class IslandFlyout : UserControl
         InitializeComponent();
     }
 
-    /// <summary>Servisi bağlar; önceki bağlantıyı koparır (idempotent).</summary>
+    /// <summary>
+    /// Servisi bağlar; önceki bağlantıyı koparır (idempotent). Listeyi kurmaz: tek çağıran
+    /// <c>OnIslandPopupOpened</c> hemen ardından <see cref="OnPanelOpened"/>'ı çağırıyor,
+    /// kurulum zaten orada yapılıyor.
+    /// </summary>
     internal void Attach(IslandService service)
     {
         Detach();
         _service = service;
         service.Changed += OnChanged;
-        Rebuild();
     }
 
     internal void Detach()
@@ -149,7 +152,6 @@ public sealed partial class IslandFlyout : UserControl
             Background = restingBrush,
             Cursor = Cursors.Hand,
         };
-        row.Tag = entry;
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });

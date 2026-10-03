@@ -57,12 +57,17 @@
         </Style>
         <!-- Island pilli: ortadaki tek hedef. Diğer statü butonları gibi hover ile geri
              bildirim verir; 30 DIP'lik şeritte hedefi görünmez kılan yerleşim yanlış tıklamaya
-             yol açıyor. -->
+             yol açıyor.
+
+             MinWidth: boş durumda glif + "Boş" ~80 DIP'te kalıyordu; bu ada tek OLE bırakma
+             hedefi olduğu için hedefi 120 DIP'e çıkarmak nişan almayı kolaylaştırır
+             (canlı ölçüm Task 8'de). -->
         <Style x:Key="IslandPillHit" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="10,2" />
             <Setter Property="CornerRadius" Value="12" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="MinWidth" Value="120" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
             <Style.Triggers>
@@ -149,9 +154,16 @@
                  uygulama genelinde tek tane; her barda bir ada çıkması aynı listeyi iki kez
                  göstermek ve hangi panelin açık olduğunu belirsizleştirmek olurdu.
                  Drop/DragOver/MouseLeftButtonUp tek blokta bağlıdır: aynı öğe iki adımda
-                 düzenlenip biri atlanırsa olay sessizce ölü kalır. -->
+                 düzenlenip biri atlanırsa olay sessizce ölü kalır.
+
+                 Alt sıradaki çocuklar (StatusStrip) üst üste biner — kök Grid'de sütun yok,
+                 üç küme aynı hücreyi paylaşıyor. Dar monitörde ortalanmış ada sağ kümeye
+                 değdiği için önizleme tavanı statik tutulur (MaxWidth=160): genişlik tabanlı
+                 gizleme altyapısı yok, ActualWidth/SizeChanged dinlenmiyor. Canlı ölçüm ve
+                 gerekiyorsa tavanın düşürülmesi Task 8'in konusu. -->
             <Border x:Name="IslandPill"
                     Style="{StaticResource IslandPillHit}"
+                    Margin="24,0"
                     Visibility="Collapsed"
                     AllowDrop="True"
                     MouseLeftButtonUp="OnIslandPillClick"
@@ -167,7 +179,7 @@
                                Text="Bo&#x15F;"
                                FontSize="12"
                                TextTrimming="CharacterEllipsis"
-                               MaxWidth="240"
+                               MaxWidth="160"
                                VerticalAlignment="Center" />
                     <TextBlock x:Name="IslandCountText"
                                Margin="8,0,0,0"

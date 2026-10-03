@@ -697,8 +697,13 @@ public partial class TopBarWindow : Window
         }
 
         // Ok/Enter/Delete yalnız panelde tüketilir; dışarıda bırakılırsa arama kutusu da
-        // ok tuşlarını yer.
-        e.Handled = IslandHost.HandleNavigationKey(e.Key);
+        // ok tuşlarını yer. Handled yalnız gerçekten tüketilen tuşta yazılır: e.Handled
+        // false'a sıfırlamak, bu handler'ın bir üst sınıftan gelmiş işlenmiş bir olayı
+        // yeniden açmasına yol açardı.
+        if (IslandHost.HandleNavigationKey(e.Key))
+        {
+            e.Handled = true;
+        }
     }
 
     private void AttachIsland()
@@ -1408,9 +1413,9 @@ public partial class TopBarWindow : Window
         ApplySystemStats(_engine.SystemStats.Snapshot);
         ApplyBackgroundAppearance();
 
-        // Ayar sayfası IslandService.ApplyConfig'u ayrıca çağırır; yine de burada
-        // tazelenir — ada görünürlüğü servisin Enabled alanına bağlı ve pencere kendi
-        // görünümünü aynı "config uygulandı" geçişinde yenilemeli.
+        // Ayar sayfası IslandService.ApplyConfig(newConfig) çağırmak ZORUNDADIR: ada
+        // görünürlüğü servisin Enabled alanına, canlı liste de Changed aboneliğine bağlı;
+        // ikisi de ayar kaydından sonra bayat kalır. Bu satır yalnız görünürlüğü tazeler.
         UpdateIslandPill();
     }
 
