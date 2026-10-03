@@ -281,11 +281,24 @@ public sealed partial class IslandFlyout : UserControl
         _service.PutBack(entry);
     }
 
-    /// <summary>Bırakılan kopyayı varsayılan uygulamayla açar; dosya silinmez.</summary>
-    private static void OpenFile(string? path)
+    /// <summary>
+    /// Bırakılan kopyayı varsayılan uygulamayla açar; dosya silinmez.
+    /// </summary>
+    /// <remarks>
+    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir — aynı sebepten
+    /// silme yolu <c>Drop</c> sınırını zorunlu tutuyor. Doğrulamadan çalıştırmak iki ayrı
+    /// güvenlik sınırı bırakırdı: elle düzenlenmiş bir kayıt, kullanıcının hiç bırakmadığı
+    /// bir dosyayı varsayılan uygulamasında açabilirdi.
+    /// </remarks>
+    private void OpenFile(string? path)
     {
-        if (string.IsNullOrEmpty(path))
+        if (_service is null || !_service.IsInsideDropRoot(path))
         {
+            if (path is not null)
+            {
+                Debug.WriteLine($"[WharfBar] island open skipped, outside Drop: {path}");
+            }
+
             return;
         }
 

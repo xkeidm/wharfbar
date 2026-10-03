@@ -26,8 +26,11 @@ namespace WharfBar.Services;
 /// (mesaj-only <c>HwndSource</c> ve pano dinleyicisi bunu gerektirir).</para>
 /// <para><b>Dosya I/O'su UI thread'inde değil:</b> bırakılan dosyaların kopyalanması
 /// (<see cref="AddDroppedFiles"/>) ve düşen kayıtların kopyalarının silinmesi STA worker'da
-/// olur. Üst bar kayıtlı bir AppBar olduğu için UI thread'inde yapılan büyük bir kopyalama
-/// ya da silme tüm masaüstünü dondurur.</para>
+/// olur; <c>island.json</c>'un serileştirilip diske yazılması da STA worker'a verilir (snapshot
+/// UI thread'inde alınır). Üst bar kayıtlı bir AppBar olduğu için UI thread'inde yapılan büyük
+/// bir kopyalama, silme ya da ~13 MB'lık bir JSON yazma tüm masaüstünü dondurur. Tek istisna
+/// <see cref="Dispose"/>'daki son yazma: senkron kalır, çünkü kuyruğa atmak son kopyalamayı
+/// süreç sonuyla yarıştırıp sessizce düşürüyordu.</para>
 /// </remarks>
 internal sealed class IslandService : IDisposable
 {
@@ -180,7 +183,7 @@ internal sealed class IslandService : IDisposable
         }
 
         IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
-            ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, persistent: true);
+            ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, IsPersistent);
 
         if (!merging && pruned.Count == ordered.Count)
         {
@@ -634,9 +637,10 @@ internal sealed class IslandService : IDisposable
                 AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
             };
 
-            // AllDirectories: Drop altındaki (örn. tarih-saat) alt klasör düzeni de kapsanır.
-            // Enumeratörün verdiği yollar zaten Drop altındadır ama aynı guard yine de
-            // uygulanır: tek doğrulama noktası (TryDeleteDropCopy) iki yol için de geçerli.
+            // Bırakma kopyaları DÜZ yazılır (Drop\<ad>, ad çakışmasında " (2)"), tarih-saat
+            // alt klasörü yok. Enumeratörün verdiği yollar zaten Drop altındadır ama aynı guard
+            // yine de uygulanır: tek doğrulama noktası (TryDeleteDropCopy) iki yol için de
+            // geçerli.
             foreach (string path in Directory.EnumerateFiles(root, "*", options))
             {
                 if (TryDeleteDropCopy(path, prefix))
@@ -701,6 +705,69 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
+    /// Bir kayıt yolunun <c>Drop</c> kökü altında olduğunu doğrular ve tam yolünü verir.
+    /// <b>Silme ve açma yolları aynı sınırı kullanır</b>: kayıt <c>FilePath</c>'i diskin kendisinden
+    /// geldiği için güvenilmezdir (<c>island.json</c> elle düzenlenebilir,
+    /// <c>IslandStore.TryReadEntry</c> DropRoot kontrolü yapmaz). Silmede sınırın olmaması
+    /// Drop dışındaki bir dosyayı geri dönüşsüz siler; açmada olmaması o dosyayı
+    /// varsayılan uygulamada açar. İkisi de aynı girdiden beslendiği için iki ayrı kural
+    /// tutarsız olurdu.
+    /// </summary>
+    internal bool TryResolveInsideDrop(string? path, out string full)
+    {
+        if (!TryGetDropRoot(out _, out string prefix))
+        {
+            full = string.Empty;
+            return false;
+        }
+
+        return IsInsideDropPrefix(path, prefix, out full);
+    }
+
+    /// <summary>
+    /// Kayıt yolu <c>Drop</c> altında mı? Açma yolunun sınırı — silme yolununkiyle aynı kural
+    /// (<see cref="TryResolveInsideDrop"/>), çünkü ikisi de aynı güvenilmeyen girdiyi paylaşıyor.
+    /// </summary>
+    internal bool IsInsideDropRoot(string? path) => TryResolveInsideDrop(path, out _);
+
+    /// <summary>
+    /// Yalnız sınır kontrolü: servis/mağaza olmadan test edilebilir saf kısım.
+    /// </summary>
+    /// <param name="rootPrefix">
+    /// <see cref="TryGetDropRoot"/>'in ürettiği ayırıcı eklenmiş ön ek. Ayırıcının eklenmiş
+    /// olması şart: "…\Drop" ile "…\DropYedek" kardeş klasörler, ayırıcısız ön ek
+    /// kontrolünde ikisi de "Drop" altında sayılırdı.
+    /// </param>
+    internal static bool IsInsideDropPrefix(string? path, string rootPrefix, out string full)
+    {
+        full = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Debug.WriteLine($"[WharfBar] island drop path invalid: {path} ({ex.Message})");
+            full = string.Empty;
+            return false;
+        }
+
+        if (!full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            Debug.WriteLine($"[WharfBar] island drop path rejected, outside Drop: {path}");
+            full = string.Empty;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// Tek bir bırakma kopyasını siler. Yalnızca <c>%AppData%\WharfBar\Drop</c> altındaki
     /// yollar silinir; dışarıdaki bir yol loglanıp atlanır. Kayıt <c>FilePath</c>'i diskin
     /// kendisinden geldiği için güvenilir değildir (<c>island.json</c> elle düzenlenebilir):
@@ -711,22 +778,21 @@ internal sealed class IslandService : IDisposable
     /// <returns>Dosya gerçekten silindiyse <c>true</c>.</returns>
     private static bool TryDeleteDropCopy(string path, string rootPrefix)
     {
-        string full;
-        try
+        if (!IsInsideDropPrefix(path, rootPrefix, out string full))
         {
-            full = Path.GetFullPath(path);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            Debug.WriteLine($"[WharfBar] island drop path invalid: {path} ({ex.Message})");
             return false;
         }
 
-        // Ayırıcının eklenmiş olması şart: "…\Drop" ile "…\DropYedek" kardeş klasörler,
-        // ayırıcısız ön ek kontrolünde ikisi de "Drop" altında sayılırdı.
-        if (!full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        // Ön ek kontrolü yeterli DEĞİL: Drop içine kullanıcının koyduğu bir junction
+        // (…\Drop\baglanti\ → C:\Users\…\Documents) ön ek testini geçer, ama File.Delete
+        // junction'ı izler ve Drop DIŞINDAKİ dosyayı siler. Tarama yolu bunu zaten
+        // ReparsePoint'i atlayarak engelliyor (DeleteDropFolderContents); kayıt yolu da aynı
+        // güvenceyi almalı, yoksa iki yol aynı girdi için farklı güvenlik sınırı uygular.
+        if (!AllDirectoryComponentsAreReal(rootPrefix, full, out string? reparseDir))
         {
-            Debug.WriteLine($"[WharfBar] island drop delete skipped, outside Drop: {path}");
+            Debug.WriteLine(
+                $"[WharfBar] island drop delete skipped, unsafe path component " +
+                $"({reparseDir ?? "unreadable"}): {full}");
             return false;
         }
 
@@ -746,6 +812,68 @@ internal sealed class IslandService : IDisposable
             Debug.WriteLine($"[WharfBar] island drop delete failed: {ex.Message}");
             return false;
         }
+    }
+
+    /// <summary>
+    /// <paramref name="rootPrefix"/> ile <paramref name="full"/> arasındaki <b>her dizin
+    /// bileşeni</b> gerçek bir dizin mi, yani <c>ReparsePoint</c> ile işaretli bir junction /
+    /// sembolik bağ mı?
+    /// </summary>
+    /// <param name="offender">
+    /// Bağlantı işaretli bileşenin yolu, yoksa <see langword="null"/>.
+    /// </param>
+    /// <returns>
+    /// Güvenliyse <c>true</c>. Bağlantılı ya da <b>okunamayan</b> bir bileşende <c>false</c> —
+    /// belirsizlikte silme yapılmaz (opt-out'un fail-closed kuralıyla aynı seçim).
+    /// </returns>
+    internal static bool AllDirectoryComponentsAreReal(string rootPrefix, string full, out string? offender)
+    {
+        offender = null;
+
+        // Kökün kendisi (…\Drop) kullanıcının/uygulamanın klasörü; bileşen sayımı onun
+        // ALTINDAN başlar. Dosyanın kendisi kontrol edilmez: File.Delete bir dosya sembolik
+        // bağında bağın KENDİSİNİ siler, hedefi değil — sadece dizin bağı izlenir.
+        int start = rootPrefix.Length;
+        for (int i = start; i < full.Length; i++)
+        {
+            if (full[i] != Path.DirectorySeparatorChar && full[i] != Path.AltDirectorySeparatorChar)
+            {
+                continue;
+            }
+
+            string dir = full[..i];
+            if (dir.Length <= start)
+            {
+                continue;
+            }
+
+            try
+            {
+                if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
+                {
+                    offender = dir;
+                    return false;
+                }
+            }
+            catch (FileNotFoundException)
+            {
+                // Bileşen yok: File.Exists(full) zaten false dönecek, silme olmayacak. Temiz
+                // sayıp devam etmek güvenli — takip eden adımda zaten eleniyor.
+            }
+            catch (DirectoryNotFoundException)
+            {
+                // Aynı gerekçe, ara dizin yok.
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Erişilemeyen bileşenin bağ olup olmadığı bilinemez -> fail-closed.
+                offender = dir;
+                Debug.WriteLine($"[WharfBar] island drop component unreadable: {dir} ({ex.Message})");
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <param name="deleteDroppedFiles">
@@ -900,7 +1028,7 @@ internal sealed class IslandService : IDisposable
 
         try
         {
-            _ = _dispatcher.BeginInvoke(FlushSave, DispatcherPriority.Background);
+            _ = _dispatcher.BeginInvoke(FlushSaveOffThread, DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
@@ -910,7 +1038,37 @@ internal sealed class IslandService : IDisposable
         }
     }
 
-    /// <summary>UI thread'inde çalışır. Bekleyen debounce yazmasını diske yazar.</summary>
+    /// <summary>
+    /// UI thread'inde çalışır: yalnız <b>snapshot'ı</b> burada alır, serileştirme + diske
+    /// yazma STA worker'a verilir.
+    /// </summary>
+    /// <remarks>
+    /// Varsayılan 200 kayıt × 64 KB ≈ 13 MB'lık bir <c>JsonSerializer.Serialize</c> +
+    /// <c>File.Replace</c> 750 ms debounce ile <b>AppBar UI thread'inde</b> çalışıyordu; üst
+    /// bar kayıtlı bir AppBar olduğu için bu, tüm masaüstünü birkaç saniye donduruyordu.
+    /// Sınıfın kendi gerekçesi dosya kopyalama/silmeyi STA'ya taşımıştı ama diske yazmayı
+    /// burada bırakmıştı.
+    /// <para><b>Sıralama garantisi:</b> <see cref="IslandStore.Save"/> serileştirmeyi de kendi
+    /// <c>_ioGate</c> kilidi içinde yapar, yani iki yazma asla iç içe geçemez. Kuyrukta
+    /// bekleyen eski bir yazma <see cref="Dispose"/>'daki senkron flush'tan sonra
+    /// <c>BeginInvokeShutdown</c> ile düşer — yani diskte en son snapshot kalır.</para>
+    /// </remarks>
+    private void FlushSaveOffThread()
+    {
+        if (!_savePending)
+        {
+            return;
+        }
+
+        _savePending = false;
+        QueueSave([.. _entries]);
+    }
+
+    /// <summary>
+    /// <b>Senkron.</b> Çıkış yolunda kullanılır: kuyruğa atmak son kopyalamayı sessizce
+    /// düşürüyordu (kapanış süreç sonuyla yarışır), bu yüzden buradaki yazma UI thread'inde
+    /// kalmalı. Kuyruktaki eski yazmalar bu flush'tan sonra düşer.
+    /// </summary>
     private void FlushSave()
     {
         if (!_savePending)
@@ -919,11 +1077,20 @@ internal sealed class IslandService : IDisposable
         }
 
         _savePending = false;
-        List<IslandEntry> snapshot = [.. _entries];
+        _store.Save([.. _entries]);
+    }
 
-        // Kucuk liste: senkron yazmak UI thread'ini anlamli bicimde bloklamaz, ama kapanista
-        // kuyruga atmak sureci cikisyla yaristirir ve son kopyalamayi sessizce dusururdu.
-        _store.Save(snapshot);
+    private void QueueSave(List<IslandEntry> snapshot)
+    {
+        Dispatcher? sta = _staDispatcher;
+        if (sta is null)
+        {
+            // STA worker yoksa (Dispose sonrası) yazmağı sessizce düşürmektense senkron yaz.
+            _store.Save(snapshot);
+            return;
+        }
+
+        _ = sta.BeginInvoke(() => _store.Save(snapshot), DispatcherPriority.Background);
     }
 
     /// <summary>UI thread'inde çağrılmalıdır (HwndSource.Dispose UI thread'i ister).</summary>

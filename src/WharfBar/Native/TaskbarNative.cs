@@ -523,7 +523,7 @@ internal static class TaskbarNative
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom);
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom, expanded);
     }
 
     /// <summary>
@@ -531,7 +531,18 @@ internal static class TaskbarNative
     /// reservation strip). SPI_SETWORKAREA applies to the monitor containing the rect. Silent
     /// (no SPIF_SENDCHANGE) except when <paramref name="broadcast"/> is true.
     /// </summary>
-    internal static bool TryExpandWorkAreaBottom(MonitorInfo monitor, int reservedBottomPx, bool broadcast)
+    /// <remarks>
+    /// Yalnız birincil monitör devre kesicisini besler (<paramref name="feedsBreaker"/> =
+    /// <c>false</c> buradan). Aksi halde ikincil monitörün genişletmesi, ki o monitörün
+    /// work-area'sı doğru okunsa bile "etki uygulanmadı" sayılabilecek tek bir çağrıyla devreyi
+    /// 10 dakika açık tutup <see cref="TrySetPrimaryWorkArea"/>'ı — yani çıkıştaki work-area
+    /// geri yüklemesini — erken çıkmaya zorlayabilirdi. Bkz. <c>boundaries.md</c> "Asla".
+    /// </remarks>
+    internal static bool TryExpandWorkAreaBottom(
+        MonitorInfo monitor,
+        int reservedBottomPx,
+        bool broadcast,
+        bool feedsBreaker)
     {
         if (!WorkAreaExpandPolicy.Shared.ShouldAttempt(DateTimeOffset.UtcNow))
         {
@@ -562,10 +573,17 @@ internal static class TaskbarNative
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref expanded,
-            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom);
+            broadcast ? NativeMethods.SPIF_SENDCHANGE : 0), targetBottom, expanded, feedsBreaker);
     }
 
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>
+    /// <remarks>
+    /// Devre kesicinin "SPI bu shell'de ölü" dediği durumda bile <b>denenir</b>: devre
+    /// kesicisi yalnız genişletme yolunu susturur, restore yolunu susturmaz. Çıkışta tek bir
+    /// ölü çağrının bedeli yoktur, ama kesik bir restore'un bedeli alt boşlukta kalan bir
+    /// görev çubuğudur — <c>boundaries.md</c> "Asla" listesi. 25H2'de ölü olan API
+    /// <c>TRUE</c> döndüp hiçbir şey yapmadığı için (ölçüldü) bu çağrı zararsızdır.
+    /// </remarks>
     internal static bool TrySetPrimaryWorkArea(RECT work)
     {
         if (work.Width <= 0 || work.Height <= 0)
@@ -573,16 +591,11 @@ internal static class TaskbarNative
             return false;
         }
 
-        if (!WorkAreaExpandPolicy.Shared.ShouldAttempt(DateTimeOffset.UtcNow))
-        {
-            return false; // known-broken SPI on this shell; tray re-show restores the strip
-        }
-
         return RecordSetWorkArea(NativeMethods.SystemParametersInfo(
             NativeMethods.SPI_SETWORKAREA,
             0,
             ref work,
-            NativeMethods.SPIF_SENDCHANGE), work.Bottom);
+            NativeMethods.SPIF_SENDCHANGE), work.Bottom, work);
     }
 
     /// <summary>
@@ -592,25 +605,94 @@ internal static class TaskbarNative
     /// edge counts as success; the first dead-API result per circuit-open transition is surfaced
     /// in debug output.
     /// </summary>
-    private static bool RecordSetWorkArea(bool ok, int expectedBottom)
+    /// <param name="written">The rect handed to <c>SPI_SETWORKAREA</c> — it identifies the
+    /// monitor the write applied to, which is the monitor the read-back must come from.</param>
+    /// <param name="feedsBreaker">False for calls that must not be able to open the circuit
+    /// (see <see cref="TryExpandWorkAreaBottom"/>).</param>
+    private static bool RecordSetWorkArea(bool ok, int expectedBottom, RECT written, bool feedsBreaker = true)
     {
         int error = ok ? 0 : System.Runtime.InteropServices.Marshal.GetLastWin32Error();
-        bool effectApplied = ok
-            && TryGetPrimaryWorkArea(out RECT readBack)
-            && readBack.Bottom == expectedBottom;
+        bool readBackOk = TryReadBackWorkAreaBottom(written, out int readBackBottom);
+        return RecordSetWorkAreaResult(
+            ok,
+            error,
+            readBackOk,
+            readBackBottom,
+            expectedBottom,
+            feedsBreaker,
+            DateTimeOffset.UtcNow,
+            WorkAreaExpandPolicy.Shared);
+    }
 
-        bool wasOpen = WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow);
-        WorkAreaExpandPolicy.Shared.RecordResult(ok, error, effectApplied, DateTimeOffset.UtcNow);
-        if (WorkAreaExpandPolicy.Shared.IsCircuitOpen(DateTimeOffset.UtcNow) && !wasOpen)
+    /// <summary>
+    /// Reads the bottom edge of the work area of the monitor that <paramref name="written"/>
+    /// belongs to (<c>MonitorFromRect</c> + <c>GetMonitorInfo.rcWork</c>).
+    /// </summary>
+    /// <remarks>
+    /// <c>SPI_GETWORKAREA</c> <b>yalnız birincil</b> monitörü okur (uiParam = 0), ama
+    /// <c>SPI_SETWORKAREA</c> yazılan dikdörtgenin içinde bulunduğu monitöre uygulanır ve
+    /// <see cref="TryExpandWorkAreaBottom"/> her monitör için çağrılır. Birincil okuma
+    /// ikincinin başarılı genişlemesini "etki uygulanmadı" sayar; iki hata sonrası devre
+    /// kesicisi açılır ve çıkıştaki restore work area'yı geri yükleyemez. Monitör çözülemezse
+    /// birincil okumaya düşülür — bu yol yalnız birincil dikdörtgenler için doğrudur.
+    /// </remarks>
+    private static bool TryReadBackWorkAreaBottom(RECT written, out int bottom)
+    {
+        IntPtr monitor = NativeMethods.MonitorFromRect(ref written, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        if (monitor != IntPtr.Zero)
         {
-            System.Diagnostics.Debug.WriteLine(
-                ok
-                    ? "WharfBar: SPI_SETWORKAREA reported success but the work area did not move — " +
-                      "Windows 11 25H2 does not support work-area overrides; the hidden taskbar's " +
-                      "bottom strip stays reserved. Maximized windows will respect the strip."
-                    : $"WharfBar: SPI_SETWORKAREA rejected (Win32 error {error}) — Windows 11 25H2 " +
-                      "does not support work-area overrides; the hidden taskbar's bottom strip " +
-                      "cannot be released. Maximized windows will respect the strip.");
+            var info = new MONITORINFO
+            {
+                cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
+            };
+            if (NativeMethods.GetMonitorInfo(monitor, ref info) && info.rcWork.Height > 0)
+            {
+                bottom = info.rcWork.Bottom;
+                return true;
+            }
+        }
+
+        if (TryGetPrimaryWorkArea(out RECT primaryWork))
+        {
+            bottom = primaryWork.Bottom;
+            return true;
+        }
+
+        bottom = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// The verdict, the breaker feed and the one-shot debug line, split from the Win32
+    /// round-trip so the breaker's gating is testable without a live shell.
+    /// </summary>
+    internal static bool RecordSetWorkAreaResult(
+        bool ok,
+        int error,
+        bool readBackOk,
+        int readBackBottom,
+        int expectedBottom,
+        bool feedsBreaker,
+        DateTimeOffset now,
+        WorkAreaExpandPolicy policy)
+    {
+        bool effectApplied = ok && readBackOk && readBackBottom == expectedBottom;
+
+        if (feedsBreaker)
+        {
+            bool wasOpen = policy.IsCircuitOpen(now);
+            policy.RecordResult(ok, error, effectApplied, now);
+            if (policy.IsCircuitOpen(now) && !wasOpen)
+            {
+                System.Diagnostics.Debug.WriteLine(
+                    ok
+                        ? "WharfBar: SPI_SETWORKAREA reported success but the work area did not move — " +
+                          "Windows 11 25H2 does not support work-area overrides; the hidden taskbar's " +
+                          "bottom strip stays reserved. Maximized windows will respect the strip."
+                        : $"WharfBar: SPI_SETWORKAREA rejected (Win32 error {error}) — Windows 11 25H2 " +
+                          "does not support work-area overrides; the hidden taskbar's bottom strip " +
+                          "cannot be released. Maximized windows will respect the strip.");
+            }
         }
 
         return ok && effectApplied;

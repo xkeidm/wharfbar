@@ -75,6 +75,45 @@ public class TrayCaptureTests
         Assert.False(TrayCapture.IsBlankCapture(source, new Int32Rect(0, 0, 16, 16)));
     }
 
+    /// <summary>
+    /// K1: tek bir saydam piksel kırpmanın tamamını boş saymaz — doc "fully transparent" diyor.
+    /// Saydam pikselli ama içinde glif olan bir kırpma içeriktir; eski kural burada yanlış
+    /// pozitif veriyor ve harf glifi fallback'i gereksiz yere tetikleniyordu.
+    /// </summary>
+    [Fact]
+    public void IsBlankCapture_False_WhenOnlyOnePixelIsTransparent()
+    {
+        var writable = new WriteableBitmap(4, 1, 96, 96, PixelFormats.Bgra32, null);
+        var pixels = new byte[4 * 4];
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            pixels[i] = 32;
+            pixels[i + 1] = 32;
+            pixels[i + 2] = 32;
+            pixels[i + 3] = 255;
+        }
+
+        // Piksel 0 saydam, piksel 1 farklı renkte (glyph), gerisi tek dolgu.
+        pixels[3] = 0;
+        pixels[4] = 200;
+        pixels[7] = 255;
+        writable.WritePixels(new Int32Rect(0, 0, 4, 1), pixels, 16, 0);
+        writable.Freeze();
+
+        Assert.False(TrayCapture.IsBlankCapture(writable, new Int32Rect(0, 0, 4, 1)));
+    }
+
+    /// <summary>
+    /// Tamamen saydam kırpma: her piksel 0 olduğu için düzgün biçimde "tek dolgu" olarak
+    /// yakalanır (ayrı bir saydam taraması gerekmez).
+    /// </summary>
+    [Fact]
+    public void IsBlankCapture_True_WhenEveryPixelIsTransparent()
+    {
+        BitmapSource source = Solid(4, 1, 0, 0, 0, 0);
+        Assert.True(TrayCapture.IsBlankCapture(source, new Int32Rect(0, 0, 4, 1)));
+    }
+
     [Fact]
     public void IsBlankCapture_OnlyJudgesTheRequestedRegion()
     {

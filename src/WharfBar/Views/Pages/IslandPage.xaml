@@ -156,10 +156,10 @@
                                 Margin="8,0,0,0" Click="OnClearHistoryClick" />
                     </StackPanel>
 
-                    <TextBlock Text="“Bırakılan dosyaları sil” %AppData%\WharfBar\Drop klasörünü tarayarak tamamen boşaltır — kayıt, MaxItems budamasıyla düşmüş ya da önceden temizlenmiş yetim kopyaları da kapsar. Dosya kayıtları listeden düşer, pano metinlerine dokunmaz."
+                    <TextBlock Text="“Bırakılan dosyaları sil” %AppData%\WharfBar\Drop klasörünü tarayarak tamamen boşaltır — kayıt, MaxItems budamasıyla düşmüş ya da önceden temizlenmiş yetim kopyaları da kapsar. Dosya kayıtları listeden düşer, pano metinlerine dokunmaz. İşlem geri dönüşsüzdür, bu yüzden onay ister."
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" Margin="0,10,0,0" />
-                    <TextBlock Text="“Tüm geçmişi temizle” listeyi boşaltır ama diskteki dosya kopyalarını silmez; onları ayrıca silmeniz gerekir."
+                    <TextBlock Text="“Tüm geçmişi temizle” listeyi boşaltır ama diskteki dosya kopyalarını silmez; onları ayrıca silmeniz gerekir. O da onay ister."
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" Margin="0,4,0,0" />
                 </StackPanel>

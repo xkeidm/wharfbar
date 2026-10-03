@@ -630,7 +630,11 @@ internal sealed class TaskbarVisibilityService
                     reserved = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
                 }
 
-                if (TaskbarNative.TryExpandWorkAreaBottom(monitor, reserved, broadcast))
+                // feedsBreaker yalnız birincil monitör: keep-hidden watch TÜM rezervasyonlu
+                // monitörleri gezdiği için ikincil monitörün ölü-SPI gürültüsü devre kesicisini
+                // açık tutup çıkıştaki TrySetPrimaryWorkArea geri yüklemesini kıracaktı.
+                if (TaskbarNative.TryExpandWorkAreaBottom(
+                        monitor, reserved, broadcast, feedsBreaker: monitor.IsPrimary))
                 {
                     return;
                 }

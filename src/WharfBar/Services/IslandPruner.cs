@@ -30,7 +30,9 @@ internal static class IslandPruner
     /// </summary>
     /// <param name="historyOptOut">
     /// <c>CanIncludeInClipboardHistory</c> formatı 0 ise <c>true</c> — parola yöneticileri
-    /// kopyalarını bu işaretle kendi dışında tutar, biz de tutarız.
+    /// kopyalarını bu işaretle kendi dışında tutar, biz de tutarız. Çağıran ayrıca
+    /// <b>formatı hiç kaydedemediyse</b> de <c>true</c> geçmeli (fail-closed): opt-out
+    /// okunamıyorsa içeriği almak, parola yöneticisinin isteğini çiğnemek olurdu.
     /// </param>
     /// <param name="text">Okunan metin.</param>
     /// <param name="byteCount">Metnin UTF-8 bayt uzunluğu.</param>
@@ -152,7 +154,15 @@ internal static class IslandPruner
         }
 
         string single = sb.ToString();
-        return single.Length <= PreviewChars ? single : string.Concat(single.AsSpan(0, PreviewChars), "…");
+        if (single.Length <= PreviewChars)
+        {
+            return single;
+        }
+
+        // Kesme UTF-16 biriminde yapılır; 40. karakter bir yüksek surrogate ise (emoji vb.)
+        // çiftin yarısı kalır ve önizlemede boş kutu çıkar. Birim geri çekilir.
+        int cut = char.IsHighSurrogate(single[PreviewChars - 1]) ? PreviewChars - 1 : PreviewChars;
+        return string.Concat(single.AsSpan(0, cut), "…");
     }
 
     /// <summary>Listede gösterilen göreli zaman etiketi.</summary>

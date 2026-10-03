@@ -21,7 +21,7 @@
 | "Panoya geri koy" | Panoya **yazar**, yapıştırma yapmaz (`boundaries.md` enjeksiyonu yasaklıyor). Yazma `CanIncludeInClipboardHistory = 0` ile birlikte yapılır |
 | Bırakma | Pill `AllowDrop`; dosya `Drop` klasörüne **kopyalanır** (ad çakışmasında ` (2)`, ` (3)` …), orijinale dokunulmaz. Klasör bırakmaları yok sayılır |
 | Monitör kapsamı | v1: **yalnızca birincil monitörün bar'ı** (`trayMirror` ile aynı sınır). Servis `TopBarEngine`'de tek örnek; `AttachIsland` yalnız primary'de çağrılır |
-| Config | `island.enabled` · `island.persistence` (**string** `session`/`persistent`) · `island.retentionDays` · `island.maxItems`; `schemaVersion` **1 kalır** (soft alan, ADR-007 deseni) |
+| Config | `island.enabled` · `island.persistence` (**string** `session`/`persistent`) · `island.retentionDays` · `island.maxItems`; `schemaVersion` **2 kalır** (`AppConfig.CurrentSchemaVersion`, soft alan — ADR-007 deseni) |
 
 ## Gerekçe
 

@@ -303,6 +303,14 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
 
+    /// <summary>
+    /// The monitor a rect sits on — the same monitor <c>SPI_SETWORKAREA</c> writes. Pair with
+    /// <see cref="GetMonitorInfo"/> to read back the work area of a specific monitor; the
+    /// <c>SPI_GETWORKAREA</c> counterpart only ever answers for the primary one.
+    /// </summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr MonitorFromRect(ref RECT lprc, uint dwFlags);
+
     [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO lpmi);

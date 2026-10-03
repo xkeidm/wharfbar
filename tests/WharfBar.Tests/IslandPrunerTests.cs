@@ -195,6 +195,32 @@ public class IslandPrunerTests
         Assert.Equal("kısa", IslandPruner.FormatPreview("kısa"));
     }
 
+    /// <summary>
+    /// K7: kesme UTF-16 biriminde yapıldığı için 40. karakter bir yüksek surrogate ise (emoji
+    /// vb.) çiftin yarısı kalır ve önizlemede boş kutu çıkar. Birim geri çekilir.
+    /// </summary>
+    [Fact]
+    public void FormatPreview_DoesNotSplitASurrogatePair()
+    {
+        // 39 'a' + emoji (yüksek + alçak surrogate) + "sonrası" = 47 UTF-16 birimi.
+        string text = new string('a', IslandPruner.PreviewChars - 1) + "😀" + "sonrası";
+
+        string preview = IslandPruner.FormatPreview(text);
+
+        Assert.Equal(IslandPruner.PreviewChars, preview.Length);
+        Assert.DoesNotContain('�', preview);
+        Assert.EndsWith("a…", preview, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FormatPreview_KeepsWholeEmojiThatFitsExactly()
+    {
+        // 38 'a' + emoji = sınırda tam durur, kesilmez.
+        string text = new string('a', IslandPruner.PreviewChars - 2) + "😀";
+
+        Assert.Equal(text, IslandPruner.FormatPreview(text));
+    }
+
     [Fact]
     public void FormatRelativeTime_Formats_MinutesHoursDays()
     {

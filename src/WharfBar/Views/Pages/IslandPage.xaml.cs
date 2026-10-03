@@ -195,11 +195,97 @@ public partial class IslandPage : Page
     /// <c>Clear</c> çağırmak yanlış olurdu: o, pano metinlerini de siler ve kullanıcı "dosyaları
     /// sil" derken geçmişin tamamını kaybetmiş olur.
     /// </summary>
-    private void OnDeleteDroppedFilesClick(object sender, RoutedEventArgs e) =>
-        Island?.DeleteDroppedFiles();
+    /// <remarks>
+    /// Spec bu eylemi "(onaylı)" diye tanımlıyor. <c>DeleteDroppedFiles</c> <c>Drop</c>
+    /// klasörünü tarayarak <b>geri dönüşsüz</b> boşaltır, yani onaysız çalışması bir veri
+    /// kaybı kuralı ihlalidir. Onay <see cref="ConfirmDestructive"/> ile alınır; onay
+    /// alınamazsa eylem hiç yapılmaz (fail-closed).
+    /// </remarks>
+    private void OnDeleteDroppedFilesClick(object sender, RoutedEventArgs e)
+    {
+        if (Island is not { } island)
+        {
+            return;
+        }
+
+        if (!ConfirmDestructive(
+                "Bırakılan dosyalar silinsin mi?",
+                "%AppData%\\WharfBar\\Drop klasörü taranır ve içindeki TÜM kopyalar kalıcı "
+                    + "olarak silinir.\n\nOrijinal dosyalarınız silinmez, ama kopyaları geri "
+                    + "getirilemez."))
+        {
+            return;
+        }
+
+        island.DeleteDroppedFiles();
+    }
 
     /// <summary>Listeyi boşaltır; dosya kopyalarına dokunmaz (bilinçli, bkz. IslandService.Clear).</summary>
-    private void OnClearHistoryClick(object sender, RoutedEventArgs e) => Island?.Clear();
+    private void OnClearHistoryClick(object sender, RoutedEventArgs e)
+    {
+        if (Island is not { } island)
+        {
+            return;
+        }
+
+        if (!ConfirmDestructive(
+                "Tüm geçmiş temizlensin mi?",
+                "Pano geçmişi ve bırakılan dosya kayıtları listeden silinir.\n\nDiskteki dosya "
+                    + "kopyaları silinmez; onları ayrıca “Bırakılan dosyaları sil” ile "
+                    + "temizlemeniz gerekir."))
+        {
+            return;
+        }
+
+        island.Clear();
+    }
+
+    /// <summary>
+    /// Geri dönüşsüz bir bakım eylemi için onay ister.
+    /// </summary>
+    /// <remarks>
+    /// Depoda daha önce bir onay kalıbı yoktu. WPF-UI <c>ContentDialog</c> denendi ve
+    /// <b>reddedildi</b>: yansımayla ölçüldü — WPF-UI 4.3.0'ın <c>ContentDialog</c>'ında
+    /// <c>XamlRoot</c> özelliği yok, tek halka açık yöntemi <c>ShowAsync(CancellationToken)</c>
+    /// ve barındırmayı <c>ContentDialogHost.GetForWindow(Window)</c> üzerinden çözüyor; oysa
+    /// <c>SettingsWindow</c>'ın içeriği bir <c>NavigationView</c>, <c>ContentDialogHost</c>
+    /// değil. Yani kullanılabilir bir yol, ayar penceresinin XAML'ını yapısal olarak
+    /// değiştirmeyi gerektiriyor — ve sözleşme uygulamayı çalıştırmayı yasakladığı için
+    /// doğrulanamaz. Yanlış bir WPF-UI kontrol adının XAML parse hatasıyla prosesi öldürmesi
+    /// bu dalda kabul edilen risk değil; <c>System.Windows.MessageBox</c> (BCL, derleyiciyle
+    /// doğrulanır) kullanıldı.
+    /// </remarks>
+    /// <returns>
+    /// Kullanıcı onayladıysa <c>true</c>; iptal, kapatma, pencere bulunamaması ya da
+    /// gösterilememesi durumunda <c>false</c> — yani onay alınamadıysa eylem <b>yapılmaz</b>
+    /// (fail-closed).
+    /// </returns>
+    private bool ConfirmDestructive(string title, string message)
+    {
+        Window? owner = Window.GetWindow(this);
+        if (owner is null)
+        {
+            Debug.WriteLine("[WharfBar] island confirm skipped, no owner window");
+            return false;
+        }
+
+        try
+        {
+            return MessageBox.Show(
+                       owner,
+                       message,
+                       title,
+                       MessageBoxButton.OKCancel,
+                       MessageBoxImage.Warning)
+                   == MessageBoxResult.OK;
+        }
+        catch (Exception ex)
+        {
+            // Onay gösterilemedi: geri dönüşsüz eylem yapılmaz, ama neden görünmez olmamalı.
+            Debug.WriteLine($"[WharfBar] island confirm failed: {ex.Message}");
+            return false;
+        }
+    }
 
     private void SaveAndApply()
     {

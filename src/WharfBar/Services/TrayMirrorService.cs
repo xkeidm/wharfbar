@@ -30,6 +30,15 @@ internal sealed class TrayMirrorService : IDisposable
     private const int LiveResolveAttempts = 10;
     private const int LiveResolvePollMs = 100;
 
+    /// <summary>
+    /// Kaç ardışık boş UIA okuması boyunca son iyi snapshot tutulur. Eşik <b>sınırlı
+    /// olmalı</b>: blip tazelemesi hem 60 sn'de bir kısıtlıdır hem de pencerelerden biri
+    /// maximize olduğu hiç çalışmaz, dolayısıyla sınırsız bir tolerans aynayı kalıcı olarak
+    /// dondurur — kullanıcı bir pencereyi maximize edip bir tray uygulamasını kapatırsa
+    /// barda ölü bir ikon kalır ve tıklaması bayat bir UIA öğesine gider.
+    /// </summary>
+    private const int EmptyReadGraceReads = 3;
+
     private readonly Dispatcher _dispatcher;
     private readonly TaskbarVisibilityService _taskbar;
     private readonly System.Threading.Timer _timer;
@@ -42,7 +51,8 @@ internal sealed class TrayMirrorService : IDisposable
 
     // UIA tree is torn down/rebuilt around every peek; a single empty read right after
     // SW_SHOW is usually that rebuild, not "user closed every tray app". Hold the last
-    // good snapshot for up to two consecutive empty reads before clearing the mirror.
+    // good snapshot for EmptyReadGraceReads consecutive empty reads before clearing the
+    // mirror — the grace must stay BOUNDED, see the empty branch in PollUia.
     private IReadOnlyList<TrayMirrorItem> _lastGoodUiaItems = [];
     private int _consecutiveEmptyUiaReads;
     // Once UIA has delivered icons, the mirror source is locked for the session: the
@@ -237,16 +247,22 @@ internal sealed class TrayMirrorService : IDisposable
 
         if (items.Count == 0)
         {
-            // While the strip-release auto-hide state is on, empty reads are the shell
-            // virtualizing the parked tray, not "the user closed every tray app" — so
-            // the last good snapshot stays on the bar (frozen) until a blip refresh
-            // (possible only when nothing is maximized) updates or truly empties it.
+            // While the strip-release auto-hide state is on, an empty read is usually the shell
+            // virtualizing the parked tray, not "the user closed every tray app" — so the last
+            // good snapshot is held for a BOUNDED number of polls (EmptyReadGraceReads) before
+            // the mirror is cleared. The bound is the whole point: a maximized window blocks the
+            // blip refresh entirely and the 60 s blip throttle leaves long gaps, so an unbounded
+            // hold froze the mirror for the rest of the session.
             _consecutiveEmptyUiaReads++;
-            if (_lastGoodUiaItems.Count > 0)
+            if (ShouldHoldSnapshotOnEmptyRead(_consecutiveEmptyUiaReads, _lastGoodUiaItems.Count))
             {
                 return _lastGoodUiaItems;
             }
 
+            // Grace exhausted: the tray really is empty. Drop the held snapshot too, otherwise a
+            // later single empty read would resurrect the stale items — and their UIA elements
+            // with them, which is what a mirrored click forwards to.
+            _lastGoodUiaItems = [];
             return items;
         }
 
@@ -259,6 +275,13 @@ internal sealed class TrayMirrorService : IDisposable
 
         return items;
     }
+
+    /// <summary>
+    /// Pure: does an empty UIA read keep the held snapshot on the bar, or clear the mirror?
+    /// Clear the moment the grace is used up — a bounded freeze is a grace period, not a cache.
+    /// </summary>
+    internal static bool ShouldHoldSnapshotOnEmptyRead(int consecutiveEmptyReads, int heldItemCount) =>
+        consecutiveEmptyReads < EmptyReadGraceReads && heldItemCount > 0;
 
     /// <summary>At most one state blip per this interval — the blip flaps the work area.</summary>
     private static readonly TimeSpan BlipMinInterval = TimeSpan.FromSeconds(60);

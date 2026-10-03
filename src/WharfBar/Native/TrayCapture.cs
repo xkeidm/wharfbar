@@ -120,11 +120,9 @@ internal static class TrayCapture
         int first = 0;
         for (int i = 0; i < buffer.Length; i += 4)
         {
-            if (buffer[i + 3] == 0)
-            {
-                return true;
-            }
-
+            // Tek bir saydam piksel tüm kırpımayı boş saymaz: kırpma yalnız TAMAMEN saydam ya da
+            // tek renkli dolgu olduğunda boştur (doc'taki tanım). Saydam pikseller de
+            // karşılaştırmaya girer — hepsi 0 ise düzgün biçimde "tek dolgu" olarak yakalanır.
             int pixel = (buffer[i + 3] << 24) | (buffer[i + 2] << 16) | (buffer[i + 1] << 8) | buffer[i];
             if (i == 0)
             {

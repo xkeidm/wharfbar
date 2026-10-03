@@ -107,10 +107,19 @@ internal static class ClipboardNative
     /// içeriği geçmişe almak istemiyor demektir ve kaydedilmemelidir.
     /// </summary>
     /// <remarks>
-    /// <c>false</c>'in dört farklı nedeni vardır (pano kilitli / metin yok / opt-out işareti /
-    /// opt-out okunamadı) ve hepsi ayrı <c>Debug.WriteLine</c> ile loglanır; yoksa çağıran taraf
-    /// teşhis edemez. İki opt-out yolunun ikisi de <c>historyOptOut = true</c> ile kapanır, yani
-    /// belirsizlikte içerik kaydedilmez.
+    /// <c>false</c>'in <b>altı</b> ayrı yolu vardır ve hepsi <c>Debug.WriteLine</c> ile loglanır
+    /// (yoksa çağıran taraf teşhis edemez):
+    /// <list type="number">
+    /// <item><c>OpenClipboard</c> başarısız — pano başka bir süreçte kilitli
+    /// (<c>0x800401D0</c> = <c>CLIPBRD_E_CANT_OPEN</c>, en sık düşüş nedeni);</item>
+    /// <item><c>RegisterClipboardFormatW</c> başarısız — opt-out okunamıyor;</item>
+    /// <item>kaynak uygulama opt-out işareti yazmış (parola yöneticisi, <c>DWORD 0</c>);</item>
+    /// <item>panoda <c>CF_UNICODETEXT</c> yok — metin dışı bir kopya;</item>
+    /// <item><c>GetClipboardData</c> başarısız;</item>
+    /// <item><c>GlobalLock</c> başarısız.</item>
+    /// </list>
+    /// İkinci ve üçüncü yol <c>historyOptOut = true</c> ile kapanır, yani belirsizlikte içerik
+    /// kaydedilmez (fail-closed).
     /// </remarks>
     internal static bool TryReadText(out string? text, out bool historyOptOut, out int byteCount)
     {
