@@ -110,8 +110,7 @@
 
                         <TextBox x:Name="RetentionBox" Grid.Column="2" Width="110"
                                  VerticalContentAlignment="Center" TextAlignment="Right"
-                                 FontFamily="Consolas"
-                                 LostFocus="OnRetentionLostFocus" />
+                                 FontFamily="Consolas" />
                     </Grid>
 
                     <!-- Kayıt sayısı -->
@@ -135,8 +134,7 @@
 
                         <TextBox x:Name="MaxItemsBox" Grid.Column="2" Width="110"
                                  VerticalContentAlignment="Center" TextAlignment="Right"
-                                 FontFamily="Consolas"
-                                 LostFocus="OnMaxItemsLostFocus" />
+                                 FontFamily="Consolas" />
                     </Grid>
 
                     <TextBlock x:Name="LimitsErrorText" FontSize="12" Foreground="#E57373"

@@ -114,7 +114,7 @@ public partial class IslandPage : Page
             return;
         }
 
-        if (TryCommitLimit(RetentionBox, IslandNormalizer.ClampRetentionDays, out int days))
+        if (TryCommitLimit(RetentionBox, IslandNormalizer.ClampRetentionDays, RetentionRangeText, out int days))
         {
             Cfg.Island.RetentionDays = days;
             SaveAndApply();
@@ -128,7 +128,7 @@ public partial class IslandPage : Page
             return;
         }
 
-        if (TryCommitLimit(MaxItemsBox, IslandNormalizer.ClampMaxItems, out int maxItems))
+        if (TryCommitLimit(MaxItemsBox, IslandNormalizer.ClampMaxItems, MaxItemsRangeText, out int maxItems))
         {
             Cfg.Island.MaxItems = maxItems;
             SaveAndApply();
@@ -141,12 +141,20 @@ public partial class IslandPage : Page
     /// Ayrıştırılamayan girdide kullanıcının metnine dokunmaz, yalnız hata gösterir — yarım
     /// yazılmış bir sayı ("36") sessizce 3'e uygulanmasın.
     /// </summary>
-    private bool TryCommitLimit(TextBox box, Func<int, int> clamp, out int value)
+    /// <summary>Kutu altindaki aralik yazisiyla ayni — hata mesaji onunla celismemeli.</summary>
+    private const string RetentionRangeText = "1–3650";
+
+    private const string MaxItemsRangeText = "10–5000";
+
+    private bool TryCommitLimit(TextBox box, Func<int, int> clamp, string rangeText, out int value)
     {
         value = 0;
         if (!int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            LimitsErrorText.Text = "Geçerli bir tam sayı girin.";
+            // int.TryParse tasma girdide de false doner ("99999999999" gecerli bir tam sayidir ama
+            // int'e sigmaz), o yuzden mesaj kutunun gercek araligini soylemeli — "gecerli bir tam
+            // sayi girin" ile kutu altindaki aralik yazisi celisirdi.
+            LimitsErrorText.Text = $"{rangeText} aralığında bir tam sayı girin.";
             LimitsErrorText.Visibility = Visibility.Visible;
             return false;
         }
