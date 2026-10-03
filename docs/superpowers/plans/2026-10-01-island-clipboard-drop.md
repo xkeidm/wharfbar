@@ -1921,6 +1921,16 @@ Engine'in servisleri kurduğu ctor bloğuna ekle:
 
 `using System.IO;` eksikse dosyanın başına ekle.
 
+> **Uygulama notu (Task 5, commit `feat(island): servis orkestrasyonu…`):** brief'teki
+> `Config.Current.Island` ifadesi motor'da karşılığı olmayan bir üyeye işaret ediyordu;
+> `TopBarEngine` imzası `(ConfigService, TaskbarVisibilityService, VeilService)` oldu ve
+> `MonitorManager.Reconcile` çağrıyı güncelledi. Zaman çizelgesi tek UI dispatcher'ında
+> toplandı: STA worker yakalanan kaydı `AddEntry` ile ekliyor (liste orada okunmuyor), debounce
+> timer'ı da `FlushSave`'ı UI dispatcher'ına atlıyor — threadpool'da `_entries` (`List<T>`) okumak
+> yarış yaratır ve timer callback'i içinde atılan istisna süreci düşürür. `FlushSave` yine senkron
+> `_store.Save` çağırır; `ScheduleSave` `Dispose` sonrası no-op'tur (`Timer.Change` disposed
+> timer'da `ObjectDisposedException` fırlatır).
+
 - [ ] **Step 3: Derle**
 
 Run: `dotnet build WharfBar.sln -v quiet --nologo`

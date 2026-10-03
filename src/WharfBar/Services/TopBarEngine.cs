@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows.Threading;
 
 namespace WharfBar.Services;
@@ -25,8 +26,12 @@ internal sealed class TopBarEngine : IDisposable
     internal NotificationCenterInvoker Notifications { get; }
     internal SystemStatsService SystemStats { get; }
 
-    internal TopBarEngine(TaskbarVisibilityService taskbar, VeilService veil)
+    /// <summary>Clipboard geçmişi + bırakılan dosyalar servisi (null = ada kapalı).</summary>
+    internal IslandService? Island { get; private set; }
+
+    internal TopBarEngine(ConfigService config, TaskbarVisibilityService taskbar, VeilService veil)
     {
+        ArgumentNullException.ThrowIfNull(config);
         ArgumentNullException.ThrowIfNull(taskbar);
         ArgumentNullException.ThrowIfNull(veil);
 
@@ -48,6 +53,15 @@ internal sealed class TopBarEngine : IDisposable
         Media = new MediaSessionService();
         TrayMirror = new TrayMirrorService(dispatcher, taskbar);
         SystemStats = new SystemStatsService();
+
+        if (config.Current.Island.Enabled)
+        {
+            Island = new IslandService(
+                dispatcher,
+                new IslandStore(Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WharfBar")),
+                config.Current.Island);
+        }
     }
 
     internal void Initialize()
@@ -59,6 +73,8 @@ internal sealed class TopBarEngine : IDisposable
 
     public void Dispose()
     {
+        Island?.Dispose();
+        Island = null;
         TrayMirror.Dispose();
         SystemStats.Dispose();
         Media.Dispose();

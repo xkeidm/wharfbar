@@ -76,7 +76,7 @@ internal sealed class MonitorManager : IDisposable
     {
         if (_engine is null)
         {
-            _engine = new TopBarEngine(_taskbar, _veil);
+            _engine = new TopBarEngine(_config, _taskbar, _veil);
             _engine.Initialize();
         }
 
