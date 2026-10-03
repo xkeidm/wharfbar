@@ -62,6 +62,23 @@
    belgelenmiş `SetWindowPos` yalnız; bellek okuma/enjeksiyon yok. Eşleşme **geometrik** (tık
    bölgesi + boyut + `#32768` menü sınıfı; tam ekran overlay'ler hariç): 25H2 XAML tray
    butonlarının hepsi explorer pid'i raporlar, pid ile eşleşme ayırt edemez.
+- **Island / clipboard geçmişi (ADR-010):** belgelenmiş pano P/Invoke'ları
+  (`OpenClipboard`/`GetClipboardData`/`SetClipboardData`/`EmptyClipboard`/
+  `AddClipboardFormatListener`/`RegisterClipboardFormatW`/`GlobalAlloc`) + **mesaj-only**
+  `HwndSource` dinleyicisi (mevcut `MonitorMessageWindow` kalıbı) + ayrı **atomik store**
+  (`island.json` + `Drop\` klasörü — `config.json`'a pano geçmişi yazılmaz, `ConfigService.Save`
+  dosyayı UI thread'inde baştan yazar) + mevcut flyout kalıbı (`Popup` +
+  `AnimateFlyoutOpen/Close`, **iç içe `Popup` yok**).
+  - **`CanIncludeInClipboardHistory` opt-out'una saygı:** format DWORD'u 0 ise kayıt alınmaz;
+     format id'i **alınamıyorsa da** kayıt alınmaz (fail-closed). "Panoya geri koy" yazması da
+     aynı işareti yazar, yoksa island kendi kopyasını geri yakalar.
+  - `System.Windows.Clipboard` **kullanılmaz** — pano okuması ayrı STA thread'indedir
+     (`OpenClipboard` bloklar), dosya kopyalama/silme de STA'dadır.
+  - `Clear()` bırakılan dosya kopyalarını **silmez** (bilinçli); yalnız `DeleteDroppedFiles()`
+     siler ve `Drop` klasörünü tarayarak yetimleri de kapsar. Silme yolları `Drop` önekiyle
+     doğrulanır (elle düzenlenmiş `island.json` kullanıcının dosyasını silemez).
+  - Pano geçmişi yalnız **birincil** monitörün barında görünür (servis tek örnek).
+  - **Yeni paket yok.**
 
 
 ## Önce sor (kullanıcı onayı)

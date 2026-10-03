@@ -363,6 +363,61 @@ UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dl
 
 ---
 
+### user32.dll / kernel32.dll — pano (clipboard) — Island
+
+Belgelenmiş pano API'si; uygulama: `Native/ClipboardNative.cs` + `Services/ClipboardMessageWindow.cs`
+(ADR-010).
+
+```csharp
+// user32.dll
+OpenClipboard(IntPtr hWndNewOwner) / CloseClipboard()      // OpenClipboard bloklayabilir
+EmptyClipboard()                                           // önceki kopyayı GERİ DÖNÜŞSÜZ siler
+IsClipboardFormatAvailable(uint format)
+GetClipboardData(uint format)                              // CF_UNICODETEXT = 13
+SetClipboardData(uint format, IntPtr hMem)                 // başarıda belleği DEVRALIR
+AddClipboardFormatListener(IntPtr hwnd)
+RemoveClipboardFormatListener(IntPtr hwnd)
+RegisterClipboardFormatW(string name)                      // "CanIncludeInClipboardHistory"
+GetClipboardOwner()                                        // pano sahibi HWND (yoksa IntPtr.Zero)
+GetWindowThreadProcessId(IntPtr hwnd, out uint pid)
+// WM_CLIPBOARDUPDATE = 0x031D (mesaj-only HwndSource + AddHook)
+
+// kernel32.dll — SetClipboardData'ya verilen blok
+GlobalAlloc(uint flags, IntPtr bytes)   // GMEM_MOVEABLE = 0x0002
+GlobalLock(IntPtr mem) / GlobalUnlock(IntPtr mem) / GlobalSize(IntPtr mem) / GlobalFree(IntPtr mem)
+```
+
+- **Okuma STA thread'inde olmalıdır.** `OpenClipboard` başka bir süreç kilitlediyse bloklar;
+  UI thread'inde yapılırsa tüm bar donar. Depoda `System.Windows.Clipboard` **kullanılmaz**
+  (UI thread'ine bağlıdır) — `IslandService` kendi STA dispatcher'ını kurar, `TrayMirrorService`
+  kalıbı. Kilitliyse birkaç kez kısa bekleyip olayı sessizce düşürür.
+- **Sahiplik:** `OpenClipboard(NULL)` + `EmptyClipboard()` çağrısı pano sahibini `NULL` yapar —
+  önceki sahip (kaynak uygulama) artık sahip değildir. `EmptyClipboard` kullanıcının önceki
+  kopyasını **dönüşsüz** siler; bu yüzden bloklar `EmptyClipboard`'den **önce** ayrılıp doldurulur
+  ve sonraki her hata hem `GlobalFree` **hem de log** gerektirir. `SetClipboardData` başarıda
+  belleği devralır → o noktadan sonra `GlobalFree` **yapılmaz** (başarısızlıkta çağıran sorumludur).
+- **Opt-out sinyali:** Windows'un kendi `Win+V` geçmişi `CanIncludeInClipboardHistory` formatını
+  kullanır; DWORD `0` = "bu içeriği geçmişe alma". Okuma yolu DWORD'u 0 ise kayıt almaz, format
+  id'i `RegisterClipboardFormatW` ile **alınamıyorsa** da kayıt almaz (fail-closed). Yazma yolu
+  (`TryWriteText`) aynı işareti **birlikte yazar** — yoksa kendi `WM_CLIPBOARDUPDATE`'imiz kendi
+  kaydımızı geri yakalar. Blok 4 bayttan kısaysa okunmaz ve 0 sayılır (taşma okuma yok).
+- `CF_UNICODETEXT` **null sonlu UTF-16**'dır; UTF-8 yazılırsa geri okuma bozuk karakter üretir.
+- `QueryFullProcessImageName` (kernel32) kanonik bildirim olarak `NativeMethods`'ta zaten var;
+  pano sahibi HWND'sinden süreç adı çözümünde yeniden kullanılır (`GetClipboardOwner` →
+  `GetWindowThreadProcessId` → `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` →
+  `QueryFullProcessImageName` → dosya adı). Elevated / başka oturum sahipleri için `OpenProcess`
+  `ERROR_ACCESS_DENIED` verir — normal, kaynak uygulama alanı boş kalır.
+
+> **Tuzak — `RemoveClipboardFormatListener` idempotent DEĞİLDİR (ölçüldü, 5/5 deneme).**
+> Kayıt varken ilk `Remove` `TRUE` döner; ikinci ve sonrakiler `FALSE` + `0x57`
+> (`ERROR_INVALID_WINDOW`). Hiç eklenmemiş bir pencere de `0x57` verir. Yani bir güvenli çağrı
+> ikinci bir çağrıyla **hataya dönüşür**. Yalnızca kayıtlıyken ve bir kez çağrılmalıdır;
+> `ClipboardMessageWindow._disposed` bayrağı bunu garanti eder.
+
+WPF tarafında sürükle-bırak OLE bırakma hedefiyle çalışır (`AllowDrop=True` + `DragOver`/`Drop`);
+bu, projede **ilk** `AllowDrop` kullanımı ve kayıtlı bir **AppBar** penceresinin bırakma hedefi
+olarak kabulü **canlı ölçülmedi** (bkz. `docs/04-gotchas.md`).
+
 ### wlanapi.dll — Wi-Fi listesi / bağlanma (Quick Settings)
 
 - `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`

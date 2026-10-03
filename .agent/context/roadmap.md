@@ -55,6 +55,19 @@
   (`%LOCALAPPDATA%/WharfBar/taskbar-watchdog.json`) izleyip restore'suz ölümde görev çubuğunu
   geri getirir; açılışta stale dosya self-heal. AppBar rezervasyonu kapsam dışı (explorer restart).
   Force-kill testi: ~0.5 sn'de tray görünür.
+- **Island — clipboard geçmişi + bırakılan dosyalar ✓ (kod)** — üst barın **ortasında** ada
+  (ayrı pencere değil: `TopBarWindow` XAML'inde ortalanmış `Border` + `Popup` panel; bağımsız
+  `Topmost` pencere z-order/focus/Mica riski nedeniyle reddedildi). `Native/ClipboardNative`
+  (belgelenmiş pano P/Invoke'ları + `CanIncludeInClipboardHistory` opt-out'u), mesaj-only
+  `ClipboardMessageWindow`, ayrı STA okuma thread'i, saf `IslandPruner` çekirdeği, atomik
+  `IslandStore` (`island.json` + `Drop\` klasörü; `config.json` kullanılmaz), `IslandService`
+  yaşam döngüsü (750 ms debounce), `IslandFlyout` paneli (arama + `ScrollViewer` liste, klavye
+  `↑↓`/`Enter`/`Delete`/`Esc`) ve `IslandPage` ayarları. Karar: [ADR-010](../../docs/decisions/010-island-clipboard-drop.md);
+  spec: [`../../docs/superpowers/specs/2026-10-01-island-clipboard-drop-design.md`](../../docs/superpowers/specs/2026-10-01-island-clipboard-drop-design.md);
+  plan: [`../../docs/superpowers/plans/2026-10-01-island-clipboard-drop.md`](../../docs/superpowers/plans/2026-10-01-island-clipboard-drop.md).
+  **Canlı uçtan uca doğrulama yapılmadı** — dar monitörde ada/sağ küme çakışması, ilk
+  `AllowDrop` (OLE hedefi) ve nabız animasyonunun bitiş değeri ölçülmedi (aralık hesabıyla
+  sınırlı; bkz. `task-8-report.md`).
 
 ## Yapılacaklar listesi (öncelikli)
 

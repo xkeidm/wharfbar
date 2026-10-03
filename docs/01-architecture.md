@@ -37,10 +37,11 @@ WharfBar.sln                    # kökte, tek proje
 .gitignore
 src/WharfBar/
   Views/
-    TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; sağ durum/overflow; WndProc
+    TopBarWindow.xaml(.cs)      # üst bar; AppBar; sol Windows menü; ORTA ada (IslandPill); sağ durum/overflow; WndProc
     QuickSettingsFlyout.xaml(.cs) # Win11 tarzı hızlı ayarlar (ses/ağ; ADR-006)
     BrightnessFlyout.xaml(.cs)  # Monitör parlaklık uçan penceresi (DDC/CI + WMI Monitorian)
     MediaFlyout.xaml(.cs)       # Medya flyout: kapak/başlık/sanatçı/kontroller + oturum seçici (ADR-008)
+    IslandFlyout.xaml(.cs)      # Ada paneli: arama + tek birleşik zaman çizelgesi (pano + bırakılan dosya; ADR-010)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
     DockWindow.xaml(.cs)        # alt overlay; canlı pin/running strip; fullscreen / work-area
     VeilWindow.xaml(.cs)        # tam ekran kaplama overlay (click-through, fade; ADR-007)
@@ -51,6 +52,7 @@ src/WharfBar/
     DockPage.xaml(.cs)          # Ayarlar: dock (auto-hide, ikon boyutu)
     TopBarPage.xaml(.cs)        # Ayarlar: üst çubuk (durum öğeleri)
     VeilPage.xaml(.cs)          # Ayarlar: Kaplama (renk/opaklık/kısayol; ADR-007)
+    IslandPage.xaml(.cs)        # Ayarlar: Ada (görünürlük/kalıcılık/limitler/bakım; ADR-010)
     AboutPage.xaml(.cs)         # Ayarlar: hakkında
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
@@ -73,13 +75,15 @@ src/WharfBar/
     CoreAudioDevices.cs         # render aygıt listesi + varsayılan seçimi
     CoreAudioSessions.cs        # uygulama oturum sesleri
     Hotkey.cs                   # RegisterHotKey P/Invoke + kısayol parser (ADR-007)
+    ClipboardNative.cs          # pano P/Invoke'ları (OpenClipboard/GlobalAlloc/dinleyici) + opt-out okuma/yazma (ADR-010)
   Models/
     PinnedApp.cs                # pin kaydı (path, args, label)
     DockAppItem.cs              # birleşik dock satırı (pin / running)
     DemoPinnedApps.cs           # varsayılan 4 pin (config seed)
     TopBarStatusItemIds.cs      # durum şeridi id kataloğu + Normalize
     MediaSnapshot.cs            # çalan medya anlık görüntüsü (SMTC; Idle + HasSession) — ADR-008
-    AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig
+    IslandEntry.cs              # ada kaydı (Text/File, önizleme, dosya yolu, zaman, kaynak uygulama) — ADR-010
+    AppConfig.cs                # JSON kök şema + DockConfig + TopBarConfig + IslandConfig
   Services/
     SingleInstanceGuard.cs      # named Mutex
     WindowAppearance.cs         # WPF-UI tema + backdrop; DWM ince ayar
@@ -106,6 +110,10 @@ src/WharfBar/
     NightLightService.cs        # CloudStore best-effort gece ışığı okuma/yazma + oturum override
     ProjectionService.cs        # SetDisplayConfig ile yansıtma modları (QS Project sayfası)
     VeilService.cs              # kaplama durumu, fade, hotkey host, config kalıcılığı (ADR-007)
+    ClipboardMessageWindow.cs   # pano değişim dinleyicisi (mesaj-only HwndSource; WM_CLIPBOARDUPDATE) — ADR-010
+    IslandPruner.cs             # adanın SAF çekirdeği: kabul/dedupe/budama/arama/önizleme/drop adı — ADR-010
+    IslandStore.cs              # %AppData%/WharfBar/island.json atomik yazma + %AppData%/WharfBar/Drop — ADR-010
+    IslandService.cs            # ada yaşam döngüsü: STA okuma thread'i, tek zaman çizelgesi, debounce yazma — ADR-010
     TrayIconService.cs          # Kendi Shell_NotifyIcon + Quit menüsü
     TaskbarVisibilityService.cs # görev çubuğu capture / hide / restore + watchdog spawn/self-heal
     TaskbarWatchdogState.cs     # watchdog baseline JSON store (%LOCALAPPDATA%/WharfBar)
@@ -136,18 +144,27 @@ Renk kaplaması (veil): [ADR-007](decisions/007-veil-overlay.md),
 Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 [spec](superpowers/specs/2026-08-18-media-panel-design.md),
 [plan](superpowers/plans/2026-08-18-media-panel.md).
+Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island-clipboard-drop.md),
+[spec](superpowers/specs/2026-10-01-island-clipboard-drop-design.md),
+[plan](superpowers/plans/2026-10-01-island-clipboard-drop.md).
 
 ## Sorumluluklar
 
 | Bileşen | Görev |
 |---------|--------|
-| `TopBarWindow` | AppBar; sol logo menü; sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (oturum yokken gizli); `network` → QS Network |
+| `TopBarWindow` | AppBar; sol logo menü; **ortada ada** (`IslandPill` + `IslandPopup`); sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (oturum yokken gizli); `network` → QS Network |
 | `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
 | `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
 | `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) izleme: snapshot (kapak/başlık/sanatçı/çalma durumu), komutlar (Oynat/Duraklat, İleri/Geri), oturum seçimi; olaylar kurulduğu Dispatcher'a marshal; init hatası 10 sn retry; `Changed` / `SessionsChanged` (ADR-008) |
 | `MediaSessionSelector` | Saf seçim politikası: en son aktif oturum başta; `MoveCurrent` ile seçici halkasında ilerleme; yalnızca playing/paused oturumlar — unit testli (ADR-008) |
 | `MediaAppNameResolver` | AUMID → Windows uygulama adı (katmanlı): Start Menü kısayolu AUMID eşleşmesi (örn. "Zen", "YouTube Music"), sonra çalışan sürecin `FileDescription`'ı (örn. `chrome.exe` → "Google Chrome"), sonra basitleştirilmiş exe adı; AUMID başına önbellek — unit testli (ADR-008) |
 | `MediaFlyout` | Flyout içeriği: oturum seçici (1'den fazlaysa), kapak + başlık/sanatçı, Oynat/Duraklat + İleri/Geri; sabit 340px genişlik; oturum yokken "Çalan medya yok" (popup kapanmaz) |
+| `IslandService` | Adanın yaşam döngüsü: mesaj-only pano dinleyicisi, **ayrı STA okuma thread'i**, tek birleşik zaman çizelgesi, 750 ms debounce'lu diske yazma; `Changed` / `EntryAdded` UI dispatcher'ında yükselir; dosya kopyalama/silme STA'da; `Dispose` → bekleyen yazma flush (ADR-010) |
+| `IslandPruner` | Adanın **saf** çekirdeği: kabul kuralı (opt-out, 64 KB, boş/boşluk), ardışık aynı içeriği yukarı taşıma, gün/`MaxItems` budaması, arama eşleştirme, önizleme/göreli zaman biçimlendirme, bırakma dosya adı üretimi — unit testli (ADR-010) |
+| `IslandStore` | `%AppData%/WharfBar/island.json` (metadata) atomik **değiştirme** (tmp + `File.Replace`) + `%AppData%/WharfBar/Drop` (bırakılan dosyalar); tek `_ioGate` kilidi; bozuk dosya `.bak` (ikinci bozulmada `.bak.1`), 64 MB boyut tavanı, kayıt bazlı toleranslı okuma; **sıralamaz** (ADR-010) |
+| `ClipboardNative` | Belgelenmiş pano P/Invoke'ları; `CanIncludeInClipboardHistory` opt-out okuma **ve** yazma; pano sahibi süreç adı (`GetClipboardOwner` → pid → `QueryFullProcessImageName`) (ADR-010) |
+| `ClipboardMessageWindow` | Mesaj-only `HwndSource` (`ParentWindow = -3`) + `AddClipboardFormatListener`; `WM_CLIPBOARDUPDATE` → `ClipboardChanged`; `Dispose` dinleyiciyi **bir kez** kaldırır (API idempotent değil) (ADR-010) |
+| `IslandFlyout` | Panel içeriği: arama kutusu + `ScrollViewer`/`StackPanel` liste (iç içe `Popup` yok); `↑`/`↓`/`Enter`/`Delete` klavye yönlendirmesi; satır kuralları (tür glifi, önizleme, kaynak uygulama, göreli zaman); `MaxRenderedRows = 200` (ADR-010) |
 | `VeilService` | Kaplama durumu + fade + hotkey host (mesaj-only `HwndSource`); `SetEnabled` → `Config.Save`; çıkışta `UnregisterHotKey` (ADR-007) |
 | `VeilWindow` | Tam ekran katmanlı kaplama (düz renk dolgu, `Topmost`, kalıcı `WS_EX_TRANSPARENT` passthrough, 280 ms fade); birincil monitör rect + `WM_DISPLAYCHANGE` / `WM_DPICHANGED` yeniden yerleşim |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
@@ -192,6 +209,75 @@ Medya paneli (SMTC): [ADR-008](decisions/008-media-panel.md),
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
 | `TrayMirrorService` | Tray toolbar'ı 1.5 sn poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar; tıklama forward (ADR-009) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
+
+## Island (ADR-010)
+
+Ayrı pencere **değildir**: ada üst barın **içinde**, Grid'in orta hücresinde ortalanmış bir
+`Border`; panel aynı pencere içindeki `Popup`. Kararın tamamı:
+[`decisions/010-island-clipboard-drop.md`](decisions/010-island-clipboard-drop.md).
+
+```
+TopBarWindow.xaml — kök Grid (sütun yok; üç küme aynı hücre)
+  ├─ StackPanel (sol)  : logo + sistem istatistikleri
+  ├─ Border "IslandPill" (HorizontalAlignment=Center, AllowDrop)   ← ada
+  └─ StackPanel "StatusStrip" (sağ) : tray aynası, saat, bildirim, QS, ses, pil …
+
+Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
+                     AllowsTransparency=True, PopupAnimation=None)
+  └─ local:IslandFlyout (arama kutusu + ScrollViewer/StackPanel liste)
+```
+
+### Yeni dosyalar ve görevleri
+
+| Dosya | Görev |
+|-------|-------|
+| `Native/ClipboardNative.cs` | Belgelenmiş pano P/Invoke'ları: `OpenClipboard`/`CloseClipboard`, `GetClipboardData`, `SetClipboardData`, `EmptyClipboard`, `IsClipboardFormatAvailable`, `RegisterClipboardFormatW`, `GlobalAlloc`/`GlobalLock`/`GlobalUnlock`/`GlobalFree`/`GlobalSize`, `Add`/`RemoveClipboardFormatListener`, `GetClipboardOwner` + `GetWindowThreadProcessId`. `TryReadText` opt-out işaretini **fail-closed** okur; `TryWriteText` metni UTF-16 olarak yazar **ve** opt-out'u birlikte yazar; `GetOwnerProcessName` kaynak uygulama adını verir |
+| `Models/IslandEntry.cs` | `internal enum IslandEntryKind { Text, File }` + `internal sealed record IslandEntry(long Id, IslandEntryKind Kind, string Text, string? FilePath, DateTime CapturedAtUtc, string? SourceApp)` — tek birleşik zaman çizelgesinin kaydı |
+| `Services/IslandPruner.cs` | **Saf** çekirdek (Win32 ve dosya sistemi yok → tamamı testli): `ShouldCapture`, `Prepend` (ardışık aynı → yukarı), `Prune` (gün + `MaxItems`, oturumluk modda gün limiti yok), `Matches`, `FormatPreview`, `FormatRelativeTime`, `BuildDropFileName` |
+| `Services/IslandStore.cs` | Ayrı kalıcılık dosyası: `island.json` (tmp + `File.Replace`), `Drop` klasörü; tek `_ioGate` kilidi; `.bak` / `.bak.1`; 64 MB boyut tavanı; tek bozuk alan tüm geçmişi düşürmez; **sıralamaz** (sıra tüketicinin işi) |
+| `Services/ClipboardMessageWindow.cs` | Mesaj-only `HwndSource` (`ParentWindow = -3`, mevcut `MonitorMessageWindow` kalıbı); `WM_CLIPBOARDUPDATE` UI thread'inde `ClipboardChanged` yükseltir |
+| `Services/IslandService.cs` | Yaşam döngüsü + orkestrasyon: STA okuma thread'i, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
+| `Views/IslandFlyout.xaml(.cs)` | Panel: arama kutusu + liste; `Attach(service)` yalnız panel açıkken; satır kurulumu code-behind'de (`MaxRenderedRows = 200`) |
+| `Views/Pages/IslandPage.xaml(.cs)` | Ayar sayfası: görünürlük, kalıcılık, gün/limit, bakım eylemleri; her değişiklik `Config.Save` **+** `IslandService.ApplyConfig` (unutulursa ada güncellenmez) |
+
+### Pano okuma STA thread'inde
+
+`OpenClipboard` bloklayabilir; UI thread'inde yapılırsa tüm bar donar. Depoda
+`System.Windows.Clipboard` **kullanılmaz** (UI thread'ine bağlıdır). Akış:
+
+1. `WM_CLIPBOARDUPDATE` UI thread'inde gelir (`ClipboardMessageWindow`).
+2. İş `IslandService`'in **ayrı STA dispatcher thread'ine** (`Dispatcher.Run`,
+   `ApartmentState.STA`, `WharfBar.Island`) kuyruğa girer. Sinyal `volatile Dispatcher?` ile
+   paylaşılır ve hazır olma 1 sn beklenir; geç kalınırsa yakalama **sessizce atlanır ama
+   loglanır** (görünmez kalmaması için).
+3. Kilitliyse 3 × 40 ms kısa bekleyip yeniden denenir; hâlâ açılmıyorsa olay **sessizce
+   düşürülür**. UI thread'inde asla yeniden deneme yapılmaz.
+4. Sonuç UI thread'ine `BeginInvoke` ile döner: kayıt ekleme, budama ve `Changed` **UI'da**
+   olur (tek zaman çizelgesi UI-only). Dosya kopyalama/silme de STA'dadır.
+
+### Ayrı kalıcılık dosyası
+
+Geçmiş `config.json`'a **yazılmaz**: `ConfigService.Save` her çağrıda dosyanın tamamını UI
+thread'inde yeniden yazar, pano değişiklikleri ise yüksek frekanslıdır. Bunun yerine:
+
+| Yol | İçerik |
+|-----|--------|
+| `%AppData%\WharfBar\island.json` | Kayıt metadata'sı (`version` + `entries`); 750 ms debounce, atomik değiştirme |
+| `%AppData%\WharfBar\Drop\` | Bırakılan dosyaların kopyaları (orijinale dokunulmaz) |
+
+`island.persistence = "session"` iken **metadata** hiç yazılmaz (`Commit` yalnız persistent
+modda `ScheduleSave` çağırır) ve `island.json` okunmaz; bırakılan dosyaların `Drop` kopyaları
+ise moddan bağımsız olarak diske yazılır. Dosya yazma hatası kullanıcıya gösterilmez; bellekteki
+liste çalışmaya devam eder ve sonraki değişiklikte yeniden denenir. Diskteki metadata'ya dosya
+**içeriği** girmez.
+
+### Kapsam
+
+v1: yalnızca birincil monitörün barı (`trayMirror` ile aynı sınır — servis `TopBarEngine`'de
+tek örnek, `AttachIsland` yalnız primary'de çağrılır). `Enabled=false` iken pill çizilmez,
+dinleyici kurulmaz, `island.json` okunmaz; mevcut kayıtlar diske dokunulmadan bırakılır.
+`Clear()` dosya kopyalarını **silmez** (bilinçli); onları yalnız `DeleteDroppedFiles()` siler ve o
+eylem `Drop` klasörünü tarayarak yetimleri de kapsar.
 
 ## Pencere modeli
 
@@ -313,6 +399,12 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "opacity": 40,
     "hotKey": "Ctrl+F11"
   },
+  "island": {
+    "enabled": true,
+    "persistence": "session",
+    "retentionDays": 30,
+    "maxItems": 200
+  },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
   ]
@@ -337,6 +429,10 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `veil.color` | Kaplama rengi `#RRGGBB` (soft; geçersiz/eksik → `VeilNormalizer` varsayılan **`#4A90D9`**, küçük harfe normalleştirilir; `#RGB` kabul edilir) |
 | `veil.opacity` | 0–100 kaplama gücü; yüklemede `ClampOpacity` (varsayılan **40**). Siyah + yüksek opaklık = parlaklık azaltma (ayrı kontrol yok) |
 | `veil.hotKey` | Global kısayol metni (`Ctrl+F11`); boş = yok. Soft alan: geçersizse kayıt yapılmaz, string korunur (sayfada uyarı) |
+| `island.enabled` | Ada + pano dinleyicisi açık/kapalı (varsayılan **`true`**). `false` iken pill çizilmez, `WM_CLIPBOARDUPDATE` dinleyicisi kurulmaz, `island.json` okunmaz; kayıtlar diske dokunulmadan bırakılır. Ayar sayfasından kapatmak `IslandService.ApplyConfig` ile servis üzerinde de etkisini gösterir (ADR-010) |
+| `island.persistence` | `"session"` \| `"persistent"` (varsayılan **`"session"`**). **String, enum değil** — enum-typed alan `"Persistent"` değerinde `JsonException` fırlatıp tüm config'i sıfırlıyordu. `IslandNormalizer.NormalizePersistence` büyük/küçük harf duyarsız; çözülemeyen değer `"session"`'a düşer (ADR-010) |
+| `island.retentionDays` | Persistent modda kaç gün geriye bakılır; yüklemede `ClampRetentionDays` ile 1–3650 (varsayılan **30**). Oturumluk modda yok sayılır (ADR-010) |
+| `island.maxItems` | Kayıt sayısı sert tavanı (gün limitinden bağımsız); yüklemede `ClampMaxItems` ile 10–5000 (varsayılan **200**). Panel ayrıca en fazla 200 satır kurar (`IslandFlyout.MaxRenderedRows`); fazlası "N kayıt daha var (arama ile daralt)" notuyla bildirilir (ADR-010) |
 | `pinnedApps` | Seed / fallback pin listesi; canlı TaskBar `.lnk` tarama başarılıysa baskın değildir (ADR-005) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik
