@@ -85,11 +85,16 @@ internal sealed class IslandService : IDisposable
         staThread.SetApartmentState(ApartmentState.STA);
         staThread.Start();
 
-        // Bekleme zaman aşımına uğrarsa hata fırlatmaz: dinleyici zaten kurulmamış olabilir,
-        // bu durumda yalnızca ilk pano okuması düşer. Bu yüzden staReady kasıtlı olarak
-        // Dispose edilmiyor — Set() hâlâ çağrılabilir olmalı, yoksa STA thread'inde
+        // Bekleme zaman aşımına uğrarsa hata fırlatmaz: STA thread'i geç başlıyorsa bu
+        // pencere tolere edilir. Ama zaman aşımı gerçekleşirse _staDispatcher null kalır ve
+        // OnClipboardChanged her seferinde erken çıkar — oturum boyunca HİÇBİR yakalama
+        // kaydedilmez. Bu yüzden görünmez kalmaması için burada loglanır. staReady kasıtlı
+        // olarak Dispose edilmiyor — Set() hâlâ çağrılabilir olmalı, yoksa STA thread'inde
         // ObjectDisposedException işlenmemiş olarak süreci düşürürdü.
-        staReady.Wait(StaReadyTimeoutMs);
+        if (!staReady.Wait(StaReadyTimeoutMs))
+        {
+            Debug.WriteLine("[WharfBar] island STA worker not ready; clipboard capture is skipped until it is");
+        }
 
         _saveTimer = new System.Threading.Timer(
             _ => OnSaveTimerTick(), null, Timeout.Infinite, Timeout.Infinite);
@@ -133,9 +138,10 @@ internal sealed class IslandService : IDisposable
         }
 
         // Servis ömrü boyunca en çok bir kez. Yukleme geçmişi _entries'in üstüne ekler
-        // (AddRange) ya da tamamen değiştirir (Commit), yani ikinci bir çağrı aynı
-        // kayıtları iki kez listelerdi. Bekleyen tek istisna: yukarıdaki kapıdan elenen
-        // çağrı bayrağı yakmaz, çünkü koşullar sonraki ApplyConfig'de değişebilir.
+        // (AddRange), _entries'le birleştirir ya da tamamen değiştirir (Commit), yani ikinci
+        // bir çağrı aynı kayıtları iki kez listelerdi. Bekleyen tek istisna: yukarıdaki
+        // kapıdan elenen çağrı bayrağı yakmaz, çünkü koşullar sonraki ApplyConfig'de
+        // değişebilir.
         if (_persistedLoaded)
         {
             return;
@@ -158,15 +164,35 @@ internal sealed class IslandService : IDisposable
         // alinamaz, daha once uretilmis bir Id'ye dusmemek icin yalnizca yuksege cikarilir.
         _nextId = Math.Max(_nextId, ordered.Max(e => e.Id));
 
+        // Oturumluk -> kalici gecisi: oturumun kayitlari hala listede ama diskte YOK
+        // (session modunda ScheduleSave calismaz). Yalnizca diskten okunanlari yazmak
+        // ("degistirmek") kullaniciyi bu oturumda kopyaladiklarindan sessizce atardi,
+        // bu yuzden iki liste tek liste olusturulup birlikte budanir (Id cakismasi
+        // yine olmaz: Math.Max yukarida, DistinctBy asagida).
+        bool merging = _entries.Count > 0;
+        if (merging)
+        {
+            ordered = _entries
+                .Concat(ordered)
+                .DistinctBy(e => e.Id)
+                .OrderByDescending(e => e.CapturedAtUtc)
+                .ToList();
+        }
+
         IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
             ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, persistent: true);
 
-        if (pruned.Count == ordered.Count)
+        if (!merging && pruned.Count == ordered.Count)
         {
             // Budama hicbir seyi atmadi. Prune yalnizca eler (sirayi degistirmez), yani
             // sayim esitse listeler birebir ayni demektir: Commit'e gidemek her acilista
             // gereksiz bir disk yazmasi ve bir Changed bildirimi uretirdi.
             _entries.AddRange(ordered);
+
+            // Ama bildirim atlanamaz: AddRange Commit'i (ve RaiseChanged'i) atlar. Kapali
+            // baslatilan ada ayardan acildiginda liste burada sessizce dolarsa pencere
+            // abone degilse pill bayat kalir — "gecmis var ama gosterilmiyor".
+            RaiseChanged();
             return;
         }
 
@@ -179,21 +205,27 @@ internal sealed class IslandService : IDisposable
     internal void ApplyConfig(IslandConfig config)
     {
         bool wasEnabled = Config.Enabled;
+        bool wasPersistent = IsPersistent;
         Config = config;
         if (Config.Enabled)
         {
-            StartListening();
-
-            // Ayar kapalı başlatılan adada island.json hiç okunmadı (LoadPersisted
-            // !Config.Enabled'da eleniyor), bu yüzden ayarlardan açıldığında kayıtlı geçmiş
-            // o oturumda görünmez olurdu: ada görünür ama liste boş. false -> true
-            // geçişinde bir kez yükle. _persistedLoaded, ikinci bir yüklemeyi engeller —
-            // hem her ayar kaydında tekrar tekrar okumayı, hem de LoadPersisted'in
-            // _entries'in boş olduğunu varsaymasından gelen çift kaydı önler.
-            if (!wasEnabled && !_persistedLoaded)
+            // Yükleme, dinleyiciyi kurmadan ÖNCE. StartListening ile pano dinlemesi
+            // açılır açılmaz bir kopyalama gelebilir ve STA worker
+            // Interlocked.Increment(ref _nextId) çalıştırabilir; LoadPersisted'taki
+            // Math.Max yazmayı yutar ve aynı Id iki kayda düşer. Yükleme önce
+            // yapılınca pencere tamamen kapanır (id sayacı yalnız UI'da ilerler).
+            //
+            // Tetikleyici iki geçişi de kapsar:
+            //  - false -> true: kapalı başlatılan ada ayardan açıldı (round 2).
+            //  - session -> persistent: varsayılan mod oturumluk olduğu için bu yol
+            //    hiç yükleme yapmıyordu ve kayıtlı geçmiş ancak yeniden başlatmada
+            //    görünüyordu.
+            if ((!wasEnabled || (!wasPersistent && IsPersistent)) && !_persistedLoaded)
             {
                 LoadPersisted();
             }
+
+            StartListening();
         }
         else
         {
@@ -473,32 +505,97 @@ internal sealed class IslandService : IDisposable
         ApplySnapshot(next, null, raiseEntryAdded: false);
     }
 
-    /// <summary>UI thread'inde çağrılır.</summary>
-    internal void Clear() => ApplySnapshot([], null, raiseEntryAdded: false);
+    /// <summary>
+    /// UI thread'inde çağrılır. Tüm kayıtları listeden düşürür ama bırakılan dosyaların
+    /// <b>kopyalarını silmez</b>: ayarlarda "Bırakılan dosyaları sil" ile "Tüm geçmişi
+    /// temizle" iki ayrı butondur ve dosyaları yalnız ilki siler. Önceki davranışta
+    /// "geçmişi temizle" diyen kullanıcı dosya kopyalarını haberi olmadan kaybediyordu
+    /// ve iki buton gereksiz bir tekrar oluyordu. Kopyaların diskte kalması geri
+    /// alınamaz veri kaybı değildir; <see cref="DeleteDroppedFiles"/> onları temizler.
+    /// </summary>
+    internal void Clear() =>
+        ApplySnapshot([], null, raiseEntryAdded: false, deleteDroppedFiles: false);
 
-    /// <summary>UI thread'inde çağrılır. Yalnız bırakılan dosyaları siler, panoya dokunmaz.</summary>
-    internal void DeleteDroppedFiles() => DeleteFilesOf(_entries);
+    /// <summary>
+    /// UI thread'inde çağrılır. Listede bulunan bırakılan dosyaların kopyalarını siler,
+    /// panoya dokunmaz. Silme STA worker'da olur (sınıf kuralı: dosya I/O'su UI
+    /// thread'inde olmaz); <c>_entries</c> yalnız UI thread'inde okunabildiği için
+    /// hedefler burada, UI thread'inde kopyalanır — çağıran hemen ardından
+    /// <see cref="Clear"/> çağırsaydı bile kopya bu anlık görüntüden silinir.
+    /// </summary>
+    internal void DeleteDroppedFiles()
+    {
+        List<IslandEntry> files = [.. _entries.Where(e => e.Kind == IslandEntryKind.File)];
+        if (files.Count == 0)
+        {
+            return;
+        }
+
+        Dispatcher? sta = _staDispatcher;
+        if (sta is null || _disposed)
+        {
+            return;
+        }
+
+        _ = sta.BeginInvoke(() => DeleteFilesOf(files), DispatcherPriority.Background);
+    }
 
     /// <summary>
     /// Verilen kayıtların bırakma kopyalarını <c>Drop</c> klasöründen siler. Kayıt listeden
     /// çıktığı anda kopyası da silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
-    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır ve
-    /// <see cref="Clear"/> bırakılan dosyaların <b>tümünü</b> geride bırakır.
+    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır — ve
+    /// o kopyalar artık listeden temizlenemez, çünkü <see cref="Clear"/> kayıtları düşürür
+    /// (dosyaları silmeden) ve <see cref="DeleteDroppedFiles"/> yalnız listedekileri görür.
     /// </summary>
+    /// <remarks>
+    /// Yalnızca <c>%AppData%\WharfBar\Drop</c> altındaki yollar silinir; dışarıdaki bir yol
+    /// loglanıp atlanır. Kayıt <c>FilePath</c>'i diskin kendisinden geldiği için güvenilir
+    /// değildir (<c>island.json</c> elle düzenlenebilir).
+    /// </remarks>
     private void DeleteFilesOf(IEnumerable<IslandEntry> dropped)
     {
+        // Yalnızca Drop altındaki dosyalar silinir. IslandStore.TryReadEntry,
+        // e.FilePath'i elden geldiği gibi kabul eder (DropRoot kontrolü yoktur), yani elle
+        // düzenlenmiş bir island.json'daki
+        // {"kind":"File","filePath":"C:\\…\\Documents\\tehlikeli.docx"} girdisi onaysız ve
+        // geri alınamaz biçimde silinirdi. Doğrulama silmeden önce, burada yapılır.
+        string root = Path.GetFullPath(_store.DropRoot) + Path.DirectorySeparatorChar;
+
         foreach (IslandEntry entry in dropped)
         {
-            if (entry.Kind != IslandEntryKind.File
-                || entry.FilePath is null
-                || !File.Exists(entry.FilePath))
+            if (entry.Kind != IslandEntryKind.File || entry.FilePath is null)
+            {
+                continue;
+            }
+
+            string full;
+            try
+            {
+                full = Path.GetFullPath(entry.FilePath);
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                Debug.WriteLine($"[WharfBar] island drop path invalid: {entry.FilePath} ({ex.Message})");
+                continue;
+            }
+
+            // Ayırıcının eklenmiş olması şart: "…\Drop" ile "…\DropYedek" kardeş
+            // klasörler, ayırıcısız ön ek kontrolünde ikisi de "Drop" altında sayılırdı.
+            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                Debug.WriteLine($"[WharfBar] island drop delete skipped, outside Drop: {entry.FilePath}");
+                continue;
+            }
+
+            if (!File.Exists(full))
             {
                 continue;
             }
 
             try
             {
-                File.Delete(entry.FilePath);
+                File.Delete(full);
+                Debug.WriteLine($"[WharfBar] island drop copy deleted: {full}");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -507,15 +604,26 @@ internal sealed class IslandService : IDisposable
         }
     }
 
-    private void ApplySnapshot(IReadOnlyList<IslandEntry> next, IslandEntry? added, bool raiseEntryAdded)
+    /// <param name="deleteDroppedFiles">
+    /// Listeden düşen bırakma kayıtlarının kopyaları da silinsin mi? <c>true</c> budama ve
+    /// <see cref="Remove"/> yollarıdır (kayıt gittiği için kopya yetim olurdu);
+    /// <c>false</c> yalnız <see cref="Clear"/> — dosya silmek açık bir eylemdir.
+    /// </param>
+    private void ApplySnapshot(
+        IReadOnlyList<IslandEntry> next,
+        IslandEntry? added,
+        bool raiseEntryAdded,
+        bool deleteDroppedFiles = true)
     {
         if (_dispatcher.CheckAccess())
         {
-            Commit(next, added, raiseEntryAdded);
+            Commit(next, added, raiseEntryAdded, deleteDroppedFiles);
         }
         else if (CanPostToUi)
         {
-            _ = _dispatcher.BeginInvoke(() => Commit(next, added, raiseEntryAdded), DispatcherPriority.Background);
+            _ = _dispatcher.BeginInvoke(
+                () => Commit(next, added, raiseEntryAdded, deleteDroppedFiles),
+                DispatcherPriority.Background);
         }
     }
 
@@ -528,11 +636,20 @@ internal sealed class IslandService : IDisposable
         !_disposed && !_dispatcher.HasShutdownStarted && !_dispatcher.HasShutdownFinished;
 
     /// <summary>UI thread'inde çalışır: tek noktada liste değiştir, kaydet, bildir.</summary>
-    private void Commit(IReadOnlyList<IslandEntry> next, IslandEntry? added, bool raiseEntryAdded)
+    private void Commit(
+        IReadOnlyList<IslandEntry> next,
+        IslandEntry? added,
+        bool raiseEntryAdded,
+        bool deleteDroppedFiles = true)
     {
         // Commit tek choke point: Remove, Clear, budama ve ApplyConfig hepsi buradan geçer,
-        // yani "listeden düşen kayıt" hesabı da tek yerde yapılır.
-        QueueDeleteOfDropped(next);
+        // yani "listeden düşen kayıt" hesabı da tek yerde yapılır. Clear bu hesabı
+        // devre dışı bırakır: budama kopyaları silmeye devam eder (aksi halde yetim kalırdı),
+        // açık "dosyaları sil" eylemi ise DeleteDroppedFiles.
+        if (deleteDroppedFiles)
+        {
+            QueueDeleteOfDropped(next);
+        }
 
         _entries.Clear();
         _entries.AddRange(next);
@@ -557,9 +674,15 @@ internal sealed class IslandService : IDisposable
     /// </summary>
     private void QueueDeleteOfDropped(IReadOnlyList<IslandEntry> next)
     {
-        // Commit listeyi olduğu gibi değiştirir; aynı sayı => hiçbir şey düşmemiş demektir.
-        // Bu, her pano yakalamasında geçilen sıcak yolun erken çıkışıdır.
-        if (next.Count == _entries.Count)
+        // Karşılaştırma sayı değil ÜYELİKTİR: tavan taşması tam olarak liste zaten
+        // MaxItems'te doluyken olur, o durumda next.Count == _entries.Count daima eşit
+        // çıkar ve önceki erken çıkış her budamayı atlayıp dosyaları geride bırakıyordu
+        // (ölçüldü: MaxItems=3, 3 dosya + metin, 25 yakalama → 3 dosya sızdı). HashSet
+        // zaten kuruluyordu, yalnız karar sayıya bakıyordu.
+        //
+        // Boş listede düşecek kayıt olamaz; bu, yeni adanın ilk yakalamalarındaki tek
+        // maliyetsiz erken çıkıştır (liste büyüdükçe HashSet kurulumu ~MaxItems giriş).
+        if (_entries.Count == 0)
         {
             return;
         }
