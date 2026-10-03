@@ -517,49 +517,94 @@ internal sealed class IslandService : IDisposable
         ApplySnapshot([], null, raiseEntryAdded: false, deleteDroppedFiles: false);
 
     /// <summary>
-    /// UI thread'inde çağrılır. Listede bulunan bırakılan dosyaların kopyalarını siler,
-    /// panoya dokunmaz. Silme STA worker'da olur (sınıf kuralı: dosya I/O'su UI
-    /// thread'inde olmaz); <c>_entries</c> yalnız UI thread'inde okunabildiği için
-    /// hedefler burada, UI thread'inde kopyalanır — çağıran hemen ardından
-    /// <see cref="Clear"/> çağırsaydı bile kopya bu anlık görüntüden silinir.
+    /// UI thread'inde çağrılır. <c>Drop</c> klasörünü <b>tümüyle</b> boşaltır (alt klasörler
+    /// dâhil) ve dosya kayıtlarını listeden düşürür; panoya dokunmaz.
     /// </summary>
+    /// <remarks>
+    /// <para><b>Klasör taranır, <c>_entries</c> taranmaz.</b> <see cref="Clear"/> dosya
+    /// kopyalarını silmez (R30); "Tüm geçmişi temizle"ye önce basıldığında kayıtlar düşer ve
+    /// liste boşalır — yalnız listeye bakan bir temizlik o andan sonra hiçbir şey silmeden
+    /// çıkar, yani ayar sayfasındaki buton sessizce işlevsiz kalır. Aynı sebeple tek listeden
+    /// hesaplanamayan yetimler de (MaxItems/retention budamasıyla düşenler dâhil) kapsanır;
+    /// kayıt–dosya eşleşmesi kurmaya gerek kalmaz.</para>
+    /// <para>Silme STA worker'da olur (sınıf kuralı: dosya I/O'su UI thread'inde olmaz);
+    /// kayıtların listeden düşürülmesi ise <c>_entries</c> UI-only olduğu için çağıranın
+    /// thread'inde olur. Sıralama önemsiz: kaydın düşürülmesi kopyanın silinmesinden bağımsız,
+    /// ikisi de aynı kullanıcı eyleminin parçası.</para>
+    /// </remarks>
     internal void DeleteDroppedFiles()
     {
-        List<IslandEntry> files = [.. _entries.Where(e => e.Kind == IslandEntryKind.File)];
-        if (files.Count == 0)
+        // Kayıtlar burada düşürülür: kopya silindikten sonra listede kalan bir dosya kaydı
+        // var olmayan bir dosyayı gösterirdi. Dosya silme aşağıda STA'da.
+        IReadOnlyList<IslandEntry> next = _entries.Where(e => e.Kind != IslandEntryKind.File).ToList();
+        if (next.Count != _entries.Count)
         {
-            return;
+            // deleteDroppedFiles: false — Commit'in "listeden düşen kayıtın kopyasını sil"
+            // yolu burada yanlış ve gereksiz: aynı dosyaları ikinci kez kuyruğa atardı.
+            ApplySnapshot(next, null, raiseEntryAdded: false, deleteDroppedFiles: false);
         }
 
+        // Kayıt yoksa da klasör taranır: "Tüm geçmişi temizle" sonrası asıl durum budur.
         Dispatcher? sta = _staDispatcher;
         if (sta is null || _disposed)
         {
             return;
         }
 
-        _ = sta.BeginInvoke(() => DeleteFilesOf(files), DispatcherPriority.Background);
+        _ = sta.BeginInvoke(DeleteDropFolderContents, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// <c>Drop</c> klasörünü tarayarak boşaltır (STA worker). Klasör yoksa sessizce çıkar —
+    /// hiç dosya bırakılmamış olmak normal durumdur.
+    /// </summary>
+    private void DeleteDropFolderContents()
+    {
+        if (!TryGetDropRoot(out string root, out string prefix))
+        {
+            return;
+        }
+
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        int deleted = 0;
+        try
+        {
+            // AllDirectories: Drop altındaki (örn. tarih-saat) alt klasör düzeni de kapsanır.
+            // Enumeratörün verdiği yollar zaten Drop altındadır ama aynı guard yine de
+            // uygulanır: tek doğrulama noktası (TryDeleteDropCopy) iki yol için de geçerli.
+            foreach (string path in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+            {
+                if (TryDeleteDropCopy(path, prefix))
+                {
+                    deleted++;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Sayım yarıda kalabilir; o da görünmez olmamalı.
+            Debug.WriteLine($"[WharfBar] island drop scan failed: {ex.Message}");
+        }
+
+        Debug.WriteLine($"[WharfBar] island drop folder cleared: {deleted} file(s) deleted");
     }
 
     /// <summary>
     /// Verilen kayıtların bırakma kopyalarını <c>Drop</c> klasöründen siler. Kayıt listeden
     /// çıktığı anda kopyası da silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
-    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır — ve
-    /// o kopyalar artık listeden temizlenemez, çünkü <see cref="Clear"/> kayıtları düşürür
-    /// (dosyaları silmeden) ve <see cref="DeleteDroppedFiles"/> yalnız listedekileri görür.
+    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır. Bu yol
+    /// yalnızca kayıt yoluyla ilgili — <see cref="DeleteDroppedFiles"/> klasörün tamamını tarar.
     /// </summary>
-    /// <remarks>
-    /// Yalnızca <c>%AppData%\WharfBar\Drop</c> altındaki yollar silinir; dışarıdaki bir yol
-    /// loglanıp atlanır. Kayıt <c>FilePath</c>'i diskin kendisinden geldiği için güvenilir
-    /// değildir (<c>island.json</c> elle düzenlenebilir).
-    /// </remarks>
     private void DeleteFilesOf(IEnumerable<IslandEntry> dropped)
     {
-        // Yalnızca Drop altındaki dosyalar silinir. IslandStore.TryReadEntry,
-        // e.FilePath'i elden geldiği gibi kabul eder (DropRoot kontrolü yoktur), yani elle
-        // düzenlenmiş bir island.json'daki
-        // {"kind":"File","filePath":"C:\\…\\Documents\\tehlikeli.docx"} girdisi onaysız ve
-        // geri alınamaz biçimde silinirdi. Doğrulama silmeden önce, burada yapılır.
-        string root = Path.GetFullPath(_store.DropRoot) + Path.DirectorySeparatorChar;
+        if (!TryGetDropRoot(out _, out string prefix))
+        {
+            return;
+        }
 
         foreach (IslandEntry entry in dropped)
         {
@@ -568,46 +613,85 @@ internal sealed class IslandService : IDisposable
                 continue;
             }
 
-            string full;
-            try
-            {
-                full = Path.GetFullPath(entry.FilePath);
-            }
-            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-            {
-                Debug.WriteLine($"[WharfBar] island drop path invalid: {entry.FilePath} ({ex.Message})");
-                continue;
-            }
+            _ = TryDeleteDropCopy(entry.FilePath, prefix);
+        }
+    }
 
-            // Ayırıcının eklenmiş olması şart: "…\Drop" ile "…\DropYedek" kardeş
-            // klasörler, ayırıcısız ön ek kontrolünde ikisi de "Drop" altında sayılırdı.
-            if (!full.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            {
-                Debug.WriteLine($"[WharfBar] island drop delete skipped, outside Drop: {entry.FilePath}");
-                continue;
-            }
+    /// <summary>
+    /// <c>Drop</c> klasörünü verir: tam yol (arama tabanı) ve altındaki yollarla karşılaştırma
+    /// için ayırıcı eklenmiş ön ek. Klasörün <b>kendisi</b> "Drop altında" sayılmaz.
+    /// </summary>
+    private bool TryGetDropRoot(out string root, out string prefix)
+    {
+        root = string.Empty;
+        prefix = string.Empty;
+        try
+        {
+            root = Path.GetFullPath(_store.DropRoot);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Debug.WriteLine($"[WharfBar] island drop root invalid: {_store.DropRoot} ({ex.Message})");
+            return false;
+        }
 
-            if (!File.Exists(full))
-            {
-                continue;
-            }
+        prefix = root + Path.DirectorySeparatorChar;
+        return true;
+    }
 
-            try
-            {
-                File.Delete(full);
-                Debug.WriteLine($"[WharfBar] island drop copy deleted: {full}");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                Debug.WriteLine($"[WharfBar] island drop delete failed: {ex.Message}");
-            }
+    /// <summary>
+    /// Tek bir bırakma kopyasını siler. Yalnızca <c>%AppData%\WharfBar\Drop</c> altındaki
+    /// yollar silinir; dışarıdaki bir yol loglanıp atlanır. Kayıt <c>FilePath</c>'i diskin
+    /// kendisinden geldiği için güvenilir değildir (<c>island.json</c> elle düzenlenebilir):
+    /// <c>IslandStore.TryReadEntry</c> DropRoot kontrolü yapmaz, yani
+    /// <c>{"kind":"File","filePath":"C:\\…\\Documents\\tehlikeli.docx"}</c> girdisi onaysız ve
+    /// geri alınamaz biçimde silinirdi.
+    /// </summary>
+    /// <returns>Dosya gerçekten silindiyse <c>true</c>.</returns>
+    private static bool TryDeleteDropCopy(string path, string rootPrefix)
+    {
+        string full;
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Debug.WriteLine($"[WharfBar] island drop path invalid: {path} ({ex.Message})");
+            return false;
+        }
+
+        // Ayırıcının eklenmiş olması şart: "…\Drop" ile "…\DropYedek" kardeş klasörler,
+        // ayırıcısız ön ek kontrolünde ikisi de "Drop" altında sayılırdı.
+        if (!full.StartsWith(rootPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            Debug.WriteLine($"[WharfBar] island drop delete skipped, outside Drop: {path}");
+            return false;
+        }
+
+        if (!File.Exists(full))
+        {
+            return false;
+        }
+
+        try
+        {
+            File.Delete(full);
+            Debug.WriteLine($"[WharfBar] island drop copy deleted: {full}");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"[WharfBar] island drop delete failed: {ex.Message}");
+            return false;
         }
     }
 
     /// <param name="deleteDroppedFiles">
     /// Listeden düşen bırakma kayıtlarının kopyaları da silinsin mi? <c>true</c> budama ve
     /// <see cref="Remove"/> yollarıdır (kayıt gittiği için kopya yetim olurdu);
-    /// <c>false</c> yalnız <see cref="Clear"/> — dosya silmek açık bir eylemdir.
+    /// <c>false</c> <see cref="Clear"/> ve <see cref="DeleteDroppedFiles"/> — dosya silmek
+    /// açık bir eylemdir ve bu iki yol silgiyi zaten kendi yönetir.
     /// </param>
     private void ApplySnapshot(
         IReadOnlyList<IslandEntry> next,
