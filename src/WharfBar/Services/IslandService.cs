@@ -52,6 +52,13 @@ internal sealed class IslandService : IDisposable
     private bool _disposed;
     private volatile bool _savePending;
 
+    /// <summary>
+    /// Kayıtlı geçmiş bu servis ömründe zaten denendi mi? <see cref="LoadPersisted"/>
+    /// <c>_entries</c>'in boş olduğunu varsayar, bu yüzden ikinci bir çağrı aynı kayıtları
+    /// iki kez listelerdi.
+    /// </summary>
+    private bool _persistedLoaded;
+
     /// <summary>UI thread'inde kurulur.</summary>
     internal IslandService(Dispatcher dispatcher, IslandStore store, IslandConfig config)
     {
@@ -125,6 +132,17 @@ internal sealed class IslandService : IDisposable
             return;
         }
 
+        // Servis ömrü boyunca en çok bir kez. Yukleme geçmişi _entries'in üstüne ekler
+        // (AddRange) ya da tamamen değiştirir (Commit), yani ikinci bir çağrı aynı
+        // kayıtları iki kez listelerdi. Bekleyen tek istisna: yukarıdaki kapıdan elenen
+        // çağrı bayrağı yakmaz, çünkü koşullar sonraki ApplyConfig'de değişebilir.
+        if (_persistedLoaded)
+        {
+            return;
+        }
+
+        _persistedLoaded = true;
+
         IReadOnlyList<IslandEntry> loaded = _store.Load();
         if (loaded.Count == 0)
         {
@@ -157,12 +175,25 @@ internal sealed class IslandService : IDisposable
         Commit(pruned, added: null, raiseEntryAdded: false);
     }
 
+    /// <summary>UI thread'inde çağrılır.</summary>
     internal void ApplyConfig(IslandConfig config)
     {
+        bool wasEnabled = Config.Enabled;
         Config = config;
         if (Config.Enabled)
         {
             StartListening();
+
+            // Ayar kapalı başlatılan adada island.json hiç okunmadı (LoadPersisted
+            // !Config.Enabled'da eleniyor), bu yüzden ayarlardan açıldığında kayıtlı geçmiş
+            // o oturumda görünmez olurdu: ada görünür ama liste boş. false -> true
+            // geçişinde bir kez yükle. _persistedLoaded, ikinci bir yüklemeyi engeller —
+            // hem her ayar kaydında tekrar tekrar okumayı, hem de LoadPersisted'in
+            // _entries'in boş olduğunu varsaymasından gelen çift kaydı önler.
+            if (!wasEnabled && !_persistedLoaded)
+            {
+                LoadPersisted();
+            }
         }
         else
         {
@@ -176,8 +207,9 @@ internal sealed class IslandService : IDisposable
             _entries, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, IsPersistent);
         if (pruned.Count != _entries.Count)
         {
-            // LoadPersisted buradan CAGRILMAZ: o cagri _nextId'yi dusurur (K5) ve burada
-            // zaten bellekte bir geri yukleme yapilacak bir sey yok.
+            // Yukleme yukarida, gecis tetiklemesiyle yapildi; burada tekrar yuklenmez
+            // (_persistedLoaded) ve Commit zaten RaiseChanged cagirdigi icin ikinci bir
+            // bildirim olurdu.
             Commit(pruned, added: null, raiseEntryAdded: false);
             return;
         }
