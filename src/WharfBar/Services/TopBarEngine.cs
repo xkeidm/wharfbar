@@ -1,4 +1,3 @@
-using System.IO;
 using System.Windows.Threading;
 
 namespace WharfBar.Services;
@@ -26,7 +25,11 @@ internal sealed class TopBarEngine : IDisposable
     internal NotificationCenterInvoker Notifications { get; }
     internal SystemStatsService SystemStats { get; }
 
-    /// <summary>Clipboard geçmişi + bırakılan dosyalar servisi (null = ada kapalı).</summary>
+    /// <summary>
+    /// Clipboard geçmişi + bırakılan dosyalar servisi. Her zaman kurulur; <c>Enabled</c> ayarı
+    /// servis içinde yönetilir, böylece ayardan sonradan açmak da çalışır. Nitelik null olabilir
+    /// tutuldu çünkü <see cref="Dispose"/> sırasında temizlenir.
+    /// </summary>
     internal IslandService? Island { get; private set; }
 
     internal TopBarEngine(ConfigService config, TaskbarVisibilityService taskbar, VeilService veil)
@@ -54,14 +57,14 @@ internal sealed class TopBarEngine : IDisposable
         TrayMirror = new TrayMirrorService(dispatcher, taskbar);
         SystemStats = new SystemStatsService();
 
-        if (config.Current.Island.Enabled)
-        {
-            Island = new IslandService(
-                dispatcher,
-                new IslandStore(Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "WharfBar")),
-                config.Current.Island);
-        }
+        // Island her zaman kurulur: yalnizca burada kurulsaydi, kullanici ayarlardan sonradan
+        // actiginda servis hic dogmazdi ("acitim ama hicbir sey olmadi"). Kapaliyken kurucu ne
+        // pano dinleyicisi kurar ne de island.json'a dokunur (IslandService.LoadPersisted'in
+        // !Config.Enabled guard'i); acma/kapama IslandService.ApplyConfig icindir.
+        Island = new IslandService(
+            dispatcher,
+            new IslandStore(config.ConfigDirectory),
+            config.Current.Island);
     }
 
     internal void Initialize()

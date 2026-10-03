@@ -1930,6 +1930,28 @@ Engine'in servisleri kurduğu ctor bloğuna ekle:
 > yarış yaratır ve timer callback'i içinde atılan istisna süreci düşürür. `FlushSave` yine senkron
 > `_store.Save` çağırır; `ScheduleSave` `Dispose` sonrası no-op'tur (`Timer.Change` disposed
 > timer'da `ObjectDisposedException` fırlatır).
+>
+> **Düzeltme turu 1 notu (görev incelemesi 18/20):** `TopBarEngine` artık servisi
+> **`Enabled` ayarına bakmadan her zaman kurar** — ayardan sonradan açmak da çalışsın diye;
+> kapalıyken kurucu ne pano dinleyicisi kurar ne de `island.json`'a dokunur
+> (`LoadPersisted`'in `!Config.Enabled` guard'ı), açma/kapama `IslandService.ApplyConfig`
+> içindedir. `IslandStore` yolu yeniden türetilmiyor, `config.ConfigDirectory` kullanılıyor
+> (`ConfigService` ctor'da inject ediliyor ve `ConfigDirectory` tam olarak aynı yol). `Island`
+> niteliği bilerek **nullable** bırakıldı (Task 6/7'nin `is null` kontrolleri geçerli kalsın).
+>
+> Diğer davranış değişiklikleri: (a) `ApplyConfig` artık `MaxItems`/`RetentionDays`
+> değişimini **anında budamayla** uygular — önce bu ayarlar yalnız bir sonraki yakalamada
+> etkiliydi; (b) `ClipboardNative.TryWriteText` yazdığı metni
+> `CanIncludeInClipboardHistory = 0` ile **kendi kaydımıza opt-out işaretler**, yoksa kendi
+> `WM_CLIPBOARDUPDATE`'imiz metni yeniden kaydederdi; (c) listeden düşen **bırakılan dosya
+> kayıtlarının `Drop` kopyaları silinir** (`Commit` tek choke point) — `Clear` artık bırakılan
+> dosyaların tümünü geride bırakmıyor; (d) dosya kopyalama/silme **STA worker'a** alındı
+> (üst bar kayıtlı bir AppBar'da UI thread'inde yapılan büyük kopyalama masaüstünü donduruyor);
+> (e) `_staDispatcher` alanı `volatile` + `ManualResetEventSlim` hazır-olma beklemesi;
+> `_nextId` seed'i `Math.Max` ile ilerletilir; `Remove` artık `added: null` geçirir; `PutBack`
+> `Enabled=false` iken panoya yazmaz; `ApplySnapshot`/`RaiseChanged`/`OnSaveTimerTick`
+> kapanma yarışı korumasını (`CanPostToUi`) paylaşır; `LoadPersisted` budama hiçbir şey
+> atmadıysa `Commit` çağırmaz (her açılışta gereksiz disk yazması).
 
 - [ ] **Step 3: Derle**
 

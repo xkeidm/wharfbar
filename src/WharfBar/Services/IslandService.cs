@@ -24,6 +24,10 @@ namespace WharfBar.Services;
 /// düşürürdü.</para>
 /// <para><b>Thread kuralı:</b> kurucu ve <see cref="Dispose"/> UI thread'inde çağrılmalıdır
 /// (mesaj-only <c>HwndSource</c> ve pano dinleyicisi bunu gerektirir).</para>
+/// <para><b>Dosya I/O'su UI thread'inde değil:</b> bırakılan dosyaların kopyalanması
+/// (<see cref="AddDroppedFiles"/>) ve düşen kayıtların kopyalarının silinmesi STA worker'da
+/// olur. Üst bar kayıtlı bir AppBar olduğu için UI thread'inde yapılan büyük bir kopyalama
+/// ya da silme tüm masaüstünü dondurur.</para>
 /// </remarks>
 internal sealed class IslandService : IDisposable
 {
@@ -31,10 +35,17 @@ internal sealed class IslandService : IDisposable
     private const int OpenClipboardRetries = 3;
     private const int OpenClipboardRetryDelayMs = 40;
 
+    /// <summary>STA worker hazır olmadan bu kadar beklenir; sonrası yine de sessiz devam eder.</summary>
+    private const int StaReadyTimeoutMs = 1000;
+
     private readonly Dispatcher _dispatcher;
     private readonly IslandStore _store;
     private readonly List<IslandEntry> _entries = [];
-    private Dispatcher? _staDispatcher;
+
+    // STA thread'i yazıyor, UI thread'i okuyor: volatile olmadan atama görünmeyebilir ve
+    // pencere ctor'da açıldığı için gelen ilk pano değişimi sta is null görüp sessizce
+    // düşerdi ("ilk kopyalama kayboldu", tekrarlanması zor hata).
+    private volatile Dispatcher? _staDispatcher;
     private ClipboardMessageWindow? _listener;
     private System.Threading.Timer? _saveTimer;
     private long _nextId;
@@ -50,9 +61,14 @@ internal sealed class IslandService : IDisposable
 
         // Pano okuması STA worker'da: OpenClipboard bloklayabilir, UI thread'i kilitlememek
         // zorunlu. TrayMirrorService ile aynı kalıp.
+        // Sinyal durumu başlangıçta KAPALI olmalı (STA thread'i atamayı yapıp Set() ile açar);
+        // "ManualResetEventSlim(1)" değil: tek int parametresi spinCount'tir ve ctor zaten
+        // kapalı başlar.
+        var staReady = new ManualResetEventSlim(initialState: false);
         var staThread = new Thread(() =>
         {
             _staDispatcher = Dispatcher.CurrentDispatcher;
+            staReady.Set();
             Dispatcher.Run();
         })
         {
@@ -61,6 +77,12 @@ internal sealed class IslandService : IDisposable
         };
         staThread.SetApartmentState(ApartmentState.STA);
         staThread.Start();
+
+        // Bekleme zaman aşımına uğrarsa hata fırlatmaz: dinleyici zaten kurulmamış olabilir,
+        // bu durumda yalnızca ilk pano okuması düşer. Bu yüzden staReady kasıtlı olarak
+        // Dispose edilmiyor — Set() hâlâ çağrılabilir olmalı, yoksa STA thread'inde
+        // ObjectDisposedException işlenmemiş olarak süreci düşürürdü.
+        staReady.Wait(StaReadyTimeoutMs);
 
         _saveTimer = new System.Threading.Timer(
             _ => OnSaveTimerTick(), null, Timeout.Infinite, Timeout.Infinite);
@@ -96,7 +118,9 @@ internal sealed class IslandService : IDisposable
     /// </summary>
     private void LoadPersisted()
     {
-        if (_disposed || !IsPersistent)
+        // !Config.Enabled şart: servis artık ayar kapalıyken de kurulur (ayardan sonradan
+        // açılabilsin diye), ama kapalıyken island.json'a dokunmak ayak izi bırakır.
+        if (_disposed || !Config.Enabled || !IsPersistent)
         {
             return;
         }
@@ -112,15 +136,25 @@ internal sealed class IslandService : IDisposable
             .ToList();
 
         // Id monotonik olmali: yeniden yuklenen en yuksek Id'den devam et, aksi halde
-        // yeni kayitlar eski kayitlarin Id'leriyle cakisir.
-        _nextId = ordered.Count > 0 ? ordered.Max(e => e.Id) : 0;
+        // yeni kayitlar eski kayitlarin Id'leriyle cakisir. Math.Max: sayici geri
+        // alinamaz, daha once uretilmis bir Id'ye dusmemek icin yalnizca yuksege cikarilir.
+        _nextId = Math.Max(_nextId, ordered.Max(e => e.Id));
+
+        IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
+            ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, persistent: true);
+
+        if (pruned.Count == ordered.Count)
+        {
+            // Budama hicbir seyi atmadi. Prune yalnizca eler (sirayi degistirmez), yani
+            // sayim esitse listeler birebir ayni demektir: Commit'e gidemek her acilista
+            // gereksiz bir disk yazmasi ve bir Changed bildirimi uretirdi.
+            _entries.AddRange(ordered);
+            return;
+        }
 
         // Budanmış hâli diske geri yaz: kullanıcı tavanı düşürdüyse (ya da gün limiti
         // dolduysa) dosya bir sonraki açılışta aynı budanmış listeyi verir.
-        Commit(
-            IslandPruner.Prune(ordered, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, persistent: true),
-            added: null,
-            raiseEntryAdded: false);
+        Commit(pruned, added: null, raiseEntryAdded: false);
     }
 
     internal void ApplyConfig(IslandConfig config)
@@ -133,6 +167,19 @@ internal sealed class IslandService : IDisposable
         else
         {
             StopListening();
+        }
+
+        // Sayisal ayarlar (MaxItems / RetentionDays) yalnizca bir sonraki yakalamada
+        // uygulanirdi: kullanici tavani 200'den 20'ye indirdiginde liste 200 gostermeye
+        // devam ederdi. Ayar degisimi budamayi da hemen uygulamali.
+        IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
+            _entries, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, IsPersistent);
+        if (pruned.Count != _entries.Count)
+        {
+            // LoadPersisted buradan CAGRILMAZ: o cagri _nextId'yi dusurur (K5) ve burada
+            // zaten bellekte bir geri yukleme yapilacak bir sey yok.
+            Commit(pruned, added: null, raiseEntryAdded: false);
+            return;
         }
 
         RaiseChanged();
@@ -244,7 +291,12 @@ internal sealed class IslandService : IDisposable
     {
         if (!_dispatcher.CheckAccess())
         {
-            _dispatcher.BeginInvoke(() => AddEntry(entry), DispatcherPriority.Background);
+            if (!CanPostToUi)
+            {
+                return;
+            }
+
+            _ = _dispatcher.BeginInvoke(() => AddEntry(entry), DispatcherPriority.Background);
             return;
         }
 
@@ -267,6 +319,20 @@ internal sealed class IslandService : IDisposable
             return;
         }
 
+        // Dosya kopyalama isi STA worker'a devredilir: ust bar kayitli bir AppBar oldugu icin
+        // buyuk bir surukleme tum masaustunu dondururdu. Yalnizca Commit UI'da calisir.
+        Dispatcher? sta = _staDispatcher;
+        if (sta is null || !CanPostToUi)
+        {
+            return;
+        }
+
+        _ = sta.BeginInvoke(() => CopyDroppedFiles(sourcePaths), DispatcherPriority.Background);
+    }
+
+    /// <summary>STA worker'da çalışır: kayıtları kopyalar, birleştirmeyi UI'ya devreder.</summary>
+    private void CopyDroppedFiles(IReadOnlyList<string> sourcePaths)
+    {
         List<IslandEntry> added = [];
         foreach (string source in sourcePaths)
         {
@@ -294,11 +360,17 @@ internal sealed class IslandService : IDisposable
             }
         }
 
-        if (added.Count == 0)
+        if (added.Count == 0 || _disposed || !CanPostToUi)
         {
             return;
         }
 
+        _ = _dispatcher.BeginInvoke(() => MergeDroppedFiles(added), DispatcherPriority.Background);
+    }
+
+    /// <summary>UI thread'inde çalışır.</summary>
+    private void MergeDroppedFiles(List<IslandEntry> added)
+    {
         IReadOnlyList<IslandEntry> merged = _entries;
         IslandEntry? last = null;
         foreach (IslandEntry e in added)
@@ -329,13 +401,15 @@ internal sealed class IslandService : IDisposable
     /// <summary>UI thread'inde çağrılır. Metni panoya yazar (yapıştırma yapılmaz).</summary>
     internal void PutBack(IslandEntry entry)
     {
-        if (entry.Kind == IslandEntryKind.File)
+        // Kapalı bir island'da geri koymak kullanıcının istemediği bir pano değişikliğidir:
+        // pano, görünmeyen bir listeden gelen istekle sessizce değişmiş olur.
+        if (entry.Kind == IslandEntryKind.File || !Config.Enabled)
         {
             return;
         }
 
         Dispatcher? sta = _staDispatcher;
-        if (sta is null)
+        if (sta is null || _disposed)
         {
             return;
         }
@@ -362,25 +436,37 @@ internal sealed class IslandService : IDisposable
     internal void Remove(IslandEntry entry)
     {
         IReadOnlyList<IslandEntry> next = _entries.Where(e => e.Id != entry.Id).ToList();
-        ApplySnapshot(next, entry, raiseEntryAdded: false);
+
+        // added: null — kaldırılan kayıt "eklendi" değildir, raiseEntryAdded da false.
+        ApplySnapshot(next, null, raiseEntryAdded: false);
     }
 
     /// <summary>UI thread'inde çağrılır.</summary>
     internal void Clear() => ApplySnapshot([], null, raiseEntryAdded: false);
 
     /// <summary>UI thread'inde çağrılır. Yalnız bırakılan dosyaları siler, panoya dokunmaz.</summary>
-    internal void DeleteDroppedFiles()
+    internal void DeleteDroppedFiles() => DeleteFilesOf(_entries);
+
+    /// <summary>
+    /// Verilen kayıtların bırakma kopyalarını <c>Drop</c> klasöründen siler. Kayıt listeden
+    /// çıktığı anda kopyası da silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
+    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır ve
+    /// <see cref="Clear"/> bırakılan dosyaların <b>tümünü</b> geride bırakır.
+    /// </summary>
+    private void DeleteFilesOf(IEnumerable<IslandEntry> dropped)
     {
-        foreach (IslandEntry e in _entries.Where(x => x.Kind == IslandEntryKind.File))
+        foreach (IslandEntry entry in dropped)
         {
-            if (e.FilePath is null || !File.Exists(e.FilePath))
+            if (entry.Kind != IslandEntryKind.File
+                || entry.FilePath is null
+                || !File.Exists(entry.FilePath))
             {
                 continue;
             }
 
             try
             {
-                File.Delete(e.FilePath);
+                File.Delete(entry.FilePath);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -395,15 +481,27 @@ internal sealed class IslandService : IDisposable
         {
             Commit(next, added, raiseEntryAdded);
         }
-        else
+        else if (CanPostToUi)
         {
-            _dispatcher.BeginInvoke(() => Commit(next, added, raiseEntryAdded), DispatcherPriority.Background);
+            _ = _dispatcher.BeginInvoke(() => Commit(next, added, raiseEntryAdded), DispatcherPriority.Background);
         }
     }
+
+    /// <summary>
+    /// UI dispatcher'ına iş atılabilir mi? Dispose/kapanma yarışında <c>BeginInvoke</c>
+    /// <see cref="InvalidOperationException"/> fırlatırdı: Dispose sonrası UI dışından gelen bir
+    /// <see cref="Remove"/>/<see cref="Clear"/> tam olarak bu yolu kullanır.
+    /// </summary>
+    private bool CanPostToUi =>
+        !_disposed && !_dispatcher.HasShutdownStarted && !_dispatcher.HasShutdownFinished;
 
     /// <summary>UI thread'inde çalışır: tek noktada liste değiştir, kaydet, bildir.</summary>
     private void Commit(IReadOnlyList<IslandEntry> next, IslandEntry? added, bool raiseEntryAdded)
     {
+        // Commit tek choke point: Remove, Clear, budama ve ApplyConfig hepsi buradan geçer,
+        // yani "listeden düşen kayıt" hesabı da tek yerde yapılır.
+        QueueDeleteOfDropped(next);
+
         _entries.Clear();
         _entries.AddRange(next);
 
@@ -420,15 +518,58 @@ internal sealed class IslandService : IDisposable
         }
     }
 
+    /// <summary>
+    /// <paramref name="next"/>'te olmayan kayıtların bırakma kopyalarını silmeyi STA worker'a
+    /// devreder (dosya I/O'su UI thread'inde olmaz — üst bar kayıtlı bir AppBar'dır, bloklanan
+    /// UI tüm masaüstünü dondurur).
+    /// </summary>
+    private void QueueDeleteOfDropped(IReadOnlyList<IslandEntry> next)
+    {
+        // Commit listeyi olduğu gibi değiştirir; aynı sayı => hiçbir şey düşmemiş demektir.
+        // Bu, her pano yakalamasında geçilen sıcak yolun erken çıkışıdır.
+        if (next.Count == _entries.Count)
+        {
+            return;
+        }
+
+        var kept = new HashSet<long>(next.Count);
+        foreach (IslandEntry e in next)
+        {
+            _ = kept.Add(e.Id);
+        }
+
+        List<IslandEntry> dropped = [];
+        foreach (IslandEntry e in _entries)
+        {
+            if (!kept.Contains(e.Id))
+            {
+                dropped.Add(e);
+            }
+        }
+
+        if (dropped.Count == 0)
+        {
+            return;
+        }
+
+        Dispatcher? sta = _staDispatcher;
+        if (sta is null || _disposed)
+        {
+            return;
+        }
+
+        _ = sta.BeginInvoke(() => DeleteFilesOf(dropped), DispatcherPriority.Background);
+    }
+
     private void RaiseChanged()
     {
         if (_dispatcher.CheckAccess())
         {
             Changed?.Invoke(this, EventArgs.Empty);
         }
-        else
+        else if (CanPostToUi)
         {
-            _dispatcher.BeginInvoke(() => Changed?.Invoke(this, EventArgs.Empty), DispatcherPriority.Background);
+            _ = _dispatcher.BeginInvoke(() => Changed?.Invoke(this, EventArgs.Empty), DispatcherPriority.Background);
         }
     }
 
@@ -452,7 +593,7 @@ internal sealed class IslandService : IDisposable
     /// </summary>
     private void OnSaveTimerTick()
     {
-        if (_disposed || _dispatcher.HasShutdownStarted || _dispatcher.HasShutdownFinished)
+        if (!CanPostToUi)
         {
             return;
         }
