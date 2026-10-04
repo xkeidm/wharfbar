@@ -419,6 +419,10 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
 | `dock.surface` | `mica` \| `acrylic`; dock yüzeyi (`WindowAppearance` → `WindowBackdropType`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Zemin rengi üst barla aynı DWM sistem kaynağından (Windows temasından otomatik) |
+| `dock.items` | macOS tarzı sıralı sabit liste (Path/Args/Label) |
+| `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right` |
+| `dock.magnification` | Hover tavanı 1.0–2.0 (varsayılan 1.65) |
+| `dock.showRunningApps` | Sabitlenmemiş çalışanlar + küçültülmüş pencereler |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 1). Güncel **4**: eksik `controlCenter` `volume` önüne, eksik `brightness` `volume` sonrasına, eksik `media` `brightness` sonrasına eklenir (`Ensure*`; eski sürüm açılışta 4'e taşınır — ADR-008) |

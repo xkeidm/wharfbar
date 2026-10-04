@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows.Media;
+using WharfBar.Services;
 
 namespace WharfBar.Models;
 
@@ -82,6 +83,31 @@ internal static class DockSurfaceStyles
     }
 }
 
+/// <summary>Dock anchor along the monitor bottom edge (<see cref="DockConfig.Position"/>).</summary>
+internal static class DockPositions
+{
+    internal const string BottomLeft = "bottom-left";
+
+    internal const string BottomCenter = "bottom-center";
+
+    internal const string BottomRight = "bottom-right";
+
+    internal static string Normalize(string? position)
+    {
+        if (string.Equals(position, BottomLeft, StringComparison.OrdinalIgnoreCase))
+        {
+            return BottomLeft;
+        }
+
+        if (string.Equals(position, BottomRight, StringComparison.OrdinalIgnoreCase))
+        {
+            return BottomRight;
+        }
+
+        return BottomCenter;
+    }
+}
+
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
 internal sealed class DockConfig
 {
@@ -106,6 +132,21 @@ internal sealed class DockConfig
     /// system theme via the DWM backdrop — the same source as the top bar.
     /// </summary>
     public string Surface { get; set; } = DockSurfaceStyles.Mica;
+
+    /// <summary>
+    /// The dock's own ordered, persisted item list. Display order equals list order.
+    /// This is the single runtime source; the Windows taskbar is never read or written.
+    /// </summary>
+    public List<PinnedApp> Items { get; set; } = [];
+
+    /// <summary>Bottom anchor: <c>bottom-left</c>, <c>bottom-center</c>, or <c>bottom-right</c>.</summary>
+    public string Position { get; set; } = DockPositions.BottomCenter;
+
+    /// <summary>Hover magnification ceiling; 1.0 disables magnification.</summary>
+    public double Magnification { get; set; } = DockMagnification.Default;
+
+    /// <summary>When false, running-but-unpinned apps and minimized windows are hidden.</summary>
+    public bool ShowRunningApps { get; set; } = true;
 }
 
 /// <summary>Top bar settings under <see cref="AppConfig.TopBar"/>.</summary>

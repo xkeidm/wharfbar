@@ -28,9 +28,9 @@ internal sealed class ConfigService
 
     internal AppConfig Current { get; private set; }
 
-    internal ConfigService()
+    internal ConfigService(string? configDirectory = null)
     {
-        ConfigDirectory = Path.Combine(
+        ConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "WharfBar");
         ConfigPath = Path.Combine(ConfigDirectory, "config.json");
@@ -70,6 +70,12 @@ internal sealed class ConfigService
             bool monitorsKeyMissing = !JsonRootHasProperty(json, "monitors");
             bool monitorsMigrated = NeedsMonitorsMigration(loaded, monitorsKeyMissing);
             MigrateMonitors(loaded);
+            bool dockItemsMigrated = NeedsDockItemsMigration(loaded);
+            if (dockItemsMigrated)
+            {
+                MigrateDockItems(loaded);
+            }
+
             double originalIconSize = loaded.Dock?.IconSize ?? DockConfig.DefaultIconSize;
             int originalCatalogVersion = loaded.TopBar?.StatusCatalogVersion ?? 0;
             Current = Normalize(loaded);
@@ -83,7 +89,7 @@ internal sealed class ConfigService
                 || MonitorCountChanged(loaded.Monitors, Current.Monitors);
 
             if (iconChanged || statusChanged || catalogChanged || veilKeyMissing
-                || islandKeyMissing || monitorsChanged)
+                || islandKeyMissing || monitorsChanged || dockItemsMigrated)
             {
                 Save(Current);
             }
@@ -133,8 +139,12 @@ internal sealed class ConfigService
             {
                 AutoHide = true,
                 IconSize = DockConfig.DefaultIconSize,
+                Items = DemoPinnedApps.All
+                    .Select(static a => new PinnedApp(a.Path, a.Args, a.Label))
+                    .ToList(),
             },
-            PinnedApps = DemoPinnedApps.All.Select(static a => new PinnedApp(a.Path, a.Args, a.Label)).ToList(),
+            // Legacy seed list: emptied by MigrateDockItems, never read again.
+            PinnedApps = [],
             TopBar = new TopBarConfig
             {
                 StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion,
@@ -145,6 +155,40 @@ internal sealed class ConfigService
             Veil = new VeilConfig(),
             Island = new IslandConfig(),
         };
+    }
+
+    /// <summary>
+    /// True when the legacy root <see cref="AppConfig.PinnedApps"/> list still holds entries
+    /// and the dock list is empty — i.e. the one-time hand-off is pending.
+    /// </summary>
+    internal static bool NeedsDockItemsMigration(AppConfig loaded) =>
+        loaded.Dock?.Items is null or { Count: 0 }
+        && loaded.PinnedApps is { Count: > 0 };
+
+    /// <summary>
+    /// Moves the legacy root pin list into <see cref="DockConfig.Items"/> and clears the
+    /// legacy list. Clearing is what stops a deliberately emptied dock from resurrecting
+    /// the old pins on the next launch.
+    /// </summary>
+    internal static AppConfig MigrateDockItems(AppConfig config)
+    {
+        config.Dock ??= new DockConfig();
+        config.Dock.Items ??= [];
+
+        if (config.Dock.Items.Count == 0 && config.PinnedApps is { Count: > 0 } legacy)
+        {
+            foreach (PinnedApp? app in legacy)
+            {
+                if (app is not null && !string.IsNullOrWhiteSpace(app.Path))
+                {
+                    config.Dock.Items.Add(new PinnedApp(app.Path, app.Args ?? string.Empty, app.Label ?? string.Empty));
+                }
+            }
+
+            config.PinnedApps = [];
+        }
+
+        return config;
     }
 
     internal static bool NeedsMonitorsMigration(AppConfig loaded, bool monitorsKeyMissing)
@@ -263,25 +307,45 @@ internal sealed class ConfigService
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
         config.Dock.Surface = DockSurfaceStyles.NormalizeStyle(config.Dock.Surface);
+        config.Dock.Items ??= [];
+        config.Dock.Position = DockPositions.Normalize(config.Dock.Position);
+        config.Dock.Magnification = DockMagnification.Clamp(config.Dock.Magnification);
         config.PinnedApps ??= [];
         config.Monitors = MonitorConfigNormalizer.Normalize(config.Monitors).ToList();
 
-        for (int i = config.PinnedApps.Count - 1; i >= 0; i--)
+        NormalizePinnedList(config.PinnedApps);
+        NormalizePinnedList(config.Dock.Items);
+
+        return config;
+    }
+
+    /// <summary>
+    /// Drops entries without a path, trims path/args, and derives a missing label from the
+    /// file name. Shared by the legacy root list and <see cref="DockConfig.Items"/>.
+    /// </summary>
+    internal static void NormalizePinnedList(List<PinnedApp>? items)
+    {
+        if (items is null)
         {
-            PinnedApp? app = config.PinnedApps[i];
+            return;
+        }
+
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            PinnedApp? app = items[i];
             if (app is null || string.IsNullOrWhiteSpace(app.Path))
             {
-                config.PinnedApps.RemoveAt(i);
+                items.RemoveAt(i);
                 continue;
             }
 
-            config.PinnedApps[i] = new PinnedApp(
+            items[i] = new PinnedApp(
                 app.Path.Trim(),
-                app.Args ?? string.Empty,
-                string.IsNullOrWhiteSpace(app.Label) ? Path.GetFileNameWithoutExtension(app.Path) : app.Label.Trim());
+                app.Args?.Trim() ?? string.Empty,
+                string.IsNullOrWhiteSpace(app.Label)
+                    ? Path.GetFileNameWithoutExtension(app.Path)
+                    : app.Label.Trim());
         }
-
-        return config;
     }
 
     private static bool JsonRootHasProperty(string json, string propertyName)
