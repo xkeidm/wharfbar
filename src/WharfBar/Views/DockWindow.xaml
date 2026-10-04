@@ -20,8 +20,13 @@
     <!-- Layered window: the strip is a WPF-drawn rounded surface (theme-aware brush set from
          code), everything outside it is fully transparent AND click-through. The window is
          fixed at the maximum magnified extent (never resized during hover — SetWindowPos per
-         frame stutters); the Surface hugs the DockStrip's live width and stays centred. -->
-    <Grid>
+         frame stutters); the Surface hugs the DockStrip's live width and stays centred.
+
+         The root Grid is the file-drop target and deliberately has NO Background: a hit
+         region out here would add ~57 DIP of phantom hit area on each side of the plate,
+         which is sized for the worst magnified width. Drop/DragOver are declared here in the
+         same block (TopBarWindow.xaml:156-157 — a two-step edit silently leaves it dead). -->
+    <Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">
         <Border x:Name="Surface"
                 Padding="12,6"
                 Background="Transparent"
@@ -42,5 +47,17 @@
                 <controls:DockStrip x:Name="Strip" HorizontalAlignment="Center" />
             </Grid>
         </Border>
+
+        <!-- Reorder affordance. A sibling of the plate, not a child: the plate resizes with
+             the strip, so an indicator inside it would be dragged along. Anchored to the
+             resting layout, so drags run with magnification switched off (OnCellMouseMove). -->
+        <Border x:Name="DropIndicator"
+                Width="2"
+                Height="30"
+                CornerRadius="1"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                Visibility="Collapsed" />
     </Grid>
 </Window>

@@ -112,6 +112,23 @@ public partial class DockWindow : Window
     private int _lastHiddenY;
     private bool _haveSlideRange;
 
+    /// <summary>Press point of the current left-drag, in window coordinates.</summary>
+    private Point _dragOrigin;
+
+    /// <summary>
+    /// Store key of the tile under the cursor while the left button is down, or null when the
+    /// gesture cannot become a reorder drag. Cleared the moment the drag starts.
+    /// </summary>
+    private string? _dragItemId;
+
+    /// <summary>
+    /// Reorder key whose next <c>MouseLeftButtonUp</c> must be swallowed. Without this a
+    /// reorder drag would also launch the app. Cleared when consumed and again on every
+    /// fresh press, so a key left over from a drag whose release was never delivered
+    /// cannot swallow the next legitimate click on that tile.
+    /// </summary>
+    private string? _suppressClickFor;
+
     private static readonly DependencyProperty AnimYOffsetProperty =
         DependencyProperty.Register(
             nameof(AnimYOffset),
@@ -415,6 +432,10 @@ public partial class DockWindow : Window
 
     private void OnSurfaceMouseLeave(object sender, MouseEventArgs e)
     {
+        // The pointer leaving the dock also ends a reorder gesture: a drag released outside
+        // never raises Drop, so the drop indicator has to be taken down here.
+        HideDropIndicator();
+
         _cursorTimer.Stop();
         AnimatePhase(0d, PhaseOutMs);
     }
@@ -471,8 +492,14 @@ public partial class DockWindow : Window
 
         // One block, on purpose: a cell reused from the previous rebuild must always get a
         // fresh tooltip and menu, otherwise a stale menu leaks onto a different app.
+        // The detach-first is load-bearing, not boilerplate: SetRows reuses cell instances and
+        // this loop runs on every rebuild the composer's ~2 s poll triggers, so a bare +=
+        // would stack one more handler per rebuild. Same rule as the island pill: binding a
+        // subset in two steps silently leaves an element dead (see TopBarWindow.xaml:156-157).
         foreach (DockItemCell cell in _strip.Cells)
         {
+            DetachCellHandlers(cell);
+
             DockItemViewModel? row = cell.Row;
             if (row is null || row.IsSeparator)
             {
@@ -487,10 +514,221 @@ public partial class DockWindow : Window
             ToolTipService.SetShowDuration(cell, ToolTipShowDurationMs);
 
             cell.ContextMenu = BuildContextMenuForItem(row.Item!);
+
+            // Every tile launches on click; only pinned tiles reorder.
+            cell.PreviewMouseLeftButtonDown += OnCellPreviewMouseLeftButtonDown;
+            cell.MouseLeftButtonUp += OnCellMouseLeftButtonUp;
+            cell.PreviewMouseMove += OnCellMouseMove;
+
+            // Reorder and drop are store operations keyed by the pinned path; running and
+            // minimized tiles carry a non-pinned id the store cannot move.
+            if (ReorderKeyFor(row) is not null)
+            {
+                cell.AllowDrop = true;
+                cell.DragOver += OnCellDragOver;
+                cell.Drop += OnCellDrop;
+            }
         }
 
         ApplyPlacement();
     }
+
+    private void DetachCellHandlers(DockItemCell cell)
+    {
+        cell.PreviewMouseLeftButtonDown -= OnCellPreviewMouseLeftButtonDown;
+        cell.MouseLeftButtonUp -= OnCellMouseLeftButtonUp;
+        cell.PreviewMouseMove -= OnCellMouseMove;
+        cell.DragOver -= OnCellDragOver;
+        cell.Drop -= OnCellDrop;
+
+        // A cell that was pinned in the previous rebuild and is a plain running tile now must
+        // stop being a drop target, or it would keep accepting reorder drops it cannot honour.
+        cell.AllowDrop = false;
+    }
+
+    /// <summary>
+    /// The store key of a reorderable tile, or null when the tile cannot be reordered.
+    /// <para>
+    /// Deliberately not <see cref="DockItemViewModel.Id"/>: on a pinned-and-running tile the
+    /// composer fills the id from the running app (an AppUserModelId for a Store app), and
+    /// <see cref="DockItemStore"/> keys on the normalized path — an id-keyed Move would
+    /// silently miss exactly the tiles that are running, i.e. the ones users drag most.
+    /// </para>
+    /// </summary>
+    private static string? ReorderKeyFor(DockItemViewModel row)
+    {
+        if (row.IsSeparator || row.Item is not { IsPinned: true } item)
+        {
+            return null;
+        }
+
+        string key = DockItemStore.Normalize(item.Path);
+        return key.Length > 0 ? key : null;
+    }
+
+    private void OnCellPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DockItemCell { Row: { IsSeparator: false } row })
+        {
+            return;
+        }
+
+        // A stale suppression from a drag whose release was never delivered must not eat this
+        // click: the key is only meaningful between a drag's move and its own release.
+        _suppressClickFor = null;
+
+        // Foreground must be sampled before anything else touches focus (docs/04-gotchas.md:30).
+        _activation?.CaptureForegroundHint();
+
+        _dragOrigin = e.GetPosition(null);
+        _dragItemId = ReorderKeyFor(row);
+    }
+
+    private void OnCellMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not DockItemCell { Row: { IsSeparator: false } row })
+        {
+            return;
+        }
+
+        _dragItemId = null;
+
+        // The same key the drag carried, so the release of that drag is swallowed and only
+        // that one.
+        string? key = ReorderKeyFor(row);
+        if (key is not null && string.Equals(_suppressClickFor, key, StringComparison.OrdinalIgnoreCase))
+        {
+            _suppressClickFor = null;
+            return;
+        }
+
+        _activation?.LaunchOrActivate(row.Item!, _launcher);
+    }
+
+    private void OnCellMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton is not MouseButtonState.Pressed || _dragItemId is null)
+        {
+            return;
+        }
+
+        Point position = e.GetPosition(null);
+        double dx = position.X - _dragOrigin.X;
+        double dy = position.Y - _dragOrigin.Y;
+        if (Math.Abs(dx) < SystemParameters.MinimumHorizontalDragDistance
+            && Math.Abs(dy) < SystemParameters.MinimumVerticalDragDistance)
+        {
+            return;
+        }
+
+        string dragged = _dragItemId;
+        _dragItemId = null;
+
+        // Rest the strip while reordering: the drop indicator is anchored to the resting
+        // layout, and a magnified strip under the cursor is just noise mid-drag.
+        AnimatePhase(0d, PhaseOutMs);
+
+        _ = DragDrop.DoDragDrop((DependencyObject)sender, dragged, DragDropEffects.Move);
+
+        // Escape, or a release outside the strip: no Drop is ever raised, so the indicator is
+        // taken down here rather than in the Drop handler.
+        HideDropIndicator();
+
+        // Suppress the release even when the drop was refused — the gesture became a drag, so
+        // the matching MouseLeftButtonUp must not read as a click and launch the app.
+        _suppressClickFor = dragged;
+    }
+
+    private void OnCellDragOver(object sender, DragEventArgs e)
+    {
+        // A file drop belongs to the surface, not to a reorder: leave it unhandled so it
+        // bubbles up to OnSurfaceDragOver, which is the one that offers Copy.
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return;
+        }
+
+        if (e.Data.GetData(DataFormats.StringFormat) is not string dragged || dragged.Length == 0)
+        {
+            e.Effects = DragDropEffects.None;
+            e.Handled = true;
+            HideDropIndicator();
+            return;
+        }
+
+        e.Effects = DragDropEffects.Move;
+        e.Handled = true;
+        ShowDropIndicator(Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
+    }
+
+    private void OnCellDrop(object sender, DragEventArgs e)
+    {
+        HideDropIndicator();
+
+        if (e.Data.GetDataPresent(DataFormats.FileDrop)
+            || e.Data.GetData(DataFormats.StringFormat) is not string dragged
+            || dragged.Length == 0)
+        {
+            return;
+        }
+
+        _itemStore?.Move(dragged, Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
+        e.Handled = true;
+    }
+
+    private void OnSurfaceDragOver(object sender, DragEventArgs e)
+    {
+        // A layered Topmost window may not be offered OLE drops at all; then Effects stays
+        // None and the drag simply is not accepted (spec risk R1).
+        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnSurfaceDrop(object sender, DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(DataFormats.FileDrop) is false
+            || e.Data.GetData(DataFormats.FileDrop) is not string[] paths)
+        {
+            return;
+        }
+
+        // A multi-select drop is partly rejected by design: unsupported extensions resolve to an
+        // empty path and duplicates are refused by the store, so only some of the paths land.
+        int added = 0;
+        foreach (string path in paths)
+        {
+            (string resolvedPath, string args) = DockDropFormats.Resolve(path);
+            if (_itemStore?.TryAdd(resolvedPath, args, string.Empty) == true)
+            {
+                added++;
+            }
+        }
+
+        Debug.WriteLine($"[WharfBar] dock drop: {added}/{paths.Length} added");
+        e.Handled = true;
+    }
+
+    private void ShowDropIndicator(int index)
+    {
+        if (index < 0
+            || index > Strip.SlotCount
+            || VisualTreeHelper.GetParent(DropIndicator) is not UIElement host)
+        {
+            HideDropIndicator();
+            return;
+        }
+
+        // RestingLeftOf, not the live offset: the strip is rested for the duration of a drag,
+        // so the line must show where the tile lands in the resting order.
+        Point left = Strip.TranslatePoint(new Point(Strip.RestingLeftOf(index), 0), host);
+        DropIndicator.Height = Strip.RestingHeight;
+        DropIndicator.Margin = new Thickness(left.X, 0, 0, 0);
+        DropIndicator.Visibility = Visibility.Visible;
+    }
+
+    private void HideDropIndicator() => DropIndicator.Visibility = Visibility.Collapsed;
 
     private static ToolTip CreateDockTip(string text, UIElement target) => new()
     {

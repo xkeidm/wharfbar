@@ -24,6 +24,9 @@ public sealed class DockStrip : Panel
     private double[] _baseWidths = [];
     private double[] _centers = [];
 
+    /// <summary>Resting right edge of the strip; where a "drop past the last icon" indicator sits.</summary>
+    private double _restingWidth;
+
     public DockStrip()
     {
         ClipToBounds = false;
@@ -139,6 +142,33 @@ public sealed class DockStrip : Panel
         return count - 1;
     }
 
+    /// <summary>
+    /// Insertion index for a drag, using the resting layout so the target does not drift
+    /// while magnified. Returns <c>SlotCount</c> to mean "append at the end".
+    /// </summary>
+    public int ResolveInsertIndex(double x)
+    {
+        int count = _cells.Count;
+        if (count == 0)
+        {
+            return 0;
+        }
+
+        if (x > _centers[count - 1])
+        {
+            return count;
+        }
+
+        double slot = HitTestCursor(x);
+        return Math.Clamp((int)Math.Floor(slot + 0.5d), 0, count);
+    }
+
+    /// <summary>Resting left edge of a slot; the resting right edge for <c>SlotCount</c>.</summary>
+    public double RestingLeftOf(int index) =>
+        index < 0 || index >= _offsets.Length || index >= _cells.Count
+            ? _restingWidth
+            : _offsets[index];
+
     /// <summary>Live slot widths must fit inside the budget <c>DockWindow</c> sized the window to.</summary>
     public double MaxLiveWidth() => DockStripLayout.MaxExtentWidth(
         Math.Max(SlotCount, 1), IconSize, IconGap, MaxScale);
@@ -200,7 +230,7 @@ public sealed class DockStrip : Panel
         }
 
         Array.Fill(_scales, 1.0d);
-        DockStripLayout.ComputeOffsets(count, _baseWidths, _scales, IconGap, _offsets, out _);
+        DockStripLayout.ComputeOffsets(count, _baseWidths, _scales, IconGap, _offsets, out _restingWidth);
 
         for (int i = 0; i < count; i++)
         {

@@ -331,6 +331,15 @@ dock çevresinde görünür kutu oluşmaz. **DWM backdrop kullanılmaz** (tüm p
 kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`dock.surface`:
 `mica` = opak tema rengi koyu `#202020` / açık `#FAFAFA`; `acrylic` = aynı renk %80 saydam).
 
+**Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
+dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,
+bu yüzden `DragOver` dosya bırakmasını hücrede **işaretlemez** (`Handled = false`), yüzey
+handler’ına bubble eder. Katmanlı `Topmost` pencerenin OLE bırakma hedefi olarak kabulü
+**ölçülmedi** (spec riski R1); kabul edilmezse `Effects = None` kalır ve ayar listesindeki
+“ekle” yolu yedek olarak çalışır. Kök `Grid` bırakma hedefidir ama **arka planı yoktur** —
+pencere en geniş büyütülmüş genişliğe göre boyutlandığı için arka plan ~57 DIP hayalet hit
+alanı eklerdi.
+
 ---
 
 ## h) DPI ve ekran değişimi
