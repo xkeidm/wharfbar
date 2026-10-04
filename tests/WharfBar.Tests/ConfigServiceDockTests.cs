@@ -240,6 +240,35 @@ public class ConfigServiceDockTests : IDisposable
     }
 
     [Fact]
+    public void IsRealUserConfig_IsFalseForInjectedDirectoryAndTrueForDefault()
+    {
+        // The no-argument ctor only computes a path and builds an in-memory default — it writes
+        // nothing, so constructing it in a test is safe.
+        Assert.False(NewService().IsRealUserConfig);
+        Assert.True(new ConfigService().IsRealUserConfig);
+    }
+
+    [Fact]
+    public void Save_WhenServiceIsTestScoped_DoesNotTouchTheStartupShortcut()
+    {
+        string shortcutPath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.Startup), "WharfBar.lnk");
+        if (!File.Exists(shortcutPath))
+        {
+            // Nothing to protect on this machine; never create it just to make this assert.
+            return;
+        }
+
+        DateTime before = File.GetLastWriteTimeUtc(shortcutPath);
+
+        ConfigService service = NewService();
+        service.LoadOrCreate();
+        service.Save(service.Current);
+
+        Assert.Equal(before, File.GetLastWriteTimeUtc(shortcutPath));
+    }
+
+    [Fact]
     public void DemoPins_AreAllUsablePaths()
     {
         // The seeded dock must not point at files that do not exist on a real machine.

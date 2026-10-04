@@ -28,8 +28,16 @@ internal sealed class ConfigService
 
     internal AppConfig Current { get; private set; }
 
+    /// <summary>
+    /// True when this instance owns the real user configuration (<c>%AppData%/WharfBar</c>),
+    /// i.e. it was constructed without an explicit directory. False for test-scoped instances
+    /// pointed at a temp directory, which must not touch machine state outside that directory.
+    /// </summary>
+    internal bool IsRealUserConfig { get; }
+
     internal ConfigService(string? configDirectory = null)
     {
+        IsRealUserConfig = configDirectory is null;
         ConfigDirectory = configDirectory ?? Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "WharfBar");
@@ -125,7 +133,13 @@ internal sealed class ConfigService
         }
 
         Current = normalized;
-        new AutostartService().Apply(normalized.Autostart);
+
+        // Only the real user config owns the Startup shortcut; a test-scoped service writes to a
+        // temp directory and must not create, rewrite or delete %AppData%\...\Startup\WharfBar.lnk.
+        if (IsRealUserConfig)
+        {
+            new AutostartService().Apply(normalized.Autostart);
+        }
     }
 
     internal static AppConfig CreateDefault()
