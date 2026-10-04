@@ -212,7 +212,7 @@ Hücre düzeni taban boyutta kalır; büyüme `RenderTransform` ile yapılır, k
 
 ### 6.4 `DockWindow`
 
-- `RebuildStrip` imperatif ikon üretimi yerine `DockStripViewModel` satırları üretip `_strip.SetRows(...)` çağırır (§6.3).
+- `RebuildStrip` imperatif ikon üretimi yerine `DockItemViewModel` satırları üretip `_strip.SetRows(...)` çağırır (§6.3).
 - `RebuildStrip`'daki trailing-margin hatası (§3) hücre şablonuna taşınarak **düzeltilir**.
 - `TogglePin` (§ `581-636`) yerine `DockItemStore.Remove`/`TryAdd` gelir. **Görev çubuğu klasörüne hiçbir yazma yapılmaz.**
 - `TryGetPlacementGeometry` X hesabı `Position`'a göre hizalar (alt-sol/sağ → `monitor` kenarı + 12 DIP, alt-orta → mevcut ortalama).

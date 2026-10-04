@@ -1,11 +1,15 @@
 # WharfBar
 
-Windows için macOS tarzı **üst bar** (saat, durum göstergeleri) ve **dock** (sabitlenmiş uygulamalar).
+Windows için macOS tarzı **üst bar** (saat, durum göstergeleri) ve **dock** (kendi listesindeki
+sabitlenmiş uygulamalar, çalışan uygulamalar ve küçültülmüş pencereler).
 
 Öncelik: düşük kaynak tüketimi → Windows Fluent native görünüm → basitlik. macOS marka/ikon dili yok.
 
-> Durum: Geliştirme aşaması. **Faz 1–9 + Parlaklık Kontrolü + Dock Bağlam Menüsü tamamlandı** — üst bar AppBar + Mica,
-> dock overlay (sağ tık bağlam menüsü: Başlık kartı, Dock'a sabitle/kaldır, Görevi sonlandır, Pencereyi kapat; yatay kaydırma desteği), canlı görev çubuğu / tepsi entegrasyonu (ADR-005), Hızlı Ayarlar flyout (ADR-006),
+> Durum: Geliştirme aşaması. **Faz 1–9 + Parlaklık Kontrolü + Dock yeniden tasarımı tamamlandı** —
+> üst bar AppBar + Mica, dock overlay (kendi kalıcı uygulama listesi, macOS tipi büyütme,
+> sürükle-sırala, dosya bırakma, sağ tık bağlam menüsü: Başlık kartı, Dock'a sabitle/kaldır,
+> Görevi sonlandır, Pencereyi kapat), tepsi entegrasyonu ve görev çubuğu gizleme/geri yükleme
+> (ADR-005), Hızlı Ayarlar flyout (ADR-006),
 > **Monitör Parlaklık Kontrolü** (Monitorian tarzı DDC/CI + WMI hibrit), kalıcı JSON config (`%AppData%/WharfBar/config.json`),
 > Startup klasörü autostart, saat / ağ / pil / ses / parlaklık göstergeleri, tepsi Quit menüsü.
 
@@ -74,7 +78,7 @@ Ayrıntı: [`docs/01-architecture.md`](docs/01-architecture.md)
 ## Hedefler (v1)
 
 - Ekranın üstünde rezerve edilmiş top bar (AppBar)
-- Altta overlay dock (Topmost + auto-hide; canlı pin ve çalışan uygulamalar; sağ tık bağlam menüsü; tam ekran genişliği & yatay kaydırma)
+- Altta overlay dock (Topmost + auto-hide; **kendi uygulama listesi** + çalışan uygulamalar + küçültülmüş pencereler; macOS tipi büyütme ve komşu kayması; sürükle-sırala, dosya bırakma, sağ tık bağlam menüsü)
 - Monitör parlaklık kontrolü (Monitorian tarzı DDC/CI + laptop WMI hibrit uçan pencere)
 - Win11 tarzı Hızlı Ayarlar flyout (ses karıştırıcı, ağ durumu, sistem ayarları)
 - Sabitlenmiş ve çalışan masaüstü uygulamaları

@@ -147,16 +147,17 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
   **2026-10-04'te ikisi de çözüldü:** alan `dock.items`'e bir kez taşınıp **boşaltılır**, `schemaVersion`
   ise monitör fazından gelen **2'de kalır** — göç alan bazlı varsayılanlarla kırılmadan okunduğu
   için ek sürüm gerekmedi (bkz. §1).
-- Geliştirme sırası: Faz 9 (9a taskbar lifecycle → 9b canlı dock → 9c tray düğmesi);
+- Geliştirme sırası: Faz 9 (9a taskbar lifecycle → 9b dock → 9c tray düğmesi);
   Faz 8 auto-hide 9a/9b sonrası daha anlamlı.
 - Cursor kurallarına Win32 rehberi yapıştırılmaz; işaretçi + bu ADR / spec yeter.
 
-## Alternatifler (reddedilen)
+## Alternatifler (o gün reddedilenler)
 
 1. **Tam tepsi aynası** (yabancı ikon çiz + forward) — belgelenmemiş API / RPM; reddedildi.
 2. **Görev çubuğuna dokunmama** (önceki non-goal) — çift çubuk; kullanıcı B ile reddetti.
 3. **Yalnızca config pinleri** — canlı shell pinleriyle uyumsuz; yetersiz.
-   **2026-10-04’te bu alternatif kabul edildi:** görev çubuğu hiç okunmadığı için “uyumsuzluk”
-   artık bir maliyet değil; liste büyütüldü (sürükle-sırala, dosya bırakma, ayar editörü) ve
-   dock yine de “yerine geçen” deneyimi sunuyor.
+   **2026-10-04’te bu alternatif kabul edildi** (§1 revizyonu): görev çubuğunun pin tarafına
+   dokunulmadığı için “uyumsuzluk” artık bir maliyet değil; liste büyütüldü (sürükle-sırala,
+   dosya bırakma, ayar editörü) ve dock yine de “yerine geçen” deneyimi sunuyor. Bu yüzden
+   **bugün reddedilenler listesi yalnız 1, 2 ve 4’ü kapsar.**
 4. **İki ayrı ADR** (taskbar vs tray) — sıkı bağlı ürün kararı; tek ADR tercih edildi.

@@ -118,7 +118,7 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 - [x] `TaskbarCreated` sonrası gizlemeyi yeniden uygula (`ReapplyHide`)
 - [ ] Manuel: Quit → restore; zorla kill gotcha bilinci
 
-### 9b — Canlı dock
+### 9b — Dock (bağımsız liste + bölümler)
 
 > **2026-10-04'te revize edildi** (ADR-005 revizyonu): ilk ve üçüncü madde geri alındı. Dock'un
 > tek kaynağı artık `dock.items` (`DockItemStore`); `TaskbarPinnedAppsSource` silindi ve görev
