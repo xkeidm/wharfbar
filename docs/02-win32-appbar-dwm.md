@@ -334,11 +334,13 @@ kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`doc
 **Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
 dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,
 bu yüzden `DragOver` dosya bırakmasını hücrede **işaretlemez** (`Handled = false`), yüzey
-handler’ına bubble eder. Katmanlı `Topmost` pencerenin OLE bırakma hedefi olarak kabulü
-**ölçülmedi** (spec riski R1); kabul edilmezse `Effects = None` kalır ve ayar listesindeki
-“ekle” yolu yedek olarak çalışır. Kök `Grid` bırakma hedefidir ama **arka planı yoktur** —
-pencere en geniş büyütülmüş genişliğe göre boyutlandığı için arka plan ~57 DIP hayalet hit
-alanı eklerdi.
+handler’ına bubble eder. **OLE riski (R1) pencere düzeyindedir ve sıralamayı da kapsar:**
+`RegisterDragDrop` HWND başınadır; katmanlı (`WS_EX_LAYERED`) `Topmost` pencere hedef olarak
+kabul edilmezse bu pencerede **hiçbir** `DragOver`/`Drop` gelmez — Explorer’dan dosya bırakma
+de, uygulama içi sıralama da düşer. Yedek yalnızca **dosya bırakmada** vardır (ayar listesindeki
+“ekle”); sıralamanın yedeği yoktur, bu yüzden kabul canlı **ölçülmeli** ve elle doğrulamada
+önce sıralama denenmelidir. Kök `Grid` bırakma hedefidir ama **arka planı yoktur** — pencere en
+geniş büyütülmüş genişliğe göre boyutlandığı için arka plan ~57 DIP hayalet hit alanı eklerdi.
 
 ---
 

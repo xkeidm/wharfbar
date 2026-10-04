@@ -112,22 +112,35 @@ public partial class DockWindow : Window
     private int _lastHiddenY;
     private bool _haveSlideRange;
 
+    // --- Click vs. drag arbitration -------------------------------------------------
+    // One left button, two gestures: a click launches, a drag reorders. The drag is the one
+    // that needs bookkeeping, because the two share both their button and (after a reorder
+    // drop) possibly their cell: the drop mutates the order, the composer's Changed rebuilds
+    // the strip, and DockStrip.SetRows re-maps the reused cell objects by index. So nothing
+    // below may compare against the row the cell holds at release time.
+
     /// <summary>Press point of the current left-drag, in window coordinates.</summary>
     private Point _dragOrigin;
 
     /// <summary>
     /// Store key of the tile under the cursor while the left button is down, or null when the
-    /// gesture cannot become a reorder drag. Cleared the moment the drag starts.
+    /// gesture cannot become a reorder drag. Cleared the moment the drag starts. This is the
+    /// OLE drag payload; <see cref="_suppressNextClick"/> is what arbitrates the click.
     /// </summary>
     private string? _dragItemId;
 
     /// <summary>
-    /// Reorder key whose next <c>MouseLeftButtonUp</c> must be swallowed. Without this a
-    /// reorder drag would also launch the app. Cleared when consumed and again on every
-    /// fresh press, so a key left over from a drag whose release was never delivered
-    /// cannot swallow the next legitimate click on that tile.
+    /// Set once a drag has ended, so the <c>MouseLeftButtonUp</c> that ends it is swallowed
+    /// instead of launching the app. Deliberately keyless: the dragged tile's row moves under
+    /// the cursor during the drag, so a key comparison in the release handler would miss
+    /// whenever the drop reorders the very cell the release lands on.
+    /// <para>
+    /// Lifecycle: cleared on every fresh press (a drag whose release is never delivered must
+    /// not eat the next click), set unconditionally after <c>DoDragDrop</c> returns — a
+    /// refused drag is still a drag — and consumed by the first release.
+    /// </para>
     /// </summary>
-    private string? _suppressClickFor;
+    private bool _suppressNextClick;
 
     private static readonly DependencyProperty AnimYOffsetProperty =
         DependencyProperty.Register(
@@ -573,9 +586,9 @@ public partial class DockWindow : Window
             return;
         }
 
-        // A stale suppression from a drag whose release was never delivered must not eat this
-        // click: the key is only meaningful between a drag's move and its own release.
-        _suppressClickFor = null;
+        // A flag from a drag whose release was never delivered must not eat this
+        // click: the suppression is only meaningful between a drag's end and its own release.
+        _suppressNextClick = false;
 
         // Foreground must be sampled before anything else touches focus (docs/04-gotchas.md:30).
         _activation?.CaptureForegroundHint();
@@ -593,12 +606,11 @@ public partial class DockWindow : Window
 
         _dragItemId = null;
 
-        // The same key the drag carried, so the release of that drag is swallowed and only
-        // that one.
-        string? key = ReorderKeyFor(row);
-        if (key is not null && string.Equals(_suppressClickFor, key, StringComparison.OrdinalIgnoreCase))
+        // Keyless on purpose: after a reorder drop the cell under the cursor may already hold
+        // a different tile, so no key comparison here could be trusted.
+        if (_suppressNextClick)
         {
-            _suppressClickFor = null;
+            _suppressNextClick = false;
             return;
         }
 
@@ -636,7 +648,7 @@ public partial class DockWindow : Window
 
         // Suppress the release even when the drop was refused — the gesture became a drag, so
         // the matching MouseLeftButtonUp must not read as a click and launch the app.
-        _suppressClickFor = dragged;
+        _suppressNextClick = true;
     }
 
     private void OnCellDragOver(object sender, DragEventArgs e)
@@ -679,10 +691,20 @@ public partial class DockWindow : Window
     private void OnSurfaceDragOver(object sender, DragEventArgs e)
     {
         // A layered Topmost window may not be offered OLE drops at all; then Effects stays
-        // None and the drag simply is not accepted (spec risk R1).
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
+        // None and no drag is accepted. RegisterDragDrop is per-HWND, so that failure takes
+        // the reorder down with it — not just the file drop (docs/04-gotchas.md).
+        if (e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+            return;
+        }
+
+        // Not a drop target here — an icon gap, the plate margin, a separator. Nothing can be
+        // dropped on it, so the reorder line must come down instead of pointing at an insert
+        // slot the cursor is not over.
+        HideDropIndicator();
+        e.Effects = DragDropEffects.None;
         e.Handled = true;
     }
 
@@ -723,8 +745,13 @@ public partial class DockWindow : Window
         // RestingLeftOf, not the live offset: the strip is rested for the duration of a drag,
         // so the line must show where the tile lands in the resting order.
         Point left = Strip.TranslatePoint(new Point(Strip.RestingLeftOf(index), 0), host);
+
+        // Height follows the strip's resting content height, and the bottom inset is the
+        // plate's own VerticalPaddingDip: the line is bottom-aligned to the *window*, which is
+        // VerticalPaddingDip lower than the strip's baseline. Without the inset the line would
+        // hang a few DIP below the icons it is measuring.
         DropIndicator.Height = Strip.RestingHeight;
-        DropIndicator.Margin = new Thickness(left.X, 0, 0, 0);
+        DropIndicator.Margin = new Thickness(left.X, 0, 0, VerticalPaddingDip);
         DropIndicator.Visibility = Visibility.Visible;
     }
 

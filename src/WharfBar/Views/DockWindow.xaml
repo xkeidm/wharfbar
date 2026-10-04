@@ -50,10 +50,11 @@
 
         <!-- Reorder affordance. A sibling of the plate, not a child: the plate resizes with
              the strip, so an indicator inside it would be dragged along. Anchored to the
-             resting layout, so drags run with magnification switched off (OnCellMouseMove). -->
+             resting layout, so drags run with magnification switched off (OnCellMouseMove).
+             Height and Margin are owned by ShowDropIndicator — no literal size here, so the
+             line cannot disagree with the strip it measures. -->
         <Border x:Name="DropIndicator"
                 Width="2"
-                Height="30"
                 CornerRadius="1"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Bottom"
