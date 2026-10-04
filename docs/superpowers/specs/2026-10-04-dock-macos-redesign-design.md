@@ -179,7 +179,7 @@ internal sealed class DockItemStore
 | `MinimizedWindowsSource` (yeni) | tüm üst düzey pencerenin tablosu + `IsIconic(hwnd)` alt kümesi; 800 ms yoklama, arka iş parçacığı; `ForProcess(pid)` alt kümesi sunar |
 | `TaskbarPinnedAppsSource` | **kaldırıldı ve silindi** — görev çubuğu artık hiç okunmuyor (referans taraması temiz çıktı) |
 
-`MinimizedWindowsSource` ve `RunningAppsSource` aynı pencere filtresini kullanır. `MinimizedWindowsSource.Scan()` **tek** `EnumWindows` geçişiyle (`WindowEnumeration.GetTopLevelCandidates()`) tüm pencereleri alır ve küçültülmüş alt kümesini pencere başına `IsIconic(hwnd)` ile türetir — ikinci bir tarama yapılmaz.
+`MinimizedWindowsSource` ve `RunningAppsSource` aynı pencere filtresini kullanır. `MinimizedWindowsSource.Scan()` **tek** `EnumWindows` geçişiyle (`WindowEnumeration.GetTopLevelCandidates()`) tüm pencereleri alır ve küçültülmüş alt kümesini pencere başına `IsIconic(hwnd)` ile türetir — ikinci bir tarama yapılmaz. Bu "tek geçiş" yalnızca `MinimizedWindowsSource`'un kendi taraması içindir: `RunningAppsSource` kendi `EnumWindows` geçişini kendi zamanlayıcısıyla (2 sn) ayrıca çalıştırır, yani iki kaynak arasında **iki** tam tarama vardır. Bu tekrarlama kabul edilmiş bir izdir; bu işte değiştirilmiyor.
 
 > **Sapma (gerekçeli):** `RunningAppsSource.WindowsFor(id)` yerine `MinimizedWindowsSource.Windows` önbelleği kullanılır. "Pencereler" menüsü UI iş parçacığında açılır ve `EnumWindows` donmuş HWND'de UI'yi kilitler (`WindowEnumeration` uyarısı). Zaten 800 ms'de bir kez taranan tabloyu filtrelemek hem doğru hem bedavadır.
 > **Uygulandığı hâliyle doğrulandı:** menü `MinimizedWindowsSource.ForProcess(Windows, pid)` ile
@@ -334,7 +334,7 @@ Mevcut 7 öğe aynen korunur (başlık kartı, Dock'tan kaldır, Görevi sonland
 
 ### 8.4 Dosya bırakma
 
-`Surface.AllowDrop = true`. `DragOver` yalnızca `DataFormats.FileDrop` kabul eder (`Copy`). `Drop`: uzantı süzgeci `.lnk/.exe/.bat/.cmd`; `.lnk` için `ShortcutResolver.TryResolve`; `DockItemStore.TryAdd` ile yola göre tekilleştirilerek sona eklenir.
+Kod bunu plakaya (`Surface`) değil **kök `Grid`**'e koyar: `DockWindow.xaml:29` `<Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">`, yani handler adlarındaki "Surface" ismi tarihseldir. Bırakma hedefi plaka değil **pencerinin tamamıdır** — `Window` zaten `Background="Transparent"` olduğu için plakanın yanındaki saydam bant da hedefe girer ve bırakılan dosyayı dock'a ekler (§7.2'deki yutma davranışıyla tutarlı; bırakma bölgesi daraltılmadı). `DragOver` yalnızca `DataFormats.FileDrop` kabul eder (`Copy`). `Drop`: uzantı süzgeci `.lnk/.exe/.bat/.cmd`; `.lnk` için `ShortcutResolver.TryResolve`; `DockItemStore.TryAdd` ile yola göre tekilleştirilerek sona eklenir.
 
 ### 8.5 Konum
 

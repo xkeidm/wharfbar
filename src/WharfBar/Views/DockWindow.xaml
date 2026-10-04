@@ -18,14 +18,23 @@
          templates are not replaced by Aero2's light icon gutter. -->
 
     <!-- Layered window: the strip is a WPF-drawn rounded surface (theme-aware brush set from
-         code), everything outside it is fully transparent AND click-through. The window is
-         fixed at the maximum magnified extent (never resized during hover — SetWindowPos per
+         code) and everything outside it is fully transparent — but NOT click-through.
+         WS_EX_TRANSPARENT is only ever set on the whole HWND, and only while auto-hide has the
+         dock parked off-screen (DockHitTest.ApplyPassthrough); whenever the dock is interactive
+         the transparent band around the plate belongs to the window and swallows clicks. That
+         is the known side effect in spec §7.2 (~18 px/side), carried over unchanged. The window
+         is fixed at the maximum magnified extent (never resized during hover — SetWindowPos per
          frame stutters); the Surface hugs the DockStrip's live width and stays centred.
 
-         The root Grid is the file-drop target and deliberately has NO Background: a hit
-         region out here would add ~57 DIP of phantom hit area on each side of the plate,
-         which is sized for the worst magnified width. Drop/DragOver are declared here in the
-         same block (TopBarWindow.xaml:156-157 — a two-step edit silently leaves it dead). -->
+         The root Grid is the file-drop target and deliberately has NO Background. Note the
+         reason is not a phantom hit region: the Window itself is Background="Transparent", so
+         the entire window rect is hit-testable whatever the Grid paints, and the routed
+         DragOver/Drop bubble to the handlers below either way. Omitting the Grid's background
+         only decides which element the hit test lands on. The accepted behaviour is that a file
+         dropped into the near surround — beside the plate, in the band that already swallows
+         clicks — is added to the dock: a forgiving target consistent with the click-through
+         gap we are not fixing here. Drop/DragOver are declared in the same block (TopBarWindow.xaml:156-157
+         — a two-step edit silently leaves it dead). -->
     <Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">
         <Border x:Name="Surface"
                 Padding="12,6"

@@ -1,8 +1,11 @@
 namespace WharfBar.Models;
 
 /// <summary>
-/// Default pin list used to seed config.json on first run and as dock fallback
-/// when TaskBar User Pinned folder is empty/unreadable (ADR-005). Not the live source.
+/// Default pin list, used only to seed <c>dock.items</c> in config.json on first run
+/// (<c>ConfigService.CreateDefault</c>). It is not a fallback for anything: since the
+/// ADR-005 revision (2026-10-04) the dock never reads the Windows taskbar, so there is no
+/// taskbar source that could come back empty and need a stand-in. Seeded once, then owned
+/// by the user through the dock's own store.
 /// </summary>
 internal static class DemoPinnedApps
 {
