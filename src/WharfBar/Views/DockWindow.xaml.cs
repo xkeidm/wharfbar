@@ -8,9 +8,11 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
+using WharfBar.Views.Controls;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -34,8 +36,11 @@ public partial class DockWindow : Window
     /// <summary>Gap between adjacent icons (DIP). Wider than early 4 DIP — less cramped.</summary>
     private const double IconGapDip = 12d;
 
-    private const double RunningDotSizeDip = 4d;
-    private const double RunningDotGapDip = 2d;
+    /// <summary>Height of the W11-style running pill (DIP).</summary>
+    private const double RunningIndicatorSizeDip = 4d;
+
+    /// <summary>Gap between icon bottom and the running pill (DIP).</summary>
+    private const double RunningIndicatorGapDip = 2d;
 
     /// <summary>
     /// Gap between dock window bottom and the primary monitor's bottom edge (DIP).
@@ -47,17 +52,28 @@ public partial class DockWindow : Window
     private const int AutoHideAnimMs = 200;
     private const double MinWidthDip = 180d;
 
-    /// <summary>Hover scale: only the hovered icon grows slightly (no macOS-style magnification).</summary>
-    private const double HoverScale = 1.3d;
-    private const int HoverDurationMs = 140;
+    /// <summary>Magnification enter/exit durations (ms).</summary>
+    private const int PhaseInMs = 130;
+
+    private const int PhaseOutMs = 180;
+
+    /// <summary>Cursor catch-up frame interval (ms).</summary>
+    private const int CursorFrameMs = 16;
+
+    /// <summary>Mica translucency over the theme color (0–255 alpha).</summary>
+    private const byte MicaDarkAlpha = 0x99;
+
+    private const byte MicaLightAlpha = 0xD9;
 
     /// <summary>Acrylic surface translucency (0–255 alpha over the theme color).</summary>
-    private const byte AcrylicAlpha = 0xCC;
+    private const byte AcrylicDarkAlpha = 0xCC;
+
+    private const byte AcrylicLightAlpha = 0xE6;
 
     private readonly AppConfig _config;
     private readonly TaskbarVisibilityService _taskbar;
+    private readonly DockStrip _strip;
     private double _iconSizeDip;
-    private double _dockHeightDip;
     private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
     private readonly AppIconService _icons = new();
@@ -68,6 +84,9 @@ public partial class DockWindow : Window
     private MinimizedWindowsSource? _minimizedSource;
     private DockAppsComposer? _composer;
     private WindowActivationService? _activation;
+    private readonly DispatcherTimer _cursorTimer;
+    private double _cursorTarget;
+    private long _lastCursorFrameMs;
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
     private bool _isAnimatingY;
@@ -103,6 +122,7 @@ public partial class DockWindow : Window
 
         Monitor = monitor;
         InitializeComponent();
+        _strip = Strip;
 
         _config = config;
         _taskbar = taskbar;
@@ -110,12 +130,15 @@ public partial class DockWindow : Window
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
-        // Icon + running-dot stack + vertical padding ≈ Windows taskbar (~40–48 DIP at default).
-        _dockHeightDip = VerticalPaddingDip * 2
-            + _iconSizeDip
-            + RunningDotGapDip
-            + RunningDotSizeDip;
         _autoHide = new DockAutoHideController(config.Dock.AutoHide, Dispatcher);
+
+        _cursorTimer = new DispatcherTimer(DispatcherPriority.Render)
+        {
+            Interval = TimeSpan.FromMilliseconds(CursorFrameMs),
+        };
+        _cursorTimer.Tick += OnCursorFrame;
+
+        ApplyStripGeometry();
 
         // Keep XAML padding in sync with the height budget used by SetWindowPos.
         Surface.Padding = new Thickness(
@@ -190,16 +213,16 @@ public partial class DockWindow : Window
         }
 
         _iconSizeDip = next;
-        _dockHeightDip = VerticalPaddingDip * 2
-            + _iconSizeDip
-            + RunningDotGapDip
-            + RunningDotSizeDip;
 
         Surface.Padding = new Thickness(
             HorizontalPaddingDip,
             VerticalPaddingDip,
             HorizontalPaddingDip,
             VerticalPaddingDip);
+
+        // Before RebuildStrip: SetRows bakes slot widths from the strip's current IconSize,
+        // so pushing the new metrics afterwards would leave the layout one icon size stale.
+        ApplyStripGeometry();
 
         if (_composer is not null)
         {
@@ -208,16 +231,18 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// The dock surface is drawn by WPF (layered window): Mica = opaque theme color,
-    /// Acrylic = semi-transparent theme color. Both come from the app theme, so they
-    /// follow the system light/dark preference like the top bar's backdrop would.
+    /// The dock surface is drawn by WPF (layered window), so DWM backdrops are off the table
+    /// (docs/04-gotchas.md:7). Mica is a translucent theme tint; Acrylic is denser. Both follow
+    /// the system light/dark preference.
     /// </summary>
     private void ApplySurfaceFromConfig()
     {
         bool acrylic = string.Equals(_config.Dock.Surface, DockSurfaceStyles.Acrylic, StringComparison.OrdinalIgnoreCase);
         bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
         byte baseRgb = dark ? (byte)0x20 : (byte)0xFA;
-        byte alpha = acrylic ? AcrylicAlpha : (byte)0xFF;
+        byte alpha = acrylic
+            ? (dark ? AcrylicDarkAlpha : AcrylicLightAlpha)
+            : (dark ? MicaDarkAlpha : MicaLightAlpha);
 
         var brush = new SolidColorBrush(Color.FromArgb(alpha, baseRgb, baseRgb, baseRgb));
         brush.Freeze();
@@ -272,6 +297,11 @@ public partial class DockWindow : Window
         _composer = new DockAppsComposer(_itemStore, _runningSource, _minimizedSource, _config.Dock);
         _activation = new WindowActivationService();
         _composer.Changed += OnComposerChanged;
+
+        ApplyStripGeometry();
+        Strip.MouseMove += OnStripMouseMove;
+        Strip.MouseLeave += OnStripMouseLeave;
+
         RebuildStrip();
 
         _autoHide.Changed += OnAutoHideChanged;
@@ -335,6 +365,11 @@ public partial class DockWindow : Window
         _autoHide.Changed -= OnAutoHideChanged;
         _autoHide.Dispose();
 
+        Strip.MouseMove -= OnStripMouseMove;
+        Strip.MouseLeave -= OnStripMouseLeave;
+        _cursorTimer.Tick -= OnCursorFrame;
+        _cursorTimer.Stop();
+
         _source?.RemoveHook(WndProc);
         _source = null;
 
@@ -344,93 +379,85 @@ public partial class DockWindow : Window
     private void OnComposerChanged(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(RebuildStrip);
 
+    private void OnStripMouseMove(object sender, MouseEventArgs e)
+    {
+        _cursorTarget = Strip.HitTestCursor(e.GetPosition(Strip).X);
+
+        if (!_cursorTimer.IsEnabled)
+        {
+            _lastCursorFrameMs = Environment.TickCount64;
+            _cursorTimer.Start();
+        }
+
+        AnimatePhase(1d, PhaseInMs);
+    }
+
+    private void OnStripMouseLeave(object sender, MouseEventArgs e)
+    {
+        _cursorTimer.Stop();
+        AnimatePhase(0d, PhaseOutMs);
+    }
+
+    private void OnCursorFrame(object? sender, EventArgs e)
+    {
+        long now = Environment.TickCount64;
+        double dt = now - _lastCursorFrameMs;
+        _lastCursorFrameMs = now;
+
+        double next = DockMagnification.Eased(Strip.CursorPosition, _cursorTarget, dt);
+        if (Math.Abs(next - _cursorTarget) < 0.001d)
+        {
+            Strip.CursorPosition = _cursorTarget;
+            _cursorTimer.Stop();
+            return;
+        }
+
+        Strip.CursorPosition = next;
+    }
+
+    private void AnimatePhase(double to, int milliseconds)
+    {
+        var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+        };
+        Strip.BeginAnimation(DockStrip.PhaseProperty, animation);
+    }
+
     private void RebuildStrip()
     {
-        Pins.Items.Clear();
         IReadOnlyList<DockAppItem> items = _composer!.Items;
-        bool sawUnpinned = false;
+        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(items);
+        int iconPx = ResolveIconPixelSize();
 
-        for (int i = 0; i < items.Count; i++)
+        var viewModels = new List<DockItemViewModel>(rows.Count);
+        foreach (DockStripRow row in rows)
         {
-            DockAppItem item = items[i];
-            if (!item.IsPinned && !sawUnpinned && Pins.Items.Count > 0)
+            viewModels.Add(row.IsSeparator
+                ? DockItemViewModel.ForSeparator()
+                : DockItemViewModel.ForItem(row.Item!, _icons.GetIcon(row.Item!.Path, iconPx)));
+        }
+
+        _strip.SetRows(viewModels);
+
+        // One block, on purpose: a cell reused from the previous rebuild must always get a
+        // fresh tooltip and menu, otherwise a stale menu leaks onto a different app.
+        foreach (DockItemCell cell in _strip.Cells)
+        {
+            DockItemViewModel? row = cell.Row;
+            if (row is null || row.IsSeparator)
             {
-                sawUnpinned = true;
-                Pins.Items.Add(CreateSeparator());
+                continue;
             }
 
-            Pins.Items.Add(CreateIconVisual(item, i < items.Count - 1));
+            cell.ToolTip = CreateDockTip(row.Tooltip, cell);
+            cell.ContextMenu = BuildContextMenuForItem(row.Item!);
         }
 
         ApplyPlacement();
     }
 
-    private FrameworkElement CreateSeparator()
-    {
-        return new System.Windows.Shapes.Rectangle
-        {
-            Width = 1,
-            Opacity = 0.3,
-            Margin = new Thickness(6, 2, 6, 2),
-            Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
-            VerticalAlignment = VerticalAlignment.Stretch,
-        };
-    }
-
-    private FrameworkElement CreateIconVisual(DockAppItem item, bool trailingMargin)
-    {
-        int sizePx = ResolveIconPixelSize();
-        var transform = new ScaleTransform(1, 1);
-        var image = new System.Windows.Controls.Image
-        {
-            Width = _iconSizeDip,
-            Height = _iconSizeDip,
-            Stretch = Stretch.Uniform,
-            SnapsToDevicePixels = true,
-            Source = string.IsNullOrWhiteSpace(item.Path)
-                ? _icons.GetIcon(string.Empty, sizePx)
-                : _icons.GetIcon(item.Path, sizePx),
-            RenderTransformOrigin = new Point(0.5, 0.5),
-            RenderTransform = transform,
-            Cursor = Cursors.Hand,
-        };
-        image.ToolTip = CreateDockTip(item.Label, image);
-        ToolTipService.SetInitialShowDelay(image, 250);
-        ToolTipService.SetShowDuration(image, 8000);
-        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
-
-        image.MouseEnter += (_, _) => AnimateScale(transform, HoverScale);
-        image.MouseLeave += (_, _) => AnimateScale(transform, 1.0);
-        // Capture foreground before the dock may become the active window on click.
-        image.PreviewMouseLeftButtonDown += (_, _) => _activation!.CaptureForegroundHint();
-        image.MouseLeftButtonUp += (_, _) => _activation!.LaunchOrActivate(item, _launcher);
-
-        var stack = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        if (trailingMargin)
-        {
-            stack.Margin = new Thickness(0, 0, IconGapDip, 0);
-        }
-
-        stack.Children.Add(image);
-
-        var dot = new System.Windows.Shapes.Ellipse
-        {
-            Width = RunningDotSizeDip,
-            Height = RunningDotSizeDip,
-            Margin = new Thickness(0, RunningDotGapDip, 0, 0),
-            Fill = (Brush)FindResource("TextFillColorPrimaryBrush"),
-            Visibility = item.IsRunning ? Visibility.Visible : Visibility.Hidden,
-        };
-        stack.Children.Add(dot);
-        stack.ContextMenu = BuildContextMenuForApp(item);
-        return stack;
-    }
-
-    private static ToolTip CreateDockTip(string text, FrameworkElement target) => new()
+    private static ToolTip CreateDockTip(string text, UIElement target) => new()
     {
         Content = text,
         Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
@@ -449,7 +476,7 @@ public partial class DockWindow : Window
         ];
     }
 
-    private ContextMenu BuildContextMenuForApp(DockAppItem item)
+    private ContextMenu BuildContextMenuForItem(DockAppItem item)
     {
         var menu = new ContextMenu();
 
@@ -675,21 +702,12 @@ public partial class DockWindow : Window
 
     private int ResolveIconPixelSize()
     {
-        uint dpi = _source is null ? 96u : Display.GetDpi(_source.Handle);
-        // Request the bitmap at the max displayed size (hover scale) so both the resting and
-        // the scaled-up hover render stay sharp — upscaling a base-size bitmap looks blurry.
-        int px = Display.DipToPixels(_iconSizeDip * HoverScale, dpi);
+        uint dpi = _source is null ? Monitor.Dpi : Display.GetDpi(_source.Handle);
+        // Request the bitmap at the magnification ceiling so a magnified icon stays sharp —
+        // upscaling a resting-size bitmap looks blurry (docs/04-gotchas.md:31).
+        double maxScale = DockMagnification.Clamp(_config.Dock.Magnification);
+        int px = Display.DipToPixels(_iconSizeDip * maxScale, dpi);
         return Math.Clamp(px <= 0 ? 24 : px, 16, 256);
-    }
-
-    private static void AnimateScale(ScaleTransform transform, double to)
-    {
-        var anim = new DoubleAnimation(to, TimeSpan.FromMilliseconds(HoverDurationMs))
-        {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
-        };
-        transform.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-        transform.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     /// <summary>
@@ -932,19 +950,30 @@ public partial class DockWindow : Window
 
     private int ComputeMaxWidthPx(uint dpi)
     {
-        // Base strip width + a small hover headroom: the window is sized once so hovering
-        // never triggers SetWindowPos (per-frame resize stutters the strip). No reflow — the
-        // hovered icon grows in place (1.3x fits within the base slot + gap).
-        int count = Pins.Items.Count;
-        double baseWidth = count <= 0 ? 0d : count * (_iconSizeDip + IconGapDip) - IconGapDip;
-        double width = baseWidth
-            + _iconSizeDip * (HoverScale - 1d)
-            + 2 * HorizontalPaddingDip;
+        // Budget the window for the worst magnified layout. Hover only ever re-runs WPF
+        // measure/arrange — no SetWindowPos per frame, which is what used to stutter.
+        double panel = _strip.MaxLiveWidth();
+        double width = panel + (2d * HorizontalPaddingDip);
         return Display.DipToPixels(width, dpi);
     }
 
     private double MaxHeightDip =>
-        _dockHeightDip + _iconSizeDip * (HoverScale - 1d) + 2d;
+        DockStripLayout.MaxExtentHeight(
+            _iconSizeDip,
+            RunningIndicatorGapDip,
+            RunningIndicatorSizeDip,
+            VerticalPaddingDip,
+            DockMagnification.Clamp(_config.Dock.Magnification));
+
+    /// <summary>Pushes icon metrics and the magnification ceiling into the strip.</summary>
+    private void ApplyStripGeometry()
+    {
+        _strip.IconSize = _iconSizeDip;
+        _strip.IconGap = IconGapDip;
+        _strip.IndicatorGap = RunningIndicatorGapDip;
+        _strip.IndicatorSize = RunningIndicatorSizeDip;
+        _strip.MaxScale = DockMagnification.Clamp(_config.Dock.Magnification);
+    }
 
     private void OnWorkAreaChanged(object? sender, EventArgs e)
     {

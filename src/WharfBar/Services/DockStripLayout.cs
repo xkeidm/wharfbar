@@ -65,6 +65,12 @@ internal static class DockStripLayout
     /// <paramref name="widestSlot"/> is the icon width, so separator slots are charged
     /// the icon width too — a deliberate over-estimate, never an under-estimate.
     /// </para>
+    /// <para>
+    /// Valid only while no slot scale exceeds <paramref name="maxScale"/>. That means the
+    /// <c>phase</c> handed to <see cref="ComputeScales"/> must stay in [0, 1]: an overshooting
+    /// phase scales the strip past this budget and clips it. <c>DockStrip</c> eases with
+    /// <c>CubicEase</c> precisely to keep that precondition.
+    /// </para>
     /// </summary>
     public static double MaxExtentWidth(int count, double widestSlot, double gap, double maxScale)
     {
