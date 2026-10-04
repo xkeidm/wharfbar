@@ -194,6 +194,12 @@ alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu 
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
 için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
+**Küçültülmüş pencereler:** `WindowEnumeration.GetMinimizedCandidates()` = `EnumWindows` +
+`IsIconic(hwnd)` + mevcut `IsCandidate` filtresi. Küçültülmüş pencereler `WS_VISIBLE` korur,
+bu yüzden ayrı `IsIconic` filtresi şarttır. UI iş parçacığında `EnumWindows` çağrırma
+(donmuş HWND'de kilitler) — pencere tablosu `MinimizedWindowsSource`'da arka iş parçacığında
+800 ms'de bir kez taranır.
+
 ---
 
 ## f) Görev çubuğu gizleme / geri yükleme (ADR-005)
