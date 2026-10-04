@@ -55,4 +55,4 @@ internal static class DockStripBuilder
 
         return rows;
     }
-}
+}

@@ -304,6 +304,18 @@ public class DockItemStoreTests : IDisposable
     }
 
     [Fact]
+    public void Reload_RaisesChanged()
+    {
+        DockItemStore store = NewStore(out _);
+        int raised = 0;
+        store.Changed += (_, _) => raised++;
+
+        store.Reload();
+
+        Assert.Equal(1, raised);
+    }
+
+    [Fact]
     public void TryAdd_AndIsReadBackFromDisk()
     {
         DockItemStore store = NewStore(out _);

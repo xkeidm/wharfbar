@@ -26,4 +26,4 @@ internal sealed record DockAppItem(
         Section != DockSection.Minimized || string.IsNullOrEmpty(WindowTitle) || WindowTitle == Label
             ? Label
             : $"{Label} — {WindowTitle}";
-}
+}

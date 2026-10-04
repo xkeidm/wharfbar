@@ -161,7 +161,16 @@ internal sealed class DockItemStore
         return true;
     }
 
-    internal void Reload() => _items = Snapshot(_config.Current.Dock.Items);
+    /// <summary>
+    /// Re-reads the list from config after a change made behind the store's back (external
+    /// edit, migration). Raises <see cref="Changed"/> exactly like the mutating operations,
+    /// so event-driven consumers — the composer — rebuild instead of reading a stale list.
+    /// </summary>
+    internal void Reload()
+    {
+        _items = Snapshot(_config.Current.Dock.Items);
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     private static List<PinnedApp> Snapshot(IReadOnlyList<PinnedApp> source)
     {

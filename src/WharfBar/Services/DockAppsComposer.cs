@@ -113,10 +113,12 @@ internal sealed class DockAppsComposer : IDisposable
         var byPid = new Dictionary<uint, RunningAppInfo>();
         foreach (RunningAppInfo app in running)
         {
-            uint pid = NativeMethods.GetWindowThreadProcessId(app.MainWindowHandle, out uint resolved);
-            if (pid != 0)
+            // The return value is the owning thread id; the out-param is the process id — only
+            // the latter can match AppWindowInfo.Pid. A live window always has both.
+            uint threadId = NativeMethods.GetWindowThreadProcessId(app.MainWindowHandle, out uint pid);
+            if (threadId != 0)
             {
-                byPid.TryAdd(resolved, app);
+                byPid.TryAdd(pid, app);
             }
         }
 
@@ -193,4 +195,4 @@ internal sealed class DockAppsComposer : IDisposable
         _running.Changed -= OnSourceChanged;
         _minimized.Changed -= OnSourceChanged;
     }
-}
+}

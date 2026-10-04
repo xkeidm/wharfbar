@@ -654,8 +654,9 @@ public partial class DockWindow : Window
 
         var configService = (Application.Current as App)?.Config ?? new ConfigService();
         configService.Save(_config);
-        // Legacy pin writes above still target config.pinnedApps; re-read the store so the
-        // composer sees whatever dock.items holds now.
+        // Legacy pin writes above still target config.pinnedApps, not dock.items, so re-reading
+        // the store normally changes nothing. Reload still notifies: the composer rebuilds off
+        // the event, so this is what would pick up a dock.items write made elsewhere.
         _itemStore?.Reload();
     }
 

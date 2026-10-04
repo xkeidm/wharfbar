@@ -84,6 +84,18 @@ public class DockAppsComposerTests
     }
 
     [Fact]
+    public void Compose_OrdersUnpinnedRunningAppsCaseInsensitively()
+    {
+        // "a" before "B" is alphabetical but not ordinal: OrdinalIgnoreCase puts "a" first
+        // because it compares letters, Ordinal puts "B" (0x42) before "a" (0x61).
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [Running("u", @"C:\B.exe", "B"), Running("l", @"C:\a.exe", "a")]);
+
+        Assert.Equal(["a", "B"], items.Select(i => i.Label));
+    }
+
+    [Fact]
     public void Compose_WhenShowRunningAppsFalse_OmitsRunningAndMinimizedSections()
     {
         IReadOnlyList<DockAppItem> items = Compose(
@@ -147,6 +159,22 @@ public class DockAppsComposerTests
 
         string[] titles = [.. items.Where(i => i.Section == DockSection.Minimized).Select(i => i.WindowTitle)];
         Assert.Equal(["A", "M", "Z"], titles);
+    }
+
+    [Fact]
+    public void Compose_WhenMinimizedTitlesMatch_OrdersByHandle()
+    {
+        // Same-titled windows are the common case (two Explorer windows, two untitled
+        // documents). Scan order is not handle order, so without the handle tiebreak
+        // OrderBy's stability would hand back the fresh scan's order — and the scan is
+        // re-enumerated every 800 ms, so the tiles would swap on every poll.
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [],
+            [Minimized((IntPtr)31, 100, "Belge"), Minimized((IntPtr)30, 200, "Belge"), Minimized((IntPtr)32, 100, "Belge")]);
+
+        string[] ids = [.. items.Where(i => i.Section == DockSection.Minimized).Select(i => i.Id)];
+        Assert.Equal(["hwnd:30", "hwnd:31", "hwnd:32"], ids);
     }
 
     [Fact]
@@ -351,4 +379,3 @@ public class DockAppsComposerTests
         private static extern IntPtr DefWindowProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
     }
 }
-
