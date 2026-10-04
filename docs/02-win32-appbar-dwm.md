@@ -194,6 +194,11 @@ alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu 
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
 için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
+Yatay hizalama `dock.position` ile seçilir: `bottom-left` / `bottom-center` / `bottom-right`.
+`DockPositions.Normalize` geçersiz/boş değerde `bottom-center` döndürür (yan dock kapsam dışı:
+work-area rezervasyonu ve aşağı kayma gizleme değişmez — yalnızca X hizalanır). Kenar yaslama
+12 DIP iç payla.
+
 **Küçültülmüş pencereler:** `MinimizedWindowsSource.Scan()` **tek** `EnumWindows` geçişi yapar —
 `WindowEnumeration.GetTopLevelCandidates()` tablosu alınır, küçültülmüş alt küme her pencere
 için ayrı `IsIconic(hwnd)` çağrısıyla ayrıştırılır. Küçültülmüş pencereler `WS_VISIBLE` korur,
@@ -336,6 +341,9 @@ kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`doc
 - **Konumu WPF’in DIP tabanlı `Left/Top/Width/Height`’ı ile hesaplama** — bunlar birincil monitörün
   ölçeğini varsayar. `GetDpiForWindow` + `GetMonitorInfo` ile fiziksel piksel hesapla, `SetWindowPos`
   ile uygula ([ADR-003](decisions/003-topbar-placement-and-appbar-lifecycle.md)).
+- Dock (`DockWindow`) `MonitorInfo.Dpi` değerini yapılandırma anında alır ve `WM_DPICHANGED`
+  `wParam` üst kelimesiyle tazeler (`_monitorDpi`); `wParam` sıfır dönerse `MonitorInfo.Dpi`’ye
+  düşer. Yerleşim ve edge probe yalnızca bu alanı okur — `MonitorInfo` kopyasını doğrudan okumaz.
 
 ---
 

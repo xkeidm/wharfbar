@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -92,6 +91,14 @@ public partial class DockWindow : Window
     private MinimizedWindowsSource? _minimizedSource;
     private DockAppsComposer? _composer;
     private WindowActivationService? _activation;
+
+    /// <summary>
+    /// Live DPI for this window. Starts at <see cref="MonitorInfo.Dpi"/> and is refreshed
+    /// from <c>WM_DPICHANGED</c> so a runtime scale change does not leave the strip sized
+    /// for the old DPI.
+    /// </summary>
+    private uint _monitorDpi;
+
     private readonly DispatcherTimer _cursorTimer;
     private double _cursorTarget;
     private long _lastCursorFrameMs;
@@ -129,6 +136,7 @@ public partial class DockWindow : Window
         ArgumentNullException.ThrowIfNull(taskbar);
 
         Monitor = monitor;
+        _monitorDpi = monitor.Dpi;
         InitializeComponent();
         _strip = Strip;
 
@@ -548,7 +556,7 @@ public partial class DockWindow : Window
             Header = item.IsPinned ? "Dock'tan kaldır" : "Dock'a sabitle",
             Icon = CreateMenuIcon(item.IsPinned ? SymbolRegular.PinOff24 : SymbolRegular.Pin24),
         };
-        pinItem.Click += (_, _) => TogglePin(item);
+        pinItem.Click += (_, _) => TogglePin(item, pin: !item.IsPinned);
         menu.Items.Add(pinItem);
 
         // 3. Görevi sonlandır (Force Quit)
@@ -599,6 +607,39 @@ public partial class DockWindow : Window
             };
             newInstanceItem.Click += (_, _) => _launcher.Launch(item.Path, item.Args);
             menu.Items.Add(newInstanceItem);
+        }
+
+        // 6. Pencereler — the cached window table only. EnumWindows on the UI thread stalls on a
+        // hung HWND, and the menu opens on the UI thread.
+        if (item.MainWindowHandle != IntPtr.Zero
+            && item.Section is DockSection.Running or DockSection.Minimized)
+        {
+            // The return value is the owning thread id; the out-param is the process id — only
+            // the latter can match AppWindowInfo.Pid.
+            uint threadId = NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
+            IReadOnlyList<AppWindowInfo> windows = threadId == 0
+                ? []
+                : MinimizedWindowsSource.ForProcess(_minimizedSource?.Windows ?? [], pid);
+
+            if (windows.Count > 0)
+            {
+                menu.Items.Add(new Separator());
+
+                var windowsMenu = new MenuItem { Header = "Pencereler" };
+                foreach (AppWindowInfo window in windows)
+                {
+                    var entry = new MenuItem
+                    {
+                        Header = string.IsNullOrWhiteSpace(window.Title)
+                            ? "Başlıksız pencere"
+                            : window.Title,
+                    };
+                    entry.Click += (_, _) => _activation?.TryActivate(window.Handle);
+                    windowsMenu.Items.Add(entry);
+                }
+
+                menu.Items.Add(windowsMenu);
+            }
         }
 
         return menu;
@@ -654,82 +695,33 @@ public partial class DockWindow : Window
         }
     }
 
-    private void TogglePin(DockAppItem item)
+    /// <summary>
+    /// Adds or removes the item from WharfBar's own dock list. The Windows taskbar is
+    /// never written — the dock stopped mirroring it in this redesign.
+    /// </summary>
+    private void TogglePin(DockAppItem item, bool pin)
     {
-        if (string.IsNullOrWhiteSpace(item.Path))
+        if (_itemStore is null)
         {
             return;
         }
 
-        string pinnedDir = TaskbarPinnedAppsSource.GetTaskBarPinnedDirectory();
+        bool changed = pin
+            ? _itemStore.TryAdd(item.Path, item.Args, item.Label)
+            : _itemStore.Remove(item.Id);
 
-        if (item.IsPinned)
+        if (!changed)
         {
-            try
-            {
-                if (Directory.Exists(pinnedDir))
-                {
-                    foreach (string lnk in Directory.EnumerateFiles(pinnedDir, "*.lnk"))
-                    {
-                        if (ShortcutResolver.TryResolve(lnk, out string target, out _, out _)
-                            && string.Equals(target, item.Path, StringComparison.OrdinalIgnoreCase))
-                        {
-                            File.Delete(lnk);
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"WharfBar unpin shortcut delete failed: {ex.Message}");
-            }
-
-            _config.PinnedApps.RemoveAll(p => string.Equals(p.Path, item.Path, StringComparison.OrdinalIgnoreCase));
-        }
-        else
-        {
-            try
-            {
-                Directory.CreateDirectory(pinnedDir);
-                string safeLabel = SanitizeFileName(item.Label);
-                string lnkPath = Path.Combine(pinnedDir, $"{safeLabel}.lnk");
-                ShortcutResolver.TryCreateShortcut(lnkPath, item.Path, item.Args);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"WharfBar pin shortcut create failed: {ex.Message}");
-            }
-
-            if (!_config.PinnedApps.Any(p => string.Equals(p.Path, item.Path, StringComparison.OrdinalIgnoreCase)))
-            {
-                _config.PinnedApps.Add(new PinnedApp(item.Path, item.Args, item.Label));
-            }
+            return;
         }
 
-        var configService = (Application.Current as App)?.Config ?? new ConfigService();
-        configService.Save(_config);
-        // Legacy pin writes above still target config.pinnedApps, not dock.items, so re-reading
-        // the store normally changes nothing. Reload still notifies: the composer rebuilds off
-        // the event, so this is what would pick up a dock.items write made elsewhere.
-        _itemStore?.Reload();
-    }
-
-    private static string SanitizeFileName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-        {
-            return "AppShortcut";
-        }
-
-        char[] invalid = Path.GetInvalidFileNameChars();
-        char[] cleaned = name.Select(c => invalid.Contains(c) ? '_' : c).ToArray();
-        string result = new string(cleaned).Trim();
-        return string.IsNullOrWhiteSpace(result) ? "AppShortcut" : result;
+        // DockItemStore raises Changed, which reaches the composer and rebuilds the strip.
+        ApplyPlacement();
     }
 
     private int ResolveIconPixelSize()
     {
-        uint dpi = _source is null ? Monitor.Dpi : Display.GetDpi(_source.Handle);
+        uint dpi = _source is null ? _monitorDpi : Display.GetDpi(_source.Handle);
         // Request the bitmap at the magnification ceiling so a magnified icon stays sharp —
         // upscaling a resting-size bitmap looks blurry (docs/04-gotchas.md:31).
         double maxScale = DockMagnification.Clamp(_config.Dock.Magnification);
@@ -738,9 +730,10 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Centers the dock on the primary monitor bottom edge in physical pixels. Uses monitor
-    /// bounds (not work area) for Y so the strip sits flush when the taskbar is hidden but the
-    /// shell work area still reserves that strip. WPF Left/Top/Width are unused (primary-scale bias).
+    /// Places the dock on the primary monitor bottom edge in physical pixels, anchored per
+    /// <see cref="DockConfig.Position"/>. Uses monitor bounds (not work area) for Y so the strip
+    /// sits flush when the taskbar is hidden but the shell work area still reserves that strip.
+    /// WPF Left/Top/Width are unused (primary-scale bias).
     /// </summary>
     private void ApplyPlacement()
     {
@@ -804,7 +797,7 @@ public partial class DockWindow : Window
             return false;
         }
 
-        uint dpi = Monitor.Dpi;
+        uint dpi = _monitorDpi;
         int heightPx = Display.DipToPixels(MaxHeightDip, dpi);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
         RECT monitor = Monitor.Bounds;
@@ -818,7 +811,7 @@ public partial class DockWindow : Window
         int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
         widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
 
-        int x = monitor.Left + (monitor.Width - widthPx) / 2;
+        int x = ResolvePlacementX(monitor, widthPx, dpi);
         int visibleY = monitor.Bottom - heightPx - bottomGapPx;
         int hiddenY = monitor.Bottom;
 
@@ -830,9 +823,26 @@ public partial class DockWindow : Window
         return true;
     }
 
+    /// <summary>
+    /// Horizontal anchor. Only bottom-left/center/right: the work-area reservation and the
+    /// downward auto-hide slide stay untouched, so a side-docked variant would be a
+    /// different feature (spec §4.2).
+    /// </summary>
+    private int ResolvePlacementX(RECT monitor, int widthPx, uint dpi)
+    {
+        int marginPx = Display.DipToPixels(12d, dpi);
+
+        return DockPositions.Normalize(_config.Dock.Position) switch
+        {
+            DockPositions.BottomLeft => monitor.Left + marginPx,
+            DockPositions.BottomRight => monitor.Right - widthPx - marginPx,
+            _ => monitor.Left + ((monitor.Width - widthPx) / 2),
+        };
+    }
+
     private EdgeProbeContext BuildEdgeProbe()
     {
-        uint dpi = Monitor.Dpi;
+        uint dpi = _monitorDpi;
         RECT monitor = Monitor.Bounds;
 
         // Use last SetWindowPos geometry — Measure() on the 50 ms poll stalls the UI
@@ -845,7 +855,7 @@ public partial class DockWindow : Window
             : Display.DipToPixels(MaxHeightDip, dpi);
         int x = _lastPlacementWidthPx > 0
             ? _lastPlacementX
-            : monitor.Left + (monitor.Width - widthPx) / 2;
+            : ResolvePlacementX(monitor, widthPx, dpi);
         int yVisible = _haveSlideRange
             ? _lastVisibleY
             : monitor.Bottom - heightPx;
@@ -1059,6 +1069,21 @@ public partial class DockWindow : Window
                 break;
 
             case NativeMethods.WM_DPICHANGED:
+                // wParam high word carries the new DPI; MonitorInfo.Dpi was captured at
+                // construction and goes stale when the user changes display scale.
+                _monitorDpi = (uint)(wParam >> 16);
+                if (_monitorDpi == 0)
+                {
+                    _monitorDpi = Monitor.Dpi;
+                }
+
+                Dispatcher.BeginInvoke(new Action(() =>
+                {
+                    CancelYAnimation();
+                    ApplyPlacement();
+                }));
+                break;
+
             case NativeMethods.WM_DISPLAYCHANGE:
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
