@@ -610,16 +610,30 @@ public partial class DockWindow : Window
         }
 
         // 6. Pencereler — the cached window table only. EnumWindows on the UI thread stalls on a
-        // hung HWND, and the menu opens on the UI thread.
-        if (item.MainWindowHandle != IntPtr.Zero
-            && item.Section is DockSection.Running or DockSection.Minimized)
+        // hung HWND, and the menu opens on the UI thread. Gated on IsRunning, not on Section: the
+        // composer marks pinned-and-running tiles IsRunning with a live handle too
+        // (DockAppsComposer.cs:84-87), and those are the tiles a user actually right-clicks.
+        if (item.IsRunning && item.MainWindowHandle != IntPtr.Zero)
         {
             // The return value is the owning thread id; the out-param is the process id — only
             // the latter can match AppWindowInfo.Pid.
             uint threadId = NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
-            IReadOnlyList<AppWindowInfo> windows = threadId == 0
-                ? []
-                : MinimizedWindowsSource.ForProcess(_minimizedSource?.Windows ?? [], pid);
+            List<AppWindowInfo> windows = [];
+            if (threadId != 0)
+            {
+                foreach (AppWindowInfo candidate in MinimizedWindowsSource.ForProcess(_minimizedSource?.Windows ?? [], pid))
+                {
+                    // A minimized tile *is* the window it stands for, so that handle is already
+                    // on screen; listing it back is noise, and dropping it here is also what
+                    // keeps an app with only that one window from showing an empty submenu.
+                    if (item.Section == DockSection.Minimized && candidate.Handle == item.MainWindowHandle)
+                    {
+                        continue;
+                    }
+
+                    windows.Add(candidate);
+                }
+            }
 
             if (windows.Count > 0)
             {
@@ -706,12 +720,19 @@ public partial class DockWindow : Window
             return;
         }
 
+        // Remove by Path, never by Id: on a pinned-and-running tile the composer fills Id from
+        // RunningAppInfo, which for a Store/UWP app is an AppUserModelId rather than a path, and
+        // DockItemStore keys on normalized paths — so an Id-based Remove silently missed those.
+        // Path is pin.Path for both pinned shapes (DockAppsComposer.cs:76 and :85).
         bool changed = pin
             ? _itemStore.TryAdd(item.Path, item.Args, item.Label)
-            : _itemStore.Remove(item.Id);
+            : _itemStore.Remove(item.Path);
 
         if (!changed)
         {
+            // Duplicate add, or a remove that matched nothing — either way the strip already
+            // shows the requested state, so this is not an error, only an invisible no-op.
+            Debug.WriteLine($"WharfBar dock pin toggle was a no-op for {item.Label}: store already in the requested state.");
             return;
         }
 
@@ -1080,6 +1101,18 @@ public partial class DockWindow : Window
                 Dispatcher.BeginInvoke(new Action(() =>
                 {
                     CancelYAnimation();
+
+                    // Not ApplyIconSizeFromConfig: a scale change leaves the DIP icon size
+                    // untouched, so that method early-returns before RebuildStrip and every icon
+                    // would stay upscaled from the old raster — the blur ResolveIconPixelSize's
+                    // own comment warns against. RebuildStrip re-requests each icon at the new
+                    // DPI (ResolveIconPixelSize reads it) and ends with ApplyPlacement itself.
+                    if (_composer is not null)
+                    {
+                        RebuildStrip();
+                        return;
+                    }
+
                     ApplyPlacement();
                 }));
                 break;
