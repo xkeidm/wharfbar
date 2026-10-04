@@ -31,10 +31,14 @@
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom">
             <!-- Grid (not a bare pair of children) because Border hosts a single child:
-                 the 1 px inner highlight sits above the strip without intercepting input. -->
+                 the 1 px inner highlight sits above the strip without intercepting input.
+                 The 12 DIP horizontal inset matches the plate padding and keeps the line
+                 inside the CornerRadius="12" arcs — at y = 7 DIP the plate edge is only
+                 ~1.1 DIP in, so a full-width square-cornered line would paint two specks
+                 of #24FFFFFF outside the plate. -->
             <Grid>
                 <Border BorderThickness="0,1,0,0" BorderBrush="#24FFFFFF"
-                        Margin="0,0,0,-1" IsHitTestVisible="False" />
+                        Margin="12,0,12,-1" IsHitTestVisible="False" />
                 <controls:DockStrip x:Name="Strip" HorizontalAlignment="Center" />
             </Grid>
         </Border>

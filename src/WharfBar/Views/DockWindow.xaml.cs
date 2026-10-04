@@ -60,6 +60,14 @@ public partial class DockWindow : Window
     /// <summary>Cursor catch-up frame interval (ms).</summary>
     private const int CursorFrameMs = 16;
 
+    /// <summary>Tooltip timings kept from the pre-redesign dock (spec §6.3/§9).</summary>
+    private const int ToolTipInitialShowDelayMs = 250;
+
+    private const int ToolTipShowDurationMs = 8000;
+
+    /// <summary>Below this distance the phase is treated as already reached.</summary>
+    private const double PhaseSettleEpsilon = 1e-3d;
+
     /// <summary>Mica translucency over the theme color (0–255 alpha).</summary>
     private const byte MicaDarkAlpha = 0x99;
 
@@ -299,8 +307,8 @@ public partial class DockWindow : Window
         _composer.Changed += OnComposerChanged;
 
         ApplyStripGeometry();
-        Strip.MouseMove += OnStripMouseMove;
-        Strip.MouseLeave += OnStripMouseLeave;
+        Surface.MouseMove += OnSurfaceMouseMove;
+        Surface.MouseLeave += OnSurfaceMouseLeave;
 
         RebuildStrip();
 
@@ -365,8 +373,8 @@ public partial class DockWindow : Window
         _autoHide.Changed -= OnAutoHideChanged;
         _autoHide.Dispose();
 
-        Strip.MouseMove -= OnStripMouseMove;
-        Strip.MouseLeave -= OnStripMouseLeave;
+        Surface.MouseMove -= OnSurfaceMouseMove;
+        Surface.MouseLeave -= OnSurfaceMouseLeave;
         _cursorTimer.Tick -= OnCursorFrame;
         _cursorTimer.Stop();
 
@@ -379,8 +387,13 @@ public partial class DockWindow : Window
     private void OnComposerChanged(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(RebuildStrip);
 
-    private void OnStripMouseMove(object sender, MouseEventArgs e)
+    private void OnSurfaceMouseMove(object sender, MouseEventArgs e)
     {
+        // Hover is tracked on Surface, not Strip: Surface owns the 12/6 padding, and Strip's
+        // Background only fills between the slots. Hooking Strip made the padding ring at both
+        // ends of the plate a leave zone, so the dock collapsed while the pointer was still on it.
+        // The coordinate space is unchanged though — GetPosition(Strip) still measures from the
+        // strip's own left edge, which is what HitTestCursor indexes against.
         _cursorTarget = Strip.HitTestCursor(e.GetPosition(Strip).X);
 
         if (!_cursorTimer.IsEnabled)
@@ -392,7 +405,7 @@ public partial class DockWindow : Window
         AnimatePhase(1d, PhaseInMs);
     }
 
-    private void OnStripMouseLeave(object sender, MouseEventArgs e)
+    private void OnSurfaceMouseLeave(object sender, MouseEventArgs e)
     {
         _cursorTimer.Stop();
         AnimatePhase(0d, PhaseOutMs);
@@ -417,6 +430,14 @@ public partial class DockWindow : Window
 
     private void AnimatePhase(double to, int milliseconds)
     {
+        // MouseMove fires at pointer rate and re-targeting an already-reached value allocates
+        // an animation per event for nothing. The epsilon is far below one screen pixel of
+        // layout drift, so skipping is invisible.
+        if (Math.Abs(Strip.Phase - to) < PhaseSettleEpsilon)
+        {
+            return;
+        }
+
         var animation = new DoubleAnimation(to, TimeSpan.FromMilliseconds(milliseconds))
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
@@ -451,6 +472,12 @@ public partial class DockWindow : Window
             }
 
             cell.ToolTip = CreateDockTip(row.Tooltip, cell);
+
+            // Spec §6.3/§9: the user picked "sistem tooltip" as it behaves today, so these two
+            // timings are part of the approved look, not incidental defaults.
+            ToolTipService.SetInitialShowDelay(cell, ToolTipInitialShowDelayMs);
+            ToolTipService.SetShowDuration(cell, ToolTipShowDurationMs);
+
             cell.ContextMenu = BuildContextMenuForItem(row.Item!);
         }
 

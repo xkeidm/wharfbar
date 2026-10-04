@@ -12,10 +12,17 @@ namespace WharfBar.Views.Controls;
 /// </summary>
 public sealed partial class DockItemCell : UserControl
 {
+    private const double MetricsEpsilon = 0.01d;
+
     private const double MagnificationEpsilon = 5e-4d;
 
     private double _appliedScale = 1d;
-    private double _iconSize;
+
+    // NaN = "never applied": every comparison below is false on the first call, so the first
+    // ApplyMetrics always writes even if a metric legitimately reaches 0.
+    private double _iconSize = double.NaN;
+    private double _indicatorGap = double.NaN;
+    private double _indicatorSize = double.NaN;
 
     public DockItemCell()
     {
@@ -38,28 +45,33 @@ public sealed partial class DockItemCell : UserControl
         set => SetValue(RowProperty, value);
     }
 
-    /// <summary>1 px divider rather than an app icon.</summary>
-    public bool IsSeparator => Row?.IsSeparator != false;
+    /// <summary>1 px divider rather than an app icon. A null <see cref="Row"/> is an empty slot, not a divider.</summary>
+    public bool IsSeparator => Row?.IsSeparator == true;
 
     internal void ApplyMetrics(double iconSize, double indicatorGap, double indicatorSize, double height)
     {
         Root.Height = height;
         SeparatorBar.Visibility = IsSeparator ? Visibility.Visible : Visibility.Collapsed;
 
-        if (Math.Abs(iconSize - _iconSize) < 0.01d)
+        // One guard per group of writes, and each guard tracks exactly what its writes depend on.
+        if (MetricsChanged(iconSize, _iconSize))
         {
-            return;
+            _iconSize = iconSize;
+            IconImage.Width = iconSize;
+            IconImage.Height = iconSize;
+            IconScale.ScaleX = _appliedScale;
+            IconScale.ScaleY = _appliedScale;
         }
 
-        _iconSize = iconSize;
-        IconImage.Width = iconSize;
-        IconImage.Height = iconSize;
-        RunningPill.Width = indicatorSize * 3.5d;
-        RunningPill.Height = indicatorSize;
-        RunningPill.Margin = new Thickness(0, 0, 0, indicatorGap);
-        IconImage.Margin = new Thickness(0, 0, 0, indicatorGap + indicatorSize);
-        IconScale.ScaleX = _appliedScale;
-        IconScale.ScaleY = _appliedScale;
+        if (MetricsChanged(indicatorGap, _indicatorGap) || MetricsChanged(indicatorSize, _indicatorSize))
+        {
+            _indicatorGap = indicatorGap;
+            _indicatorSize = indicatorSize;
+            RunningPill.Width = indicatorSize * 3.5d;
+            RunningPill.Height = indicatorSize;
+            RunningPill.Margin = new Thickness(0, 0, 0, indicatorGap);
+            IconImage.Margin = new Thickness(0, 0, 0, indicatorGap + indicatorSize);
+        }
     }
 
     internal void SetMagnification(double scale)
@@ -73,6 +85,9 @@ public sealed partial class DockItemCell : UserControl
         IconScale.ScaleX = scale;
         IconScale.ScaleY = scale;
     }
+
+    private static bool MetricsChanged(double next, double applied) =>
+        double.IsNaN(applied) || Math.Abs(next - applied) >= MetricsEpsilon;
 
     private static void OnRowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((DockItemCell)d).ApplyRow();
