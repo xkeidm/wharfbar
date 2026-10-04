@@ -6,6 +6,10 @@ namespace WharfBar.Tests;
 
 public class DockStripLayoutTests
 {
+    private const double SlotIconWidth = 28d;
+    private const double SlotGap = 12d;
+    private const double PeakScale = 1.65d;
+
     [Fact]
     public void ComputeScales_WhenPhaseIsZero_AllSlotsResting()
     {
@@ -123,24 +127,103 @@ public class DockStripLayoutTests
     [Fact]
     public void MaxExtentWidth_ExceedsAnyLiveStripWidth()
     {
+        double tightest = AssertBudgetDominatesLiveWidth("all icon slots", _ => SlotIconWidth);
+
+        // the all-icon row is the tight case: the budget is meant to hug the live
+        // strip, not float far above it
+        Assert.True(
+            tightest <= 1d,
+            $"all icon slots: budget drifts {tightest}px away from the tightest live strip");
+    }
+
+    [Fact]
+    public void MaxExtentWidth_ExceedsAnyLiveStripWidth_WithSeparatorSlots()
+    {
+        double tightest = AssertBudgetDominatesLiveWidth(
+            "every third slot a separator", i => i % 3 == 1 ? 1d : SlotIconWidth);
+
+        // separators are charged the icon width, so this row keeps real slack - never zero
+        Assert.True(
+            tightest > 0d,
+            $"separator row: expected slack over the budget, tightest margin was {tightest}px");
+    }
+
+    [Fact]
+    public void MaxExtentWidth_DominatesStripOfMostlySeparators()
+    {
+        const int Count = 9;
+        var widths = new double[Count];
+        var restingScales = new double[Count];
+        var scales = new double[Count];
+        var offsets = new double[Count];
+        Array.Fill(restingScales, 1.0d);
+
+        for (int i = 0; i < Count; i++)
+        {
+            widths[i] = i is 3 or 7 ? SlotIconWidth : 1d;   // two icons, seven separators
+        }
+
+        double budget = DockStripLayout.MaxExtentWidth(Count, SlotIconWidth, SlotGap, PeakScale);
+        DockStripLayout.ComputeOffsets(Count, widths, restingScales, SlotGap, offsets, out double resting);
+        DockStripLayout.ComputeScales(Count, cursorPosition: 3d, phase: 1d, maxScale: PeakScale, scales);
+        DockStripLayout.ComputeOffsets(Count, widths, scales, SlotGap, offsets, out double live);
+
+        // the budget knows nothing about these widths - it comes from the icon width
+        // alone - so a mostly-separator strip must still fit, and fit with room
+        Assert.True(live > resting, $"live={live} resting={resting}");
+        Assert.True(live < budget, $"live={live} budget={budget}");
+    }
+
+    // Sweeps cursor position and phase for every strip length up to 12 and asserts the
+    // MaxExtentWidth budget never falls below the live ComputeOffsets width. Slot widths
+    // come from widthAt, so the same sweep covers an all-icon row and a row with
+    // separators. Returns the tightest margin (budget - live) it saw.
+    private static double AssertBudgetDominatesLiveWidth(string shape, Func<int, double> widthAt)
+    {
+        double tightest = double.MaxValue;
+
         for (int count = 1; count <= 12; count++)
         {
             var widths = new double[count];
+            var restingScales = new double[count];
             var scales = new double[count];
-            double budget = DockStripLayout.MaxExtentWidth(count, 28d, 12d, 1.65d);
+            var offsets = new double[count];
+            Array.Fill(restingScales, 1.0d);
+
+            for (int i = 0; i < count; i++)
+            {
+                widths[i] = widthAt(i);
+            }
+
+            double budget = DockStripLayout.MaxExtentWidth(count, SlotIconWidth, SlotGap, PeakScale);
+
+            // Non-vacuity: full magnification over the row must actually widen it. Without
+            // this the sweep below would pass on a strip whose widths zero the scales out.
+            DockStripLayout.ComputeOffsets(count, widths, restingScales, SlotGap, offsets, out double restWidth);
+            DockStripLayout.ComputeScales(count, cursorPosition: 0d, phase: 1d, maxScale: PeakScale, scales);
+            DockStripLayout.ComputeOffsets(count, widths, scales, SlotGap, offsets, out double magnified);
+            Assert.True(
+                magnified > restWidth,
+                $"{shape}: count={count} magnification widened nothing (resting={restWidth} magnified={magnified})");
 
             for (double pos = 0d; pos <= count - 1d; pos += 0.25d)
             {
                 for (double phase = 0d; phase <= 1.0001d; phase += 0.25d)
                 {
-                    DockStripLayout.ComputeScales(count, pos, phase, 1.65d, scales);
-                    DockStripLayout.ComputeOffsets(count, widths, scales, 12d, new double[count], out double live);
+                    DockStripLayout.ComputeScales(count, pos, phase, PeakScale, scales);
+                    DockStripLayout.ComputeOffsets(count, widths, scales, SlotGap, offsets, out double live);
+
                     Assert.True(
                         live <= budget + 1e-6d,
-                        $"count={count} pos={pos} phase={phase} live={live} budget={budget}");
+                        $"{shape}: count={count} pos={pos} phase={phase} live={live} budget={budget}");
+
+                    tightest = Math.Min(tightest, budget - live);
                 }
             }
         }
+
+        Assert.True(tightest >= -1e-6d, $"{shape}: tightest margin went negative ({tightest}px)");
+        return tightest;
     }
 
     [Fact]
