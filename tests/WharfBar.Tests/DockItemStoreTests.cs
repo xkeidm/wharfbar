@@ -34,6 +34,18 @@ public class DockItemStoreTests : IDisposable
         return new DockItemStore(config);
     }
 
+    /// <summary>
+    /// A second service over the same temp root: it parses the <c>config.json</c> the first
+    /// service wrote, so assertions against its store cross the real serialization boundary
+    /// instead of reading back the in-memory list the first store handed over.
+    /// </summary>
+    private DockItemStore NewStoreFromDisk(out ConfigService config)
+    {
+        config = new ConfigService(_root);
+        config.LoadOrCreate();
+        return new DockItemStore(config);
+    }
+
     private static List<PinnedApp> Three() =>
     [
         new PinnedApp(@"C:\apps\one.exe", string.Empty, "One"),
@@ -220,5 +232,50 @@ public class DockItemStoreTests : IDisposable
         Assert.NotEmpty(store.Items);
         store.Reload();
         Assert.Empty(store.Items);
+    }
+
+    [Fact]
+    public void TryAdd_AndIsReadBackFromDisk()
+    {
+        DockItemStore store = NewStore(out _);
+        int before = store.Items.Count;
+
+        Assert.True(store.TryAdd(@"C:\apps\diskadded.exe", "--x", "DiskAdded"));
+
+        IReadOnlyList<PinnedApp> reloaded = NewStoreFromDisk(out _).Items;
+        Assert.Equal(before + 1, reloaded.Count);
+        Assert.Equal(@"C:\apps\diskadded.exe", reloaded[^1].Path);
+        Assert.Equal("--x", reloaded[^1].Args);
+        Assert.Equal("DiskAdded", reloaded[^1].Label);
+    }
+
+    [Fact]
+    public void Remove_AndIsReadBackFromDisk()
+    {
+        DockItemStore store = NewStore(out _);
+        string target = store.Items[1].Path;
+        string[] expected = store.Items.Where(i => i.Path != target).Select(i => i.Path).ToArray();
+
+        Assert.True(store.Remove(DockItemStore.IdFor(store.Items[1])));
+
+        IReadOnlyList<PinnedApp> reloaded = NewStoreFromDisk(out _).Items;
+        Assert.Equal(expected, reloaded.Select(i => i.Path).ToArray());
+        Assert.DoesNotContain(reloaded, i => i.Path == target);
+    }
+
+    [Fact]
+    public void Move_AndIsReadBackFromDisk()
+    {
+        DockItemStore store = NewStore(out _);
+        string[] before = store.Items.Select(i => i.Path).ToArray();
+        string lastPath = before[^1];
+        string[] expected = [lastPath, .. before[..^1]];
+
+        Assert.True(store.Move(DockItemStore.IdFor(store.Items[^1]), 0));
+
+        // Full order, not just the head or the count: a reordered entry lost on the way
+        // through the serializer would still pass a count assertion.
+        IReadOnlyList<PinnedApp> reloaded = NewStoreFromDisk(out _).Items;
+        Assert.Equal(expected, reloaded.Select(i => i.Path).ToArray());
     }
 }
