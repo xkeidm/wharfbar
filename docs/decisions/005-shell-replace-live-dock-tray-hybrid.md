@@ -6,18 +6,34 @@
 kullanıcı onayı (görev çubuğu gizleme seçenek B; tepsi hibrit; canlı dock pin/running).
 Tasarım: [`../superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
 
+> **Revizyon (2026-10-04, dock yeniden tasarımı):** §1’in “birincil pin kaynağı =
+> `Quick Launch\User Pinned\TaskBar\*.lnk`” kararı **tersine çevrildi**. Dock’un tek kaynağı
+> artık `dock.items` — WharfBar’ın kendi kalıcı listesidir — ve Windows görev çubuğu **hiç
+> okunmaz, hiç yazılmaz** (`TaskbarPinnedAppsSource` silindi; “Dock’tan kaldır” artık
+> görev çubuğuna `.lnk` yazmaz). **Bu revizyon yalnız §1’in kaynak tablosunu kapsar.**
+> §1’deki `EnumWindows` + AppUserModelID satırı (çalışan uygulama gruplama / göstergesi),
+> §2 (tepsi hibrit) ve §3–5’in görev çubuğu gizleme/restore disiplini **değişmemiştir.**
+> Yeniden tasarımın gerekçesi ve kapsamı:
+> [`../superpowers/specs/2026-10-04-dock-macos-redesign-design.md`](../superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
+
 ## Karar
 
 Üç karar tek ADR’de tutulur — birlikte “shell yerine geçen” deneyimi oluştururlar; ayrı
 uygulansalar çift çubuk / boş tepsi / sahte pin listesi üretirler.
 
-### 1. Canlı dock uygulamaları
+### 1. Dock uygulamaları
 
 | Kaynak | Kullanım |
 |--------|----------|
-| `Quick Launch\User Pinned\TaskBar\*.lnk` | Pin listesinin birincil kaynağı |
-| `EnumWindows` + AppUserModelID | Çalışan uygulama gruplama / göstergesi |
-| `config.pinnedApps` | Seed / fallback (birincil değil; şemadan silinmez) |
+| `dock.items` (config) | **Tek** sabit listesi; sıra = görüntü sırası |
+| `EnumWindows` + AppUserModelID | Çalışan uygulama gruplama / göstergesi (değişmedi) |
+| `config.pinnedApps` | Eski şema alanı; yalnızca `dock.items`’e bir kez taşınır, sonra boşaltılır |
+
+Göç tek seferliktir ve `ConfigService.MigrateDockItems` yapar: `dock.items` boşken eski kök
+`pinnedApps` doluysa içerik kopyalanır ve eski liste **boşaltılır** — aksi halde kullanıcının
+bilerek boşalttığı dock her açılışta eski pinleri geri getirirdi. `schemaVersion` bu değişiklikte
+**2'de kaldı**: alan bazlı varsayılanlarla kırılmadan okuma tercih edilir (`conventions.md:24`),
+yeni alanların hepsi yazılmayan config'te kendi varsayılanına düşer.
 
 UWP/Store ikonları v1’de sınırlı kalır (placeholder veya atlama; yarım AppxManifest yolu yok).
 
@@ -106,8 +122,11 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
 
 ## Gerekçe
 
-- Config’teki demo pinler gerçek görev çubuğu pinlerini yansıtmaz; kullanıcı “yerine geçen”
-  dock bekler.
+- ~~Config’teki demo pinler gerçek görev çubuğu pinlerini yansıtmaz; kullanıcı “yerine geçen”
+  dock bekler.~~ **2026-10-04’te tersine döndü:** yansıma zorunluluğu değil, listeden
+  bağımsız bir liste isteniyor. Aynı gerekçeyi tersinden okuyan karşı-argüman bugün geçerli:
+  bir “yerine geçen” dock için başka bir uygulamanın (explorer) pin listesini okumak zorunda
+  kalmak, o listedeki kırılganlığı (`Quick Launch` yolu, dil, sürüm) WharfBar’a taşır.
 - Resmi API ile yabancı tepsi ikonlarını okumak desteklenmez; tam ayna kırılgan ve sınır
   ihlali riski taşır. Native overflow düğmesi yeterli erişim verir.
 - Görev çubuğu görünürken altta iki şerit kalır; gizleme onayıyla (B) ürün hedefi netleşti.
@@ -120,6 +139,8 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
 - `docs/00-overview.md` non-goals: yabancı tepsi okuma non-goal kalır; görev çubuğu gizleme
   blanket yasak olmaktan çıkar, kontrollü yaşam döngüsüne bağlanır.
 - `pinnedApps` semantiği seed/fallback olur; `schemaVersion` 1 kırılmaz.
+  **2026-10-04:** alan `dock.items`'e bir kez taşınıp boşaltılır; göç `schemaVersion`'ı
+  yine de **2'de bıraktı** (alan bazlı varsayılanlar; bkz. §1).
 - Geliştirme sırası: Faz 9 (9a taskbar lifecycle → 9b canlı dock → 9c tray düğmesi);
   Faz 8 auto-hide 9a/9b sonrası daha anlamlı.
 - Cursor kurallarına Win32 rehberi yapıştırılmaz; işaretçi + bu ADR / spec yeter.
@@ -129,4 +150,7 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
 1. **Tam tepsi aynası** (yabancı ikon çiz + forward) — belgelenmemiş API / RPM; reddedildi.
 2. **Görev çubuğuna dokunmama** (önceki non-goal) — çift çubuk; kullanıcı B ile reddetti.
 3. **Yalnızca config pinleri** — canlı shell pinleriyle uyumsuz; yetersiz.
+   **2026-10-04’te bu alternatif kabul edildi:** görev çubuğu hiç okunmadığı için “uyumsuzluk”
+   artık bir maliyet değil; liste büyütüldü (sürükle-sırala, dosya bırakma, ayar editörü) ve
+   dock yine de “yerine geçen” deneyimi sunuyor.
 4. **İki ayrı ADR** (taskbar vs tray) — sıkı bağlı ürün kararı; tek ADR tercih edildi.

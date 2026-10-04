@@ -7,6 +7,13 @@
 (native overflow; tam ayna değil), WharfBar çalışırken Windows görev çubuğunu gizleme /
 auto-hide ve çıkışta geri yükleme.
 
+> ⚠️ **Tarihsel belge — dock'un pin kaynağı kısmı 2026-10-04'te geçersiz kılındı.**
+> ADR-005 §1, "birincil kaynak = `Quick Launch\User Pinned\TaskBar\*.lnk`" kararını tersine
+> çevirdi: dock'un tek kaynağı artık `dock.items`, görev çubuğu **okunmaz ve yazılmaz**.
+> Aşağıdaki `User Pinned` / canlı tarama maddeleri o günkü kararı **tarihsel olarak** anlatır;
+> güncel tasarım: [2026-10-04 spec](2026-10-04-dock-macos-redesign-design.md).
+> Tepsi hibriti (§2) ve görev çubuğu gizleme/restore (§3) **aynen geçerlidir.**
+
 ## Kararlar (özet)
 
 | Konu | Seçim |

@@ -33,6 +33,12 @@
 - Crash simülasyonu sonrası explorer düzeltmesi bilinçli
 - Mutex: ikinci örnek açılmıyor mu?
 - DPI değişiminde pozisyon
+- Dock: fare ile komşu büyümesi var mı, pencere yerinden oynamıyor mu?
+- Dock: sürükleyerek sıralama çalışıyor mu ve uygulama açılmıyor mu?
+- Dock: Explorer'dan bırakma kabul ediliyor mu (değilse ayar listesinden ekleniyor mu)?
+- Dock: simge boyutu 16/36 ve büyütme 1.0/2.0 uçlarında şerit taşmıyor mu?
+- Dock: görev çubuğu pinleri WharfBar'yi etkilemiyor, WharfBar da görev çubuğunu etkilemiyor mu?
+  (ADR-005 revizyonu: hiçbir yönde yazma/okuma olmamalı)
 
 ## Git
 

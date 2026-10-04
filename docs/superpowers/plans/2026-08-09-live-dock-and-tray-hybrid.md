@@ -1,5 +1,13 @@
 # Faz 9 — Canlı Dock, Tepsi Hibrit ve Görev Çubuğu Yaşam Döngüsü Implementation Plan
 
+> ⚠️ **Tarihsel plan — Task 5 (`TaskbarPinnedAppsSource`) 2026-10-04'te geri alındı ve dosya
+> silindi.** ADR-005 §1 revize edildi: dock'un tek kaynağı artık `dock.items`, görev çubuğu
+> **okunmaz ve yazılmaz**. Aşağıdaki Task 5 / Task 7 kodları ve "canlı pin" maddeleri o günkü
+> tasarımı anlatır; **uygulanmış hâli bu değildir.** Güncel tasarım ve sapmalar:
+> [2026-10-04 plan](2026-10-04-dock-macos-redesign.md) ·
+> [2026-10-04 spec](../specs/2026-10-04-dock-macos-redesign-design.md).
+> 9a (görev çubuğu yaşam döngüsü) ve 9c (tepsi hibriti düğmesi) **aynen geçerlidir.**
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** WharfBar açıkken Windows görev çubuğunu gizleyip her çıkış yolunda geri yüklemek; dock’u canlı TaskBar pinleri ve çalışan uygulamalarla doldurmak; üst bara yabancı ikon çizmeden native tray overflow düğmesi eklemek.

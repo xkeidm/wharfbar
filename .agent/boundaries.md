@@ -43,7 +43,14 @@
   maximize-yokken ~0.5 sn'lik state blip'i ile; boş okuma aynayı temizlemez (son iyi
   snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
   geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
-- Canlı dock: TaskBar `User Pinned` `.lnk` tarama + `EnumWindows` / AUMID (ADR-005)
+- Canlı dock: **kendi kalıcı listesi** (`dock.items` / `DockItemStore`) + `EnumWindows` / AUMID.
+  Görev çubuğu pinleri **okunmaz, yazılmaz** (ADR-005 revizyonu, 2026-10-04) — “Dock’a sabitle /
+  Dock’tan kaldır” yalnızca bu listeyi değiştirir
+- **Dock'un kendi listesini tutması, görev çubuğu pinlerine dokunmaması** (ADR-005 revizyonu) —
+  `TaskbarPinnedAppsSource` silindi; geri gelirse karar geri alınmış demektir ve ADR güncellenir
+- Dock büyütme matematiği **saf** tutulur (`DockMagnification` / `DockStripLayout`: WPF tipi yok,
+  birim testli); pencere **bir kez** en kötü büyümeye göre boyutlanır, hover'da `SetWindowPos`
+  çağrılmaz (docs/04-gotchas.md)
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
   `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
@@ -108,3 +115,5 @@
 - Cursor kurallarına Win32 rehberinin tamamını yapıştırmak (kanonik kaynak `.agent/` + `docs/`)
 - Gizli anahtar / kişisel config commit etmek
 - Dokümantasyonu güncellemeden mimari kararı sessizce tersine çevirmek
+- Dock'u görev çubuğu `User Pinned` klasörüne **yazmak** (`.lnk` oluşturmak/silmek) ya da
+  oradan `.lnk` **okumak** — ADR-005 revizyonu; tek kaynak `dock.items`

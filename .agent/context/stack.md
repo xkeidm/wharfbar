@@ -36,10 +36,22 @@ RAM/başlangıç maliyeti içindir (gerekçe: [`../../docs/01-architecture.md`](
 - Autostart: **Startup klasörü** kısayolu
 - Single-instance: named **Mutex**
 
+## Dock kodu (2026-10-04 yeniden tasarımı)
+
+| Dosya | Rol |
+|-------|-----|
+| `Services/DockMagnification.cs` + `Services/DockStripLayout.cs` | Saf büyütme/yerleşim matematiği (WPF tipi yok, testli) |
+| `Services/DockItemStore.cs` | Bağımsız sabit liste (`dock.items`; `App` tek örneği) |
+| `Services/MinimizedWindowsSource.cs` | Küçültülmüş pencere tablosu (arka iş parçacığı, 800 ms) |
+| `Services/DockStripBuilder.cs` | Bölüm ayraç slotları (1 DIP) |
+| `Views/Controls/DockStrip.cs` | Şerit `Panel` — büyütme + reflow, `CursorPosition`/`Phase` |
+| `Views/Controls/DockItemCell.xaml` | Tek hücre: ikon + çalışan çizgisi \| ayraç |
+
 ## Bilinçli dışarıda (v1)
 
 - UWP ApplicationModel / AppxManifest ikon yolu
 - Çoklu monitör AppBar
-- Görev çubuğu manipülasyonu
+- Görev çubuğu **pinlerini** okuma/yazma (dock'un tek listesi kendi `dock.items`'i —
+  ADR-005 revizyonu). Görev çubuğunu **gizleme/geri yükleme** ise kapsamdadır (ADR-005 §3).
 - macOS global menü / Apple marka öğeleri
 - Flutter / Electron (kaynak maliyeti)

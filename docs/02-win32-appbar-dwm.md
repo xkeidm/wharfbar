@@ -187,12 +187,17 @@ UI `QuickSettingsFlyout` üzerinden.
 // HBITMAP/HICON → Imaging.CreateBitmapSourceFromHBitmap/HIcon → ImageSource
 ```
 
-Varsayılan `dock.iconSize` **28 DIP** (görev çubuğu benzeri, 24’ten hafif büyük); dock yüksekliği
-ikon + padding + çalışıyor noktasına göre hesaplanır (~46 DIP @ 28). Yerleşim: birincil monitör
-alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu yok). İkon aralığı
-**12 DIP**. Klasik `.exe` / `.lnk` için uygundur.
+Varsayılan `dock.iconSize` **28 DIP** (görev çubuğu benzeri, 24’ten hafif büyük); plaka içeriği
+ikon + padding + çalışan çizgisi + ayraç boşluğundan hesaplanır (~46 DIP @ 28), **pencere** ise
+en kötü büyümeye göre bir kez boyutlanır (`DockStripLayout.MaxExtentHeight` → ~64 DIP @ 1.65).
+Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
+yok). İkon aralığı **12 DIP**. Klasik `.exe` / `.lnk` için uygundur.
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
 için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
+
+İkon bitmap'i taban boyutta değil, **büyütme tavanında** istenir (`ResolveIconPixelSize` =
+`iconSize × magnification`, 16–256 px'e kırpılır): taban boyutunda raster'ı büyütmek bulanık
+görünür. Ölçek değişince `RebuildStrip` her ikonu yeni tavanla yeniden ister.
 
 Yatay hizalama `dock.position` ile seçilir: `bottom-left` / `bottom-center` / `bottom-right`.
 `DockPositions.Normalize` geçersiz/boş değerde `bottom-center` döndürür (yan dock kapsam dışı:
@@ -319,28 +324,43 @@ arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada od
 `PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
 “önde” sayılır (Electron vb. alt pencereler).
 
-**Hover ve pencere boyutu:** macOS tipi büyütme (komşu ölçeği / reflow) yok — hover'daki
-ikon tek başına `HoverScale` 1.3× büyür (140ms geçiş). Pencere **sabit boyuttadır** (taban
-şerit + küçük hover payı; `ComputeMaxWidthPx`/`MaxHeightDip`), hover sırasında `SetWindowPos`
-hiç çalışmaz — frame-başına resize/recenter (stutter) önlenir. ScrollViewer yoktur; çok
-sayıda ikon ekran genişliğine kırpılır.
+**Hover ve pencere boyutu:** macOS tipi büyütme **vardır** (2026-10-04, ADR-005 revizyonu).
+Özel `DockStrip : Panel`, `CursorPosition` (kesirli, ikon biriminde) + `Phase` (0→1) bağımlılık
+özelliklerinden ölçek ve slot ofseti hesaplar; komşular yatayda **kayar** (gerçek reflow).
+Eğri ve yerleşim saf `DockMagnification` / `DockStripLayout` içindedir ve birim testine tabidir.
+Tavan `dock.magnification` (varsayılan 1.65, 1.0–2.0), düşüş katsayısı 0.82 ve taban 1.0'a
+kelepçeli → etki yarıçapı 3, yani aynı anda en fazla 7 ikon ölçeklenir. `Phase` girişte 130 ms,
+çıkışta 180 ms; imleç konumu ise kare hızından bağımsız yumuşatmayla hedefe sürülür.
+
+Pencere **baştan** maksimum büyümeye göre boyutlandırılır (`DockStripLayout.MaxExtentWidth` /
+`MaxExtentHeight`); kare başına `SetWindowPos` **çağrılmaz** — yalnızca WPF ölçüm/yerleşim
+çalışır. `DesiredSize` canlı toplam genişliği döndürür, plaka onu sarar ve ortalanır.
+`MaxExtentWidth` geçerli olmak için hiçbir slot ölçeğinin tavanı aşmamasını ister; `Phase`
+bu yüzden `CubicEase/EaseOut` ile sürülür.
+
+ScrollViewer yoktur; çok sayıda ikon ekran genişliğine kırpılır.
 
 **Dock yüzeyi:** Katmanlı pencere (`AllowsTransparency=True`) — strip yüzeyi `Surface`
-border’ın WPF fırçasıyla çizilir; pencere kenarları (headroom) şeffaf ve tıklama geçirir,
+border'ın WPF fırçasıyla çizilir; pencere kenarları (headroom) şeffaf ve tıklama geçirir,
 dock çevresinde görünür kutu oluşmaz. **DWM backdrop kullanılmaz** (tüm pencereyi doldurur,
-kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`dock.surface`:
-`mica` = opak tema rengi koyu `#202020` / açık `#FAFAFA`; `acrylic` = aynı renk %80 saydam).
+kenarlarda kutu yaratır; ayrıca `AllowsTransparency` ile birlikte zaten yanlıştır —
+`docs/04-gotchas.md:7`). `dock.surface` iki **WPF çizimi** yarı saydam dolgu arasında seçim yapar:
+`mica` = tema rengi koyu `#202020` @ `%60` (`0x99`) / açık `#FAFAFA` @ `%85` (`0xD9`);
+`acrylic` = aynı rgb daha yoğun, koyu `#CC` / açık `#E6`.
 
 **Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
 dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,
 bu yüzden `DragOver` dosya bırakmasını hücrede **işaretlemez** (`Handled = false`), yüzey
-handler’ına bubble eder. **OLE riski (R1) pencere düzeyindedir ve sıralamayı da kapsar:**
-`RegisterDragDrop` HWND başınadır; katmanlı (`WS_EX_LAYERED`) `Topmost` pencere hedef olarak
-kabul edilmezse bu pencerede **hiçbir** `DragOver`/`Drop` gelmez — Explorer’dan dosya bırakma
-de, uygulama içi sıralama da düşer. Yedek yalnızca **dosya bırakmada** vardır (ayar listesindeki
-“ekle”); sıralamanın yedeği yoktur, bu yüzden kabul canlı **ölçülmeli** ve elle doğrulamada
-önce sıralama denenmelidir. Kök `Grid` bırakma hedefidir ama **arka planı yoktur** — pencere en
-geniş büyütülmüş genişliğe göre boyutlandığı için arka plan ~57 DIP hayalet hit alanı eklerdi.
+handler'ına bubble eder. Sürükleyerek sıralama **yalnızca sabit (`Pinned`) kutucuklarda**
+çalışır; sürükleme yükü `DockItemStore.Normalize(item.Path)` ile **yol** tabanlıdır, `Id` ile
+değil (pinli-ve-çalışan kutucuğun `Id`'si çalışan uygulamadan gelir). **OLE riski (R1) pencere
+düzeyindedir ve sıralamayı da kapsar:** `RegisterDragDrop` HWND başınadır; katmanlı
+(`WS_EX_LAYERED`) `Topmost` pencere hedef olarak kabul edilmezse bu pencerede **hiçbir**
+`DragOver`/`Drop` gelmez — Explorer'dan dosya bırakma de, uygulama içi sıralama da düşer.
+Yedek yalnızca **dosya bırakmada** vardır (ayar listesindeki “ekle”); sıralamanın yedeği yoktur,
+bu yüzden kabul canlı **ölçülmeli** ve elle doğrulamada önce sıralama denenmelidir. Kök `Grid`
+bırakma hedefidir ama **arka planı yoktur** — pencere en geniş büyütülmüş genişliğe göre
+boyutlandığı için arka plan ~57 DIP hayalet hit alanı eklerdi.
 
 ---
 

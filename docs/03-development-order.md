@@ -4,6 +4,7 @@
 
 > Faz 1–7 tamamlandı. **Faz 8 kodu çalışma ağacında** (manuel doğrulama bekliyor).
 > **Faz 9 kodu çalışma ağacında** (commit + 9a/9b/9c manuel doğrulama bekliyor).
+> **Dock yeniden tasarımı (2026-10-04) kodu çalışma ağacında** — fare ile doğrulama bekliyor.
 > **Medya paneli kodu çalışma ağacında** (manuel doğrulama bekliyor; aşağıda).
 > Faz 8 spec: [`superpowers/specs/2026-08-10-dock-auto-hide-design.md`](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 > Faz 8 plan: [`superpowers/plans/2026-08-10-dock-auto-hide.md`](superpowers/plans/2026-08-10-dock-auto-hide.md).
@@ -48,6 +49,12 @@
 - [x] Derleme temiz; work area betikle doğrulandı (kapanışta baseline)
 
 ## Faz 4 — Dock ✓
+
+> **2026-10-04'te yeniden tasarıldı** (ADR-005 revizyonu): aşağıdaki liste o günün hâlini
+> anlatır. Dock artık görev çubuğunu yansıtmıyor; kendi `dock.items` listesini kullanıyor,
+> macOS tipi büyütme + reflow ile çiziliyor ve sürükle-sırala / dosya bırakma / konum /
+> ayar sayfası içerik listesi var. Güncel hâl:
+> [2026-10-04 spec](superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
 
 - [x] Overlay: Topmost, AppBar yok (ADR-001); work-area alt kenarı, ortalanmış
 - [x] Demo pinned app listesi UI (`DemoPinnedApps.All` — 4 uygulama; kalıcı config Faz 5)
@@ -113,11 +120,17 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 
 ### 9b — Canlı dock
 
-- [x] `User Pinned\TaskBar` `.lnk` tarama; pin sırası (`TaskbarPinnedAppsSource`)
+> **2026-10-04'te revize edildi** (ADR-005 revizyonu): ilk ve üçüncü madde geri alındı. Dock'un
+> tek kaynağı artık `dock.items` (`DockItemStore`); `TaskbarPinnedAppsSource` silindi ve görev
+> çubuğu **okunmaz, yazılmaz**. Yaşayan doğrular: `EnumWindows` + AUMID running gruplama ve
+> composer'ın bölümlü birleştirmesi. Güncel hâl:
+> [2026-10-04 spec](superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
+
+- [x] ~~`User Pinned\TaskBar` `.lnk` tarama; pin sırası (`TaskbarPinnedAppsSource`)~~ — **2026-10-04'te kaldırıldı**
 - [x] `EnumWindows` + AppUserModelID running gruplama (`RunningAppsSource`)
-- [x] `config.pinnedApps` yalnızca seed/fallback (`DockAppsComposer`)
-- [x] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok)
-- [ ] Manuel: pin ekle/çıkar, çalışan gösterge, launch / focus
+- [x] `config.pinnedApps` yalnızca seed/fallback (`DockAppsComposer`) — **2026-10-04'te göçe çevrildi:** eski liste `dock.items`'e bir kez taşınıp boşaltılır (`ConfigService.MigrateDockItems`)
+- [x] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok) — **2026-10-04'te üç bölümlü:** Pinned | Running | Minimized + macOS tipi büyütme/reflow
+- [ ] Manuel: pin ekle/çıkar, çalışan gösterge, launch / focus — **2026-10-04'ünde de doğrulanmadı:** büyütme/reflow, sürükle-sırala ve dosya bırakma fare ile denenmedi (bkz. `docs/04-gotchas.md`)
 
 ### 9c — Tepsi hibrit düğmesi
 

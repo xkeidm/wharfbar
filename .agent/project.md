@@ -19,10 +19,13 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
   medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
-- **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
-  sabitlenen uygulamalar solda, sabit olmayan çalışanlar sağda (ayırıcı çizgi ile ayrılmış);
-  sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere);
-  `dock.items` kendi listesinden beslenir (`DockItemStore`; `config.pinnedApps` yalnızca göç seed'i olarak okunur) + dinamik kısayol oluşturma/silme.
+- **Dock:** macOS tarzı alt şerit (overlay; Topmost ± auto-hide) — **tek kaynağı kendi listesi**
+  (`dock.items` / `DockItemStore`; Windows görev çubuğu **okunmaz, yazılmaz** — ADR-005 revizyonu,
+  `config.pinnedApps` yalnızca göç seed'i olarak bir kez okunur). Üç bölüm sırayla
+  **Pinned | Running | Minimized**, 1 px ayraçla ayrılmış; büyütme macOS tipidir (imlecin üstü +
+  3 komşu, gerçek reflow). Sürükle-sırala, Explorer'dan dosya bırakma, alt-sol/orta/sağ konum;
+  sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır,
+  Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere, **Pencereler**).
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
   monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
@@ -59,6 +62,9 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 9. **Tray aynası (ADR-009):** yabancı tepsi ikonları belgelenmiş comctl32 `TB_*` mesajlarıyla
    salt-okunur okunur + `SendMessage` click-forward; RPM/enjeksiyon/undocumented API **yasak**;
    gizli ikonlar kapsam dışı (`Win+B` kalır); sistem ikonları tooltip filtreyle düşülür.
+10. **Dock'un tek listesi kendisidir (ADR-005 revizyonu):** görev çubuğu `User Pinned` klasörü
+    **okunmaz, yazılmaz**; büyütme motoru saf (`DockMagnification` / `DockStripLayout`) ve pencere
+    hover'da yeniden boyutlanmaz.
 
 ## Doküman haritası
 
@@ -73,28 +79,32 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/002-...` | Proje yerleşimi, TFM, `global.json` yok |
 | `docs/decisions/003-...` | Top bar yerleşimi, `ABM_REMOVE`, fullscreen |
 | `docs/decisions/004-...` | Mica / WPF-UI, köşe `DONOTROUND`, tema yenileme |
-| `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle |
+| `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle — **2026-10-04 revizyonu:** dock'un pin kaynağı `dock.items` |
 | `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
 | `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
 | `docs/decisions/008-...` | Medya paneli (SMTC) — çalan medya + kontroller |
 
 ## Mevcut repo durumu
 
-**Faz 1–9 + Faz 8 kodu çalışma ağacında** (commit + manuel doğrulama bekliyor). Kod kökü
+**Faz 1–9 + Faz 8 + dock yeniden tasarımı (2026-10-04) kodu çalışma ağacında** (manuel doğrulama
+bekliyor). Kod kökü
 `src/WharfBar/`, çözüm kökte `WharfBar.sln`. Çalışan: top bar penceresi (DPI-farkında yerleşim),
 AppBar kaydı + garantili `ABM_REMOVE`, `ABN_*` callback’leri, explorer restart sonrası yeniden kayıt,
 tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler
-(`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`, canlı pin/running birleşik UI,
-hover ölçek, süreç başlatma / pencere odaklama, fullscreen gizleme, `WorkAreaChanged` yeniden
-konumlanma, auto-hide + hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
+(`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`; kendi `dock.items` listesi + canlı
+çalışan uygulamalar ve küçültülmüş pencereler → üç bölümlü şerit, macOS tipi büyütme + reflow,
+sürükle-sırala, dosya bırakma, konum seçimi, süreç başlatma / pencere odaklama, "Pencereler"
+alt menüsü, canlı DPI, fullscreen gizleme, `WorkAreaChanged` yeniden konumlanma, auto-hide +
+hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
 (`StatusService`, üst bar sağ şerit; tek satır `tr-TR` saat; **Segoe MDL2** glifleri + overflow +
 `controlCenter`), kendi tepsi ikonu + Quit (`TrayIconService`),
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; keep-hidden izleme; çıkışta restore → `ABM_REMOVE`),
-canlı TaskBar pinleri + çalışan uygulamalar (`TaskbarPinnedAppsSource`, `RunningAppsSource`,
-`DockAppsComposer`), üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
-Dock varsayılan ikon **28 DIP** / yükseklik ~46 DIP, ikon aralığı 12 DIP, monitör alt kenarına
-yaslı (`IShellItemImageFactory` ile DPI-keskin ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
+canlı çalışan uygulamalar (`RunningAppsSource`) + küçültülmüş pencereler (`MinimizedWindowsSource`)
+→ `DockAppsComposer`, üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
+Dock varsayılan ikon **28 DIP** / plaka ~46 DIP, ikon aralığı 12 DIP, pencere en kötü büyümeye göre
+~64 DIP, monitör alt kenarına yaslı (`IShellItemImageFactory` ile DPI-keskin, büyütme tavanında
+raster'lanmış ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
 tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Canlı ağ özellikleri

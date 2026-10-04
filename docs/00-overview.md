@@ -5,7 +5,8 @@
 WharfBar, Windows masaüstüne macOS’a benzer bir **üst bar** ve **dock** ekler:
 
 - **Top bar:** Saat ve durum göstergeleri; ekran alanını AppBar ile rezerve eder.
-- **Dock:** Sabitlenmiş uygulamalar; tıklanınca süreç başlatır; hover’da hafif büyüme animasyonu.
+- **Dock:** Kendi listesindeki uygulamalar; tıklanınca süreç başlatır veya pencereyi odaklar;
+  hover'da macOS tipi büyütme + komşu kayması.
 
 Görsel dil **Windows Fluent** (Mica, sistem teması) olmalıdır; macOS ikon dili / blur / marka öğeleri
 kullanılmaz — yalnızca düzen kavramı (üst bar + dock) ilham alınır.
@@ -25,7 +26,7 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 | Üst AppBar | `ABE_TOP`, work area rezervasyonu |
 | Çoklu monitör | Monitör bazında top bar / dock aç-kapat; her bar kendi monitöründe AppBar |
 | Dock overlay | Topmost; AppBar şart değil (ADR-001) |
-| Pinned / running apps | Canlı TaskBar `.lnk` + `EnumWindows`/AUMID; `SHGetFileInfo`; config seed/fallback (ADR-005) |
+| Pinned / running apps | Kendi kalıcı listesi (`dock.items`) + `EnumWindows`/AUMID; `SHGetFileInfo`; **görev çubuğu okunmaz/yazılmaz** (ADR-005 revizyonu, 2026-10-04) |
 | Tepsi hibrit + ayna | Durum simülasyonu + native overflow düğmesi; üçüncü taraf ikon aynası belgelenmiş comctl32 `TB_*` mesajlarıyla (ADR-009); gizli ikonlar native overflow'da |
 | Görev çubuğu | WharfBar çalışırken gizle/auto-hide; çıkışta önceki duruma geri yükle (ADR-005) |
 | Config | JSON, `%AppData%/WharfBar/config.json` |
@@ -52,7 +53,8 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 
 - Maximize edilmiş pencereler top bar altına girmiyor (etkin her monitör).
 - Uygulama temiz kapanınca rezerve alan geri geliyor; görev çubuğu önceki durumuna dönüyor (ADR-005).
-- Dock, TaskBar pinlerini / çalışan uygulamaları yansıtıyor; config fallback boş klasörde devreye giriyor.
+- Dock, kendi listesini ve çalışan uygulamaları gösteriyor; liste sırası config sırasıdır ve
+  görev çubuğundan bağımsızdır.
 - Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward); gizli ikonlar için
   `Win+B`/chevron düğmesi native overflow'u açar.
 - İkinci örnek başlatılmıyor (Mutex).
