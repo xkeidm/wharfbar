@@ -1,0 +1,224 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using WharfBar.Models;
+using WharfBar.Services;
+using Xunit;
+
+namespace WharfBar.Tests;
+
+public class DockItemStoreTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), "wharfbar-dock-item-store-tests", Guid.NewGuid().ToString("N"));
+
+    public void Dispose()
+    {
+        try
+        {
+            if (Directory.Exists(_root))
+            {
+                Directory.Delete(_root, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+        }
+    }
+
+    private DockItemStore NewStore(out ConfigService config)
+    {
+        config = new ConfigService(_root);
+        config.LoadOrCreate();
+        return new DockItemStore(config);
+    }
+
+    private static List<PinnedApp> Three() =>
+    [
+        new PinnedApp(@"C:\apps\one.exe", string.Empty, "One"),
+        new PinnedApp(@"C:\apps\two.exe", string.Empty, "Two"),
+        new PinnedApp(@"C:\apps\three.exe", string.Empty, "Three"),
+    ];
+
+    [Fact]
+    public void Normalize_WhenPathIsAbsolute_TrimsAndKeepsFullPath()
+    {
+        Assert.Equal(@"C:\apps\one.exe", DockItemStore.Normalize(@"  C:\apps\one.exe  "));
+    }
+
+    [Fact]
+    public void Normalize_WhenPathIsMalformed_FallsBackToTrimmedInput()
+    {
+        Assert.Equal(string.Empty, DockItemStore.Normalize("   "));
+        Assert.False(string.IsNullOrWhiteSpace(DockItemStore.Normalize("relative.exe")));
+    }
+
+    [Fact]
+    public void IdFor_UsesNormalizedPath()
+    {
+        Assert.Equal(
+            DockItemStore.Normalize(@"C:\apps\one.exe"),
+            DockItemStore.IdFor(new PinnedApp(@"  C:\apps\one.exe", string.Empty, "One")));
+    }
+
+    [Fact]
+    public void ContainsById_IgnoresCaseAndSurroundingSpace()
+    {
+        List<PinnedApp> items = Three();
+        Assert.True(DockItemStore.ContainsById(items, "  c:\\APPS\\ONE.EXE "));
+        Assert.False(DockItemStore.ContainsById(items, @"C:\apps\four.exe"));
+    }
+
+    [Fact]
+    public void TryAddCore_WhenNew_AppendsWithNormalizedPath()
+    {
+        List<PinnedApp> items = [];
+        Assert.True(DockItemStore.TryAddCore(items, @"  C:\apps\one.exe ", string.Empty, "One"));
+        Assert.Equal(@"C:\apps\one.exe", Assert.Single(items).Path);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenDuplicatePath_IsRejected()
+    {
+        List<PinnedApp> items = Three();
+        Assert.False(DockItemStore.TryAddCore(items, @"C:\apps\two.exe", string.Empty, "Two"));
+        Assert.Equal(3, items.Count);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenDuplicateDiffersOnlyByCase_IsRejected()
+    {
+        List<PinnedApp> items = Three();
+        Assert.False(DockItemStore.TryAddCore(items, @"C:\APPS\TWO.EXE", string.Empty, "Two"));
+        Assert.Equal(3, items.Count);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenLabelBlank_DerivesLabelFromFileName()
+    {
+        List<PinnedApp> items = [];
+        DockItemStore.TryAddCore(items, @"C:\tools\thing.exe", string.Empty, "   ");
+        Assert.Equal("thing", Assert.Single(items).Label);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenPathBlank_IsRejected()
+    {
+        List<PinnedApp> items = [];
+        Assert.False(DockItemStore.TryAddCore(items, "   ", string.Empty, "Yok"));
+        Assert.Empty(items);
+    }
+
+    [Fact]
+    public void RemoveCore_WhenPresent_Removes()
+    {
+        List<PinnedApp> items = Three();
+        Assert.True(DockItemStore.RemoveCore(items, DockItemStore.IdFor(items[1])));
+        Assert.Equal(["One", "Three"], items.Select(i => i.Label));
+    }
+
+    [Fact]
+    public void RemoveCore_WhenAbsent_ReturnsFalse()
+    {
+        List<PinnedApp> items = Three();
+        Assert.False(DockItemStore.RemoveCore(items, @"C:\apps\nope.exe"));
+        Assert.Equal(3, items.Count);
+    }
+
+    [Fact]
+    public void MoveCore_MovesForwardPastTheEnd_AppendsLast()
+    {
+        List<PinnedApp> items = Three();
+        Assert.True(DockItemStore.MoveCore(items, DockItemStore.IdFor(items[0]), 99));
+        Assert.Equal(["Two", "Three", "One"], items.Select(i => i.Label));
+    }
+
+    [Fact]
+    public void MoveCore_MovesBackwardToStart()
+    {
+        List<PinnedApp> items = Three();
+        Assert.True(DockItemStore.MoveCore(items, DockItemStore.IdFor(items[2]), 0));
+        Assert.Equal(["Three", "One", "Two"], items.Select(i => i.Label));
+    }
+
+    [Fact]
+    public void MoveCore_WhenTargetIndexNegative_PutsFirst()
+    {
+        List<PinnedApp> items = Three();
+        DockItemStore.MoveCore(items, DockItemStore.IdFor(items[1]), -5);
+        Assert.Equal("Two", items[0].Label);
+    }
+
+    [Fact]
+    public void MoveCore_WhenIdAbsent_ReturnsFalseAndKeepsOrder()
+    {
+        List<PinnedApp> items = Three();
+        Assert.False(DockItemStore.MoveCore(items, @"C:\apps\nope.exe", 0));
+        Assert.Equal(["One", "Two", "Three"], items.Select(i => i.Label));
+    }
+
+    [Fact]
+    public void TryAdd_PersistsAndRaisesChanged()
+    {
+        DockItemStore store = NewStore(out ConfigService config);
+        int changes = 0;
+        store.Changed += (_, _) => changes++;
+        int before = store.Items.Count;
+
+        Assert.True(store.TryAdd(@"C:\apps\added.exe", "--x", "Added"));
+
+        Assert.Equal(before + 1, store.Items.Count);
+        Assert.Equal(1, changes);
+        Assert.Equal(before + 1, new DockItemStore(config).Items.Count);
+    }
+
+    [Fact]
+    public void TryAdd_WhenDuplicate_DoesNotRaiseChanged()
+    {
+        DockItemStore store = NewStore(out _);
+        string existing = store.Items[0].Path;
+        int changes = 0;
+        store.Changed += (_, _) => changes++;
+
+        Assert.False(store.TryAdd(existing, string.Empty, "Yine"));
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public void Remove_PersistsRemoval()
+    {
+        DockItemStore store = NewStore(out ConfigService config);
+        string target = store.Items[1].Path;
+        int before = store.Items.Count;
+
+        Assert.True(store.Remove(DockItemStore.IdFor(store.Items[1])));
+
+        Assert.Equal(before - 1, store.Items.Count);
+        Assert.DoesNotContain(new DockItemStore(config).Items, i => i.Path == target);
+    }
+
+    [Fact]
+    public void Move_PersistsNewOrder()
+    {
+        DockItemStore store = NewStore(out ConfigService config);
+        string lastPath = store.Items[^1].Path;
+
+        Assert.True(store.Move(DockItemStore.IdFor(store.Items[^1]), 0));
+
+        Assert.Equal(lastPath, store.Items[0].Path);
+        Assert.Equal(lastPath, new DockItemStore(config).Items[0].Path);
+    }
+
+    [Fact]
+    public void Reload_PicksUpExternalChange()
+    {
+        DockItemStore store = NewStore(out ConfigService config);
+        config.Current.Dock.Items = [];
+        config.Save(config.Current);
+
+        Assert.NotEmpty(store.Items);
+        store.Reload();
+        Assert.Empty(store.Items);
+    }
+}
