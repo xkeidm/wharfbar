@@ -62,8 +62,10 @@ public partial class DockWindow : Window
     private HwndSource? _source;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
-    private TaskbarPinnedAppsSource? _pinSource;
+    private ConfigService _configService = null!;
+    private DockItemStore? _itemStore;
     private RunningAppsSource? _runningSource;
+    private MinimizedWindowsSource? _minimizedSource;
     private DockAppsComposer? _composer;
     private WindowActivationService? _activation;
     private bool _isFullscreenHidden;
@@ -222,6 +224,24 @@ public partial class DockWindow : Window
         Surface.Background = brush;
     }
 
+    /// <summary>
+    /// Lazily resolved config service for services that need to persist (the dock item
+    /// store). <see cref="App.Config"/> is created during app startup, after the first dock
+    /// window is constructed.
+    /// </summary>
+    private ConfigService WharfBarConfigService
+    {
+        get
+        {
+            if (_configService is null)
+            {
+                _configService = (ConfigService)((App)Application.Current).Config!;
+            }
+
+            return _configService;
+        }
+    }
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -246,9 +266,10 @@ public partial class DockWindow : Window
         FullscreenState.Instance.Changed += OnFullscreenChanged;
         WorkAreaChanged.Raised += OnWorkAreaChanged;
 
-        _pinSource = new TaskbarPinnedAppsSource(Dispatcher);
+        _itemStore = new DockItemStore(WharfBarConfigService);
         _runningSource = new RunningAppsSource(Dispatcher);
-        _composer = new DockAppsComposer(_pinSource, _runningSource, _config.PinnedApps);
+        _minimizedSource = new MinimizedWindowsSource(Dispatcher);
+        _composer = new DockAppsComposer(_itemStore, _runningSource, _minimizedSource, _config.Dock);
         _activation = new WindowActivationService();
         _composer.Changed += OnComposerChanged;
         RebuildStrip();
@@ -304,10 +325,11 @@ public partial class DockWindow : Window
             _composer = null;
         }
 
-        _pinSource?.Dispose();
-        _pinSource = null;
+        _itemStore = null;
         _runningSource?.Dispose();
         _runningSource = null;
+        _minimizedSource?.Dispose();
+        _minimizedSource = null;
         _activation = null;
 
         _autoHide.Changed -= OnAutoHideChanged;
@@ -632,7 +654,9 @@ public partial class DockWindow : Window
 
         var configService = (Application.Current as App)?.Config ?? new ConfigService();
         configService.Save(_config);
-        _pinSource?.Refresh();
+        // Legacy pin writes above still target config.pinnedApps; re-read the store so the
+        // composer sees whatever dock.items holds now.
+        _itemStore?.Reload();
     }
 
     private static string SanitizeFileName(string name)

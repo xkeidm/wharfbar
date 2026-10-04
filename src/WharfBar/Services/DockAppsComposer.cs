@@ -1,115 +1,146 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using WharfBar.Models;
+using WharfBar.Native;
 
 namespace WharfBar.Services;
 
+/// <summary>
+/// Merges the dock's own pinned list, the live running-app list, and minimized windows
+/// into one ordered strip of <see cref="DockSection"/>s.
+/// </summary>
 internal sealed class DockAppsComposer : IDisposable
 {
-    private readonly TaskbarPinnedAppsSource _pins;
+    private readonly DockItemStore _store;
     private readonly RunningAppsSource _running;
-    private readonly IReadOnlyList<PinnedApp> _fallback;
+    private readonly MinimizedWindowsSource _minimized;
+    private readonly DockConfig _config;
     private List<DockAppItem> _items = [];
 
     internal DockAppsComposer(
-        TaskbarPinnedAppsSource pins,
+        DockItemStore store,
         RunningAppsSource running,
-        IReadOnlyList<PinnedApp> configFallback)
+        MinimizedWindowsSource minimized,
+        DockConfig config)
     {
-        _pins = pins;
+        ArgumentNullException.ThrowIfNull(store);
+        ArgumentNullException.ThrowIfNull(running);
+        ArgumentNullException.ThrowIfNull(minimized);
+        ArgumentNullException.ThrowIfNull(config);
+
+        _store = store;
         _running = running;
-        _fallback = configFallback;
-        _pins.Changed += OnSourceChanged;
+        _minimized = minimized;
+        _config = config;
+
+        _store.Changed += OnSourceChanged;
         _running.Changed += OnSourceChanged;
+        _minimized.Changed += OnSourceChanged;
         Rebuild();
     }
 
     internal IReadOnlyList<DockAppItem> Items => _items;
+
     internal event EventHandler? Changed;
 
-    private void OnSourceChanged(object? sender, EventArgs e) => Rebuild();
-
-    private void Rebuild()
+    /// <summary>
+    /// Pure merge. Pinned order is authoritative; a running app binds to the first pin
+    /// with a matching path; leftovers become the Running section; every minimized
+    /// window becomes its own Minimized tile.
+    /// </summary>
+    internal static IReadOnlyList<DockAppItem> Compose(
+        IReadOnlyList<PinnedApp> pins,
+        IReadOnlyList<RunningAppInfo> running,
+        IReadOnlyList<AppWindowInfo> minimized,
+        bool showRunning)
     {
-        IReadOnlyList<PinnedApp> pinList = _pins.HasLivePins ? _pins.Pins : _fallback;
-        IReadOnlyList<RunningAppInfo> running = _running.Apps;
-        var matchedRunning = new HashSet<int>();
-        var next = new List<DockAppItem>(pinList.Count + running.Count);
+        var next = new List<DockAppItem>(pins.Count + running.Count + minimized.Count);
+        var matched = new bool[running.Count];
 
-        foreach (PinnedApp pin in pinList)
+        foreach (PinnedApp pin in pins)
         {
-            RunningAppInfo? match = null;
+            int hit = -1;
             for (int i = 0; i < running.Count; i++)
             {
-                if (matchedRunning.Contains(i))
+                if (!matched[i] && PathsMatch(pin.Path, running[i].Path))
                 {
-                    continue;
-                }
-
-                if (PathsMatch(pin.Path, running[i].Path))
-                {
-                    match = running[i];
-                    matchedRunning.Add(i);
+                    hit = i;
                     break;
                 }
             }
 
-            string id = match is not null ? match.Id : ResolvePinId(pin);
+            if (hit < 0)
+            {
+                next.Add(new DockAppItem(
+                    pin.Path, pin.Path, pin.Args, pin.Label,
+                    IsPinned: true, IsRunning: false, IntPtr.Zero,
+                    DockSection.Pinned, string.Empty));
+                continue;
+            }
+
+            matched[hit] = true;
+            RunningAppInfo app = running[hit];
             next.Add(new DockAppItem(
-                id,
-                pin.Path,
-                pin.Args,
-                pin.Label,
-                true,
-                match is not null,
-                match?.MainWindowHandle ?? IntPtr.Zero));
+                app.Id, pin.Path, pin.Args, pin.Label,
+                IsPinned: true, IsRunning: true, app.MainWindowHandle,
+                DockSection.Pinned, string.Empty));
+        }
+
+        if (!showRunning)
+        {
+            return next;
         }
 
         var unpinned = new List<RunningAppInfo>();
         for (int i = 0; i < running.Count; i++)
         {
-            if (!matchedRunning.Contains(i))
+            if (!matched[i])
             {
                 unpinned.Add(running[i]);
             }
         }
 
-        unpinned.Sort((a, b) => string.Compare(a.Label, b.Label, StringComparison.OrdinalIgnoreCase));
-
+        unpinned.Sort(static (a, b) => string.Compare(a.Label, b.Label, StringComparison.OrdinalIgnoreCase));
         foreach (RunningAppInfo app in unpinned)
         {
             next.Add(new DockAppItem(
-                app.Id,
-                app.Path,
-                string.Empty,
-                app.Label,
-                false,
-                true,
-                app.MainWindowHandle));
+                app.Id, app.Path, string.Empty, app.Label,
+                IsPinned: false, IsRunning: true, app.MainWindowHandle,
+                DockSection.Running, string.Empty));
         }
 
-        if (ItemsEqual(_items, next))
+        var byPid = new Dictionary<uint, RunningAppInfo>();
+        foreach (RunningAppInfo app in running)
         {
-            return;
+            uint pid = NativeMethods.GetWindowThreadProcessId(app.MainWindowHandle, out uint resolved);
+            if (pid != 0)
+            {
+                byPid.TryAdd(resolved, app);
+            }
         }
 
-        _items = next;
-        Changed?.Invoke(this, EventArgs.Empty);
+        foreach (AppWindowInfo window in minimized
+            .OrderBy(static w => w.Title, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static w => w.Handle))
+        {
+            byPid.TryGetValue(window.Pid, out RunningAppInfo? owner);
+            next.Add(new DockAppItem(
+                $"hwnd:{window.Handle}",
+                owner?.Path ?? string.Empty,
+                string.Empty,
+                string.IsNullOrEmpty(owner?.Label) ? window.Title : owner.Label,
+                IsPinned: false,
+                IsRunning: true,
+                window.Handle,
+                DockSection.Minimized,
+                window.Title));
+        }
+
+        return next;
     }
 
-    public void Dispose()
-    {
-        _pins.Changed -= OnSourceChanged;
-        _running.Changed -= OnSourceChanged;
-    }
-
-    private static string ResolvePinId(PinnedApp pin) =>
-        !string.IsNullOrWhiteSpace(pin.Path) ? pin.Path : pin.Label;
-
-    private static bool PathsMatch(string a, string b) =>
-        !string.IsNullOrWhiteSpace(a)
-        && !string.IsNullOrWhiteSpace(b)
-        && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
-
-    private static bool ItemsEqual(List<DockAppItem> a, List<DockAppItem> b)
+    internal static bool ItemsEqual(IReadOnlyList<DockAppItem> a, IReadOnlyList<DockAppItem> b)
     {
         if (a.Count != b.Count)
         {
@@ -118,7 +149,15 @@ internal sealed class DockAppsComposer : IDisposable
 
         for (int i = 0; i < a.Count; i++)
         {
-            if (!ItemEqual(a[i], b[i]))
+            if (!string.Equals(a[i].Id, b[i].Id, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(a[i].Path, b[i].Path, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(a[i].Args, b[i].Args, StringComparison.Ordinal)
+                || !string.Equals(a[i].Label, b[i].Label, StringComparison.Ordinal)
+                || !string.Equals(a[i].WindowTitle, b[i].WindowTitle, StringComparison.Ordinal)
+                || a[i].IsPinned != b[i].IsPinned
+                || a[i].IsRunning != b[i].IsRunning
+                || a[i].MainWindowHandle != b[i].MainWindowHandle
+                || a[i].Section != b[i].Section)
             {
                 return false;
             }
@@ -127,12 +166,31 @@ internal sealed class DockAppsComposer : IDisposable
         return true;
     }
 
-    private static bool ItemEqual(DockAppItem x, DockAppItem y) =>
-        string.Equals(x.Id, y.Id, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(x.Path, y.Path, StringComparison.OrdinalIgnoreCase)
-        && string.Equals(x.Args, y.Args, StringComparison.Ordinal)
-        && string.Equals(x.Label, y.Label, StringComparison.Ordinal)
-        && x.IsPinned == y.IsPinned
-        && x.IsRunning == y.IsRunning
-        && x.MainWindowHandle == y.MainWindowHandle;
-}
+    private static bool PathsMatch(string a, string b) =>
+        !string.IsNullOrWhiteSpace(a)
+        && !string.IsNullOrWhiteSpace(b)
+        && string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
+
+    private void OnSourceChanged(object? sender, EventArgs e) => Rebuild();
+
+    private void Rebuild()
+    {
+        IReadOnlyList<DockAppItem> next = Compose(
+            _store.Items, _running.Apps, _minimized.Minimized, _config.ShowRunningApps);
+
+        if (ItemsEqual(_items, next))
+        {
+            return;
+        }
+
+        _items = [.. next];
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void Dispose()
+    {
+        _store.Changed -= OnSourceChanged;
+        _running.Changed -= OnSourceChanged;
+        _minimized.Changed -= OnSourceChanged;
+    }
+}

@@ -22,7 +22,7 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 - **Dock:** Canlı TaskBar pinleri + çalışan uygulamalar (overlay; Topmost ± auto-hide);
   sabitlenen uygulamalar solda, sabit olmayan çalışanlar sağda (ayırıcı çizgi ile ayrılmış);
   sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere);
-  `config.pinnedApps` seed/fallback + dinamik kısayol oluşturma/silme.
+  `dock.items` kendi listesinden beslenir (`DockItemStore`; `config.pinnedApps` yalnızca göç seed'i olarak okunur) + dinamik kısayol oluşturma/silme.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
   monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
