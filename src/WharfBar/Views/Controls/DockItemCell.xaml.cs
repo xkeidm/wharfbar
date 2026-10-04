@@ -10,7 +10,7 @@ namespace WharfBar.Views.Controls;
 /// The cell never decides its own size — <see cref="DockStrip"/> pushes metrics in and
 /// scales the icon from its bottom edge so growth reads as "rising off the plate".
 /// </summary>
-public sealed partial class DockItemCell : UserControl
+internal sealed partial class DockItemCell : UserControl
 {
     private const double MetricsEpsilon = 0.01d;
 

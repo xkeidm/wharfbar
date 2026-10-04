@@ -6,11 +6,10 @@ namespace WharfBar.Views;
 
 /// <summary>
 /// Render-ready snapshot of one strip slot: a dock item or a section separator.
-/// Public because <see cref="Controls.DockItemCell.Row"/> is a public dependency property;
-/// <see cref="Item"/> stays internal so the internal <see cref="DockAppItem"/> never leaks
-/// past the assembly boundary.
+/// Internal because every consumer lives in this assembly; <see cref="Item"/> stays internal
+/// too, so the internal <see cref="DockAppItem"/> never leaks past the assembly boundary.
 /// </summary>
-public sealed class DockItemViewModel
+internal sealed class DockItemViewModel
 {
     private DockItemViewModel(DockAppItem? item, ImageSource icon, bool isSeparator)
     {
@@ -21,21 +20,13 @@ public sealed class DockItemViewModel
 
     internal DockAppItem? Item { get; }
 
-    public ImageSource Icon { get; }
+    internal ImageSource Icon { get; }
 
-    public bool IsSeparator { get; }
+    internal bool IsSeparator { get; }
 
-    public string Id => Item?.Id ?? string.Empty;
+    internal string Tooltip => Item?.Tooltip ?? string.Empty;
 
-    public string Label => Item?.Label ?? string.Empty;
-
-    public string Tooltip => Item?.Tooltip ?? string.Empty;
-
-    public bool IsRunning => Item?.IsRunning == true;
-
-    public bool IsMinimized => Item?.Section == DockSection.Minimized;
-
-    public IntPtr Handle => Item?.MainWindowHandle ?? IntPtr.Zero;
+    internal bool IsRunning => Item?.IsRunning == true;
 
     internal static DockItemViewModel ForItem(DockAppItem item, ImageSource icon)
     {

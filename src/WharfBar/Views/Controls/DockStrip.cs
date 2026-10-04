@@ -16,7 +16,7 @@ namespace WharfBar.Views.Controls;
 /// the window itself stays sized for the worst case — nothing here calls into Win32.
 /// </para>
 /// </summary>
-public sealed class DockStrip : Panel
+internal sealed class DockStrip : Panel
 {
     private readonly List<DockItemCell> _cells = [];
     private double[] _scales = [];
