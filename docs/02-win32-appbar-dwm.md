@@ -344,6 +344,8 @@ kenarlarda kutu yaratır). Renk `ApplySurfaceFromConfig` ile temadan gelir (`doc
 - Dock (`DockWindow`) `MonitorInfo.Dpi` değerini yapılandırma anında alır ve `WM_DPICHANGED`
   `wParam` üst kelimesiyle tazeler (`_monitorDpi`); `wParam` sıfır dönerse `MonitorInfo.Dpi`’ye
   düşer. Yerleşim ve edge probe yalnızca bu alanı okur — `MonitorInfo` kopyasını doğrudan okumaz.
+  Ölçek değişimi strip’i de yeniden kurar: ikon rengi `AppIconService` önbelleğinde boyut anahtarıyla
+  tutulduğu için eski rasterdan büyütülmez.
 
 ---
 
