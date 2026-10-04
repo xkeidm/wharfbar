@@ -20,7 +20,16 @@ public sealed class DockStrip : Panel
 {
     private readonly List<DockItemCell> _cells = [];
     private double[] _scales = [];
+
+    /// <summary>Live (magnified) left edges — rewritten on every measure/arrange.</summary>
     private double[] _offsets = [];
+
+    /// <summary>
+    /// Left edges of the un-magnified row. Written only by
+    /// <see cref="RebuildRestingGeometry"/>, never by the per-frame path, so the resting
+    /// geometry has one owner and cannot be clobbered by a measure mid-drag.
+    /// </summary>
+    private double[] _restingOffsets = [];
     private double[] _baseWidths = [];
     private double[] _centers = [];
 
@@ -165,9 +174,9 @@ public sealed class DockStrip : Panel
 
     /// <summary>Resting left edge of a slot; the resting right edge for <c>SlotCount</c>.</summary>
     public double RestingLeftOf(int index) =>
-        index < 0 || index >= _offsets.Length || index >= _cells.Count
+        index < 0 || index >= _restingOffsets.Length || index >= _cells.Count
             ? _restingWidth
-            : _offsets[index];
+            : _restingOffsets[index];
 
     /// <summary>Live slot widths must fit inside the budget <c>DockWindow</c> sized the window to.</summary>
     public double MaxLiveWidth() => DockStripLayout.MaxExtentWidth(
@@ -230,11 +239,13 @@ public sealed class DockStrip : Panel
         }
 
         Array.Fill(_scales, 1.0d);
-        DockStripLayout.ComputeOffsets(count, _baseWidths, _scales, IconGap, _offsets, out _restingWidth);
+        DockStripLayout.ComputeOffsets(count, _baseWidths, _scales, IconGap, _restingOffsets, out _restingWidth);
 
+        // Derived from the resting buffer, never from _offsets: _centers drives HitTestCursor and
+        // ResolveInsertIndex, and those must not see the magnified layout they sit beside.
         for (int i = 0; i < count; i++)
         {
-            _centers[i] = _offsets[i] + (_baseWidths[i] / 2.0d);
+            _centers[i] = _restingOffsets[i] + (_baseWidths[i] / 2.0d);
         }
     }
 
@@ -248,6 +259,7 @@ public sealed class DockStrip : Panel
         int size = Math.Max(count, 8);
         _scales = new double[size];
         _offsets = new double[size];
+        _restingOffsets = new double[size];
         _baseWidths = new double[size];
         _centers = new double[size];
     }

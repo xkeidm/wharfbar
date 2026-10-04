@@ -523,7 +523,18 @@ public partial class DockWindow : Window
 
     private void RebuildStrip()
     {
-        IReadOnlyList<DockAppItem> items = _composer!.Items;
+        DockAppsComposer? composer = _composer;
+        if (composer is null)
+        {
+            // OnComposerChanged queues this on the dispatcher, and a queued rebuild can outlive
+            // the dock it was queued for: MonitorManager.Reconcile closes a dock whose monitor
+            // went away (unplug, re-arrange) while the process keeps running. Nothing at App
+            // level catches DispatcherUnhandledException, so this guard is the only thing
+            // between that race and a NullReferenceException that kills the app.
+            return;
+        }
+
+        IReadOnlyList<DockAppItem> items = composer.Items;
         IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(items);
         int iconPx = ResolveIconPixelSize();
 
@@ -776,8 +787,9 @@ public partial class DockWindow : Window
             return;
         }
 
-        // RestingLeftOf, not the live offset: the strip is rested for the duration of a drag,
-        // so the line must show where the tile lands in the resting order.
+        // RestingLeftOf, not a live offset: it reads the strip's resting buffer, so the line
+        // marks where the tile lands in the resting order whatever phase the strip happens to
+        // be at. (The 180 ms rest-out on drag start is a nicety; this is the guarantee.)
         Point left = Strip.TranslatePoint(new Point(Strip.RestingLeftOf(index), 0), host);
 
         // Height follows the strip's resting content height, and the bottom inset is the
