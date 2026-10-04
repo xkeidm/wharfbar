@@ -353,12 +353,26 @@ internal sealed class ConfigService
                 continue;
             }
 
+            string path = app.Path.Trim();
+
+            // Never leave an empty label: a trailing separator survives Trim too, so a folder
+            // pin ("C:\tools\", "C:\", "\\server\share\") derives an empty name. Fall back to
+            // the separator-trimmed path, then to the raw path for an all-separator input.
+            // Same rule in DockItemStore.TryAddCore — keep the two in step.
+            string label = string.IsNullOrWhiteSpace(app.Label)
+                ? Path.GetFileNameWithoutExtension(path)
+                : app.Label.Trim();
+
+            if (string.IsNullOrWhiteSpace(label))
+            {
+                string trimmedPath = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                label = trimmedPath.Length == 0 ? path : trimmedPath;
+            }
+
             items[i] = new PinnedApp(
-                app.Path.Trim(),
+                path,
                 app.Args?.Trim() ?? string.Empty,
-                string.IsNullOrWhiteSpace(app.Label)
-                    ? Path.GetFileNameWithoutExtension(app.Path)
-                    : app.Label.Trim());
+                label);
         }
     }
 

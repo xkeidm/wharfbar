@@ -37,6 +37,10 @@ internal sealed class DockItemStore
             return string.Empty;
         }
 
+        // Exists for the inputs Path.GetFullPath refuses outright: paths past the Windows
+        // ~32 767-char limit, paths with an illegal character (embedded NUL), and I/O or
+        // security failures. Those are rejected, not normalized, so the caller would get an
+        // exception instead of a usable comparison key; degrade to the trimmed input instead.
         try
         {
             return Path.GetFullPath(trimmed);
@@ -78,6 +82,17 @@ internal sealed class DockItemStore
         string resolvedLabel = string.IsNullOrWhiteSpace(label)
             ? Path.GetFileNameWithoutExtension(normalized)
             : label.Trim();
+
+        // Never leave an empty label. A trailing separator survives GetFullPath, so a folder
+        // pin ("C:\tools\", "C:\", "\\server\share\") derives an empty name; fall back to the
+        // separator-trimmed path. An all-separator input normalizes to a bare root ("////"
+        // becomes "\"), which trims away to nothing, so the raw path is the final floor.
+        // Same rule in ConfigService.NormalizePinnedList — keep the two in step.
+        if (string.IsNullOrWhiteSpace(resolvedLabel))
+        {
+            string trimmedPath = normalized.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            resolvedLabel = trimmedPath.Length == 0 ? normalized : trimmedPath;
+        }
 
         items.Add(new PinnedApp(normalized, args?.Trim() ?? string.Empty, resolvedLabel));
         return true;

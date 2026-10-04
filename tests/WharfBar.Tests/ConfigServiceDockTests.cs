@@ -156,6 +156,30 @@ public class ConfigServiceDockTests : IDisposable
         Assert.Equal("thing", service.Current.Dock.Items[0].Label);
     }
 
+    [Theory]
+    [InlineData(@"C:\tools\", @"C:\tools")]
+    [InlineData(@"C:\", "C:")]
+    [InlineData(@"\\server\share\", @"\\server\share")]
+    public void Normalize_WhenDockItemLabelMissingAndPathHasTrailingSeparator_FallsBackToPath(
+        string path, string expected)
+    {
+        ConfigService service = NewService();
+        service.LoadOrCreate();
+        service.Current.Dock.Items = [new PinnedApp(path, string.Empty, string.Empty)];
+        service.Save(service.Current);
+        Assert.Equal(expected, service.Current.Dock.Items[0].Label);
+    }
+
+    [Fact]
+    public void Normalize_WhenDockItemLabelMissingAndPathIsAllSeparators_FallsBackToPath()
+    {
+        ConfigService service = NewService();
+        service.LoadOrCreate();
+        service.Current.Dock.Items = [new PinnedApp("////", string.Empty, string.Empty)];
+        service.Save(service.Current);
+        Assert.Equal("////", service.Current.Dock.Items[0].Label);
+    }
+
     [Fact]
     public void Normalize_TrimsDockItemPathAndArgs()
     {

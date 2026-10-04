@@ -60,10 +60,43 @@ public class DockItemStoreTests : IDisposable
     }
 
     [Fact]
-    public void Normalize_WhenPathIsMalformed_FallsBackToTrimmedInput()
+    public void Normalize_WhenPathIsWhitespaceOnly_ReturnsEmpty()
     {
         Assert.Equal(string.Empty, DockItemStore.Normalize("   "));
-        Assert.False(string.IsNullOrWhiteSpace(DockItemStore.Normalize("relative.exe")));
+    }
+
+    /// <summary>
+    /// Reaches the <c>GetFullPath</c> catch for real: past the Windows ~32 767-char limit
+    /// <see cref="Path.GetFullPath(string)"/> throws <see cref="PathTooLongException"/>. The
+    /// old "malformed" test never got there — whitespace short-circuits before the try and a
+    /// relative path resolves fine against the CWD.
+    /// </summary>
+    [Fact]
+    public void Normalize_WhenPathExceedsWindowsLengthLimit_FallsBackToTrimmedInput()
+    {
+        string tooLong = @"C:\" + new string('a', 40_000);
+
+        Assert.Equal(tooLong, DockItemStore.Normalize(tooLong));
+    }
+
+    [Fact]
+    public void Normalize_WhenPathIsRelative_ReturnsAbsolutePath()
+    {
+        string normalized = DockItemStore.Normalize("relative.exe");
+
+        Assert.True(Path.IsPathFullyQualified(normalized), $"expected a rooted path, got '{normalized}'");
+        Assert.EndsWith("relative.exe", normalized, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Normalize_WhenPathContainsNullCharacter_FallsBackToTrimmedInput()
+    {
+        // The other catch entry point: on .NET 8 an embedded NUL is the illegal character that
+        // GetFullPath rejects outright (PowerShell 5.1's runtime also throws for "////", but
+        // .NET 8 normalizes that one to a bare root instead).
+        string illegal = "C:\\a\0b";
+
+        Assert.Equal(illegal, DockItemStore.Normalize(illegal));
     }
 
     [Fact]
@@ -112,6 +145,42 @@ public class DockItemStoreTests : IDisposable
         List<PinnedApp> items = [];
         DockItemStore.TryAddCore(items, @"C:\tools\thing.exe", string.Empty, "   ");
         Assert.Equal("thing", Assert.Single(items).Label);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenLabelBlankAndPathEndsWithSeparator_UsesSeparatorTrimmedPath()
+    {
+        List<PinnedApp> items = [];
+        Assert.True(DockItemStore.TryAddCore(items, @"C:\tools\", string.Empty, string.Empty));
+        Assert.Equal(@"C:\tools", Assert.Single(items).Label);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenLabelBlankAndPathIsDriveRoot_UsesSeparatorTrimmedPath()
+    {
+        List<PinnedApp> items = [];
+        Assert.True(DockItemStore.TryAddCore(items, @"C:\", string.Empty, string.Empty));
+        Assert.Equal("C:", Assert.Single(items).Label);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenLabelBlankAndPathIsUncRoot_UsesSeparatorTrimmedPath()
+    {
+        List<PinnedApp> items = [];
+        Assert.True(DockItemStore.TryAddCore(items, @"\\server\share\", string.Empty, string.Empty));
+        Assert.Equal(@"\\server\share", Assert.Single(items).Label);
+    }
+
+    [Fact]
+    public void TryAddCore_WhenLabelBlankAndPathIsAllSeparators_UsesStoredPath()
+    {
+        // GetFullPath collapses this to a bare root ("\\\" on .NET 8), so the name and the
+        // separator-trimmed form are both empty — the raw stored path is the final floor.
+        List<PinnedApp> items = [];
+        Assert.True(DockItemStore.TryAddCore(items, "////", string.Empty, string.Empty));
+        PinnedApp stored = Assert.Single(items);
+        Assert.False(string.IsNullOrWhiteSpace(stored.Label));
+        Assert.Equal(stored.Path, stored.Label);
     }
 
     [Fact]
