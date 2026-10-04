@@ -27,7 +27,7 @@ public sealed partial class DockItemCell : UserControl
     public DockItemCell()
     {
         InitializeComponent();
-        RenderOptions.SetBitmapScalingMode(IconImage, BitmapScalingMode.HighQuality);
+        RenderOptions.SetBitmapScalingMode(IconGlyph, BitmapScalingMode.HighQuality);
         Cursor = System.Windows.Input.Cursors.Hand;
     }
 
@@ -97,7 +97,7 @@ public sealed partial class DockItemCell : UserControl
         DockItemViewModel? row = Row;
         if (row is null)
         {
-            IconImage.Source = null;
+            IconGlyph.Source = null;
             RunningPill.Visibility = Visibility.Collapsed;
             SeparatorBar.Visibility = Visibility.Collapsed;
             return;
@@ -107,7 +107,7 @@ public sealed partial class DockItemCell : UserControl
         IconImage.Visibility = separator ? Visibility.Collapsed : Visibility.Visible;
         SeparatorBar.Visibility = separator ? Visibility.Visible : Visibility.Collapsed;
         RunningPill.Visibility = !separator && row.IsRunning ? Visibility.Visible : Visibility.Collapsed;
-        IconImage.Source = separator ? null : row.Icon;
+        IconGlyph.Source = separator ? null : row.Icon;
         ToolTip = null;
         ContextMenu = null;
     }

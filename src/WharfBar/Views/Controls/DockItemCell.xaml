@@ -12,16 +12,23 @@
          measurement truth. Icons grow upward: RenderTransformOrigin is bottom-centre. -->
     <Grid x:Name="Root" Background="Transparent">
 
-        <Image x:Name="IconImage"
-               Stretch="Uniform"
-               SnapsToDevicePixels="True"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Bottom"
-               RenderTransformOrigin="0.5,1">
-            <Image.RenderTransform>
+        <!-- The icon slot is a Border, not a bare Image: Image derives from FrameworkElement and
+             has no Background (MC3072), so an Image is never hit-tested. This Border's
+             Transparent Background is what puts the magnified — RenderTransform-expanded —
+             icon back into the hit chain, so a pointer riding the top of a magnified icon
+             still resolves up to Surface and hover does not collapse. -->
+        <Border x:Name="IconImage"
+                Background="Transparent"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Bottom"
+                RenderTransformOrigin="0.5,1">
+            <Border.RenderTransform>
                 <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
-            </Image.RenderTransform>
-        </Image>
+            </Border.RenderTransform>
+            <Image x:Name="IconGlyph"
+                   Stretch="Uniform"
+                   SnapsToDevicePixels="True" />
+        </Border>
 
         <Border x:Name="RunningPill"
                 HorizontalAlignment="Center"
