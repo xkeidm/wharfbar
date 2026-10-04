@@ -1,4 +1,4 @@
-# ADR-005: Shell yerine geçme — canlı dock, tepsi hibrit, görev çubuğu gizleme
+# ADR-005: Shell yerine geçme — dock, tepsi hibrit, görev çubuğu gizleme
 
 **Durum:** Kabul edildi  
 **Tarih:** 2026-08-09  
@@ -6,11 +6,16 @@
 kullanıcı onayı (görev çubuğu gizleme seçenek B; tepsi hibrit; canlı dock pin/running).
 Tasarım: [`../superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md).
 
-> **Revizyon (2026-10-04, dock yeniden tasarımı):** §1’in “birincil pin kaynağı =
-> `Quick Launch\User Pinned\TaskBar\*.lnk`” kararı **tersine çevrildi**. Dock’un tek kaynağı
-> artık `dock.items` — WharfBar’ın kendi kalıcı listesidir — ve Windows görev çubuğu **hiç
-> okunmaz, hiç yazılmaz** (`TaskbarPinnedAppsSource` silindi; “Dock’tan kaldır” artık
-> görev çubuğuna `.lnk` yazmaz). **Bu revizyon yalnız §1’in kaynak tablosunu kapsar.**
+> **Revizyon (2026-10-04, dock yeniden tasarımı):** §1’in — ve dolayısıyla başlıktaki “canlı
+> dock” ifadesinin — “birincil pin kaynağı = `Quick Launch\User Pinned\TaskBar\*.lnk`” kararı
+> **tersine çevrildi**. Dock’un tek kaynağı artık `dock.items` — WharfBar’ın kendi kalıcı
+> listesidir — ve Windows görev çubuğunun **pin tarafına hiç dokunulmaz**: `User Pinned`
+> klasöründen `.lnk` **okunmaz**, görev çubuğuna `.lnk` **yazılmaz** (`TaskbarPinnedAppsSource`
+> silindi; “Dock’tan kaldır” artık görev çubuğunu değiştirmez).
+> *Kapsam notu:* bu, **yalnız pin listesidir.** Görev çubuğu WharfBar çalışırken yine de
+> gizlenir/auto-hide'a alınır ve çıkışta geri yüklenir — o disiplin §3–5'in konusudur ve
+> etkilenmemiştir.
+> **Bu revizyon yalnız §1’in kaynak tablosunu kapsar.**
 > §1’deki `EnumWindows` + AppUserModelID satırı (çalışan uygulama gruplama / göstergesi),
 > §2 (tepsi hibrit) ve §3–5’in görev çubuğu gizleme/restore disiplini **değişmemiştir.**
 > Yeniden tasarımın gerekçesi ve kapsamı:
@@ -138,9 +143,10 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
   “yap” + “asla restore’suz bırakma”.
 - `docs/00-overview.md` non-goals: yabancı tepsi okuma non-goal kalır; görev çubuğu gizleme
   blanket yasak olmaktan çıkar, kontrollü yaşam döngüsüne bağlanır.
-- `pinnedApps` semantiği seed/fallback olur; `schemaVersion` 1 kırılmaz.
-  **2026-10-04:** alan `dock.items`'e bir kez taşınıp boşaltılır; göç `schemaVersion`'ı
-  yine de **2'de bıraktı** (alan bazlı varsayılanlar; bkz. §1).
+- `pinnedApps` semantiği seed/fallback olur; `schemaVersion` kırılmaz.
+  **2026-10-04'te ikisi de çözüldü:** alan `dock.items`'e bir kez taşınıp **boşaltılır**, `schemaVersion`
+  ise monitör fazından gelen **2'de kalır** — göç alan bazlı varsayılanlarla kırılmadan okunduğu
+  için ek sürüm gerekmedi (bkz. §1).
 - Geliştirme sırası: Faz 9 (9a taskbar lifecycle → 9b canlı dock → 9c tray düğmesi);
   Faz 8 auto-hide 9a/9b sonrası daha anlamlı.
 - Cursor kurallarına Win32 rehberi yapıştırılmaz; işaretçi + bu ADR / spec yeter.

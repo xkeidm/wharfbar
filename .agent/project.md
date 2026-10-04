@@ -20,12 +20,13 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
   medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
 - **Dock:** macOS tarzı alt şerit (overlay; Topmost ± auto-hide) — **tek kaynağı kendi listesi**
-  (`dock.items` / `DockItemStore`; Windows görev çubuğu **okunmaz, yazılmaz** — ADR-005 revizyonu,
-  `config.pinnedApps` yalnızca göç seed'i olarak bir kez okunur). Üç bölüm sırayla
-  **Pinned | Running | Minimized**, 1 px ayraçla ayrılmış; büyütme macOS tipidir (imlecin üstü +
-  3 komşu, gerçek reflow). Sürükle-sırala, Explorer'dan dosya bırakma, alt-sol/orta/sağ konum;
-  sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır,
-  Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere, **Pencereler**).
+  (`dock.items` / `DockItemStore`; Windows görev çubuğunun **pin tarafına dokunulmuyor** —
+  ADR-005 revizyonu, `config.pinnedApps` yalnızca göç seed'i olarak bir kez okunur). Üç bölüm
+  sırayla **Pinned | Running | Minimized**, 1 px ayraçla ayrılmış; büyütme macOS tipidir
+  (imlecin üstü + 3 komşu, gerçek reflow). Sürükle-sırala, Explorer'dan dosya bırakma,
+  alt-sol/orta/sağ konum; sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır,
+  Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere,
+  **Pencereler**).
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
   monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
@@ -62,9 +63,9 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 9. **Tray aynası (ADR-009):** yabancı tepsi ikonları belgelenmiş comctl32 `TB_*` mesajlarıyla
    salt-okunur okunur + `SendMessage` click-forward; RPM/enjeksiyon/undocumented API **yasak**;
    gizli ikonlar kapsam dışı (`Win+B` kalır); sistem ikonları tooltip filtreyle düşülür.
-10. **Dock'un tek listesi kendisidir (ADR-005 revizyonu):** görev çubuğu `User Pinned` klasörü
-    **okunmaz, yazılmaz**; büyütme motoru saf (`DockMagnification` / `DockStripLayout`) ve pencere
-    hover'da yeniden boyutlanmaz.
+10. **Dock'un tek listesi kendisidir (ADR-005 revizyonu):** görev çubuğunun **pin tarafına**
+    dokunulmuyor (görev çubuğunu gizleme/geri yükleme kapsamda, ADR-005 §3); büyütme motoru saf
+    (`DockMagnification` / `DockStripLayout`) ve pencere hover'da yeniden boyutlanmaz.
 
 ## Doküman haritası
 
@@ -79,7 +80,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/002-...` | Proje yerleşimi, TFM, `global.json` yok |
 | `docs/decisions/003-...` | Top bar yerleşimi, `ABM_REMOVE`, fullscreen |
 | `docs/decisions/004-...` | Mica / WPF-UI, köşe `DONOTROUND`, tema yenileme |
-| `docs/decisions/005-...` | Canlı dock, tepsi hibrit, görev çubuğu gizle/geri yükle — **2026-10-04 revizyonu:** dock'un pin kaynağı `dock.items` |
+| `docs/decisions/005-...` | Dock, tepsi hibrit, görev çubuğu gizle/geri yükle — **2026-10-04 revizyonu:** dock'un pin kaynağı `dock.items` (başlıktaki "canlı dock" ifadesi de bu revizyonla düştü) |
 | `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
 | `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
 | `docs/decisions/008-...` | Medya paneli (SMTC) — çalan medya + kontroller |

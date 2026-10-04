@@ -122,8 +122,9 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 
 > **2026-10-04'te revize edildi** (ADR-005 revizyonu): ilk ve üçüncü madde geri alındı. Dock'un
 > tek kaynağı artık `dock.items` (`DockItemStore`); `TaskbarPinnedAppsSource` silindi ve görev
-> çubuğu **okunmaz, yazılmaz**. Yaşayan doğrular: `EnumWindows` + AUMID running gruplama ve
-> composer'ın bölümlü birleştirmesi. Güncel hâl:
+> çubuğunun **pin tarafına** dokunulmuyor (gizleme/restore 9a'nın konusu, etkilenmedi).
+> Yaşayan doğrular: `EnumWindows` + AUMID running gruplama ve composer'ın bölümlü birleştirmesi.
+> Güncel hâl:
 > [2026-10-04 spec](superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
 
 - [x] ~~`User Pinned\TaskBar` `.lnk` tarama; pin sırası (`TaskbarPinnedAppsSource`)~~ — **2026-10-04'te kaldırıldı**

@@ -24,7 +24,9 @@ macOS tarzı alt şerit. AppBar **değil** (ADR-001); `Topmost` overlay, fizikse
 Bölümler enum sırasında (`Pinned`, `Running`, `Minimized`) ve aralarında 1 px ayraç slotuyla
 ayrılır. Çalışan uygulama, yolu eşleşen **ilk** sabitlenen öğeye bağlanır — yani en yaygın
 kutucuk tipi (sabitlenmiş **ve** çalışan) `Pinned` bölümündedir ve `IsRunning` taşır.
-Windows görev çubuğu **okunmaz, yazılmaz** (ADR-005 revizyonu).
+Windows görev çubuğunun **pin tarafına dokunulmuyor**: `User Pinned` klasörü okunmuyor,
+görev çubuğuna `.lnk` yazılmıyor (ADR-005 revizyonu). Görev çubuğunu gizleme/geri yükleme
+bu kararın dışında — o hâlâ §3'ün konusu.
 
 ## Büyütme
 
@@ -48,13 +50,25 @@ kırpılır.
 | Aksiyon | Davranış |
 |---|---|
 | Sol tık | Öne getir / çalıştır; ikinci tık küçült (`WindowActivationService`) |
-| Sağ tık | Başlık kartı, Dock'a sabitle / Dock'tan kaldır, Görevi sonlandır, Pencereyi kapat, Yönetici, Dosya konumu, Yeni pencere, **Pencereler** |
+| Sağ tık | Aşağıdaki menü |
 | Sürükle | Sabit öğeleri sırala; accent çizgi hedefi gösterir; tıklama bastırılır |
 | Bırakma | `.lnk/.exe/.bat/.cmd` ekler; yola göre tekilleştirir |
 
-"Pencereler" alt menüsü yalnız `IsRunning` **ve** canlı pencere tutan kutucuklarda çıkar
-(`Section`'a değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır) ve `MinimizedWindowsSource`'un
-önbelleğinden beslenir; UI thread'inde `EnumWindows` çağrılmaz.
+Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan:
+
+1. **Başlık kartı** — ikon + uygulama adı, her zaman (tıklanamaz).
+2. **Dock'a sabitle / Dock'tan kaldır** — her zaman; metin pin durumuna göre.
+3. **Görevi sonlandır** — her zaman görünür; **çalışıyorsa etkin**, değilse `IsEnabled=false`.
+4. **Pencereyi kapat** — aynı koşul (3) ve aynı `IsEnabled` mantığı.
+5. Ayraçdan sonra, **yalnız yol boş değilse ve dosya diskte varsa**
+   (`!IsNullOrWhiteSpace(Path) && File.Exists(Path)`): **Yönetici olarak çalıştır** ·
+   **Dosya konumunu aç** · **Yeni pencere aç**. Yol yoksa bu üçü **hiç görünmez**.
+6. **Pencereler** — alt menü yalnız kutucuk `IsRunning` **ve** canlı pencere tutuyorsa
+   (`MainWindowHandle != 0`) **ve** o süreç için **en az bir pencere** listede kaldıysa eklenir
+   (`Section`'a göre değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır). Küçültülmüş bir
+   kutucuğun **kendi** penceresi listeden elenir, yani tek penceresi küçültülmüş bir uygulama
+   boş alt menü göstermez. Menü `MinimizedWindowsSource`'un önbelleğinden beslenir; UI
+   thread'inde `EnumWindows` çağrılmaz.
 
 ## Ayarlar
 

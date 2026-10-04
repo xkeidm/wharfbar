@@ -1,9 +1,21 @@
 # Dock yeniden tasarım — macOS mantığı, bağımsız liste, büyütme motoru
 
 **Tarih:** 2026-10-04
-**Durum:** Onaylandı (görsel yön + mimari + kapsam M) — **uygulandı; aşağıdaki “Sapmalar” bölümü koda göre düzeltilmiştir**
+**Durum:** Onaylandı (görsel yön + mimari + kapsam M) — **uygulandı**; §0’daki sapmalar dışında
+tasarım koda birebir uyar
 **Kapsam:** `src/WharfBar/Views/DockWindow.*`, `Services/Dock*`, `Models/DockConfig`, `Views/Pages/DockPage.*`, `Native/DockHitTest`, `Services/MonitorManager`, `Services/TaskbarVisibilityService`
 **İlgili ADR:** `docs/decisions/001-dock-appbar-vs-overlay.md` (değişmiyor), `docs/decisions/005-shell-replace-live-dock-tray-hybrid.md` (**revize edildi**)
+
+> ⚠️ **Bu spec uygulama ÖNCESİ yazıldı — “bugün”, “mevcut” ve “yoktur” tense'leri tarihseldir.**
+> Tasarım kararları uygulandı; §0 dışında koda birebir uyar. Ancak **§1'in "bugün…" cümlesi ile
+> §3'ün tamamı, değişiklikten önceki dock'u anlatır**: `User Pinned` yansıması, yalnızca tek
+> ikonun 1.3× büyümesi, `TaskbarPinnedAppsSource`, "komşu ölçeklenmez, reflow yok" ve
+> "3 ayarlı, liste editörsüz" hâl **bugün geçerli değildir.** Bu iki bölüm ne olması
+> *gerektiğini* değil, neyin *bozuk olduğunu* kaydeder; silinmediler çünkü bu tasarımın
+> gerekçesi doğrudan onlardan çıkıyor. Güncel davranış ve gerekçe:
+> [`.agent/screens/dock.md`](../../../.agent/screens/dock.md),
+> [`docs/01-architecture.md`](../../01-architecture.md),
+> [ADR-005 revizyonu](../../decisions/005-shell-replace-live-dock-tray-hybrid.md).
 
 ---
 
@@ -35,10 +47,13 @@ Tasks 7–9'da mevcuttu ve **daha doğru** yazılmıştı, bu yüzden yalnız ü
 
 ## 1. Özet
 
+> ⚠️ **Aşağıdaki "bugün" cümlesi ve bu bölümün tamamı, değişiklikten önceki durumu anlatır
+> (üst banner).** Bugün dock görev çubuğunu yansıtmaz ve hover'da tek ikonu büyütmez.
+
 WharfBar'ın dock'u bugün Windows görev çubuğunun `User Pinned` klasörünü **yansıtır** ve hover'da yalnızca tek ikonu 1.3× büyütür. Bu tasarım dock'u macOS mantığıyla yeniden kurar:
 
 1. **Bağımsız liste.** Dock'un tek kaynağı WharfBar'ın kendi kalıcı listesidir; görev çubuğuyla hiçbir yazma/okuma bağı kalmaz.
-2. **Gerçek reflow'lı büyütme.** Özel bir `ItemsPanel` slot genişliklerini değiştirir; imlecin üstündeki ikon ~1.65× büyür, iki komşu yumuşak düşüşle büyür.
+2. **Gerçek reflow'lı büyütme.** Özel bir `Panel` (`DockStrip`; §0 #4) slot genişliklerini değiştirir; imlecin üstündeki ikon ~1.65× büyür, iki komşu yumuşak düşüşle büyür.
 3. **Kullanılabilir etkileşim.** Sürükleyerek sıralama, Explorer'dan bırakma, sağ tıkta pencere listesi, ayarlarda liste editörü, konum seçimi, büyütme ayarı.
 
 Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `SetWindowPos` çağrısı yapılmaz. Bu, `DockWindow`'un bugünkü sabit-boyut kuralının (`DockWindow.xaml.cs:19-22`, `908-922`) nedeni olduğu stutter sorununu tasarımın içinde çözer.
@@ -57,6 +72,9 @@ Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `
 
 ## 3. Mevcut durum ve boşluklar
 
+> ⚠️ **Bu bölüm tamamen tarihseldir** (üst banner): maddeler 2026-10-04 öncesi kodda ölçülmüştü
+> ve **bugün hepsi tersiymiş gibi duruyor**. Satır numaraları da o günkü dosyayı gösterir.
+
 - `DockAppsComposer` (`Services/DockAppsComposer.cs:32`) pin kaynağı olarak `TaskbarPinnedAppsSource`'ı kullanır; `AppConfig.PinnedApps` yalnızca fallback'tir.
 - `DockWindow`, ikonları imperatif C# ile üretir (`DockWindow.xaml.cs:358-409`); XAML'de yalnızca şablonsuz bir `ItemsControl` + `StackPanel` vardır (`DockWindow.xaml:22-38`).
 - Büyütme yalnızca `RenderTransform` ölçeğidir (`:51`, `:380-381`, `:660-668`); komşu ölçeklenmez, reflow yok, `MouseMove` hiç kullanılmaz.
@@ -72,7 +90,7 @@ Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `
 
 - Bağımsız dock listesi + soft migration
 - `DockAppsComposer` yeniden yazımı; `MinimizedWindowsSource` (yeni)
-- `DockItemPanel` + `DockMagnification` + `DockStripLayout` (saf, test edilebilir)
+- `DockStrip` (spec'te `DockItemPanel`; §0 #4) + `DockMagnification` + `DockStripLayout` (saf, test edilebilir)
 - `DockItemCell` (XAML `UserControl`) + `DockItemViewModel`
 - Sürükle-sırala, dosya bırakma, "Pencere listesi" alt menüsü
 - Konum: alt-sol / alt-orta / alt-sağ
@@ -83,10 +101,10 @@ Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `
 ### 4.2 Kapsam dışı
 
 - Yan dock (sol/sağ kenar) — mevcut alt iş-alanı rezervasyonu ve aşağı kayma gizleme bozulmasın
-- UWP/Store ikonları (`.agent/boundaries.md:86` — ayrı onay gerekir)
+- UWP/Store ikonları (`.agent/boundaries.md:93` — ayrı onay gerekir)
 - Bitmap pencere küçültmeleri (`DwmRegisterThumbnail`) — küçültülmüş pencere uygulama ikonuyla temsil edilir
 - Gerçek DWM Mica/Acrylic (`AllowsTransparency=true` ile yasak, `docs/04-gotchas.md:7`)
-- Dock'u alt AppBar'a çevirmek (`docs/decisions/001`, `boundaries.md:90`)
+- Dock'u alt AppBar'a çevirmek (`docs/decisions/001`, `boundaries.md:97`)
 - Sürükleyip çöpe atma, "masaüstünü göster", saat, ikon yansıması, opaklık/gap ayarları
 - Konum değişikliği sonrası iş-alanı rezervasyonunun yan kenar varyantı
 
@@ -248,7 +266,7 @@ internal static class DockStripLayout
 
 Etki yarıçapı `max * 0.82^r <= 1.0` için `r = ceil(log(1/max)/log(0.82))`; `max = 1.65` → `r = 3`. Aynı anda en fazla **7 ikon** ölçeklenir.
 
-**Yumuşatma.** `Eased(cur, tgt, dt) = cur + (tgt - cur) * (1 - exp(-dt/tau))`, `tau = 55 ms`. Kare hızından bağımsızdır; `DockItemPanel` `CompositionTarget.Rendering` (UI iş parçacığı, dispatcher önceliği `Render`) üzerinden `CursorPosition`'ı bu yumuşatmayla hedefe sürer. `Phase` girişte 130 ms, çıkışta 180 ms `CubicEase/EaseOut` ile `DoubleAnimation` ile sürülür.
+**Yumuşatma.** `Eased(cur, tgt, dt) = cur + (tgt - cur) * (1 - exp(-dt/tau))`, `tau = 55 ms`. Kare hızından bağımsızdır; `DockStrip` imleç konumunu 16 ms'lik bir `DispatcherTimer` (`Render` önceliğinde, UI iş parçacığında) üzerinden bu yumuşatmayla hedefe sürer — ~~`CompositionTarget.Rendering`~~ (§0 #7). `Phase` girişte 130 ms, çıkışta 180 ms `CubicEase/EaseOut` ile `DoubleAnimation` ile sürülür.
 
 **Yerleşim.** `ComputeOffsets` kümülatif kaydırma üretir:
 
@@ -256,7 +274,7 @@ Etki yarıçapı `max * 0.82^r <= 1.0` için `r = ceil(log(1/max)/log(0.82))`; `
 x_i = Σ_{j<i} (iconPx * s_j + gapPx)
 ```
 
-`DockItemPanel.ArrangeOverride` her hücreyi `Rect(x_i, 0, iconPx * s_i, baseCellHeight)` ile yerleştirir; hücrenin içindeki ikon taban boyutta kalır ve `ScaleTransform(s_i, s_i)` ile alt-ortadan büyür — böylece slot `iconPx * s_i` ile birebir dolar. Panel `DesiredSize.Width` = canlı toplam genişlik döndürür; `Surface` bunu sarar ve pencere içinde ortalanır.
+`DockStrip.ArrangeOverride` her hücreyi `Rect(x_i, 0, iconPx * s_i, baseCellHeight)` ile yerleştirir; hücrenin içindeki ikon taban boyutta kalır ve `ScaleTransform(s_i, s_i)` ile alt-ortadan büyür — böylece slot `iconPx * s_i` ile birebir dolar. Panel `DesiredSize.Width` = canlı toplam genişlik döndürür; `Surface` bunu sarar ve pencere içinde ortalanır.
 
 Panel, canlı genişlik `Surface`'e yayılması gerektiği için `InvalidateMeasure()` çağırır. Ölçüm ucuzdur: **çocuk boyutları hiç değişmez**, yalnızca slot `x` konumları ve ikonun `RenderTransform`'u değişir. Kare başında `Image` yeniden ölçülmez/rasterize edilmez.
 
@@ -332,7 +350,7 @@ Mevcut 7 öğe aynen korunur (başlık kartı, Dock'tan kaldır, Görevi sonland
 | Kenar | 1 px `#1AFFFFFF` + iç üst highlight `#24FFFFFF` |
 | Gölge | yok |
 | Çalışan göstergesi | 14×4 DIP pill, `CornerRadius=2`, `TextFillColorPrimaryBrush`, ikonun altında 2 DIP boşluk (`RunningIndicatorGapDip`) |
-| Ayraç | 1 px, `TextFillColorPrimaryBrush` @ `0.3`, 6 DIP kenar boşluğu (mevcut `CreateSeparator`) |
+| Ayraç | 1 px, `TextFillColorPrimaryBrush` @ `0.3`; slot taban genişliği **1 DIP** (`DockStripBuilder.SeparatorSlotDip`), hücrede dikey boşluk 2 DIP — ~~6 DIP kenar boşluğu~~ (§0 #6; `CreateSeparator` kaldırıldı) |
 | Tooltip | mevcut sistem stili ve yerleşimi |
 | Hover wash | yok |
 
@@ -358,7 +376,7 @@ Repo düzeni: `Method_WhenCondition_IsOutcome`, `public class`, xUnit `[Fact]`, 
 
 ## 12. Doküman güncellemeleri
 
-Aynı değişiklikte (`boundaries.md:110`, `conventions.md:11`):
+Aynı değişiklikte (`boundaries.md:117`, `conventions.md:11`):
 
 1. **`docs/decisions/005-...`** — revizyon notu: dock'un pin kaynağı artık `Quick Launch\User Pinned` taraması **değildir**; görev çubuğu tarafına `.lnk` yazma kaldırılmıştır. Çalışan uygulama tespiti (ADR-005 §1'in `EnumWindows` satırı — burada "§2" denmişti, ADR'nin §2'si tepsi hibritidir) değişmez.
 2. **`docs/01-architecture.md`** — `DockWindow` sorumluluk satırı (`:185`), `DockAppsComposer` (`:190`), şema tablosu (`:419-421`, `:436`).
@@ -391,7 +409,7 @@ Aynı değişiklikte (`boundaries.md:110`, `conventions.md:11`):
 7. Etkileşim: sağ tık "Pencere listesi", sürükle-sırala, dosya bırakma
 8. `DockPage` ayarları
 9. Doküman güncellemeleri + ADR-005 revizyonu
-10. Elle doğrulama: `conventions.md:29-35` listesine dock maddeleri eklenir
+10. Elle doğrulama: `conventions.md:29-41` listesine dock maddeleri eklenir
 
 ## 15. Karar kaydı
 

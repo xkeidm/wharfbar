@@ -441,7 +441,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
 | `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
-| `dock.surface` | `mica` \| `acrylic`; **WPF'in çizdiği** iki yarı saydam dolgu (dock katmanlı pencere olduğu için gerçek DWM backdrop kullanılamaz — `docs/04-gotchas.md:7`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Zemin rengi üst barla aynı DWM sistem kaynağından (Windows temasından otomatik) |
+| `dock.surface` | `mica` \| `acrylic`; **WPF'in çizdiği** iki yarı saydam dolgu (dock katmanlı pencere olduğu için gerçek DWM backdrop kullanılamaz — `docs/04-gotchas.md:7`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Dolgu rengi **nötr gri**: koyu `#202020` @ `0x99`/`0xCC`, açık `#FAFAFA` @ `0xD9`/`0xE6` (`mica`/`acrylic`) — `ApplicationThemeManager.GetAppTheme()` ile seçilir, yani **tema rengi değil ve DWM'den gelmez**; üst barın Mica tonuyla aynı değeri kullanmaz |
 | `dock.items` | macOS tarzı sıralı sabit liste (Path/Args/Label) — **dock'un tek kaynağı**; sıra config sırasıdır. Anahtar normalize tam yoldur, `DockItemStore` yolla tekilleştirir |
 | `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right`; geçersiz/boş → `bottom-center`. Yan dock kapsam dışı |
 | `dock.magnification` | Hover tavanı 1.0–2.0 (varsayılan 1.65). Pencere bütçesi **ve** ikon raster boyutu bu değerden türetilir, bu yüzden tek başına kaydetmek şeridi yeniden kurar |
