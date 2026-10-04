@@ -13,6 +13,7 @@ public partial class App : Application
 {
     private SingleInstanceGuard? _singleInstance;
     private ConfigService? _config;
+    private DockItemStore? _dockItems;
     private MonitorManager? _monitors;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
@@ -21,6 +22,13 @@ public partial class App : Application
 
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
+
+    /// <summary>
+    /// The single dock item store. Shared by every per-monitor dock window and the settings
+    /// page so a list edit made in settings reaches the docks live instead of only on the
+    /// next launch — one store per window would leave N independent lists.
+    /// </summary>
+    internal DockItemStore? DockItems => _dockItems;
 
     /// <summary>Exposes the monitor manager for the settings pages.</summary>
     internal MonitorManager? Monitors => _monitors;
@@ -107,6 +115,9 @@ public partial class App : Application
 
         _config = new ConfigService();
         AppConfig config = _config.LoadOrCreate();
+
+        // Before _monitors.Initialize() creates the dock windows: they read this same store.
+        _dockItems = new DockItemStore(_config);
 
         // LoadOrCreate already Save()'s on first run / reset (which syncs Startup).
         // Explicit Apply covers the common case where config exists and Save is skipped.

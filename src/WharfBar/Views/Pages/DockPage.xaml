@@ -26,6 +26,36 @@
             <!-- Page Title -->
             <TextBlock Text="Dock" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
+            <!-- İçerik Section -->
+            <TextBlock Text="İçerik" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,12">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Dock Öğeleri" FontSize="14" FontWeight="Medium"
+                                   VerticalAlignment="Center" />
+
+                        <ui:Button x:Name="AddItemButton" Grid.Column="1"
+                                   Content="Ekle" Height="30" />
+                    </Grid>
+
+                    <!-- Rows are DockSettingsRow instances built in DockPage.RebuildItems: each
+                         one owns its own drag handlers and remove button, so no ItemTemplate. -->
+                    <ItemsControl x:Name="ItemsPanel" />
+
+                    <TextBlock x:Name="EmptyHint" Text="Dock boş. Bir uygulamayı Explorer'dan
+                               doğrudan dock'a sürükleyebilir veya yukarıdan ekleyebilirsin."
+                               FontSize="11" Opacity="0.55" TextWrapping="Wrap"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
             <!-- Davranış Section -->
             <TextBlock Text="Davranış" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
@@ -63,6 +93,10 @@
             <Border Style="{StaticResource PowerToysCard}">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -107,11 +141,78 @@
                         <TextBlock Grid.Column="1" Text="Yüzey" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
 
                         <ComboBox x:Name="SurfaceCombo" Grid.Column="2" Width="180"
-                                  HorizontalAlignment="Right" VerticalAlignment="Center"
-                                  SelectionChanged="OnSurfaceChanged">
+                                  HorizontalAlignment="Right" VerticalAlignment="Center">
                             <ComboBoxItem Content="Mica (varsayılan)" />
                             <ComboBoxItem Content="Acrylic" />
                         </ComboBox>
+                    </Grid>
+
+                    <Grid Grid.Row="3" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="ZoomIn24" FontSize="20"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                        <TextBlock Grid.Column="1" Text="Büyütme" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+
+                        <TextBlock x:Name="MagnificationLabel" Grid.Column="2" Text="1.65×"
+                                   HorizontalAlignment="Right" VerticalAlignment="Center"
+                                   FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+
+                    <Slider x:Name="MagnificationSlider" Grid.Row="4"
+                            Minimum="1" Maximum="2"
+                            IsSnapToTickEnabled="True" TickFrequency="0.05"
+                            Margin="36,12,0,4"
+                            ValueChanged="OnMagnificationChanged" />
+
+                    <Grid Grid.Row="5" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="DockRow24" FontSize="20"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                        <TextBlock Grid.Column="1" Text="Konum" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+
+                        <ComboBox x:Name="PositionCombo" Grid.Column="2" Width="180"
+                                  HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <ComboBoxItem Content="Orta (varsayılan)" />
+                            <ComboBoxItem Content="Sol" />
+                            <ComboBoxItem Content="Sağ" />
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid Grid.Row="6" Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Apps24" FontSize="20"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Çalışan Uygulamaları Göster" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="Sabitlenmemiş çalışan uygulamaları ve küçültülmüş pencereleri dock'ta göster"
+                                       FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch x:Name="ShowRunningToggle" Grid.Column="2"
+                                         HorizontalAlignment="Right" VerticalAlignment="Center" />
                     </Grid>
                 </Grid>
             </Border>

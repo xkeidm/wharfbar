@@ -81,12 +81,17 @@ public partial class DockWindow : Window
     private readonly TaskbarVisibilityService _taskbar;
     private readonly DockStrip _strip;
     private double _iconSizeDip;
+
+    /// <summary>Last <see cref="DockConfig.ShowRunningApps"/> value pushed into the composer.</summary>
+    private bool _appliedShowRunningApps;
+
+    /// <summary>Last magnification ceiling pushed into the strip.</summary>
+    private double _appliedMagnification;
+
     private readonly DockAutoHideController _autoHide;
     private HwndSource? _source;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
-    private ConfigService _configService = null!;
-    private DockItemStore? _itemStore;
     private RunningAppsSource? _runningSource;
     private MinimizedWindowsSource? _minimizedSource;
     private DockAppsComposer? _composer;
@@ -178,6 +183,11 @@ public partial class DockWindow : Window
             DockConfig.MaxIconSize);
         _autoHide = new DockAutoHideController(config.Dock.AutoHide, Dispatcher);
 
+        // Seed the "what has already been applied" baselines so the first ApplyConfigChanges
+        // does not mistake the current config for a change.
+        _appliedShowRunningApps = config.Dock.ShowRunningApps;
+        _appliedMagnification = DockMagnification.Clamp(config.Dock.Magnification);
+
         _cursorTimer = new DispatcherTimer(DispatcherPriority.Render)
         {
             Interval = TimeSpan.FromMilliseconds(CursorFrameMs),
@@ -198,12 +208,14 @@ public partial class DockWindow : Window
     internal MonitorInfo Monitor { get; }
 
     /// <summary>
-    /// Re-applies config-driven settings (icon size, auto-hide).
+    /// Re-applies config-driven settings (icon size, auto-hide, magnification, surface,
+    /// running-app visibility).
     /// </summary>
     internal void ApplyConfigChanges()
     {
         ApplyIconSizeFromConfig();
         ApplySurfaceFromConfig();
+        ApplyRunningAndMagnificationChanges();
 
         bool wasEnabled = _autoHide.Enabled;
         _autoHide.SetEnabled(_config.Dock.AutoHide);
@@ -277,6 +289,39 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
+    /// Pushes the two dock settings nothing else announces: the magnification ceiling and the
+    /// running-apps toggle. Both are diffed against the last applied value because
+    /// <see cref="ApplyConfigChanges"/> runs on <em>every</em> settings save, including the ones
+    /// that touch neither.
+    /// </summary>
+    private void ApplyRunningAndMagnificationChanges()
+    {
+        double ceiling = DockMagnification.Clamp(_config.Dock.Magnification);
+        if (_composer is not null && Math.Abs(ceiling - _appliedMagnification) >= 0.001d)
+        {
+            _appliedMagnification = ceiling;
+
+            // The ceiling is DockStrip.MaxScale, a plain CLR property: setting it re-measures
+            // nothing and leaves every icon rastered for the old one. ApplyIconSizeFromConfig
+            // early-returns while the DIP icon size is unchanged, so a magnification-only save
+            // never reaches the strip at all. RebuildStrip is the one path that both invalidates
+            // the measure (SetRows) and re-requests each icon at the new ceiling.
+            ApplyStripGeometry();
+            RebuildStrip();
+        }
+
+        // DockConfig is plain data with no change notification, and the composer — which owns the
+        // Running/Minimized sections — only rebuilds when one of its sources raises Changed. The
+        // store is that relay: Reload raises Changed with the list itself untouched, and the
+        // composer's ItemsEqual check then keeps a toggle that moves nothing off the strip.
+        if (_composer is not null && _appliedShowRunningApps != _config.Dock.ShowRunningApps)
+        {
+            _appliedShowRunningApps = _config.Dock.ShowRunningApps;
+            ItemStore?.Reload();
+        }
+    }
+
+    /// <summary>
     /// The dock surface is drawn by WPF (layered window), so DWM backdrops are off the table
     /// (docs/04-gotchas.md:7). Mica is a translucent theme tint; Acrylic is denser. Both follow
     /// the system light/dark preference.
@@ -296,22 +341,11 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Lazily resolved config service for services that need to persist (the dock item
-    /// store). <see cref="App.Config"/> is created during app startup, after the first dock
-    /// window is constructed.
+    /// The one dock item store, owned by <see cref="App"/>. A property, not a field: every dock
+    /// window and the settings page must share the instance, so a settings edit reaches the
+    /// strip immediately instead of only after the next launch.
     /// </summary>
-    private ConfigService WharfBarConfigService
-    {
-        get
-        {
-            if (_configService is null)
-            {
-                _configService = (ConfigService)((App)Application.Current).Config!;
-            }
-
-            return _configService;
-        }
-    }
+    private DockItemStore? ItemStore => ((App)Application.Current).DockItems;
 
     protected override void OnSourceInitialized(EventArgs e)
     {
@@ -337,10 +371,11 @@ public partial class DockWindow : Window
         FullscreenState.Instance.Changed += OnFullscreenChanged;
         WorkAreaChanged.Raised += OnWorkAreaChanged;
 
-        _itemStore = new DockItemStore(WharfBarConfigService);
+        DockItemStore store = ItemStore
+            ?? throw new InvalidOperationException("App.DockItems is not initialized yet.");
         _runningSource = new RunningAppsSource(Dispatcher);
         _minimizedSource = new MinimizedWindowsSource(Dispatcher);
-        _composer = new DockAppsComposer(_itemStore, _runningSource, _minimizedSource, _config.Dock);
+        _composer = new DockAppsComposer(store, _runningSource, _minimizedSource, _config.Dock);
         _activation = new WindowActivationService();
         _composer.Changed += OnComposerChanged;
 
@@ -401,7 +436,6 @@ public partial class DockWindow : Window
             _composer = null;
         }
 
-        _itemStore = null;
         _runningSource?.Dispose();
         _runningSource = null;
         _minimizedSource?.Dispose();
@@ -684,7 +718,7 @@ public partial class DockWindow : Window
             return;
         }
 
-        _itemStore?.Move(dragged, Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
+        ItemStore?.Move(dragged, Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
         e.Handled = true;
     }
 
@@ -722,7 +756,7 @@ public partial class DockWindow : Window
         foreach (string path in paths)
         {
             (string resolvedPath, string args) = DockDropFormats.Resolve(path);
-            if (_itemStore?.TryAdd(resolvedPath, args, string.Empty) == true)
+            if (ItemStore?.TryAdd(resolvedPath, args, string.Empty) == true)
             {
                 added++;
             }
@@ -980,7 +1014,10 @@ public partial class DockWindow : Window
     /// </summary>
     private void TogglePin(DockAppItem item, bool pin)
     {
-        if (_itemStore is null)
+        // Local, not a repeated property read: the null check would otherwise have to be
+        // re-derived by the compiler at every use below.
+        DockItemStore? store = ItemStore;
+        if (store is null)
         {
             return;
         }
@@ -990,8 +1027,8 @@ public partial class DockWindow : Window
         // DockItemStore keys on normalized paths — so an Id-based Remove silently missed those.
         // Path is pin.Path for both pinned shapes (DockAppsComposer.cs:76 and :85).
         bool changed = pin
-            ? _itemStore.TryAdd(item.Path, item.Args, item.Label)
-            : _itemStore.Remove(item.Path);
+            ? store.TryAdd(item.Path, item.Args, item.Label)
+            : store.Remove(item.Path);
 
         if (!changed)
         {
