@@ -112,20 +112,23 @@ internal sealed class MinimizedWindowsSource : IDisposable
             return;
         }
 
-        // Both lists come from one snapshot and are assigned together, so a Changed
-        // subscriber that rebuilds the dock never reads a stale Minimized.
-        List<AppWindowInfo> minimized = [.. SelectMinimized(next)];
         if (WindowsEqual(_windows, next))
         {
             return;
         }
 
+        // Both lists come from one snapshot and are assigned together, so a Changed
+        // subscriber that rebuilds the dock never reads a stale Minimized.
         _windows = next;
-        _minimized = minimized;
+        _minimized = [.. SelectMinimized(next)];
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private static bool WindowsEqual(List<AppWindowInfo> a, List<AppWindowInfo> b)
+    /// <summary>
+    /// Field-wise window-table comparison. A window-title change counts as a change: the dock's
+    /// tooltips show it, so <c>Changed</c> has to fire.
+    /// </summary>
+    internal static bool WindowsEqual(List<AppWindowInfo> a, List<AppWindowInfo> b)
     {
         if (a.Count != b.Count)
         {
