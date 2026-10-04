@@ -36,28 +36,6 @@ internal static class WindowEnumeration
         return results;
     }
 
-    /// <summary>
-    /// Iconic top-level windows. Minimized windows keep WS_VISIBLE, so they also pass
-    /// <see cref="IsCandidate"/> — the extra check is what makes this list minimal.
-    /// Like <see cref="GetTopLevelCandidates"/>, must not run on the WPF UI thread.
-    /// </summary>
-    internal static IReadOnlyList<(IntPtr Hwnd, string Title, uint Pid)> GetMinimizedCandidates()
-    {
-        var results = new List<(IntPtr Hwnd, string Title, uint Pid)>();
-
-        NativeMethods.EnumWindows((hwnd, _) =>
-        {
-            if (NativeMethods.IsIconic(hwnd) && IsCandidate(hwnd, out string title, out uint pid))
-            {
-                results.Add((hwnd, title, pid));
-            }
-
-            return true;
-        }, IntPtr.Zero);
-
-        return results;
-    }
-
     private static bool IsCandidate(IntPtr hwnd, out string title, out uint pid)
     {
         title = string.Empty;

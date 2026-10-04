@@ -194,11 +194,12 @@ alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu 
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
 için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
-**Küçültülmüş pencereler:** `WindowEnumeration.GetMinimizedCandidates()` = `EnumWindows` +
-`IsIconic(hwnd)` + mevcut `IsCandidate` filtresi. Küçültülmüş pencereler `WS_VISIBLE` korur,
-bu yüzden ayrı `IsIconic` filtresi şarttır. UI iş parçacığında `EnumWindows` çağrırma
-(donmuş HWND'de kilitler) — pencere tablosu `MinimizedWindowsSource`'da arka iş parçacığında
-800 ms'de bir kez taranır.
+**Küçültülmüş pencereler:** `MinimizedWindowsSource.Scan()` **tek** `EnumWindows` geçişi yapar —
+`WindowEnumeration.GetTopLevelCandidates()` tablosu alınır, küçültülmüş alt küme her pencere
+için ayrı `IsIconic(hwnd)` çağrısıyla ayrıştırılır. Küçültülmüş pencereler `WS_VISIBLE` korur,
+bu yüzden `IsCandidate` filtresi tek başına yetmez; ikinci bir `EnumWindows` geçişi de
+gereksizdir. UI iş parçacığında `EnumWindows` çağrırma (donmuş HWND'de kilitler) — pencere
+tablosu `MinimizedWindowsSource`'da arka iş parçacığında 800 ms'de bir kez taranır.
 
 ---
 
