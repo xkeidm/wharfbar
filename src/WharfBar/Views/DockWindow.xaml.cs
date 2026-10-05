@@ -607,10 +607,11 @@ public partial class DockWindow : Window
     /// <summary>
     /// The store key of a reorderable tile, or null when the tile cannot be reordered.
     /// <para>
-    /// Deliberately not <see cref="DockItemViewModel.Id"/>: on a pinned-and-running tile the
-    /// composer fills the id from the running app (an AppUserModelId for a Store app), and
-    /// <see cref="DockItemStore"/> keys on the normalized path — an id-keyed Move would
-    /// silently miss exactly the tiles that are running, i.e. the ones users drag most.
+    /// Deliberately the normalized path, never the tile's own id (<see cref="DockAppItem.Id"/>):
+    /// on a pinned-and-running tile the composer fills that id from the running app (an
+    /// AppUserModelId for a Store/UWP app), and <see cref="DockItemStore"/> keys on the normalized
+    /// path — an id-keyed Move would silently miss exactly the tiles that are running, i.e. the
+    /// ones users drag most.
     /// </para>
     /// </summary>
     private static string? ReorderKeyFor(DockItemViewModel row)
