@@ -18,7 +18,12 @@ internal static class DockMagnification
 
     public const double Min = 1.0d;
 
-    public const double Max = 2.0d;
+    /// <summary>
+    /// Hard ceiling for stored and UI values. Matches the settings slider's maximum, so a
+    /// config written by an earlier build (which allowed 2.0) normalises down on load
+    /// instead of leaving the slider showing a value it cannot represent.
+    /// </summary>
+    public const double Max = 1.5d;
 
     /// <summary>Fraction of the previous step's scale kept by each neighbour step.</summary>
     internal const double Falloff = 0.82d;
