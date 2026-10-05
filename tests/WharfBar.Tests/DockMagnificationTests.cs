@@ -57,6 +57,14 @@ public class DockMagnificationTests
     }
 
     [Fact]
+    public void ScaleAtDistance_WhenOneStepAwayAtDefault_ClampsToRestingScale()
+    {
+        // 1.15 * 0.82 = 0.943 -> clamped to 1.0. This is what makes the Windows-style dock
+        // behave: at the default ceiling only the hovered icon grows, so nothing reflows.
+        Assert.Equal(1.0d, DockMagnification.ScaleAtDistance(1d, DockMagnification.Default), 6);
+    }
+
+    [Fact]
     public void ScaleAtDistance_NeverReturnsBelowRestingScale()
     {
         for (double d = 0d; d <= 8d; d += 0.25d)
@@ -69,7 +77,13 @@ public class DockMagnificationTests
     }
 
     [Fact]
-    public void RadiusFor_WhenMagnificationIsDefault_ReturnsThree()
+    public void RadiusFor_WhenMagnificationIsDefault_ReturnsOne()
+    {
+        Assert.Equal(1, DockMagnification.RadiusFor(DockMagnification.Default));
+    }
+
+    [Fact]
+    public void RadiusFor_AtMacOsCeiling_ReturnsThree()
     {
         Assert.Equal(3, DockMagnification.RadiusFor(1.65d));
     }

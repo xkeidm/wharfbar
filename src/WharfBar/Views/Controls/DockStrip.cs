@@ -225,17 +225,16 @@ internal sealed class DockStrip : Panel
     private static void OnMagnificationStateChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((DockStrip)d).InvalidateMeasure();
 
-    private static double BaseWidthFor(DockItemCell cell, double iconSize) =>
-        cell.IsSeparator ? DockStripBuilder.SeparatorSlotDip : iconSize;
-
     private void RebuildRestingGeometry()
     {
         int count = _cells.Count;
         EnsureBuffers(count);
 
+        // Every slot is an icon slot: there is no divider row type, so all base widths are the
+        // icon width. The buffer stays because ComputeOffsets/MaxExtentWidth are written against it.
         for (int i = 0; i < count; i++)
         {
-            _baseWidths[i] = BaseWidthFor(_cells[i], IconSize);
+            _baseWidths[i] = IconSize;
         }
 
         Array.Fill(_scales, 1.0d);

@@ -201,7 +201,7 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `MinimizedWindowsSource` | Tüm üst düzey pencere tablosunu **arka iş parçacığında** 800 ms'de bir tarar (`GetTopLevelCandidates` + pencere başına `IsIconic`); `Windows` önbelleğinden `ForProcess(pid)` alt kümesi — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
 | `DockItemStore` | Dock'un tek kaynağı: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
 | `DockAppsComposer` | Pinned \| Running \| Minimized bölümlerini birleştirir; çalışan uygulamayı yolla eşleşen ilk sabitlenen öğeye bağlar; saf `Compose` çekirdeği test edilir; `ItemsEqual` ile yalnız gerçek değişimde yeniden üretir |
-| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` | Ayraç slotları (`SeparatorSlotDip` = 1 DIP) ve **saf** büyütme/yerleşim matematiği: düşüş eğrisi (0.82), etki yarıçapı, slot ölçekleri, reflow ofsetleri, pencere için max genişlik/yükseklik bütçesi — hepsi testli, WPF tipi yok |
+| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` | Satır başına bir öğe (ayraç slotu **yok**, tek sürekli şerit) ve **saf** büyütme/yerleşim matematiği: düşüş eğrisi (0.82), etki yarıçapı, slot ölçekleri, reflow ofsetleri, pencere için max genişlik/yükseklik bütçesi — hepsi testli, WPF tipi yok |
 | `ShortcutResolver` | `.lnk` → hedef yol / args / etiket çözümleme (bırakılan kısayolun dock listesine girmesi için). Dinamik `.lnk` **oluşturma** yolu 2026-10-04'te, görev çubuğuna `.lnk` yazan `TogglePin` ile birlikte kaldırıldı |
 | `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |
 | `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
@@ -391,7 +391,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "iconSize": 28,
     "surface": "mica",
     "position": "bottom-center",
-    "magnification": 1.65,
+    "magnification": 1.15,
     "showRunningApps": true,
     "items": [
       { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
@@ -444,7 +444,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `dock.surface` | `mica` \| `acrylic`; **WPF'in çizdiği** iki yarı saydam dolgu (dock katmanlı pencere olduğu için gerçek DWM backdrop kullanılamaz — `docs/04-gotchas.md:7`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Dolgu rengi **nötr gri**: koyu `#202020` @ `0x99`/`0xCC`, açık `#FAFAFA` @ `0xD9`/`0xE6` (`mica`/`acrylic`) — `ApplicationThemeManager.GetAppTheme()` ile seçilir, yani **tema rengi değil ve DWM'den gelmez**; üst barın Mica tonuyla aynı değeri kullanmaz |
 | `dock.items` | macOS tarzı sıralı sabit liste (Path/Args/Label) — **dock'un tek kaynağı**; sıra config sırasıdır. Anahtar normalize tam yoldur, `DockItemStore` yolla tekilleştirir |
 | `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right`; geçersiz/boş → `bottom-center`. Yan dock kapsam dışı |
-| `dock.magnification` | Hover tavanı 1.0–2.0 (varsayılan 1.65). Pencere bütçesi **ve** ikon raster boyutu bu değerden türetilir, bu yüzden tek başına kaydetmek şeridi yeniden kurar |
+| `dock.magnification` | Hover tavanı 1.0–2.0 (varsayılan **1.15**; ayarlar kaydırıcısı 1.0–1.5). Pencere bütçesi **ve** ikon raster boyutu bu değerden türetilir, bu yüzden tek başına kaydetmek şeridi yeniden kurar |
 | `dock.showRunningApps` | Sabitlenmemiş çalışanlar + küçültülmüş pencereler |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |

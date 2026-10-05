@@ -6,7 +6,7 @@ using System.Windows.Media;
 namespace WharfBar.Views.Controls;
 
 /// <summary>
-/// One dock slot: an app icon with its running pill, or a section separator.
+/// One dock slot: an app icon with its running pill.
 /// The cell never decides its own size — <see cref="DockStrip"/> pushes metrics in and
 /// scales the icon from its bottom edge so growth reads as "rising off the plate".
 /// </summary>
@@ -15,6 +15,16 @@ internal sealed partial class DockItemCell : UserControl
     private const double MetricsEpsilon = 0.01d;
 
     private const double MagnificationEpsilon = 5e-4d;
+
+    /// <summary>Pill width as a multiple of the pushed-in indicator size (W11: 4 * 4 = 16 DIP).</summary>
+    private const double PillWidthFactor = 4d;
+
+    /// <summary>
+    /// Pill thickness. Deliberately thinner than <c>indicatorSize</c>: the cell reserves
+    /// <c>indicatorSize</c> DIP of plate for the indicator band, and a 3 DIP bar with a
+    /// 2 DIP corner radius is the fully-rounded Windows 11 look.
+    /// </summary>
+    private const double PillThicknessDip = 3d;
 
     private double _appliedScale = 1d;
 
@@ -38,20 +48,16 @@ internal sealed partial class DockItemCell : UserControl
             typeof(DockItemCell),
             new PropertyMetadata(null, OnRowChanged));
 
-    /// <summary>Slot content. Setting it re-applies icon, pill, and separator visibility.</summary>
+    /// <summary>Slot content. Setting it re-applies icon and pill visibility.</summary>
     public DockItemViewModel? Row
     {
         get => (DockItemViewModel?)GetValue(RowProperty);
         set => SetValue(RowProperty, value);
     }
 
-    /// <summary>1 px divider rather than an app icon. A null <see cref="Row"/> is an empty slot, not a divider.</summary>
-    public bool IsSeparator => Row?.IsSeparator == true;
-
     internal void ApplyMetrics(double iconSize, double indicatorGap, double indicatorSize, double height)
     {
         Root.Height = height;
-        SeparatorBar.Visibility = IsSeparator ? Visibility.Visible : Visibility.Collapsed;
 
         // One guard per group of writes, and each guard tracks exactly what its writes depend on.
         if (MetricsChanged(iconSize, _iconSize))
@@ -67,8 +73,8 @@ internal sealed partial class DockItemCell : UserControl
         {
             _indicatorGap = indicatorGap;
             _indicatorSize = indicatorSize;
-            RunningPill.Width = indicatorSize * 3.5d;
-            RunningPill.Height = indicatorSize;
+            RunningPill.Width = indicatorSize * PillWidthFactor;
+            RunningPill.Height = PillThicknessDip;
             RunningPill.Margin = new Thickness(0, 0, 0, indicatorGap);
             IconImage.Margin = new Thickness(0, 0, 0, indicatorGap + indicatorSize);
         }
@@ -99,15 +105,12 @@ internal sealed partial class DockItemCell : UserControl
         {
             IconGlyph.Source = null;
             RunningPill.Visibility = Visibility.Collapsed;
-            SeparatorBar.Visibility = Visibility.Collapsed;
             return;
         }
 
-        bool separator = row.IsSeparator;
-        IconImage.Visibility = separator ? Visibility.Collapsed : Visibility.Visible;
-        SeparatorBar.Visibility = separator ? Visibility.Visible : Visibility.Collapsed;
-        RunningPill.Visibility = !separator && row.IsRunning ? Visibility.Visible : Visibility.Collapsed;
-        IconGlyph.Source = separator ? null : row.Icon;
+        IconImage.Visibility = Visibility.Visible;
+        RunningPill.Visibility = row.IsRunning ? Visibility.Visible : Visibility.Collapsed;
+        IconGlyph.Source = row.Icon;
         ToolTip = null;
         ContextMenu = null;
     }

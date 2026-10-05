@@ -160,14 +160,16 @@
 
                         <TextBlock Grid.Column="1" Text="Büyütme" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
 
-                        <TextBlock x:Name="MagnificationLabel" Grid.Column="2" Text="1.65×"
+                        <TextBlock x:Name="MagnificationLabel" Grid.Column="2" Text="1.15×"
                                    HorizontalAlignment="Right" VerticalAlignment="Center"
                                    FontSize="13" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
                     </Grid>
 
+                    <!-- 1.5, not DockMagnification.Max: a slider that reaches 2.0 invites the
+                         macOS reflow look the Windows-style dock deliberately dropped. -->
                     <Slider x:Name="MagnificationSlider" Grid.Row="4"
-                            Minimum="1" Maximum="2"
+                            Minimum="1" Maximum="1.5"
                             IsSnapToTickEnabled="True" TickFrequency="0.05"
                             Margin="36,12,0,4"
                             ValueChanged="OnMagnificationChanged" />

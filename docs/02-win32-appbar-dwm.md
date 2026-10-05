@@ -188,8 +188,9 @@ UI `QuickSettingsFlyout` üzerinden.
 ```
 
 Varsayılan `dock.iconSize` **28 DIP** (görev çubuğu benzeri, 24’ten hafif büyük); plaka içeriği
-ikon + padding + çalışan çizgisi + ayraç boşluğundan hesaplanır (~46 DIP @ 28), **pencere** ise
-en kötü büyümeye göre bir kez boyutlanır (`DockStripLayout.MaxExtentHeight` → ~64 DIP @ 1.65).
+ikon + padding + çalışan çizgisi bandı + göstergenin altındaki boşluktan hesaplanır
+(2*6 + 28 + 4 + 4 = **48 DIP** @ 28), **pencere** ise en kötü büyümeye göre bir kez
+boyutlanır (`DockStripLayout.MaxExtentHeight` → 48 + 28*0.15 = **~52 DIP** @ 1.15).
 Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
 yok). İkon aralığı **12 DIP**. Klasik `.exe` / `.lnk` için uygundur.
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
@@ -324,13 +325,17 @@ arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada od
 `PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
 “önde” sayılır (Electron vb. alt pencereler).
 
-**Hover ve pencere boyutu:** macOS tipi büyütme **vardır** (2026-10-04, ADR-005 revizyonu).
-Özel `DockStrip : Panel`, `CursorPosition` (kesirli, ikon biriminde) + `Phase` (0→1) bağımlılık
-özelliklerinden ölçek ve slot ofseti hesaplar; komşular yatayda **kayar** (gerçek reflow).
+**Hover ve pencere boyutu:** hafif büyütme **vardır** (2026-10-04, ADR-005 revizyonu; 2026-10-04
+sonrası görev çubuğu tarzına çekildi). Özel `DockStrip : Panel`, `CursorPosition` (kesirli, ikon
+biriminde) + `Phase` (0→1) bağımlılık özelliklerinden ölçek ve slot ofseti hesaplar; kurulum
+makinesi reflow yapabilir, ancak **varsayılan tavan 1.15×** iken pratikte devreye girmez.
 Eğri ve yerleşim saf `DockMagnification` / `DockStripLayout` içindedir ve birim testine tabidir.
-Tavan `dock.magnification` (varsayılan 1.65, 1.0–2.0), düşüş katsayısı 0.82 ve taban 1.0'a
-kelepçeli → etki yarıçapı 3, yani aynı anda en fazla 7 ikon ölçeklenir. `Phase` girişte 130 ms,
-çıkışta 180 ms; imleç konumu ise kare hızından bağımsız yumuşatmayla hedefe sürülür.
+Tavan `dock.magnification` (varsayılan **1.15**, aralık 1.0–2.0; ayarlar kaydırıcısı 1.0–1.5),
+düşüş katsayısı 0.82 ve taban 1.0'a kelepçeli: `1.15 × 0.82 = 0.943` → 1.0, yani **yalnız
+imlecin üstündeki ikon** büyür ve komşular kaymaz (`RadiusFor(1.15) = 1` yalnızca tampon
+boyutlandırması içindir). Bölüm ayracı **yoktur** — pin/çalışan/küçültülmüş tek sürekli şerittir.
+`Phase` girişte 130 ms, çıkışta 180 ms; imleç konumu ise kare hızından bağımsız yumuşatmayla
+hedefe sürülür.
 
 Pencere **baştan** maksimum büyümeye göre boyutlandırılır (`DockStripLayout.MaxExtentWidth` /
 `MaxExtentHeight`); kare başına `SetWindowPos` **çağrılmaz** — yalnızca WPF ölçüm/yerleşim

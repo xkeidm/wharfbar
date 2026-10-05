@@ -3,9 +3,9 @@
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-macOS tarzı alt şerit. AppBar **değil** (ADR-001); `Topmost` overlay, fiziksel piksel
-`SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide + hit-test
-(`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
+Görev çubuğu (Windows 11) tarzı alt şerit. AppBar **değil** (ADR-001); `Topmost` overlay,
+fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
+hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
 
 > **Katmanlı pencere:** `AllowsTransparency=True` — plaka yüzeyi WPF çizimli (`Surface`
 > border fırçası, köşe yarıçapı 12 DIP); pencere kenarları (büyütme headroom'u) gerçekten
@@ -21,8 +21,11 @@ macOS tarzı alt şerit. AppBar **değil** (ADR-001); `Topmost` overlay, fizikse
 - **Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı.
 - **Minimized** — küçültülmüş her pencere için ayrı tik, uygulama ikonuyla (thumbnail yok).
 
-Bölümler enum sırasında (`Pinned`, `Running`, `Minimized`) ve aralarında 1 px ayraç slotuyla
-ayrılır. Çalışan uygulama, yolu eşleşen **ilk** sabitlenen öğeye bağlanır — yani en yaygın
+Bölümler enum sırasında (`Pinned`, `Running`, `Minimized`) sıralanır ve **tek sürekli şerit**
+olarak çizilir — aralarında **ayraç slotu yok** (Windows görev çubuğu davranışı; macOS
+denemesi reddedildi, [spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
+`DockSection` yine de sırayı ve çalışan/küçültülmüş eşleşmesini belirler, yalnızca çizilmez.
+Çalışan uygulama, yolu eşleşen **ilk** sabitlenen öğeye bağlanır — yani en yaygın
 kutucuk tipi (sabitlenmiş **ve** çalışan) `Pinned` bölümündedir ve `IsRunning` taşır.
 Windows görev çubuğunun **pin tarafına dokunulmuyor**: `User Pinned` klasörü okunmuyor,
 görev çubuğuna `.lnk` yazılmıyor (ADR-005 revizyonu). Görev çubuğunu gizleme/geri yükleme
@@ -32,14 +35,19 @@ bu kararın dışında — o hâlâ §3'ün konusu.
 
 Özel `DockStrip : Panel`. Fare konumu kesirli `CursorPosition` olarak okunur (16 ms kare
 zamanlayıcısı, kare hızından bağımsız yumuşatma); ölçek `DockMagnification.ScaleAtDistance`,
-slot ofseti `DockStripLayout.ComputeOffsets` ile hesaplanır — komşular yatayda **kayar**
-(gerçek reflow, `MaxScale` büyüdükçe kayma artar). Varsayılan tavan **1.65×**; düşüş katsayısı
-0.82, taban 1.0'a kelepçeli → etki yarıçapı 3 (aynı anda en fazla 7 ikon). `Phase` girişte
-130 ms, çıkışta 180 ms. Eğri ve yerleşim saf sınıflarda; birim testli.
+slot ofseti `DockStripLayout.ComputeOffsets` ile hesaplanır. Varsayılan tavan **1.15×**
+(görev çubuğu hafifliği; macOS'un 1.65× reflow'u reddedildi): düşüş katsayısı 0.82 ve taban
+1.0'a kelepçeli olduğu için `1.15 × 0.82 = 0.943` → **1.0**, yani **yalnız imlecin üstündeki
+ikon** büyür ve komşular **hiç kaymaz** — reflow etkisi özel duruma düşmeden aritmetikle
+biter. `RadiusFor(1.15) = 1` yalnızca tampon boyutlandırması içindir. Kaydırıcı aralığı
+**1.0–1.5** (adım 0.05); `Clamp` üst sınırı hâlâ 2.0, yani eski bir config'deki 1.65 değeri
+okunur ama kaydırıcıda 1.50'ye kırpılır. `Phase` girişte 130 ms, çıkışta 180 ms. Eğri ve
+yerleşim saf sınıflarda; birim testli.
 
 İkonlar alt-ortadan büyür (`RenderTransformOrigin="0.5,1"`); plaka dikeyde taban yüksekliğinde
-sabit kalır, ikon üst kenarın üstüne taşar. Yatayda plaka iki yana büyüyüp ortalanır.
-Çalışan göstergesi 14×4 DIP pill; tooltip sistem stili (250 ms gecikme, 8 sn).
+sabit kalır, ikon üst kenarın üstüne taşar. Yatayda plaka iki yana büyüyüp ortalanır (pay
+1.15×'te 4.2 px, gözle fark edilmez). Çalışan göstergesi **16×3 DIP** pill, `CornerRadius=2`,
+ikonun altında 4 DIP; tooltip sistem stili (250 ms gecikme, 8 sn).
 
 Pencere baştan en kötü büyümeye göre boyutlanır; **hover sırasında `SetWindowPos` çalışmaz**,
 yalnızca WPF ölçüm/yerleşim. ScrollViewer yoktur — çok sayıda ikon pencere genişliğine
@@ -73,7 +81,7 @@ Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan
 ## Ayarlar
 
 [Ayarlar → Dock](../screens/settings.md#dock): `autoHide`, `iconSize` (16–36), `surface`
-(Mica/Acrylic), `magnification` (1.0–2.0), `position` (alt-sol/orta/sağ), `showRunningApps`,
+(Mica/Acrylic), `magnification` (kaydırıcı 1.0–1.5), `position` (alt-sol/orta/sağ), `showRunningApps`,
 içerik listesi (ekle/sil/sürükleyerek sırala). Konum yalnız **alt kenar** hizasıdır; yan dock
 kapsam dışı.
 

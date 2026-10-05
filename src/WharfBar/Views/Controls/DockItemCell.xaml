@@ -34,19 +34,12 @@
                    SnapsToDevicePixels="True" />
         </Border>
 
+        <!-- Windows 11 taskbar running indicator: wide, thin, fully rounded ends. Width and
+             height are pushed in by DockStrip from the indicator metrics. -->
         <Border x:Name="RunningPill"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom"
                 CornerRadius="2"
-                Background="{DynamicResource TextFillColorPrimaryBrush}"
-                Visibility="Collapsed" />
-
-        <Border x:Name="SeparatorBar"
-                Width="1"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Stretch"
-                Margin="0,2,0,2"
-                Opacity="0.3"
                 Background="{DynamicResource TextFillColorPrimaryBrush}"
                 Visibility="Collapsed" />
 

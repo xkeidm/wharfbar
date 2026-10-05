@@ -9,8 +9,12 @@ namespace WharfBar.Services;
 /// </summary>
 internal static class DockMagnification
 {
-    /// <summary>Hover ceiling at the cursor (1.0 disables magnification).</summary>
-    public const double Default = 1.65d;
+    /// <summary>
+    /// Hover ceiling at the cursor (1.0 disables magnification). 1.15 is a Windows-taskbar
+    /// nudge, not a macOS dock: at this value the falloff clamps after a single step
+    /// (1.15 * 0.82 = 0.943 -> 1.0), so only the hovered icon grows and the strip never reflows.
+    /// </summary>
+    public const double Default = 1.15d;
 
     public const double Min = 1.0d;
 

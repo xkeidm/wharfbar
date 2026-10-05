@@ -25,7 +25,7 @@ Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü
 - **Otomatik Gizle** toggle (config `dock.autoHide`)
 - **Simge Boyutu** slider'ı 16–36 DIP (config `dock.iconSize`; varsayılan 28)
 - **Yüzey** ComboBox'u (config `dock.surface`: `Mica` / `Acrylic`; ikisi de WPF çizimi, DWM değil)
-- **Büyütme** slider'ı 1.0–2.0, adım 0.05 (config `dock.magnification`; varsayılan 1.65×)
+- **Büyütme** slider'ı 1.0–1.5, adım 0.05 (config `dock.magnification`; varsayılan 1.15× — `Clamp` üst sınırı hâlâ 2.0)
 - **Konum** ComboBox'u (config `dock.position`: Sol / Orta / Sağ; yalnız alt kenar)
 - **Çalışan Uygulamaları Göster** toggle (config `dock.showRunningApps`; `false` iken Running ve
   Minimized bölümleri hiç üretilmez)

@@ -35,6 +35,7 @@ gerekçeleri ve kalıcı tuzaklarıyla birlikte burada bırakıldı, çünkü he
 | 6 | §9 ayraç: 1 px çubuk + **6 DIP** kenar boşluğu (`CreateSeparator`) | Slot taban genişliği `DockStripBuilder.SeparatorSlotDip` = **1 DIP**; çizilen çubuk sabit 1 px, hücrede dikey boşluk 2 DIP | Reflow'da ayraç da bir slot olduğu için geniş bir boşluk şeridi gereksiz yere açıyor ve bütçe hesabını zorlaştırıyordu. `MaxExtentWidth` ayraçları **bilerek** ikon genişliğiyle ücretlendirir (aşırı tahmin) |
 | 7 | §7.1 "`DockItemPanel` `CompositionTarget.Rendering` üzerinden sürer" | 16 ms'lik `DispatcherTimer` (`Render` önceliğinde) + `DockMagnification.Eased` | Composition-rendering olayı yalnız büyüte animasyonu sürdü; imleç hedefi **her karede** değişiyor ve yeniden ölçüm gerektiriyor. `Eased` kare hızından bağımsız olduğu için zamanlayıcı de yeterli |
 | 8 | §12 madde 5: roadmap'deki bayat `ScrollViewer` iddiası "zaten `b027a02`'de kaldırılmıştı" | İddia hâlâ `roadmap.md`'de duruyordu; bu değişiklikte **kaldırıldı** | Doğrulama yapılmadan "zaten kalkmıştı" denmişti |
+| 9 | §2/§7/§9 **macOS büyütmesi**: tavan `1.65`, komşular yumuşak düşüşle büyür, reflow belirgin; §5.2/§6.3/§9 **bölüm ayracı** (1 px slot + çubuk) | Tavan **`1.15`** — düşüş bir adımda kelepçelenir (`1.15 × 0.82 = 0.943 → 1.0`), yani **yalnız imlecin üstündeki ikon** büyür ve komşu kayması aritmetik olarak sıfırdır. **Ayraç tamamen kaldırıldı**: `DockStripBuilder` satır başına bir öğe üretir, `DockSection` yalnız sırayı ve çalışan/küçültülmüş mantığını sürer. Çalışan göstergesi W11 oranına geçti (16×3 DIP, `CornerRadius=2`, ikon altında 4 DIP) | Kullanıcı macOS görünümünü denedi ve **reddetti**: büyütme/reflow istenmiyordu, büyütülmüş ikonun altındaki pill komşularından uzun duruyordu (mekanik olarak aynı, ama 1.65×'lik ikon onu tutarsız okutuyor), ve pin/çalışan grupları arasındaki 1 px ayraç istenmiyordu. Tavan düşürülünce reflow etkisi **özel duruma düşmeden** kaybolur. Tavan sabitleri değişmedi (`Min`/`Max` = 1.0/2.0); yalnız **kaydırıcı** aralığı 2.0 → 1.5 kısıldı, çünkü 2.0'a ulaşan bir kaydırıcı reddedilen görünümü davet eder |
 
 Ayrıca §12'deki doküman listesi **genişletildi**: `docs/00-overview.md` (canlı pin iddiaları),
 `docs/01-architecture.md` config şema örneği (`schemaVersion` 2 + `dock.items`),
@@ -63,8 +64,9 @@ Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `
 | Karar | Seçim | Not |
 |---|---|---|
 | Yüzey | **Mica** | koyu saydam plaka + ince üst ışık çizgisi |
-| Büyütme şiddeti | **Orta ~1.65×** | imlecin üstü + iki komşu, yumuşak düşüş |
-| Çalışan göstergesi | **W11 çizgi (pill)** | 14×4 DIP |
+| Büyütme şiddeti | **Hafif ~1.15×** | yalnız imlecin üstündeki ikon; komşu kayması yok (§0 #9) |
+| Bölüm ayracı | **Yok** | pin / çalışan / küçültülmüş tek sürekli şerit (§0 #9) |
+| Çalışan göstergesi | **W11 çizgi (pill)** | 16×3 DIP, `CornerRadius=2` |
 | Hover etiket | **Sistem tooltip** | mevcut davranış korunur |
 | Plaka köşe yarıçapı | **12 DIP** | WharfBar flyout token'ı |
 | Gölge | **Yok** | `DropShadowEffect` kare başına yazılım maliyeti |
@@ -115,7 +117,7 @@ Pencere boyutu **baştan** maksimum büyümeye göre sabitlenir; kare başına `
 ```csharp
 public List<PinnedApp> Items { get; set; } = [];
 public string Position { get; set; } = DockPositions.BottomCenter;   // bottom-left|bottom-center|bottom-right
-public double Magnification { get; set; } = DockMagnification.Default;  // 1.65
+public double Magnification { get; set; } = DockMagnification.Default;  // 1.15 (§0 #9)
 public bool ShowRunningApps { get; set; } = true;
 ```
 
@@ -144,7 +146,9 @@ Kimlik kuralları:
 - Çalışan öğe: `Id` = AUMID ?? yürütülebilir yol (bugünkü `RunningAppsSource` kuralı korunur).
 - Küçültülmüş pencere: `Id` = `"hwnd:<hwnd>"` — zaten `RunningAppsSource`'ta var, çakışma yaratmaz.
 
-Düzen: `Pinned | ayraç | Running | ayraç | Minimized`. `ShowRunningApps == false` ise `Running` ve `Minimized` bölümleri hiç üretilmez.
+Düzen: `Pinned | Running | Minimized` — **tek sürekli şerit, aralarında ayraç yok** (§0 #9;
+`DockSection` yine de sırayı ve çalışan/küçültülmüş eşleşmesini belirler). `ShowRunningApps == false`
+ise `Running` ve `Minimized` bölümleri hiç üretilmez.
 
 Eşleme: çalışan uygulama, yolu case-insensitive eşleşen **ilk** sabitlenen öğeye bağlanır (`DockAppsComposer.PathsMatch` korunur) ve `IsRunning`/`MainWindowHandle` dolar. Bağlanamayan çalışan uygulamalar `Running` bölümüne, `Label` sırasına göre eklenir.
 
@@ -202,8 +206,8 @@ gerçek değişiklikte olur (mevcut desen).
 > **Sapma (gerekçeli):** tasarımın ilk hali `ItemsControl` + `ItemTemplate` kullanıyordu. Her hücreye imperatif tooltip yerleşimi, bağlam menüsü ve sürükle/bırak bağlanması gerektiği için `ItemsControl` hücrelere erişim vermiyordu; `DockStrip` hem dekoratif değer hem de erişim sahibidir. Hücreler yeniden kullanıldığı için tooltip/menü/olay bağlama `RebuildStrip` içinde **tek blokta** ve her yeniden kurulumda bir kez yapılır.
 
 - `Image` — `Source = IconResolver.GetIcon(path, maxIconPx)`, `RenderTransformOrigin = (0.5, 1.0)`, `BitmapScalingMode.HighQuality`
-- Çalışan göstergesi — `Border` 14×4, `CornerRadius=2`, `TextFillColorPrimaryBrush`; görünürlük `IsRunning`'a bağlı
-- Ayraç — aynı hücre sınıfının ayrı varyantı: 1 px `TextFillColorPrimaryBrush` @ 0.3 çubuk
+- Çalışan göstergesi — `Border` 16×3, `CornerRadius=2`, `TextFillColorPrimaryBrush`; görünürlük `IsRunning`'a bağlı (§0 #9)
+- ~~Ayraç~~ — hücre sınıfının ayrı varyantı **kaldırıldı** (§0 #9)
 - `ToolTip` — `DockAppItem.Tooltip`, mevcut özel yerleşim korunur (250 ms gecikme, 8 sn, ikon üstünde ortalanmış 25 DIP)
 - `ContextMenu` — §8.2
 - Hücre içi yerleşim: ikon alt-ortaya hizalı ve `indicatorGap + indicatorSize` kadar yukarıda; gösterge altta `indicatorGap` boşlukla
@@ -233,7 +237,7 @@ Hücre düzeni taban boyutta kalır; büyüme `RenderTransform` ile yapılır, k
 ```csharp
 internal static class DockMagnification
 {
-    public const double Default = 1.65;
+    public const double Default = 1.15;
     public const double Min = 1.0;
     public const double Max = 2.0;
     internal const double Falloff = 0.82;
@@ -256,15 +260,15 @@ internal static class DockStripLayout
 
 > Sabit bir üst sınır (`MaxRadius`) **yok**: `maxScale = 2.0` iken 3. adımdaki 1.103 ile 4. adımdaki 1.0 arasında süreksizlik yaratırdı. Yarıçap `RadiusFor(maxScale)` ile hesaplanır, `1.0` taban kelepçesi düşüşü doğal olarak bitirir. Tampon boyutlandırma bu yarıçapı kullanır.
 >
-> `MaxExtentWidth` **panel** genişliğini döndürür (yatay dolguyu `DockWindow` ekler); `baseWidths` ayrımı ayraç slotlarının 1 px genişlikte sayılmasını sağlar.
+> `MaxExtentWidth` **panel** genişliğini döndürür (yatay dolguyu `DockWindow` ekler). `baseWidths` ayrımı §0 #6'daki ayraç slotlarını 1 px saymak içindi; ayraç kalktığı için tüm slotlar ikon genişliğindedir, aşırı tahmin yine de geçerlidir (metot herhangi bir `widestSlot` için doğru kalmalıdır).
 
-**Eğri.** `ScaleAtDistance(d, max) = d <= 0 ? max : max(1.0, max * 0.82^d)`. `1.0` kelepçesi: ikon taban boyutundan **küçük hiçbir zaman olmaz**. Bu, onaylanan mockuptaki değerleri üretir:
+**Eğri.** `ScaleAtDistance(d, max) = d <= 0 ? max : max(1.0, max * 0.82^d)`. `1.0` kelepçesi: ikon taban boyutundan **küçük hiçbir zaman olmaz**. `max = 1.15` iken (varsayılan, §0 #9) tablo şöyle:
 
 | d | 0 | 1 | 2 | 3 |
 |---|---|---|---|---|
-| ölçek | 1.650 | 1.353 | 1.110 | 1.000 (kelepçe) |
+| ölçek | 1.150 | 1.000 (kelepçe) | 1.000 (kelepçe) | 1.000 (kelepçe) |
 
-Etki yarıçapı `max * 0.82^r <= 1.0` için `r = ceil(log(1/max)/log(0.82))`; `max = 1.65` → `r = 3`. Aynı anda en fazla **7 ikon** ölçeklenir.
+Etki yarıçapı `max * 0.82^r <= 1.0` için `r = ceil(log(1/max)/log(0.82))`; `max = 1.15` → `r = 1`, ama 1. adım zaten 0.943 → **kelepçelenir**, yani pratikte **yalnız imlecin üstündeki ikon** ölçeklenir ve komşu kayması (`ComputeOffsets` farkı) sıfırdır. Reflow makinesi (`MaxScale`, `RadiusFor`, `ComputeOffsets`) durmaz — yalnız bu tavanla boştadır. Eski macOS tavanı `max = 1.65` → `r = 3`, aynı anda en fazla 7 ikon.
 
 **Yumuşatma.** `Eased(cur, tgt, dt) = cur + (tgt - cur) * (1 - exp(-dt/tau))`, `tau = 55 ms`. Kare hızından bağımsızdır; `DockStrip` imleç konumunu 16 ms'lik bir `DispatcherTimer` (`Render` önceliğinde, UI iş parçacığında) üzerinden bu yumuşatmayla hedefe sürer — ~~`CompositionTarget.Rendering`~~ (§0 #7). `Phase` girişte 130 ms, çıkışta 180 ms `CubicEase/EaseOut` ile `DoubleAnimation` ile sürülür.
 
@@ -282,17 +286,17 @@ Panel, canlı genişlik `Surface`'e yayılması gerektiği için `InvalidateMeas
 
 Pencere **max büyümeye göre** bir kez boyutlandırılır; kare başına `SetWindowPos` **yoktur**.
 
-`iconPx = 28 @ 96 DPI`, `max = 1.65`:
+`iconPx = 28 @ 96 DPI`, `max = 1.15`, gösterge bandı 4 DIP + 4 DIP boşluk (§0 #9):
 
 | Hesap | Değer |
 |---|---|
 | taban genişlik (6 ikon) | `2*12 + 6*28 + 5*12` = **252 px** |
-| büyüme payı | `Σ_d iconPx*(s_d − 1)`, d=0:18.2 · d=1:9.88 · d=2:3.08 (d=3 kelepçe) → `18.2 + 2*(9.88+3.08)` = **44.1 px** |
-| max genişlik | `252 + 44` = **296 px** |
-| taban plaka yüksekliği | `2*6 + 28 + 4 + 2` = **46 px** |
-| pencere yüksekliği | `46 + 28*(1.65−1)` = **64 px** |
+| büyüme payı | `Σ_d iconPx*(s_d − 1)`, d=0:4.2 · d≥1 kelepçe → **4.2 px** |
+| max genişlik | `252 + 4.2` = **256 px** |
+| taban plaka yüksekliği | `2*6 + 28 + 4 + 4` = **48 px** |
+| pencere yüksekliği | `48 + 28*(1.15−1)` = **52.2 px** |
 
-Dikeyde plaka **taban yüksekliğinde sabittir**; büyüyen ikonlar plakanın üst kenarının üstüne taşar (macOS davranışı). Yatayda plaka her karede iki yana doğru büyüyüp/gerileyip pencerede ortalanır.
+Dikeyde plaka **taban yüksekliğinde sabittir**; büyüyen ikon plakanın üst kenarının üstüne taşar. Yatayda plaka her karede iki yana doğru büyüyüp/gerileyip pencerede ortalanır — bu tavanla büyüme payı 4.2 px olduğu için gözle fark edilmez.
 
 İş-alanı rezervasyonu `geo.HeightPx` (max yükseklik) kullanmaya devam eder — bugün de böyledir.
 
@@ -349,15 +353,15 @@ Kod bunu plakaya (`Surface`) değil **kök `Grid`**'e koyar — `src/WharfBar/Vi
 | Plaka köşe | 12 DIP |
 | Kenar | 1 px `#1AFFFFFF` + iç üst highlight `#24FFFFFF` |
 | Gölge | yok |
-| Çalışan göstergesi | 14×4 DIP pill, `CornerRadius=2`, `TextFillColorPrimaryBrush`, ikonun altında 2 DIP boşluk (`RunningIndicatorGapDip`) |
-| Ayraç | 1 px, `TextFillColorPrimaryBrush` @ `0.3`; slot taban genişliği **1 DIP** (`DockStripBuilder.SeparatorSlotDip`), hücrede dikey boşluk 2 DIP — ~~6 DIP kenar boşluğu~~ (§0 #6; `CreateSeparator` kaldırıldı) |
+| Çalışan göstergesi | 16×3 DIP pill, `CornerRadius=2`, `TextFillColorPrimaryBrush`; ikonun altında 4 DIP boşluk (`RunningIndicatorGapDip`), plakada 4 DIP'lik gösterge bandı (`RunningIndicatorSizeDip`) (§0 #9) |
+| ~~Ayraç~~ | **yok** — tek sürekli şerit; `SeparatorSlotDip` ve hücredeki ayraç çubuğu kaldırıldı (§0 #6 + #9) |
 | Tooltip | mevcut sistem stili ve yerleşimi |
 | Hover wash | yok |
 
 ## 10. Ayarlar (`DockPage`)
 
 - **Yeni "İçerik" kartı:** öğe listesi; `+` ile dosya seç, `×` ile kaldır, sürükleyerek sırala. Altında ipucu: *"Uygulamayı Explorer'dan doğrudan dock'a da sürükleyebilirsin."*
-- **"Görünüm" kartı:** simge boyutu kaydırıcısı (mevcut) · yüzey ComboBox'u (mevcut) · **büyütme kaydırıcısı** (1.0–2.0, adım 0.05, canlı `1.65×` etiketi) · **konum** ComboBox'u · **çalışan uygulamaları göster** anahtarı
+- **"Görünüm" kartı:** simge boyutu kaydırıcısı (mevcut) · yüzey ComboBox'u (mevcut) · **büyütme kaydırıcısı** (1.0–1.5, adım 0.05, canlı `1.15×` etiketi — §0 #9'da aralık 2.0'den kısıldı) · **konum** ComboBox'u · **çalışan uygulamaları göster** anahtarı
 - **"Davranış" kartı:** `autoHide` (mevcut)
 - `SaveAndApply` mevcut `Config.Save` + `WharfApp.ApplyDockChanges()` yolunu kullanır; liste değişiklikleri anında kalıcıdır.
 
@@ -367,9 +371,9 @@ Repo düzeni: `Method_WhenCondition_IsOutcome`, `public class`, xUnit `[Fact]`, 
 
 | Suit | Kapsam |
 |---|---|
-| `DockMagnificationTests` | mesafe 0 → `max`; uzak mesafe 1.0'a kelepçelenir; `RadiusFor(1.65) == 3`; `Eased` kare hızından bağımsız ve monotonik; `Eased(cur, cur, dt) == cur` |
+| `DockMagnificationTests` | mesafe 0 → `max`; uzak mesafe 1.0'a kelepçelenir; varsayılan tavan 1.15'te 1. adım kelepçeli (yalnız imlecin üstü büyür); `Eased` kare hızından bağımsız ve monotonik; `Eased(cur, cur, dt) == cur` |
 | `DockStripLayoutTests` | ölçekler kesirli imleç konumunda simetrik; komşu kaymaları kümülatif ve artan; `MaxExtentWidth` ek payı doğru; `MaxExtentHeight` plaka + büyüme payı; bütçe her canlı genişliği kapsar |
-| `DockAppsComposerTests` | sabit sırası korunur; bölüm ayraçları doğru yerde; yolla eşleşen çalışan uygulama `IsRunning` dolar; eşleşmeyen çalışan uygulamalar `Running` bölümünde etikete göre sıralı; `ShowRunningApps=false` bölümleri üretmez; `ItemsEqual` değişikliği algılar |
+| `DockAppsComposerTests` | sabit sırası korunur; **ayraç satırı üretilmez, bölüm sırası korunur**; yolla eşleşen çalışan uygulama `IsRunning` dolar; eşleşmeyen çalışan uygulamalar `Running` bölümünde etikete göre sıralı; `ShowRunningApps=false` bölümleri üretmez; `ItemsEqual` değişikliği algılar |
 | `DockItemStoreTests` | `TryAdd` tekilleştirir; `Move` hedef indeksi normalize eder; kalıcılık turu |
 | `ConfigService` göç testleri | `Magnification` kırpma, `Position` normalize, eski config eksiksiz okunur |
 | `AppBarPlacementTests` | mevcut — **değişmez** |

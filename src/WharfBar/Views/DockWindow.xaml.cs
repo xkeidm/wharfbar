@@ -21,7 +21,7 @@ using TextBlock = Wpf.Ui.Controls.TextBlock;
 namespace WharfBar.Views;
 
 /// <summary>
-/// macOS-style dock overlay anchored to the primary monitor work-area bottom.
+/// Windows-taskbar-style dock overlay anchored to the primary monitor work-area bottom.
 /// Not an AppBar — placement uses physical-pixel SetWindowPos only.
 /// </summary>
 public partial class DockWindow : Window
@@ -35,11 +35,11 @@ public partial class DockWindow : Window
     /// <summary>Gap between adjacent icons (DIP). Wider than early 4 DIP — less cramped.</summary>
     private const double IconGapDip = 12d;
 
-    /// <summary>Height of the W11-style running pill (DIP).</summary>
+    /// <summary>Plate DIP reserved for the running indicator band (DIP).</summary>
     private const double RunningIndicatorSizeDip = 4d;
 
-    /// <summary>Gap between icon bottom and the running pill (DIP).</summary>
-    private const double RunningIndicatorGapDip = 2d;
+    /// <summary>Air between the running pill and the plate's bottom edge (DIP).</summary>
+    private const double RunningIndicatorGapDip = 4d;
 
     /// <summary>
     /// Gap between dock window bottom and the primary monitor's bottom edge (DIP).
@@ -541,9 +541,7 @@ public partial class DockWindow : Window
         var viewModels = new List<DockItemViewModel>(rows.Count);
         foreach (DockStripRow row in rows)
         {
-            viewModels.Add(row.IsSeparator
-                ? DockItemViewModel.ForSeparator()
-                : DockItemViewModel.ForItem(row.Item!, _icons.GetIcon(row.Item!.Path, iconPx)));
+            viewModels.Add(DockItemViewModel.ForItem(row.Item, _icons.GetIcon(row.Item.Path, iconPx)));
         }
 
         _strip.SetRows(viewModels);
@@ -559,7 +557,7 @@ public partial class DockWindow : Window
             DetachCellHandlers(cell);
 
             DockItemViewModel? row = cell.Row;
-            if (row is null || row.IsSeparator)
+            if (row is null)
             {
                 continue;
             }
@@ -571,7 +569,7 @@ public partial class DockWindow : Window
             ToolTipService.SetInitialShowDelay(cell, ToolTipInitialShowDelayMs);
             ToolTipService.SetShowDuration(cell, ToolTipShowDurationMs);
 
-            cell.ContextMenu = BuildContextMenuForItem(row.Item!);
+            cell.ContextMenu = BuildContextMenuForItem(row.Item);
 
             // Every tile launches on click; only pinned tiles reorder.
             cell.PreviewMouseLeftButtonDown += OnCellPreviewMouseLeftButtonDown;
@@ -616,7 +614,7 @@ public partial class DockWindow : Window
     /// </summary>
     private static string? ReorderKeyFor(DockItemViewModel row)
     {
-        if (row.IsSeparator || row.Item is not { IsPinned: true } item)
+        if (row.Item is not { IsPinned: true } item)
         {
             return null;
         }
@@ -627,7 +625,7 @@ public partial class DockWindow : Window
 
     private void OnCellPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not DockItemCell { Row: { IsSeparator: false } row })
+        if (sender is not DockItemCell { Row: { } row })
         {
             return;
         }
@@ -645,7 +643,7 @@ public partial class DockWindow : Window
 
     private void OnCellMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not DockItemCell { Row: { IsSeparator: false } row })
+        if (sender is not DockItemCell { Row: { } row })
         {
             return;
         }
@@ -660,7 +658,7 @@ public partial class DockWindow : Window
             return;
         }
 
-        _activation?.LaunchOrActivate(row.Item!, _launcher);
+        _activation?.LaunchOrActivate(row.Item, _launcher);
     }
 
     private void OnCellMouseMove(object sender, MouseEventArgs e)

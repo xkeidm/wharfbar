@@ -236,41 +236,35 @@ public class DockAppsComposerTests
     ];
 
     [Fact]
-    public void SeparatorIndices_InsertsAtEverySectionBoundary()
+    public void Build_RowCountIsItemsWithNoSeparatorSlots()
     {
-        Assert.Equal([2, 3], DockStripBuilder.SeparatorIndices(ThreeSections()));
+        IReadOnlyList<DockAppItem> items = ThreeSections();
+        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(items);
+
+        // One continuous strip: a section change no longer costs a rendered row.
+        Assert.Equal(items.Count, rows.Count);
+        Assert.All(rows, row => Assert.NotNull(row.Item));
     }
 
     [Fact]
-    public void SeparatorIndices_ForSingleSection_IsEmpty()
+    public void Build_KeepsSectionOrderWithoutDividerRows()
+    {
+        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(ThreeSections());
+
+        Assert.Equal(["P1", "P2", "R1", "M1"], rows.Select(r => r.Item.Label));
+        Assert.Equal(
+            [DockSection.Pinned, DockSection.Pinned, DockSection.Running, DockSection.Minimized],
+            rows.Select(r => r.Item.Section));
+    }
+
+    [Fact]
+    public void Build_ForSingleSection_YieldsOneRowPerItem()
     {
         IReadOnlyList<DockAppItem> items = ThreeSections().Where(i => i.Section == DockSection.Pinned).ToList();
-        Assert.Empty(DockStripBuilder.SeparatorIndices(items));
-    }
+        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(items);
 
-    [Fact]
-    public void SeparatorIndices_ForEmptyList_IsEmpty()
-    {
-        Assert.Empty(DockStripBuilder.SeparatorIndices([]));
-    }
-
-    [Fact]
-    public void Build_RowCountIsItemsPlusSeparators()
-    {
-        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(ThreeSections());
-        Assert.Equal(6, rows.Count);
-        Assert.Equal(2, rows.Count(r => r.IsSeparator));
-    }
-
-    [Fact]
-    public void Build_PlacesSeparatorBeforeFirstItemOfNewSection()
-    {
-        IReadOnlyList<DockStripRow> rows = DockStripBuilder.Build(ThreeSections());
-        Assert.False(rows[0].IsSeparator);
-        Assert.True(rows[2].IsSeparator);
-        Assert.Equal("R1", rows[3].Item!.Label);
-        Assert.True(rows[4].IsSeparator);
-        Assert.Equal(DockSection.Minimized, rows[5].Item!.Section);
+        Assert.Equal(items.Count, rows.Count);
+        Assert.All(rows, row => Assert.Equal(DockSection.Pinned, row.Item.Section));
     }
 
     [Fact]
