@@ -29,6 +29,31 @@ public class DockStripLayoutTests
     }
 
     [Fact]
+    public void ComputeScales_WhenPhaseIsOutOfRange_ClampsToTheUnitRange()
+    {
+        var clamped = new double[4];
+        var above = new double[4];
+        var below = new double[4];
+
+        DockStripLayout.ComputeScales(4, cursorPosition: 2d, phase: 1d, maxScale: PeakScale, clamped);
+        DockStripLayout.ComputeScales(4, cursorPosition: 2d, phase: 2d, maxScale: PeakScale, above);
+        DockStripLayout.ComputeScales(4, cursorPosition: 2d, phase: -1d, maxScale: PeakScale, below);
+
+        // Non-vacuity: the cursor slot must really be magnified, or the equalities below would
+        // hold for an all-resting strip whatever ComputeScales did with the phase.
+        Assert.Equal(PeakScale, clamped[2], 6);
+
+        // The clamp is what makes MaxExtentWidth a valid budget, so a phase that overshoots
+        // must not scale past the peak the window was sized for, and one below zero must not
+        // dip under the resting scale.
+        for (int i = 0; i < clamped.Length; i++)
+        {
+            Assert.Equal(clamped[i], above[i], 6);
+            Assert.Equal(1d, below[i], 6);
+        }
+    }
+
+    [Fact]
     public void ComputeScales_IsSymmetricAroundFractionalCursor()
     {
         var left = new double[5];
@@ -208,10 +233,12 @@ public class DockStripLayoutTests
 
             for (double pos = 0d; pos <= count - 1d; pos += 0.25d)
             {
-                for (double phase = 0d; phase <= 1.0001d; phase += 0.25d)
+                // In-range steps plus the two ends and past them: ComputeScales clamps the
+                // phase, so an overshooting easing curve still has to fit the budget.
+                foreach (double phase in new[] { -1d, -0.25d, 0d, 0.25d, 0.5d, 0.75d, 1d, 1.25d, 2d })
                 {
                     DockStripLayout.ComputeScales(count, pos, phase, PeakScale, scales);
-                    DockStripLayout.ComputeOffsets(count, widths, scales, SlotGap, offsets, out double live);
+                    DockStripLayout.ComputeOffsets(count, widths, scales, gap: SlotGap, offsets, out double live);
 
                     Assert.True(
                         live <= budget + 1e-6d,
