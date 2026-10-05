@@ -36,6 +36,10 @@
 - Dock: fare ile komşu büyümesi var mı, pencere yerinden oynamıyor mu?
 - Dock: sürükleyerek sıralama çalışıyor mu ve uygulama açılmıyor mu?
 - Dock: Explorer'dan bırakma kabul ediliyor mu (değilse ayar listesinden ekleniyor mu)?
+- Dock: **otomatik gizleme kapalıyken** Explorer'dan bir dosyayı plakanın yanındaki saydam banda
+  (plakadan ~30 px öte) sürükle — dock ekliyor mu? Bırakma bölgesinin gerçek sınırı hiç ölçülmedi;
+  `DockWindow.xaml` kök `Grid` yorumu da iddia etmiyor. Eklemiyorsa sonraki adım bölgenin
+  daraltılmasına karar vermek, yorumu yeniden yazmak değil.
 - Dock: simge boyutu 16/36 ve büyütme 1.0/2.0 uçlarında şerit taşmıyor mu?
 - Dock: görev çubuğu pinleri WharfBar'yi etkilemiyor, WharfBar da görev çubuğunu etkilemiyor mu?
   (ADR-005 revizyonu: hiçbir yönde yazma/okuma olmamalı)

@@ -26,15 +26,22 @@
          is fixed at the maximum magnified extent (never resized during hover — SetWindowPos per
          frame stutters); the Surface hugs the DockStrip's live width and stays centred.
 
-         The root Grid is the file-drop target and deliberately has NO Background. Note the
-         reason is not a phantom hit region: the Window itself is Background="Transparent", so
-         the entire window rect is hit-testable whatever the Grid paints, and the routed
-         DragOver/Drop bubble to the handlers below either way. Omitting the Grid's background
-         only decides which element the hit test lands on. The accepted behaviour is that a file
-         dropped into the near surround — beside the plate, in the band that already swallows
-         clicks — is added to the dock: a forgiving target consistent with the click-through
-         gap we are not fixing here. Drop/DragOver are declared in the same block (TopBarWindow.xaml:156-157
-         — a two-step edit silently leaves it dead). -->
+         Drop/DragOver are attached to this Grid, not to the plate. Two facts are certain: the
+         Window is Background="Transparent", so the whole window rect is hit-testable whatever
+         this Grid paints, and the transparent band beside the plate therefore swallows clicks
+         whenever the dock is interactive (§7.2's known side effect); and the handlers hang off
+         the root Grid rather than off Surface.
+         What is NOT certain — do not assert it — is how far the drop region reaches. This Grid
+         deliberately has no Background, so a point in the band hit-tests to the Window itself,
+         and whether a drop landing there still reaches the routed handlers below or is refused
+         with a "no drop" cursor has never been measured: the OLE drop path was not read, and no
+         test covers WPF input. Verify by hand instead (.agent/conventions.md): auto-hide OFF,
+         drag a file from Explorer onto the band ~30 px beside the plate, and record whether the
+         dock adds it. If it does not, the follow-up is to decide whether the drop region should
+         be narrowed — not to reword this comment. The drop region is not narrowed by this
+         redesign either way.
+         Drop/DragOver are declared in the same block (TopBarWindow.xaml:156-157 — a two-step edit
+         silently leaves it dead). -->
     <Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">
         <Border x:Name="Surface"
                 Padding="12,6"
