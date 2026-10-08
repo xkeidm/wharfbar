@@ -23,12 +23,11 @@ Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü
 - **İçerik listesi** — `dock.items` satırları (etiket + yol); `Ekle` (dosya seçici), `×` ile kaldır,
   `⋮⋮` tutamacından sürükleyerek sırala
 - **Otomatik Gizle** toggle (config `dock.autoHide`)
-- **Simge Boyutu** slider'ı 16–36 DIP (config `dock.iconSize`; varsayılan 28)
-- **Yüzey** ComboBox'u (config `dock.surface`: `Mica` / `Acrylic`; ikisi de WPF çizimi, DWM değil)
-- **Büyütme** slider'ı 1.0–1.5, adım 0.05 (config `dock.magnification`; varsayılan 1.15× — `Clamp` üst sınırı hâlâ 2.0)
+- **Simge Boyutu** slider'ı 16–36 DIP (config `dock.iconSize`; varsayılan 24). Eski 28 varsayılanı yüklemede 24'e çekilir.
+- **Arka Plan** ComboBox'u (config `dock.backgroundMode`: `mica` / `transparent` / `tint`; üst çubuktan bağımsız) + **Opaklık** 0–100 (yalnız `tint`, config `dock.tintOpacity`, varsayılan 40). Mica ↔ saydam geçişi dock penceresini yeniden kurar. Eski `dock.surface` (`mica`/`acrylic`) yüklemede `mica` olur.
 - **Konum** ComboBox'u (config `dock.position`: Sol / Orta / Sağ; yalnız alt kenar)
-- **Çalışan Uygulamaları Göster** toggle (config `dock.showRunningApps`; `false` iken Running ve
-  Minimized bölümleri hiç üretilmez)
+- **Çalışan Uygulamaları Göster** toggle (config `dock.showRunningApps`; `false` iken sağdaki
+  sabitlenmemiş çalışanlar hiç üretilmez)
 
 ## Üst Çubuk (`TopBarPage`)
 

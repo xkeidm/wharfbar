@@ -46,13 +46,17 @@ internal sealed class DockStrip : Panel
         Background = Brushes.Transparent;
     }
 
-    public double IconSize { get; set; } = 28d;
+    public double IconSize { get; set; } = DockPlateMetrics.ButtonSize(24d);
 
-    public double IconGap { get; set; } = 12d;
+    /// <summary>Glyph drawn inside the button. <see cref="IconSize"/> is the button, not the glyph.</summary>
+    public double GlyphSize { get; set; } = 24d;
+
+    public double IconGap { get; set; } = DockPlateMetrics.GapDip;
 
     public double IndicatorGap { get; set; } = 2d;
 
-    public double IndicatorSize { get; set; } = 4d;
+    /// <summary>Matches the 2 DIP running pill so the plate does not reserve a thick underline.</summary>
+    public double IndicatorSize { get; set; } = 2d;
 
     public double MaxScale { get; set; } = DockMagnification.Default;
 
@@ -88,8 +92,8 @@ internal sealed class DockStrip : Panel
 
     public int SlotCount => _cells.Count;
 
-    /// <summary>Plate content height at rest: icon + indicator gap + indicator.</summary>
-    public double RestingHeight => IconSize + IndicatorGap + IndicatorSize;
+    /// <summary>Button height. The running mark is drawn inside the button, so it adds no row.</summary>
+    public double RestingHeight => IconSize;
 
     /// <summary>
     /// Replaces the slot list, reusing existing cells so hover state, bitmaps, and menus
@@ -190,7 +194,7 @@ internal sealed class DockStrip : Panel
         double height = RestingHeight;
         for (int i = 0; i < count; i++)
         {
-            _cells[i].ApplyMetrics(IconSize, IndicatorGap, IndicatorSize, height);
+            _cells[i].ApplyMetrics(GlyphSize, IconSize, height);
             _cells[i].Measure(new Size(_baseWidths[i], height));
         }
 

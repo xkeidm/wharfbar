@@ -1,43 +1,34 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
+using System.Windows.Input;
+using WharfBar.Services;
 
 namespace WharfBar.Views.Controls;
 
 /// <summary>
 /// One dock slot: an app icon with its running pill.
-/// The cell never decides its own size — <see cref="DockStrip"/> pushes metrics in and
-/// scales the icon from its bottom edge so growth reads as "rising off the plate".
+/// The cell never decides its own size — <see cref="DockStrip"/> pushes the button and glyph in.
+/// The glyph stays at resting size; hover paints the button behind it.
 /// </summary>
 internal sealed partial class DockItemCell : UserControl
 {
     private const double MetricsEpsilon = 0.01d;
 
-    private const double MagnificationEpsilon = 5e-4d;
+    /// <summary>Running mark width (DIP). Sits inside the button, not under a separate band.</summary>
+    private const double PillWidthDip = DockPlateMetrics.PillWidthDip;
 
-    /// <summary>Pill width as a multiple of the pushed-in indicator size (W11: 4 * 4 = 16 DIP).</summary>
-    private const double PillWidthFactor = 4d;
-
-    /// <summary>
-    /// Pill thickness. Deliberately thinner than <c>indicatorSize</c>: the cell reserves
-    /// <c>indicatorSize</c> DIP of plate for the indicator band, and a 3 DIP bar with a
-    /// 2 DIP corner radius is the fully-rounded Windows 11 look.
-    /// </summary>
-    private const double PillThicknessDip = 3d;
-
-    private double _appliedScale = 1d;
+    /// <summary>Running mark thickness (DIP).</summary>
+    private const double PillThicknessDip = DockPlateMetrics.PillThicknessDip;
 
     // NaN = "never applied": every comparison below is false on the first call, so the first
     // ApplyMetrics always writes even if a metric legitimately reaches 0.
     private double _iconSize = double.NaN;
-    private double _indicatorGap = double.NaN;
-    private double _indicatorSize = double.NaN;
+    private double _buttonSize = double.NaN;
 
     public DockItemCell()
     {
         InitializeComponent();
-        RenderOptions.SetBitmapScalingMode(IconGlyph, BitmapScalingMode.HighQuality);
         Cursor = System.Windows.Input.Cursors.Hand;
     }
 
@@ -55,41 +46,39 @@ internal sealed partial class DockItemCell : UserControl
         set => SetValue(RowProperty, value);
     }
 
-    internal void ApplyMetrics(double iconSize, double indicatorGap, double indicatorSize, double height)
+    internal void ApplyMetrics(double glyphSize, double buttonSize, double height)
     {
         Root.Height = height;
 
-        // One guard per group of writes, and each guard tracks exactly what its writes depend on.
-        if (MetricsChanged(iconSize, _iconSize))
+        if (MetricsChanged(glyphSize, _iconSize) || MetricsChanged(buttonSize, _buttonSize))
         {
-            _iconSize = iconSize;
-            IconImage.Width = iconSize;
-            IconImage.Height = iconSize;
-            IconScale.ScaleX = _appliedScale;
-            IconScale.ScaleY = _appliedScale;
-        }
+            _iconSize = glyphSize;
+            _buttonSize = buttonSize;
+            IconImage.Width = buttonSize;
+            IconImage.Height = buttonSize;
+            IconGlyph.Width = glyphSize;
+            IconGlyph.Height = glyphSize;
+            HoverPlate.Width = buttonSize;
+            HoverPlate.Height = buttonSize;
+            HoverPlate.CornerRadius = new CornerRadius(DockPlateMetrics.HoverCornerRadiusDip);
+            IconScale.ScaleX = 1d;
+            IconScale.ScaleY = 1d;
 
-        if (MetricsChanged(indicatorGap, _indicatorGap) || MetricsChanged(indicatorSize, _indicatorSize))
-        {
-            _indicatorGap = indicatorGap;
-            _indicatorSize = indicatorSize;
-            RunningPill.Width = indicatorSize * PillWidthFactor;
+            RunningPill.Width = PillWidthDip;
             RunningPill.Height = PillThicknessDip;
-            RunningPill.Margin = new Thickness(0, 0, 0, indicatorGap);
-            IconImage.Margin = new Thickness(0, 0, 0, indicatorGap + indicatorSize);
+            RunningPill.CornerRadius = new CornerRadius(PillThicknessDip);
+            RunningPill.Margin = new Thickness(0, 0, 0, DockPlateMetrics.PillInsetDip);
+            IconImage.Margin = new Thickness(0);
         }
     }
 
     internal void SetMagnification(double scale)
     {
-        if (Math.Abs(scale - _appliedScale) < MagnificationEpsilon)
-        {
-            return;
-        }
-
-        _appliedScale = scale;
-        IconScale.ScaleX = scale;
-        IconScale.ScaleY = scale;
+        // The plate no longer grows under the pointer. The argument stays so DockStrip's
+        // arrange path compiles against the old call; the scale is not applied.
+        _ = scale;
+        IconScale.ScaleX = 1d;
+        IconScale.ScaleY = 1d;
     }
 
     private static bool MetricsChanged(double next, double applied) =>
@@ -98,6 +87,21 @@ internal sealed partial class DockItemCell : UserControl
     private static void OnRowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
         ((DockItemCell)d).ApplyRow();
 
+    protected override void OnMouseEnter(MouseEventArgs e)
+    {
+        base.OnMouseEnter(e);
+        if (Row is not null)
+        {
+            HoverPlate.Visibility = Visibility.Visible;
+        }
+    }
+
+    protected override void OnMouseLeave(MouseEventArgs e)
+    {
+        base.OnMouseLeave(e);
+        HoverPlate.Visibility = Visibility.Collapsed;
+    }
+
     private void ApplyRow()
     {
         DockItemViewModel? row = Row;
@@ -105,11 +109,13 @@ internal sealed partial class DockItemCell : UserControl
         {
             IconGlyph.Source = null;
             RunningPill.Visibility = Visibility.Collapsed;
+            HoverPlate.Visibility = Visibility.Collapsed;
             return;
         }
 
         IconImage.Visibility = Visibility.Visible;
         RunningPill.Visibility = row.IsRunning ? Visibility.Visible : Visibility.Collapsed;
+        HoverPlate.Visibility = IsMouseOver ? Visibility.Visible : Visibility.Collapsed;
         IconGlyph.Source = row.Icon;
         ToolTip = null;
         ContextMenu = null;

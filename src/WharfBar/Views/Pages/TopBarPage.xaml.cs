@@ -44,7 +44,7 @@ public partial class TopBarPage : Page
         }
 
         // Unchecked items
-        foreach (string id in TopBarStatusItemIds.DefaultOrder)
+        foreach (string id in TopBarStatusItemIds.CatalogOrder)
         {
             if (!visibleSet.Contains(id))
             {
@@ -195,8 +195,7 @@ public partial class TopBarPage : Page
             if (!items.Contains(id, StringComparer.Ordinal))
             {
                 // Insert respecting default order.
-                var set = new HashSet<string>(items, StringComparer.Ordinal) { id };
-                items = TopBarStatusItemIds.DefaultOrder.Where(set.Contains).ToList();
+                items = TopBarStatusItemIds.InsertInCatalogOrder(items, id);
             }
         }
         else

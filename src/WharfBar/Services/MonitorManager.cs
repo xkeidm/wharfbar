@@ -172,6 +172,36 @@ internal sealed class MonitorManager : IDisposable
         }
     }
 
+    /// <summary>
+    /// Rebuilds every dock when <c>AllowsTransparency</c> must flip (Mica ↔ tint/transparent).
+    /// The dock is not an AppBar, so the old window is closed after the new one is shown.
+    /// </summary>
+    internal void RecreateDocks()
+    {
+        List<DockWindow> windows = _docks.ToList();
+        foreach (DockWindow old in windows)
+        {
+            DockWindow? next = null;
+            try
+            {
+                next = new DockWindow(_config.Current, _taskbar, old.Monitor);
+                next.Show();
+                int index = _docks.IndexOf(old);
+                if (index >= 0)
+                {
+                    _docks[index] = next;
+                }
+
+                old.Close();
+            }
+            catch
+            {
+                next?.Close();
+                throw;
+            }
+        }
+    }
+
     internal void ApplyDockConfigChanges()
     {
         foreach (DockWindow dock in _docks)

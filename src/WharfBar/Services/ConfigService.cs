@@ -281,6 +281,7 @@ internal sealed class ConfigService
         config.Island.Persistence = IslandNormalizer.NormalizePersistence(config.Island.Persistence);
         config.Island.RetentionDays = IslandNormalizer.ClampRetentionDays(config.Island.RetentionDays);
         config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
+        config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
@@ -308,7 +309,7 @@ internal sealed class ConfigService
 
         config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
 
-        // Soft migrations: oversized early defaults (48/72) and the brief 24 DIP default → 28.
+        // Soft migrations: oversized early defaults (48/72) and the previous 28 DIP default → 24.
         // Other values inside Min–Max are preserved.
         if (config.Dock.IconSize > DockConfig.MaxIconSize
             || Math.Abs(config.Dock.IconSize - DockConfig.PreviousDefaultIconSize) < 0.01)
@@ -320,7 +321,9 @@ internal sealed class ConfigService
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
-        config.Dock.Surface = DockSurfaceStyles.NormalizeStyle(config.Dock.Surface);
+        config.Dock.Surface = DockSurfaceStyles.Mica;
+        config.Dock.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.Dock.BackgroundMode);
+        config.Dock.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.Dock.TintOpacity);
         config.Dock.Items ??= [];
         config.Dock.Position = DockPositions.Normalize(config.Dock.Position);
         config.Dock.Magnification = DockMagnification.Clamp(config.Dock.Magnification);

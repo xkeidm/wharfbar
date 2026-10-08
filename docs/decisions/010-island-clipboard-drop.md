@@ -1,9 +1,10 @@
 # ADR-010: Island — üst barın içinde clipboard geçmişi + bırakılan dosya alanı
 
-**Durum:** Kabul edildi (2026-10-03)
+**Durum:** Kabul edildi (2026-10-03). Kompakt gösterge **ADR-011** ile değişti: hap pano önizlemesi değil; müzik ve ses/parlaklık sayacı da aynı hapın içinde. Pano paneli, bırakma ve tek `Popup` kuralı duruyor.
 **Tarih:** 2026-10-03
-**Kapsam:** Üst barın **ortasında** duran Dynamic Island benzeri alan: kapalıyken son kopyalananın
-önizlemesi, açıkken pano geçmişi + bırakılan dosyaların tek birleşik zaman çizelgesi
+**Kapsam:** Üst barın **ortasında** duran Dynamic Island benzeri alan: kapalıyken durum
+göstergesi (boşta küçük glif, kayıt varken kompakt önizleme pill'i), açıkken pano geçmişi +
+bırakılan dosyaların tek birleşik zaman çizelgesi
 (spec: [2026-10-01-island-clipboard-drop-design](../superpowers/specs/2026-10-01-island-clipboard-drop-design.md),
 [plan](../superpowers/plans/2026-10-01-island-clipboard-drop.md))
 
@@ -52,6 +53,11 @@
   `island.json`'a dokunur (servis ayar kapalıyken de doğar ki ayardan sonradan açmak çalışsın).
 - `TopBarWindow`: `IslandPill` + `IslandPopup` + `ToggleIsland`/`CloseIsland`/`AttachIsland`;
   `IslandHost` hit-test ve klavye yönlendirmesine eklenir.
+- **Gösterge (2026-10-06):** Ada açıkken birincil barda pill çökmez. Boşta sağ durum
+  düğmeleriyle aynı hover plağı (`#1EFFFFFF`, `MinHeight=28`, `Padding=6,5`) üzerinde
+  ortalanmış glif. Kayıt varken kompakt pill yanar (glif + önizleme + adet). Tıklama
+  flyout'u açar; `AllowDrop` aynı kontrolde kalır. `Visibility=Collapsed` yalnız ada
+  kapalıyken veya birincil olmayan barda.
 - `Models/TopBarStatusItemIds.cs` **değişmez** — ada yapılandırılabilir durum şeridine girmeyen,
   merkezde sabit duran bir öğedir.
 - Yeni dış bağımlılık yok.

@@ -99,7 +99,6 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <Grid Grid.Row="0">
@@ -115,7 +114,7 @@
 
                         <TextBlock Grid.Column="1" Text="Simge Boyutu" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
                         
-                        <TextBlock x:Name="IconSizeLabel" Grid.Column="2" Text="28 DIP"
+                        <TextBlock x:Name="IconSizeLabel" Grid.Column="2" Text="24 DIP"
                                    HorizontalAlignment="Right" VerticalAlignment="Center"
                                    FontSize="13" FontWeight="SemiBold"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
@@ -138,43 +137,40 @@
                                        Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
-                        <TextBlock Grid.Column="1" Text="Yüzey" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                        <TextBlock Grid.Column="1" Text="Arka Plan" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
 
-                        <ComboBox x:Name="SurfaceCombo" Grid.Column="2" Width="180"
+                        <ComboBox x:Name="BackgroundCombo" Grid.Column="2" Width="180"
                                   HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <ComboBoxItem Content="Mica (varsayılan)" />
-                            <ComboBoxItem Content="Acrylic" />
+                            <ComboBoxItem Content="Mica (Bulanık)" />
+                            <ComboBoxItem Content="Saydam (Transparent)" />
+                            <ComboBoxItem Content="Renkli (Tint)" />
                         </ComboBox>
                     </Grid>
 
-                    <Grid Grid.Row="3" Margin="0,12,0,0">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-
-                        <ui:SymbolIcon Grid.Column="0" Symbol="ZoomIn24" FontSize="20"
-                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
-                                       VerticalAlignment="Center" Margin="0,0,16,0" />
-
-                        <TextBlock Grid.Column="1" Text="Büyütme" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
-
-                        <TextBlock x:Name="MagnificationLabel" Grid.Column="2" Text="1.15×"
-                                   HorizontalAlignment="Right" VerticalAlignment="Center"
-                                   FontSize="13" FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <Grid x:Name="OpacityRow" Grid.Row="3" Margin="36,12,0,0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Grid Grid.Row="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Arka Plan Opaklığı" FontSize="14" FontWeight="Medium" VerticalAlignment="Center" />
+                            <TextBlock x:Name="OpacityLabel" Grid.Column="1" Text="40%"
+                                       HorizontalAlignment="Right" VerticalAlignment="Center"
+                                       FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        </Grid>
+                        <Slider x:Name="OpacitySlider" Grid.Row="1"
+                                Minimum="0" Maximum="100"
+                                IsSnapToTickEnabled="True" TickFrequency="1"
+                                Margin="0,8,0,0"
+                                ValueChanged="OnOpacityChanged" />
                     </Grid>
 
-                    <!-- 1.5, not DockMagnification.Max: a slider that reaches 2.0 invites the
-                         macOS reflow look the Windows-style dock deliberately dropped. -->
-                    <Slider x:Name="MagnificationSlider" Grid.Row="4"
-                            Minimum="1" Maximum="1.5"
-                            IsSnapToTickEnabled="True" TickFrequency="0.05"
-                            Margin="36,12,0,4"
-                            ValueChanged="OnMagnificationChanged" />
-
-                    <Grid Grid.Row="5" Margin="0,12,0,0">
+                    <Grid Grid.Row="4" Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
@@ -195,7 +191,7 @@
                         </ComboBox>
                     </Grid>
 
-                    <Grid Grid.Row="6" Margin="0,12,0,0">
+                    <Grid Grid.Row="5" Margin="0,12,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />

@@ -35,10 +35,11 @@
   kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır `Process.Kill`, Pencereyi Kapat `WM_CLOSE`,
   Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere) ve %100 ekran genişliği desteği.
 - **Dock yeniden tasarımı — macOS mantığı ✓ (kod; fare ile doğrulama bekliyor)** — ADR-005
-  revizyonu: dock'un tek kaynağı artık kendi `dock.items` listesi, görev çubuğu **okunmaz /
-  yazılmaz** (`TaskbarPinnedAppsSource` silindi). Üç bölüm (Pinned \| Running \| Minimized,
-  1 px ayraçlı), komşu büyümesi + yatay reflow (`DockStrip` + saf `DockMagnification` /
-  `DockStripLayout`), sabit pencere bütçesi (hover'da `SetWindowPos` yok), sürükle-sırala,
+  revizyonu: yazma yolu `dock.items`. **2026-10-07:** sol grup `User Pinned` klasörünü salt okur
+  (`TaskbarPinnedAppsSource`); klasöre yazılmaz. Solda pinler (kapalılar dahil, çalışınca aynı ikon), sağda
+  sabitlenmemiş çalışanlar, uygulama başına bir kutu; büyütme yok, plaka düğme ritmi (ikon 24)
+  (`DockStrip` + saf `DockMagnification` / `DockStripLayout`), sabit pencere bütçesi
+  (hover'da `SetWindowPos` yok), sürükle-sırala,
   Explorer'dan dosya bırakma, alt-sol/orta/sağ konum, `WM_DPICHANGED` ile canlı DPI,
   "Pencereler" alt menüsü (`MinimizedWindowsSource` önbelleğinden), ayar sayfasında içerik listesi.
   Spec: [`../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md`](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md);
@@ -81,6 +82,8 @@
   **Canlı uçtan uca doğrulama yapılmadı** — dar monitörde ada/sağ küme çakışması, ilk
   `AllowDrop` (OLE hedefi) ve nabız animasyonunun bitiş değeri ölçülmedi (aralık hesabıyla
   sınırlı; bkz. `task-8-report.md`).
+  Kompakt ada (ADR-011, 2026-10-07): hap AppBar'ın içinde kalır. Boşta pano; müzik
+  `island.musicPresence` (`persistent` varsayılan); ses/parlaklık kısa sayaç. Panel tek popup.
 
 ## Yapılacaklar listesi (öncelikli)
 

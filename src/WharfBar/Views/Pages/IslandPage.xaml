@@ -56,6 +56,37 @@
                 </Grid>
             </Border>
 
+            <!-- Müzik -->
+            <TextBlock Text="Müzik" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="MusicNote224" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Müzik görünürlüğü" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Çalarken göster: ada nota ve parça adını tutar, üzerine gelince kontroller açılır. Kısa süre göster: ada boşta kalır; parça değişince veya oynat/duraklat olunca kontroller bir süre görünür."
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ComboBox x:Name="MusicPresenceCombo" Grid.Column="2" Width="220"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Çalarken göster" />
+                        <ComboBoxItem Content="Kısa süre göster" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
             <!-- Geçmiş -->
             <TextBlock Text="Geçmiş" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />

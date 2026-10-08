@@ -7,51 +7,53 @@ Görev çubuğu (Windows 11) tarzı alt şerit. AppBar **değil** (ADR-001); `To
 fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
 hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
 
-> **Katmanlı pencere:** `AllowsTransparency=True` — plaka yüzeyi WPF çizimli (`Surface`
-> border fırçası, köşe yarıçapı 12 DIP); pencere kenarları (büyütme headroom'u) gerçekten
-> **şeffaf + tıklama geçirir**, böylece dock çevresinde görünür bir kutu olmaz. Gerçek
-> DWM Mica/Acrylic **kullanılamaz** (`AllowsTransparency` ile birlikte yanlıştır —
-> `docs/04-gotchas.md:7`); `dock.surface` yalnızca iki WPF dolgusu arasında seçim yapar.
-> **Gölge yok** — `DropShadowEffect` büyütme animasyonunda kare başına yazılım maliyeti;
-> karar: [2026-10-04 spec §2/§9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
+> **Pencere = plaka.** Büyütme headroom'u yok; hover ikonu plakadan taşırmıyor.
+> `dock.backgroundMode`: `mica` (varsayılan, `AllowsTransparency=false`, gerçek DWM Mica,
+> sistem yuvarlak köşe) veya `transparent` / `tint` (katmanlı pencere, WPF köşe yarıçapı
+> 14 DIP, plakanın dışı boş). Mica ile `AllowsTransparency` birlikte değildir
+> (`docs/04-gotchas.md`). Mod değişince pencere yeniden kurulur. Eski `dock.surface`
+> (`mica` / `acrylic`) ikisi de `mica` moduna yüklenir. **Gölge yok.**
 
 ## İçerik
 
-- **Pinned** — kullanıcının kendi listesi (`dock.items`), sıra config sırası.
-- **Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı.
-- **Minimized** — küçültülmüş her pencere için ayrı tik, uygulama ikonuyla (thumbnail yok).
+Windows görev çubuğu düzeni: uygulama başına **bir** ikon
+([spec §0 #10](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
 
-Bölümler enum sırasında (`Pinned`, `Running`, `Minimized`) sıralanır ve **tek sürekli şerit**
-olarak çizilir — aralarında **ayraç slotu yok** (Windows görev çubuğu davranışı; macOS
-denemesi reddedildi, [spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
-`DockSection` yine de sırayı ve çalışan/küçültülmüş eşleşmesini belirler, yalnızca çizilmez.
-Çalışan uygulama, yolu eşleşen **ilk** sabitlenen öğeye bağlanır — yani en yaygın
-kutucuk tipi (sabitlenmiş **ve** çalışan) `Pinned` bölümündedir ve `IsRunning` taşır.
-Windows görev çubuğunun **pin tarafına dokunulmuyor**: `User Pinned` klasörü okunmuyor,
-görev çubuğuna `.lnk` yazılmıyor (ADR-005 revizyonu). Görev çubuğunu gizleme/geri yükleme
-bu kararın dışında — o hâlâ §3'ün konusu.
+- **Sol — Pinned** — önce Windows görev çubuğunun `User Pinned\TaskBar` kısayolları,
+  **salt okunur**, kapalı pinler dahil, görev çubuğu sırasında (`Taskband\Favorites`;
+  ad blob'da yoksa dosya adı). Ardından `dock.items` içinde olup görev çubuğunda
+  olmayanlar. Aynı hedef bir kez görünür. Uygulama çalışınca **aynı kutuda** kalır
+  (`IsRunning`). Kapalı pinlerde kapsül yoktur. Sağda bir daha belirmez.
+  “Dock'a sabitle / kaldır” yalnız `dock.items` yazar; görev çubuğu klasörüne yazılmaz.
+- **Sağ — Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı (eşit adlarda
+  pencere tutamacı). `showRunningApps == false` iken bu taraf hiç üretilmez; kapalı
+  pinler solda kalır.
+- Küçültülmüş pencere, uygulaması zaten şeritteyse **ikinci kutu olmaz**. Çalışan
+  listesine hiç girmemiş bir sürecin pencereleri sağda **süreç başına bir** kutu olur
+  (pencere başına değil). "Pencereler" alt menüsü pencereleri listelemeye devam eder
+  (`MinimizedWindowsSource` önbelleği; UI thread'inde `EnumWindows` yok).
 
-## Büyütme
+Eşleşme (`PinMatches`): tam yol, büyük/küçük harf duyarsız; pin yolu bir AppUserModelId
+ise çalışan `Id`; kayıt hâlâ `.lnk` ise çözülen hedef yol veya kısayolun AppUserModelId'si.
+Klasör pinleri `explorer.exe` ile birleşmez. Aynı dosya adını paylaşan iki farklı exe
+birleşmez. `User Pinned` **okunur, yazılmaz** (ADR-005, 2026-10-07).
 
-Özel `DockStrip : Panel`. Fare konumu kesirli `CursorPosition` olarak okunur (16 ms kare
-zamanlayıcısı, kare hızından bağımsız yumuşatma); ölçek `DockMagnification.ScaleAtDistance`,
-slot ofseti `DockStripLayout.ComputeOffsets` ile hesaplanır. Varsayılan tavan **1.15×**
-(görev çubuğu hafifliği; macOS'un 1.65× reflow'u reddedildi): düşüş katsayısı 0.82 ve taban
-1.0'a kelepçeli olduğu için `1.15 × 0.82 = 0.943` → **1.0**, yani **yalnız imlecin üstündeki
-ikon** büyür ve komşular **hiç kaymaz** — reflow etkisi özel duruma düşmeden aritmetikle
-biter. `RadiusFor(1.15) = 1` yalnızca tampon boyutlandırması içindir. Kaydırıcı aralığı
-**1.0–1.5** (adım 0.05); `Clamp` üst sınırı hâlâ 2.0, yani eski bir config'deki 1.65 değeri
-okunur ama kaydırıcıda 1.50'ye kırpılır. `Phase` girişte 130 ms, çıkışta 180 ms. Eğri ve
-yerleşim saf sınıflarda; birim testli.
+Şerit **tek parça** — bölümler arasında ayraç yok (macOS denemesi reddedildi,
+[spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
 
-İkonlar alt-ortadan büyür (`RenderTransformOrigin="0.5,1"`); plaka dikeyde taban yüksekliğinde
-sabit kalır, ikon üst kenarın üstüne taşar. Yatayda plaka iki yana büyüyüp ortalanır (pay
-1.15×'te 4.2 px, gözle fark edilmez). Çalışan göstergesi **16×3 DIP** pill, `CornerRadius=2`,
-ikonun altında 4 DIP; tooltip sistem stili (250 ms gecikme, 8 sn).
+## Plaka
 
-Pencere baştan en kötü büyümeye göre boyutlanır; **hover sırasında `SetWindowPos` çalışmaz**,
-yalnızca WPF ölçüm/yerleşim. ScrollViewer yoktur — çok sayıda ikon pencere genişliğine
-kırpılır.
+Özel `DockStrip : Panel`. Slot genişliği düğmedir, glif değil. Ölçü `DockPlateMetrics`
+(saf, testli): düğme = ikon + 16 DIP (her yanda 8), düğmeler arası **4 DIP**, plaka payı
+**10×8 DIP**. Varsayılan ikon **24 DIP** → düğme 40, plaka yüksekliği **56 DIP**. Eski
+28 DIP varsayılanı yüklemede 24'e çekilir; 16–36 aralığındaki diğer değerler kalır.
+
+Hover, düğmeyi boyar (yarıçap 4 DIP, `HoverPlate`). İkon büyümez. Çalışan göstergesi
+düğmenin içinde **8×3 DIP** kapsül, alttan 3 DIP; yalnız `IsRunning`. Tooltip sistem stili
+(250 ms gecikme, 8 sn). Kart çerçevesi ve üst ışık çizgisi yok.
+
+Pencere plaka boyutundadır (en az bir düğme genişliği). ScrollViewer yoktur — çok sayıda
+ikon pencere genişliğine kırpılır. `dock.magnification` JSON'da durur ve okunur, uygulanmaz.
 
 ## Etkileşim
 
@@ -73,26 +75,24 @@ Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan
    **Dosya konumunu aç** · **Yeni pencere aç**. Yol yoksa bu üçü **hiç görünmez**.
 6. **Pencereler** — alt menü yalnız kutucuk `IsRunning` **ve** canlı pencere tutuyorsa
    (`MainWindowHandle != 0`) **ve** o süreç için **en az bir pencere** listede kaldıysa eklenir
-   (`Section`'a göre değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır). Küçültülmüş bir
-   kutucuğun **kendi** penceresi listeden elenir, yani tek penceresi küçültülmüş bir uygulama
-   boş alt menü göstermez. Menü `MinimizedWindowsSource`'un önbelleğinden beslenir; UI
-   thread'inde `EnumWindows` çağrılmaz.
+   (`Section`'a göre değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır). Menü
+   `MinimizedWindowsSource`'un önbelleğinden beslenir; UI thread'inde `EnumWindows` çağrılmaz.
 
 ## Ayarlar
 
-[Ayarlar → Dock](../screens/settings.md#dock): `autoHide`, `iconSize` (16–36), `surface`
-(Mica/Acrylic), `magnification` (kaydırıcı 1.0–1.5), `position` (alt-sol/orta/sağ), `showRunningApps`,
-içerik listesi (ekle/sil/sürükleyerek sırala). Konum yalnız **alt kenar** hizasıdır; yan dock
-kapsam dışı.
+[Ayarlar → Dock](settings.md#dock): `autoHide`, `iconSize` (16–36), `backgroundMode`
+(Mica / Saydam / Renkli) + yalnız Renkli'de opaklık 0–100, `position` (alt-sol/orta/sağ),
+`showRunningApps`, içerik listesi (ekle/sil/sürükleyerek sırala). Aynı arka plan menüsü
+boş plakaya sağ tıkla açılır (ikonun kendi menüsü değil). Konum yalnız **alt kenar**
+hizasıdır; yan dock kapsam dışı.
 
 ## Tuzaklar
 
 `docs/04-gotchas.md` → "Dock'ta ..." girdirleri. Ayrıca:
 
-- Büyütme açıkken pencerenin saydam kenarı plakadan geniş olduğu için tıklamayı yutar (mevcut davranış).
-- OLE bırakma kabulü **ölçülmedi**: katmanlı `Topmost` pencere hedef olarak kabul edilmezse
-  dosya bırakma **ve** uygulama içi sıralama birlikte düşer (`RegisterDragDrop` HWND başına).
+- OLE bırakma kabulü **ölçülmedi**: katmanlı `Topmost` pencere (tint/transparent) hedef olarak
+  kabul edilmezse dosya bırakma **ve** uygulama içi sıralama birlikte düşer (`RegisterDragDrop` HWND başına).
+  Mica modu katmanlı değildir.
 - Sürükleme ile tıklama aynı butonda; bastırma **anahtarsızdır** (`_suppressNextClick`), çünkü
   bırakma sırayı değiştirip serbest bırakılan hücrenin içeriğini değiştirir.
-- Yeniden tasarım **fare ile hiç çalıştırılmadı**; büyütme/reflow/sıralama elle doğrulanmamıştır
-  ([`conventions.md`](../conventions.md) §Test listesi).
+- Plaka ritmi fare ile doğrulanmadı ([`conventions.md`](../conventions.md) §Test listesi).

@@ -14,8 +14,9 @@ internal sealed class AppIconService
     private ImageSource? _fallback;
 
     /// <summary>
-    /// Loads an icon sized for <paramref name="sizePx"/> device pixels (DPI-aware).
-    /// Cache key includes size so 100%/150%/200% strips do not share a soft upscaled bitmap.
+    /// Loads the shell glyph for <paramref name="sizePx"/> device pixels (DPI-aware).
+    /// The bitmap is jumbo or exact-size — never a 16/32 px icon stretched in WPF.
+    /// Cache key includes size so 100%/150%/200% strips do not share one bitmap.
     /// </summary>
     internal ImageSource GetIcon(string path, int sizePx)
     {

@@ -10,8 +10,8 @@ using WharfBar.Services;
 namespace WharfBar.Views.Pages;
 
 /// <summary>
-/// Dock settings page: content list, auto-hide, icon size, surface, magnification,
-/// position, running-apps visibility.
+/// Dock settings page: content list, auto-hide, icon size, background, position,
+/// running-apps visibility.
 /// </summary>
 public partial class DockPage : Page
 {
@@ -30,7 +30,7 @@ public partial class DockPage : Page
         AutoHideToggle.Unchecked += OnAutoHideChanged;
         ShowRunningToggle.Checked += OnShowRunningChanged;
         ShowRunningToggle.Unchecked += OnShowRunningChanged;
-        SurfaceCombo.SelectionChanged += OnSurfaceChanged;
+        BackgroundCombo.SelectionChanged += OnBackgroundModeChanged;
         PositionCombo.SelectionChanged += OnPositionChanged;
         AddItemButton.Click += OnAddItemClick;
 
@@ -52,21 +52,23 @@ public partial class DockPage : Page
         AutoHideToggle.IsChecked = Cfg.Dock.AutoHide;
         IconSizeSlider.Value = Cfg.Dock.IconSize;
         IconSizeLabel.Text = $"{(int)Cfg.Dock.IconSize} DIP";
-        MagnificationSlider.Value = DockMagnification.Clamp(Cfg.Dock.Magnification);
-        MagnificationLabel.Text = $"{DockMagnification.Clamp(Cfg.Dock.Magnification):0.00}×";
         ShowRunningToggle.IsChecked = Cfg.Dock.ShowRunningApps;
+        string mode = TopBarBackgroundModes.NormalizeMode(Cfg.Dock.BackgroundMode);
+        BackgroundCombo.SelectedIndex = mode switch
+        {
+            TopBarBackgroundModes.Transparent => 1,
+            TopBarBackgroundModes.Tint => 2,
+            _ => 0,
+        };
+        OpacitySlider.Value = TopBarBackgroundModes.ClampOpacity(Cfg.Dock.TintOpacity);
+        OpacityLabel.Text = $"{TopBarBackgroundModes.ClampOpacity(Cfg.Dock.TintOpacity)}%";
+        UpdateOpacityRow(mode);
         PositionCombo.SelectedIndex = DockPositions.Normalize(Cfg.Dock.Position) switch
         {
             DockPositions.BottomLeft => 1,
             DockPositions.BottomRight => 2,
             _ => 0,
         };
-        SurfaceCombo.SelectedIndex = string.Equals(
-            Cfg.Dock.Surface,
-            DockSurfaceStyles.Acrylic,
-            StringComparison.OrdinalIgnoreCase)
-            ? 1
-            : 0;
 
         RebuildItems();
     }
@@ -263,25 +265,51 @@ public partial class DockPage : Page
         SaveAndApply();
     }
 
-    private void OnMagnificationChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void OnBackgroundModeChanged(object sender, SelectionChangedEventArgs e)
     {
-        double clamped = DockMagnification.Clamp(e.NewValue);
-        MagnificationLabel.Text = $"{clamped:0.00}×";
+        if (_isLoading) return;
+
+        string newMode = BackgroundCombo.SelectedIndex switch
+        {
+            1 => TopBarBackgroundModes.Transparent,
+            2 => TopBarBackgroundModes.Tint,
+            _ => TopBarBackgroundModes.Mica,
+        };
+
+        string oldMode = TopBarBackgroundModes.NormalizeMode(Cfg.Dock.BackgroundMode);
+        bool oldNeedsTx = TopBarBackgroundModes.NeedsTransparency(oldMode);
+        bool newNeedsTx = TopBarBackgroundModes.NeedsTransparency(newMode);
+
+        Cfg.Dock.BackgroundMode = newMode;
+        Config.Save(Cfg);
+        UpdateOpacityRow(newMode);
+
+        if (oldNeedsTx != newNeedsTx)
+        {
+            WharfApp.RecreateDock();
+        }
+        else
+        {
+            WharfApp.ApplyDockChanges();
+        }
+    }
+
+    private void OnOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        int v = (int)Math.Round(e.NewValue);
+        OpacityLabel.Text = $"{v}%";
 
         if (_isLoading) return;
 
-        Cfg.Dock.Magnification = clamped;
+        Cfg.Dock.TintOpacity = TopBarBackgroundModes.ClampOpacity(v);
         SaveAndApply();
     }
 
-    private void OnSurfaceChanged(object sender, SelectionChangedEventArgs e)
+    private void UpdateOpacityRow(string mode)
     {
-        if (_isLoading) return;
-
-        Cfg.Dock.Surface = SurfaceCombo.SelectedIndex == 1
-            ? DockSurfaceStyles.Acrylic
-            : DockSurfaceStyles.Mica;
-        SaveAndApply();
+        OpacityRow.Visibility = mode == TopBarBackgroundModes.Tint
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void SaveAndApply()

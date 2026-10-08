@@ -55,24 +55,26 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
         </Style>
-        <!-- Island pilli: ortadaki tek hedef. Diğer statü butonları gibi hover ile geri
-             bildirim verir; 30 DIP'lik şeritte hedefi görünmez kılan yerleşim yanlış tıklamaya
-             yol açıyor.
-
-             MinWidth: boş durumda glif + "Boş" ~80 DIP'te kalıyordu; bu ada tek OLE bırakma
-             hedefi olduğu için hedefi 120 DIP'e çıkarmak nişan almayı kolaylaştırır
-             (canlı ölçüm Task 8'de). -->
+        <!-- Center island chip. WinUI control fill + 1px stroke, light and dark.
+             Idle is a short indicator (glyph + label), not a bare hit-plate.
+             Hover uses the next control fill; width eases in code. -->
         <Style x:Key="IslandPillHit" TargetType="Border">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="10,2" />
+            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,0" />
+            <Setter Property="MinWidth" Value="108" />
+            <Setter Property="MinHeight" Value="24" />
+            <Setter Property="Height" Value="24" />
             <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="ClipToBounds" Value="True" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="MinWidth" Value="120" />
             <Setter Property="HorizontalAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1EFFFFFF" />
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -90,7 +92,8 @@
     <Border x:Name="Surface" Background="Transparent">
         <Grid Margin="10,0">
             <!-- Left cluster: Windows logo + System Stats monitor -->
-            <StackPanel Orientation="Horizontal"
+            <StackPanel x:Name="LeftCluster"
+                        Orientation="Horizontal"
                         HorizontalAlignment="Left"
                         VerticalAlignment="Center">
                 <Border x:Name="AppMenuButton"
@@ -149,48 +152,68 @@
                 </TextBlock>
             </StackPanel>
 
-            <!-- Island: pano geçmişi + bırakılan dosya alanı. Yalnızca birincil monitörün
-                 barında görünür (UpdateIslandPill), çünkü pano dinleyicisi ve kayıt listesi
-                 uygulama genelinde tek tane; her barda bir ada çıkması aynı listeyi iki kez
-                 göstermek ve hangi panelin açık olduğunu belirsizleştirmek olurdu.
-                 Drop/DragOver/MouseLeftButtonUp tek blokta bağlıdır: aynı öğe iki adımda
-                 düzenlenip biri atlanırsa olay sessizce ölü kalır.
-
-                 Alt sıradaki çocuklar (StatusStrip) üst üste biner — kök Grid'de sütun yok,
-                 üç küme aynı hücreyi paylaşıyor. Dar monitörde ortalanmış ada sağ kümeye
-                 değdiği için önizleme tavanı statik tutulur (MaxWidth=160): genişlik tabanlı
-                 gizleme altyapısı yok, ActualWidth/SizeChanged dinlenmiyor. Canlı ölçüm ve
-                 gerekiyorsa tavanın düşürülmesi Task 8'in konusu. -->
+            <!-- Island chip: idle indicator (glyph + "Pano"), now-playing title, or a meter.
+                 Compact states stay inside the 30 DIP bar. The popup below is the
+                 only expanded surface. Drop/DragOver/click stay on this control.
+                 Width animates in TopBarWindow.Island.cs; title growth is capped there. -->
             <Border x:Name="IslandPill"
                     Style="{StaticResource IslandPillHit}"
                     Margin="24,0"
                     Visibility="Collapsed"
                     AllowDrop="True"
+                    MouseEnter="OnIslandPillEnter"
+                    MouseLeave="OnIslandPillLeave"
                     MouseLeftButtonUp="OnIslandPillClick"
                     Drop="OnIslandPillDrop"
                     DragOver="OnIslandDragOver">
-                <StackPanel Orientation="Horizontal">
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
                     <TextBlock x:Name="IslandGlyph"
-                               Text="&#x2261;"
+                               FontFamily="{DynamicResource AppIconFontFamily}"
+                               FontSize="13"
+                               Width="16"
+                               TextAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Text="&#xE8C8;" />
+                    <TextBlock x:Name="IslandIdleLabel"
+                               FontFamily="{DynamicResource AppTextFontFamily}"
                                FontSize="12"
-                               Margin="0,0,6,0"
-                               VerticalAlignment="Center" />
-                    <TextBlock x:Name="IslandPreviewText"
-                               Text="Bo&#x15F;"
-                               FontSize="12"
-                               TextTrimming="CharacterEllipsis"
-                               MaxWidth="160"
-                               VerticalAlignment="Center" />
-                    <TextBlock x:Name="IslandCountText"
+                               FontWeight="SemiBold"
                                Margin="8,0,0,0"
-                               FontSize="12"
-                               Opacity="0.6"
-                               VerticalAlignment="Center" />
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Text="Pano" />
+                    <TextBlock x:Name="IslandTitle"
+                               Style="{StaticResource StatusLabel}"
+                               Margin="0"
+                               MaxWidth="0"
+                               Visibility="Collapsed"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+                    <Grid x:Name="IslandMeter"
+                          Width="0"
+                          Height="4"
+                          Margin="0"
+                          VerticalAlignment="Center"
+                          ClipToBounds="True"
+                          Visibility="Collapsed">
+                        <Border CornerRadius="2"
+                                Opacity="0.28"
+                                Background="{DynamicResource TextFillColorPrimaryBrush}" />
+                        <Border x:Name="IslandMeterFill"
+                                Width="0"
+                                HorizontalAlignment="Left"
+                                CornerRadius="2"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                    </Grid>
                 </StackPanel>
             </Border>
 
             <!-- Right cluster (runtime order from config; default LTR):
-                 trayMirror · overflow · dateTime · notifications · controlCenter · volume · network · battery -->
+                 trayMirror · overflow · dateTime · notifications · controlCenter · network · battery.
+                 volume / brightness / media stay in the catalog but are off by default. -->
             <StackPanel x:Name="StatusStrip"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
@@ -348,18 +371,23 @@
             </Popup>
 
             <!-- Island paneli: aynı Popup kalıbı (StaysOpen=True, PopupAnimation=None —
-                 açılış/kapanış animasyonu code-behind'de). Panelin içinde ikinci bir Popup
-                 yok: liste ScrollViewer + StackPanel'dir (docs/04-gotchas.md). -->
+                 açılış/kapanış animasyonu code-behind'de). Placement=Bottom solu hizalar;
+                 HorizontalOffset ölçüldükten sonra hapın ortasına çekilir.
+                 VerticalOffset=-2: panel hapın altına 2 DIP biner, aralık kalmaz.
+                 Panelin içinde ikinci bir Popup yok (docs/04-gotchas.md). -->
             <Popup x:Name="IslandPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=IslandPill}"
                    StaysOpen="True"
                    AllowsTransparency="True"
                    PopupAnimation="None"
-                   VerticalOffset="10"
+                   VerticalOffset="-2"
                    Opened="OnIslandPopupOpened"
                    Closed="OnIslandPopupClosed">
-                <local:IslandFlyout x:Name="IslandHost" PreviewKeyDown="OnIslandKeyDown" />
+                <local:IslandFlyout x:Name="IslandHost"
+                                    PreviewKeyDown="OnIslandKeyDown"
+                                    MouseEnter="OnIslandPanelEnter"
+                                    MouseLeave="OnIslandPanelLeave" />
             </Popup>
         </Grid>
     </Border>

@@ -27,8 +27,11 @@ public class DockAppsComposerTests
         IReadOnlyList<PinnedApp>? pins = null,
         IReadOnlyList<RunningAppInfo>? running = null,
         IReadOnlyList<AppWindowInfo>? minimized = null,
-        bool showRunning = true) =>
-        DockAppsComposer.Compose(pins ?? [], running ?? [], minimized ?? [], showRunning);
+        bool showRunning = true,
+        Func<string, PinMatchKey?>? resolveShortcut = null,
+        IReadOnlyList<PinnedApp>? taskbarPins = null) =>
+        DockAppsComposer.Compose(
+            pins ?? [], running ?? [], minimized ?? [], showRunning, resolveShortcut, taskbarPins);
 
     [Fact]
     public void Compose_KeepsConfiguredPinOrder()
@@ -109,72 +112,258 @@ public class DockAppsComposerTests
     }
 
     [Fact]
-    public void Compose_CreatesOneTilePerMinimizedWindow()
+    public void Compose_PinnedRunningSameApp_IsOneTileEvenWhenAWindowIsMinimized()
     {
+        // The running app's main window has to be real: the composer learns the process id
+        // from that hwnd, and only then can it tell the minimized window belongs to the pin.
+        using var window = new DummyWindow();
         IReadOnlyList<DockAppItem> items = Compose(
-            [],
-            [Running("np", Notepad, "Not Defteri")],
-            [Minimized((IntPtr)11, 100, "Bir"), Minimized((IntPtr)12, 100, "İki")]);
+            Pins(Notepad),
+            [Running("np", Notepad, "Not Defteri", window.Handle)],
+            [Minimized((IntPtr)11, window.Pid, "Belge"), Minimized((IntPtr)12, window.Pid, "İkinci")]);
 
-        DockAppItem[] minimized = [.. items.Where(i => i.Section == DockSection.Minimized)];
-        Assert.Equal(2, minimized.Length);
-        Assert.Equal(["Bir", "İki"], minimized.Select(i => i.WindowTitle));
-        Assert.Equal("hwnd:11", minimized[0].Id);
-        Assert.Equal("hwnd:12", minimized[1].Id);
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsPinned);
+        Assert.True(item.IsRunning);
+        Assert.Equal(Notepad, item.Path);
     }
 
     [Fact]
-    public void Compose_MapsMinimizedWindowToAppPathForIconAndLabel()
+    public void Compose_MinimizedWindowOfUnpinnedRunningApp_DoesNotAddASecondTile()
     {
-        // The composer resolves a minimized window's owner through the running app's main
-        // window handle, so this needs a real hwnd — a fake one resolves no pid.
         using var window = new DummyWindow();
         IReadOnlyList<DockAppItem> items = Compose(
             [],
             [Running("np", Notepad, "Not Defteri", window.Handle)],
             [Minimized((IntPtr)11, window.Pid, "Belge")]);
 
-        DockAppItem minimized = Assert.Single(items, i => i.Section == DockSection.Minimized);
-        Assert.Equal(Notepad, minimized.Path);
-        Assert.Equal("Not Defteri", minimized.Label);
-        Assert.Equal("Belge", minimized.WindowTitle);
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Running, item.Section);
+        Assert.Equal(Notepad, item.Path);
+        Assert.Equal("Not Defteri", item.Label);
+        Assert.False(item.IsPinned);
+    }
+
+    [Fact]
+    public void Compose_TwoMinimizedWindowsOfUnpinnedApp_AreOneTile()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [],
+            [Minimized((IntPtr)12, 100, "İki"), Minimized((IntPtr)11, 100, "Bir")]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Running, item.Section);
+        Assert.False(item.IsPinned);
+        Assert.True(item.IsRunning);
+        Assert.Equal("Bir", item.Label);
+        Assert.Equal((IntPtr)11, item.MainWindowHandle);
+    }
+
+    [Fact]
+    public void Compose_MinimizedOnlyApps_AreOneTilePerProcessAfterPins()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [],
+            [Minimized((IntPtr)21, 100, "Z"), Minimized((IntPtr)22, 200, "M"), Minimized((IntPtr)23, 100, "A")]);
+
+        Assert.Equal(["notepad", "A", "M"], items.Select(i => i.Label));
+        Assert.Equal(DockSection.Pinned, items[0].Section);
+        Assert.All(items.Skip(1), i => Assert.Equal(DockSection.Running, i.Section));
+        Assert.Equal((IntPtr)23, items[1].MainWindowHandle);
+    }
+
+    [Fact]
+    public void Compose_WhenMinimizedOnlyLabelsMatch_OrdersTilesByHandle()
+    {
+        // Same-titled windows are the common case. Without a handle tiebreak the two
+        // process groups would follow scan order, and the 800 ms rescan would swap them.
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [],
+            [Minimized((IntPtr)31, 100, "Belge"), Minimized((IntPtr)30, 200, "Belge"), Minimized((IntPtr)32, 100, "Belge")]);
+
+        Assert.Equal(2, items.Count);
+        Assert.Equal([(IntPtr)30, (IntPtr)31], items.Select(i => i.MainWindowHandle));
     }
 
     [Fact]
     public void Compose_UnmappedMinimizedWindowFallsBackToWindowTitle()
     {
         IReadOnlyList<DockAppItem> items = Compose([], [], [Minimized((IntPtr)13, 999, "Yalnız")]);
-        DockAppItem minimized = Assert.Single(items);
-        Assert.Equal(string.Empty, minimized.Path);
-        Assert.Equal("Yalnız", minimized.Label);
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Running, item.Section);
+        Assert.Equal(string.Empty, item.Path);
+        Assert.Equal("Yalnız", item.Label);
     }
 
     [Fact]
-    public void Compose_OrdersMinimizedWindowsByTitleThenHandle()
+    public void Compose_MatchesPinToRunningAppByAppUserModelId()
     {
+        const string aumid = "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App";
         IReadOnlyList<DockAppItem> items = Compose(
-            [],
-            [],
-            [Minimized((IntPtr)21, 100, "Z"), Minimized((IntPtr)22, 200, "M"), Minimized((IntPtr)23, 100, "A")]);
+            [new PinnedApp(aumid, string.Empty, "Not Defteri")],
+            [Running(aumid, @"C:\Windows\SystemApps\Microsoft.WindowsNotepad\Notepad.exe", "Not Defteri", (IntPtr)7)]);
 
-        string[] titles = [.. items.Where(i => i.Section == DockSection.Minimized).Select(i => i.WindowTitle)];
-        Assert.Equal(["A", "M", "Z"], titles);
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsRunning);
+        Assert.Equal(aumid, item.Id);
+        Assert.Equal(aumid, item.Path);
     }
 
     [Fact]
-    public void Compose_WhenMinimizedTitlesMatch_OrdersByHandle()
+    public void Compose_MatchesShortcutPinToResolvedTarget()
     {
-        // Same-titled windows are the common case (two Explorer windows, two untitled
-        // documents). Scan order is not handle order, so without the handle tiebreak
-        // OrderBy's stability would hand back the fresh scan's order — and the scan is
-        // re-enumerated every 800 ms, so the tiles would swap on every poll.
+        const string lnk = @"C:\Users\me\Desktop\Notepad.lnk";
         IReadOnlyList<DockAppItem> items = Compose(
-            [],
-            [],
-            [Minimized((IntPtr)31, 100, "Belge"), Minimized((IntPtr)30, 200, "Belge"), Minimized((IntPtr)32, 100, "Belge")]);
+            [new PinnedApp(lnk, string.Empty, "Not Defteri")],
+            [Running("np", Notepad, "Not Defteri", (IntPtr)7)],
+            resolveShortcut: path => string.Equals(path, lnk, StringComparison.OrdinalIgnoreCase)
+                ? new PinMatchKey(Notepad, null, IsDirectory: false)
+                : null);
 
-        string[] ids = [.. items.Where(i => i.Section == DockSection.Minimized).Select(i => i.Id)];
-        Assert.Equal(["hwnd:30", "hwnd:31", "hwnd:32"], ids);
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsRunning);
+        Assert.Equal(lnk, item.Path);
+    }
+
+    [Fact]
+    public void Compose_MatchesShortcutPinByAppUserModelIdWhenTargetPathDiffers()
+    {
+        const string lnk = @"C:\Users\me\Desktop\Notepad.lnk";
+        const string aumid = "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App";
+        IReadOnlyList<DockAppItem> items = Compose(
+            [new PinnedApp(lnk, string.Empty, "Not Defteri")],
+            [Running(aumid, @"C:\Windows\SystemApps\Microsoft.WindowsNotepad\Notepad.exe", "Not Defteri", (IntPtr)7)],
+            resolveShortcut: _ => new PinMatchKey(string.Empty, aumid, IsDirectory: false));
+
+        DockAppItem item = Assert.Single(items);
+        Assert.True(item.IsRunning);
+        Assert.Equal(DockSection.Pinned, item.Section);
+    }
+
+    [Fact]
+    public void Compose_DoesNotMatchFolderPinToExplorer()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            [new PinnedApp(@"C:\Users\me\Documents", string.Empty, "Belgeler")],
+            [Running("Microsoft.Windows.Explorer", @"C:\Windows\explorer.exe", "Dosya Gezgini", (IntPtr)4)]);
+
+        Assert.Equal(2, items.Count);
+        Assert.Equal(DockSection.Pinned, items[0].Section);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(@"C:\Users\me\Documents", items[0].Path);
+        Assert.Equal(DockSection.Running, items[1].Section);
+        Assert.Equal(@"C:\Windows\explorer.exe", items[1].Path);
+    }
+
+    [Fact]
+    public void Compose_DoesNotMatchFolderShortcutToExplorerByAppUserModelId()
+    {
+        const string aumid = "Microsoft.Windows.Explorer";
+        IReadOnlyList<DockAppItem> items = Compose(
+            [new PinnedApp(@"C:\Users\me\Desktop\Belgeler.lnk", string.Empty, "Belgeler")],
+            [Running(aumid, @"C:\Windows\explorer.exe", "Dosya Gezgini", (IntPtr)4)],
+            resolveShortcut: _ => new PinMatchKey(@"C:\Users\me\Documents", aumid, IsDirectory: true));
+
+        Assert.Equal(2, items.Count);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(DockSection.Pinned, items[0].Section);
+        Assert.Equal(DockSection.Running, items[1].Section);
+    }
+
+    [Fact]
+    public void Compose_DoesNotMatchDifferentExecutablesWithTheSameFileName()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(@"C:\A\tool.exe"),
+            [Running("t", @"C:\B\tool.exe", "tool", (IntPtr)3)]);
+
+        Assert.Equal(2, items.Count);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(DockSection.Running, items[1].Section);
+    }
+
+    [Fact]
+    public void Compose_TaskbarPins_ShowClosedAppsOnTheLeftAndBindRunningOnes()
+    {
+        const string steam = @"C:\Program Files\Steam\steam.exe";
+        IReadOnlyList<DockAppItem> items = Compose(
+            pins: [],
+            running: [Running("calc", Calc, "Hesap Makinesi", (IntPtr)4), Running("steam", steam, "Steam", (IntPtr)8)],
+            taskbarPins: [new PinnedApp(Notepad, string.Empty, "Not Defteri"), new PinnedApp(Calc, string.Empty, "Hesap")]);
+
+        Assert.Equal(["Not Defteri", "Hesap", "Steam"], items.Select(i => i.Label));
+        Assert.Equal(DockSection.Pinned, items[0].Section);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(DockSection.Pinned, items[1].Section);
+        Assert.True(items[1].IsRunning);
+        Assert.Equal(DockSection.Running, items[2].Section);
+        Assert.False(items[2].IsPinned);
+    }
+
+    [Fact]
+    public void Compose_TaskbarOrderWins_AndDockOnlyPinsFollowOnce()
+    {
+        const string steam = @"C:\Program Files\Steam\steam.exe";
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad, Calc),
+            taskbarPins: [new PinnedApp(steam, string.Empty, "Steam"), new PinnedApp(Notepad, string.Empty, "Not Defteri")]);
+
+        Assert.Equal(["Steam", "Not Defteri", "calc"], items.Select(i => i.Label));
+        Assert.All(items, i => Assert.Equal(DockSection.Pinned, i.Section));
+        Assert.All(items, i => Assert.False(i.IsRunning));
+        Assert.Equal(Notepad, items[1].Path);
+    }
+
+    [Fact]
+    public void Compose_DedupesDockShortcutAgainstTheTaskbarTarget()
+    {
+        const string lnk = @"C:\Users\me\Desktop\Notepad.lnk";
+        IReadOnlyList<DockAppItem> items = Compose(
+            [new PinnedApp(lnk, string.Empty, "Kısayol")],
+            taskbarPins: Pins(Notepad),
+            resolveShortcut: path => string.Equals(path, lnk, StringComparison.OrdinalIgnoreCase)
+                ? new PinMatchKey(Notepad, null, IsDirectory: false)
+                : null);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(Notepad, item.Path);
+        Assert.Equal("notepad", item.Label);
+        Assert.False(item.IsRunning);
+    }
+
+    [Fact]
+    public void Compose_FolderTaskbarPinDoesNotSwallowExplorer()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            pins: [],
+            running: [Running("Microsoft.Windows.Explorer", @"C:\Windows\explorer.exe", "Dosya Gezgini", (IntPtr)4)],
+            taskbarPins: [new PinnedApp(@"C:\Windows", string.Empty, "Windows")]);
+
+        Assert.Equal(2, items.Count);
+        Assert.Equal(DockSection.Pinned, items[0].Section);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(@"C:\Windows", items[0].Path);
+        Assert.Equal(DockSection.Running, items[1].Section);
+    }
+
+    [Fact]
+    public void Compose_WhenShowRunningAppsFalse_StillShowsClosedTaskbarPins()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            pins: [],
+            running: [Running("c", Calc, "Calc")],
+            showRunning: false,
+            taskbarPins: Pins(Notepad));
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.False(item.IsRunning);
     }
 
     [Fact]

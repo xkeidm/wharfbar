@@ -24,22 +24,43 @@
         <Border x:Name="IconImage"
                 Background="Transparent"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Bottom"
-                RenderTransformOrigin="0.5,1">
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
                 <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
             </Border.RenderTransform>
-            <Image x:Name="IconGlyph"
-                   Stretch="Uniform"
-                   SnapsToDevicePixels="True" />
+            <Grid>
+                <!-- Rounded square behind the glyph, only while the pointer is on this slot.
+                     Margin lets it peek past a full-bleed icon without widening the slot into
+                     a bar. It scales with the icon (this border's transform); it is not a
+                     slot-wide underline. -->
+                <Border x:Name="HoverPlate"
+                        Margin="0"
+                        CornerRadius="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Image x:Name="IconGlyph"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Stretch="Uniform"
+                       SnapsToDevicePixels="True"
+                       UseLayoutRounding="True"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
+            </Grid>
         </Border>
 
-        <!-- Windows 11 taskbar running indicator: wide, thin, fully rounded ends. Width and
-             height are pushed in by DockStrip from the indicator metrics. -->
+        <!-- Windows 11 running indicator: a short capsule under this icon only.
+             Collapsed unless the app is running — pinned/closed icons must not share a bar.
+             Width, height, and corner radius are pushed in by ApplyMetrics. -->
         <Border x:Name="RunningPill"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom"
-                CornerRadius="2"
+                CornerRadius="1"
+                UseLayoutRounding="True"
+                SnapsToDevicePixels="True"
                 Background="{DynamicResource TextFillColorPrimaryBrush}"
                 Visibility="Collapsed" />
 

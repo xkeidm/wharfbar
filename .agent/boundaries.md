@@ -43,14 +43,14 @@
   maximize-yokken ~0.5 sn'lik state blip'i ile; boş okuma aynayı temizlemez (son iyi
   snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
   geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
-- Canlı dock: **kendi kalıcı listesi** (`dock.items` / `DockItemStore`) + `EnumWindows` / AUMID.
-  Görev çubuğu pinleri **okunmaz, yazılmaz** (ADR-005 revizyonu, 2026-10-04) — “Dock’a sabitle /
-  Dock’tan kaldır” yalnızca bu listeyi değiştirir
-- **Dock'un kendi listesini tutması, görev çubuğu pinlerine dokunmaması** (ADR-005 revizyonu) —
-  `TaskbarPinnedAppsSource` silindi; geri gelirse karar geri alınmış demektir ve ADR güncellenir
-- Dock büyütme matematiği **saf** tutulur (`DockMagnification` / `DockStripLayout`: WPF tipi yok,
-  birim testli); pencere **bir kez** en kötü büyümeye göre boyutlanır, hover'da `SetWindowPos`
-  çağrılmaz (docs/04-gotchas.md)
+- Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını salt okur** (kapalı pinler
+  dahil, görev çubuğu sırası) + `dock.items` içinde olup görev çubuğunda olmayanlar + `EnumWindows`
+  / AUMID. **Yazma yok** (ADR-005, 2026-10-07) — “Dock’a sabitle / Dock’tan kaldır” yalnızca
+  `dock.items` listesini değiştirir
+- **Görev çubuğu pin klasörüne yazılmaz** (ADR-005). `TaskbarPinnedAppsSource` salt okunurdur;
+  `.lnk` oluşturmak, silmek veya `Taskband` yazmak kararı bozar
+- Dock plakası ikonla birlikte büyümez. `DockMagnification` / `DockStripLayout` saf ve testli
+  durur; canlı şerit ölçeği 1'dir, pencere plaka boyutundadır, hover'da `SetWindowPos` çağrılmaz
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
   `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
@@ -62,7 +62,7 @@
   kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
   `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'dan yakalanıp buton rect'inden
    kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
-   tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Stealth peek'te DWM cloak
+   tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Sağ tık ayna ikonunda **düğme bırakılınca** iletilir (basılıyken üst bar capture'ı tıklamayı yutar); fiziksel tıklamadan hemen önce `AllowSetForegroundWindow(ASFW_ANY)`. Menü içeriği sahibin HMENU / flyout'udur — WharfBar çizmez. Stealth peek'te DWM cloak
    reddedilirse **WS_EX_LAYERED + alpha 0** yedeği kullanılır (UIA görünürlüğü korunur, flash yok);
    o da başarısızsa peek açılmaz. **Popup re-anchor:** fiziksel tık sonrası tıklanan butonun
    çevresinde yeni beliren popup penceresi (`TrayMenuReanchor`) ayna ikonunun altına taşınır —
@@ -85,6 +85,7 @@
      siler ve `Drop` klasörünü tarayarak yetimleri de kapsar. Silme yolları `Drop` önekiyle
      doğrulanır (elle düzenlenmiş `island.json` kullanıcının dosyasını silemez).
   - Pano geçmişi yalnız **birincil** monitörün barında görünür (servis tek örnek).
+  - **Kompakt ada 30 DIP barın içinde kalır** (ADR-011): boşta / şimdi çalıyor / ses-parlaklık sayacı hapı AppBar'ı büyütmez, ikinci bir `Topmost` pencere açmaz, iç içe `Popup` kurmaz. Çok satırlı panel bugünkü tek `IslandPopup`'tır.
   - **Yeni paket yok.**
 
 
@@ -115,5 +116,5 @@
 - Cursor kurallarına Win32 rehberinin tamamını yapıştırmak (kanonik kaynak `.agent/` + `docs/`)
 - Gizli anahtar / kişisel config commit etmek
 - Dokümantasyonu güncellemeden mimari kararı sessizce tersine çevirmek
-- Dock'u görev çubuğu `User Pinned` klasörüne **yazmak** (`.lnk` oluşturmak/silmek) ya da
-  oradan `.lnk` **okumak** — ADR-005 revizyonu; tek kaynak `dock.items`
+- Dock'u görev çubuğu `User Pinned` klasörüne **yazmak** (`.lnk` oluşturmak/silmek) veya
+  `Taskband` değerini yazmak — okuma serbesttir (ADR-005, 2026-10-07); yazma yolu `dock.items`

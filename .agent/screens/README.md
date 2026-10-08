@@ -5,8 +5,8 @@ WharfBar'ın kullanıcı arayüzü turu: her ekranın ayrıntılı sayfası aşa
 
 | Ekran | Sayfa | Özet |
 |-------|-------|------|
-| **Top bar** | [`topbar.md`](topbar.md) | 30 DIP AppBar; sol: Windows logo menüsü; sağ: 9 öğeli durum şeridi (sağ tık ile göster/gizle, sırala, arka plan + opaklık). |
-| **Dock** | [`dock.md`](dock.md) | Alt kenar overlay; kendi `dock.items` listesi (Pinned / Running / Minimized, 1 px ayraçlı); macOS tipi büyütme + reflow, sürükle-sırala, dosya bırakma, alt-sol/orta/sağ konum, 8 maddelik sağ tık menüsü. |
+| **Top bar** | [`topbar.md`](topbar.md) | 30 DIP AppBar; sol: Windows logo menüsü; orta: ada hapı (boşta, şimdi çalıyor, ses/parlaklık sayacı); sağ: durum şeridi (sağ tık ile göster/gizle, sırala, arka plan + opaklık). |
+| **Dock** | [`dock.md`](dock.md) | Alt kenar overlay; solda salt okunur görev çubuğu pinleri (kapalılar dahil) + `dock.items`, sağda sabitlenmemiş çalışanlar, uygulama başına bir ikon; plaka düğme ritmi (ikon 24, düğme 40, aralık 4), büyütme yok, arka plan `mica`/`transparent`/`tint`, sürükle-sırala, dosya bırakma, alt-sol/orta/sağ konum. |
 | **Ayarlar** | [`settings.md`](settings.md) | Logo/tepsi menüsünden açılır; Genel · Görünüm · Dock · Üst Çubuk · Kaplama · Hakkında sayfaları (WPF-UI NavigationView). |
 | **Hızlı ayarlar flyout** | [`topbar.md`](topbar.md#hızlı-ayarlar-flyout) | `controlCenter`/ses/ağ ikonlarının paylaştığı tek popup: Main / Mixer / Network sekmeleri (ADR-006); Wi-Fi (canlı ağ listesi + şifre paneli), Bluetooth (cihaz listesi), Yansıt (4 mod), gece ışığı tile (gerçek durum + toggle), kaplama tile (renk overlay aç/kapa, `\uE790`; ADR-007), tile animasyonları. |
 | **Parlaklık flyout** | [`topbar.md`](topbar.md#parlaklık-flyout) | Monitorian tarzı DDC/CI + WMI; master slider + monitör kartları. |

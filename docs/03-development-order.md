@@ -120,14 +120,14 @@ Kod çalışma ağacında; kullanıcı commit + aşağıdaki manuel maddeler bek
 
 ### 9b — Dock (bağımsız liste + bölümler)
 
-> **2026-10-04'te revize edildi** (ADR-005 revizyonu): ilk ve üçüncü madde geri alındı. Dock'un
-> tek kaynağı artık `dock.items` (`DockItemStore`); `TaskbarPinnedAppsSource` silindi ve görev
-> çubuğunun **pin tarafına** dokunulmuyor (gizleme/restore 9a'nın konusu, etkilenmedi).
+> **2026-10-04'te** pin kaynağı `dock.items`'e alındı. **2026-10-07'de** sol grup yine
+> `User Pinned` klasörünü **salt okur** (`TaskbarPinnedAppsSource`); klasöre yazılmaz.
+> “Dock'a sabitle / kaldır” `dock.items` olarak kaldı (gizleme/restore 9a'nın konusu).
 > Yaşayan doğrular: `EnumWindows` + AUMID running gruplama ve composer'ın bölümlü birleştirmesi.
 > Güncel hâl:
 > [2026-10-04 spec](superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
 
-- [x] ~~`User Pinned\TaskBar` `.lnk` tarama; pin sırası (`TaskbarPinnedAppsSource`)~~ — **2026-10-04'te kaldırıldı**
+- [x] `User Pinned\TaskBar` `.lnk` tarama, salt okunur (`TaskbarPinnedAppsSource`) — 2026-10-04'te kaldırıldı, **2026-10-07'de okuma geri geldi**; yazma yok
 - [x] `EnumWindows` + AppUserModelID running gruplama (`RunningAppsSource`)
 - [x] `config.pinnedApps` yalnızca seed/fallback (`DockAppsComposer`) — **2026-10-04'te göçe çevrildi:** eski liste `dock.items`'e bir kez taşınıp boşaltılır (`ConfigService.MigrateDockItems`)
 - [x] Pin + running birleşik UI; UWP için placeholder (kırık ikon yolu yok) — **2026-10-04'te üç bölümlü:** Pinned | Running | Minimized + macOS tipi büyütme/reflow

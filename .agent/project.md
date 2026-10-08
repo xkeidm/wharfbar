@@ -14,16 +14,21 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 - **Top bar:** Sol Windows logo (çizim) + sistem istatistikleri (`CPU x% · GPU y% · RAM z%`;
   çoklu GPU'da `GPU0/GPU1` ayrımı: `topBar.showGpuPerAdapter`;
   `topBar.showSystemStats`, `SystemStatsService`) + menü (Hakkında / Kapat); sağda durum şeridi
-  (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` → `volume` → `brightness` → `media` →
-  `network` → `battery`; özelleştirilebilir). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
+  (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` →
+  `network` → `battery`; özelleştirilebilir). `volume` / `brightness` / `media` katalogda kalır
+  ama varsayılan sırada yoktur (ADR-011); kayıtlı `statusItems` soyulmaz. Ortada ada hapı:
+  boşta pano, `island.musicPresence` (`persistent` varsayılan / `transient`) ile şimdi çalıyor,
+  ses ve parlaklık için kısa sayaç. Çok satır panel tek popup; AppBar 30 DIP kalır. Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
   + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
   medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
-- **Dock:** macOS tarzı alt şerit (overlay; Topmost ± auto-hide) — **tek kaynağı kendi listesi**
-  (`dock.items` / `DockItemStore`; Windows görev çubuğunun **pin tarafına dokunulmuyor** —
-  ADR-005 revizyonu, `config.pinnedApps` yalnızca göç seed'i olarak bir kez okunur). Üç bölüm
-  sırayla **Pinned | Running | Minimized**, 1 px ayraçla ayrılmış; büyütme macOS tipidir
-  (imlecin üstü + 3 komşu, gerçek reflow). Sürükle-sırala, Explorer'dan dosya bırakma,
+- **Dock:** alt şerit (overlay; Topmost ± auto-hide). Solda görev çubuğu pinleri **salt
+  okunur** (kapalılar dahil, görev çubuğu sırası; ADR-005 2026-10-07 — klasöre **yazılmaz**)
+  ve `dock.items` içinde olup orada olmayanlar. Çalışan pin aynı tek ikonda kalır. Sağda
+  yalnız sabitlenmemiş çalışanlar. Küçültülmüş pencere ikinci ikon olmaz. İkon büyümez.
+  Varsayılan ikon **24 DIP**, düğme 40, aralık **4 DIP**, plaka payı 10×8 DIP. Arka plan
+  `mica` / `transparent` / `tint` (üst çubuktan bağımsız).
+  “Dock'a sabitle / kaldır” yalnız `dock.items`. Sürükle-sırala, Explorer'dan dosya bırakma,
   alt-sol/orta/sağ konum; sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır,
   Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere,
   **Pencereler**).
@@ -63,9 +68,10 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 9. **Tray aynası (ADR-009):** yabancı tepsi ikonları belgelenmiş comctl32 `TB_*` mesajlarıyla
    salt-okunur okunur + `SendMessage` click-forward; RPM/enjeksiyon/undocumented API **yasak**;
    gizli ikonlar kapsam dışı (`Win+B` kalır); sistem ikonları tooltip filtreyle düşülür.
-10. **Dock'un tek listesi kendisidir (ADR-005 revizyonu):** görev çubuğunun **pin tarafına**
-    dokunulmuyor (görev çubuğunu gizleme/geri yükleme kapsamda, ADR-005 §3); büyütme motoru saf
-    (`DockMagnification` / `DockStripLayout`) ve pencere hover'da yeniden boyutlanmaz.
+10. **Dock pinleri (ADR-005, 2026-10-07):** sol grup `User Pinned` klasörünü **salt okur**
+    (yazmaz). `dock.items` sabitle/kaldır yolu olarak durur. Görev çubuğunu gizleme/geri yükleme
+    §3'ün konusu. Büyütme motoru saf (`DockMagnification` / `DockStripLayout`); hover'da pencere
+    yeniden boyutlanmaz.
 
 ## Doküman haritası
 
@@ -92,9 +98,9 @@ bekliyor). Kod kökü
 `src/WharfBar/`, çözüm kökte `WharfBar.sln`. Çalışan: top bar penceresi (DPI-farkında yerleşim),
 AppBar kaydı + garantili `ABM_REMOVE`, `ABN_*` callback’leri, explorer restart sonrası yeniden kayıt,
 tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler
-(`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`; kendi `dock.items` listesi + canlı
-çalışan uygulamalar ve küçültülmüş pencereler → üç bölümlü şerit, macOS tipi büyütme + reflow,
-sürükle-sırala, dosya bırakma, konum seçimi, süreç başlatma / pencere odaklama, "Pencereler"
+(`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`; solda salt okunur görev çubuğu
+pinleri + `dock.items`, sağda sabitlenmemiş çalışanlar, uygulama başına bir ikon; büyütme yok,
+ikon 24 / düğme 40 / aralık 4 DIP, arka plan mica veya katmanlı tint, sürükle-sırala, dosya bırakma, konum seçimi, süreç başlatma / pencere odaklama, "Pencereler"
 alt menüsü, canlı DPI, fullscreen gizleme, `WorkAreaChanged` yeniden konumlanma, auto-hide +
 hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`), saat + ağ + pil
@@ -103,8 +109,8 @@ hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppDa
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; keep-hidden izleme; çıkışta restore → `ABM_REMOVE`),
 canlı çalışan uygulamalar (`RunningAppsSource`) + küçültülmüş pencereler (`MinimizedWindowsSource`)
 → `DockAppsComposer`, üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
-Dock varsayılan ikon **28 DIP** / plaka ~46 DIP, ikon aralığı 12 DIP, pencere en kötü büyümeye göre
-~64 DIP, monitör alt kenarına yaslı (`IShellItemImageFactory` ile DPI-keskin, büyütme tavanında
+Dock varsayılan ikon **24 DIP** / düğme **40** / plaka **56 DIP** (pay 10×8, çalışan kapsül 8×3 düğmenin içinde), ikon aralığı 4 DIP, pencere plaka boyutunda,
+monitör alt kenarına yaslı (`SHGetFileInfo` + `IImageList` jumbo/extra-large; 16/32 px büyütülmez,
 raster'lanmış ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);

@@ -111,11 +111,11 @@ internal static class DockPositions
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
 internal sealed class DockConfig
 {
-    /// <summary>Taskbar-like icon size in DIP (slightly above shell medium; not macOS-dock large).</summary>
-    public const double DefaultIconSize = 28d;
+    /// <summary>Windows 11 taskbar glyph size in DIP.</summary>
+    public const double DefaultIconSize = 24d;
 
-    /// <summary>Previous brief default; remapped to <see cref="DefaultIconSize"/> on load.</summary>
-    public const double PreviousDefaultIconSize = 24d;
+    /// <summary>Previous default; remapped to <see cref="DefaultIconSize"/> on load.</summary>
+    public const double PreviousDefaultIconSize = 28d;
 
     public const double MinIconSize = 16d;
 
@@ -128,10 +128,16 @@ internal sealed class DockConfig
     public double IconSize { get; set; } = DefaultIconSize;
 
     /// <summary>
-    /// Surface backdrop: <c>mica</c> or <c>acrylic</c>. The tint color comes from the Windows
-    /// system theme via the DWM backdrop — the same source as the top bar.
+    /// Retired. Old configs stored <c>mica</c> or <c>acrylic</c> here; both load as
+    /// <see cref="BackgroundMode"/> <c>mica</c>. Kept so those JSON keys still deserialize.
     /// </summary>
     public string Surface { get; set; } = DockSurfaceStyles.Mica;
+
+    /// <summary><c>mica</c>, <c>transparent</c>, or <c>tint</c>. Independent of the top bar.</summary>
+    public string BackgroundMode { get; set; } = TopBarBackgroundModes.Mica;
+
+    /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
+    public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
 
     /// <summary>
     /// The dock's own ordered, persisted item list. Display order equals list order.
@@ -283,6 +289,15 @@ internal sealed class IslandConfig
     /// <summary>Çözülemeyen <c>Persistence</c> değerlerinin düştüğü mod.</summary>
     internal const string DefaultPersistence = PersistenceSession;
 
+    /// <summary>Müzik varken ada parça adını göstermeye devam eder.</summary>
+    internal const string MusicPresencePersistent = "persistent";
+
+    /// <summary>Müzik varken ada boşta kalır; panel yalnız kısa süre açılır.</summary>
+    internal const string MusicPresenceTransient = "transient";
+
+    /// <summary>Çözülemeyen <c>MusicPresence</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
+    internal const string DefaultMusicPresence = MusicPresencePersistent;
+
     public bool Enabled { get; set; } = DefaultEnabled;
 
     /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
@@ -293,6 +308,12 @@ internal sealed class IslandConfig
 
     /// <summary>Kayıt sayısı sert tavanı (gün limitinden bağımsız).</summary>
     public int MaxItems { get; set; } = DefaultMaxItems;
+
+    /// <summary>
+    /// Müzik adada nasıl durur: <c>persistent</c> (varsayılan) veya <c>transient</c>.
+    /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
+    /// </summary>
+    public string MusicPresence { get; set; } = DefaultMusicPresence;
 }
 
 /// <summary>Pure static normalization helpers for <see cref="IslandConfig"/> (unit-tested).</summary>
@@ -309,4 +330,18 @@ internal static class IslandNormalizer
             ? IslandConfig.PersistencePersistent
             : IslandConfig.DefaultPersistence;
     }
+
+    /// <summary>
+    /// Returns <see cref="IslandConfig.MusicPresenceTransient"/> or
+    /// <see cref="IslandConfig.DefaultMusicPresence"/>. Unknown text falls back to persistent.
+    /// </summary>
+    internal static string NormalizeMusicPresence(string? value)
+    {
+        return string.Equals(value, IslandConfig.MusicPresenceTransient, StringComparison.OrdinalIgnoreCase)
+            ? IslandConfig.MusicPresenceTransient
+            : IslandConfig.DefaultMusicPresence;
+    }
+
+    internal static bool IsTransientMusic(string? value)
+        => NormalizeMusicPresence(value) == IslandConfig.MusicPresenceTransient;
 }

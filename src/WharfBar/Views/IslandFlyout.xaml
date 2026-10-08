@@ -5,55 +5,250 @@
              MaxHeight="440"
              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
+    <UserControl.Resources>
+        <Style x:Key="IslandIconButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="{DynamicResource AppIconFontFamily}" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
     <Border x:Name="FlyoutRoot"
             Background="{DynamicResource ApplicationBackgroundBrush}"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+            BorderThickness="1"
             CornerRadius="12"
             Padding="12"
-            Margin="0,0,12,0"
             SnapsToDevicePixels="True">
-        <Grid>
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-                <RowDefinition Height="Auto" />
-            </Grid.RowDefinitions>
+        <Grid x:Name="BodyHost" ClipToBounds="True">
+            <!-- Müzik ve pano aynı yüzeyde yer değiştirir. İkinci bir Popup yok. -->
+            <Grid x:Name="MusicBody" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!-- Arama kutusu. Yer tutucu aynı hücrede üstte durur; IsHitTestVisible=False
-                 olduğu için odak arama kutusunda kalır (tıklanınca yazmaya devam eder). -->
-            <Grid Grid.Row="0" Margin="0,0,0,8">
-                <TextBox x:Name="SearchBox"
-                         Padding="8,5"
-                         VerticalContentAlignment="Center"
-                         TextChanged="OnSearchChanged" />
-                <TextBlock x:Name="SearchPlaceholder"
-                           Margin="9,0,0,0"
-                           VerticalAlignment="Center"
-                           Opacity="0.5"
-                           IsHitTestVisible="False"
-                           Text="Ara…" />
+                <Grid Grid.Row="0" Margin="0,0,0,12">
+                    <TextBlock Text="Şimdi çalıyor"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Opacity="0.7"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="ClipboardAffordance"
+                            Style="{StaticResource IslandIconButton}"
+                            HorizontalAlignment="Right"
+                            Click="OnClipboardAffordanceClick"
+                            ToolTip="Pano geçmişi">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="14"
+                                   Text="&#xE8C8;" />
+                    </Button>
+                </Grid>
+
+                <Grid x:Name="MusicSessions" Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <Button Style="{StaticResource IslandIconButton}"
+                                Click="OnPreviousSessionClick"
+                                ToolTip="Önceki medya oturumu">
+                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="12"
+                                       Text="&#xE76B;" />
+                        </Button>
+                        <TextBlock x:Name="MusicSessionName"
+                                   Margin="8,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.75" />
+                        <Button Style="{StaticResource IslandIconButton}"
+                                Click="OnNextSessionClick"
+                                ToolTip="Sonraki medya oturumu">
+                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="12"
+                                       Text="&#xE76C;" />
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="MusicNow" Grid.Row="2">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="MusicCover"
+                            Width="56"
+                            Height="56"
+                            CornerRadius="8"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            VerticalAlignment="Center">
+                        <Grid>
+                            <Image x:Name="MusicArt"
+                                   Width="56"
+                                   Height="56"
+                                   Stretch="UniformToFill"
+                                   Visibility="Collapsed" />
+                            <TextBlock x:Name="MusicPlaceholder"
+                                       FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="22"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Text="&#xE90C;" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="MusicTitle"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="MusicArtist"
+                                   FontSize="12"
+                                   Opacity="0.7"
+                                   Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock x:Name="MusicEmpty"
+                           Grid.Row="2"
+                           Text="Çalan medya yok"
+                           FontSize="12"
+                           Opacity="0.6"
+                           HorizontalAlignment="Center"
+                           Margin="0,8,0,0"
+                           Visibility="Collapsed" />
+
+                <StackPanel x:Name="MusicTransport"
+                            Grid.Row="3"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Margin="0,12,0,4">
+                    <Button Style="{StaticResource IslandIconButton}"
+                            Click="OnPreviousTrackClick"
+                            ToolTip="Önceki parça">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE892;" />
+                    </Button>
+                    <Button x:Name="MusicPlayButton"
+                            Style="{StaticResource IslandIconButton}"
+                            FontSize="24"
+                            Padding="10,6"
+                            Click="OnPlayPauseClick"
+                            ToolTip="Oynat/Duraklat">
+                        <TextBlock x:Name="MusicPlayGlyph"
+                                   FontFamily="{DynamicResource AppIconFontFamily}"
+                                   Text="&#xE768;" />
+                    </Button>
+                    <Button Style="{StaticResource IslandIconButton}"
+                            Click="OnNextTrackClick"
+                            ToolTip="Sonraki parça">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE893;" />
+                    </Button>
+                </StackPanel>
             </Grid>
 
-            <!-- Liste düz StackPanel: Popup içinde iç içe Popup odak kaçırıp listeyi
-                 görünmez yapıyor (docs/04-gotchas.md). Sanalizasyon yok, üst sınır
-                 code-behind'de (MaxRenderedRows).
-                 Focusable=False: tek odak kaybettiren yol dikey ScrollBar'a tıklamak;
-                 odak oraya kaçarsa Enter/Delete/↑↓ çalışır ama harfler kaybolur. -->
-            <ScrollViewer x:Name="ListScroll"
-                          Grid.Row="1"
-                          VerticalScrollBarVisibility="Auto"
-                          HorizontalScrollBarVisibility="Disabled"
-                          Focusable="False">
-                <StackPanel x:Name="EntryListPanel" />
-            </ScrollViewer>
+            <Grid x:Name="ClipboardBody">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-            <!-- Alt bilgi: boş liste ya da sınır nedeniyle kurulmayan kayıt sayısı. -->
-            <TextBlock x:Name="HintText"
-                       Grid.Row="2"
-                       Margin="2,8,2,0"
-                       FontSize="11"
-                       Opacity="0.55"
-                       TextWrapping="Wrap"
-                       Visibility="Collapsed" />
+                <Button x:Name="BackToMusicButton"
+                        Grid.Row="0"
+                        HorizontalAlignment="Left"
+                        Margin="0,0,0,8"
+                        Style="{StaticResource IslandIconButton}"
+                        Click="OnBackToMusicClick"
+                        Visibility="Collapsed"
+                        ToolTip="Müziğe dön">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="12"
+                                   VerticalAlignment="Center"
+                                   Text="&#xE72B;" />
+                        <TextBlock Text="Müzik"
+                                   Margin="6,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource AppTextFontFamily}"
+                                   FontSize="12" />
+                    </StackPanel>
+                </Button>
+
+                <TextBlock x:Name="ClipboardEmpty"
+                           Grid.Row="1"
+                           Grid.RowSpan="2"
+                           Margin="16,28,16,28"
+                           FontSize="13"
+                           Opacity="0.65"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Visibility="Collapsed"
+                           Text="Kopyalanan metin ve bırakılan dosyalar burada durur." />
+
+                <Grid x:Name="SearchHost" Grid.Row="1" Margin="0,0,0,8">
+                    <TextBox x:Name="SearchBox"
+                             Padding="8,5"
+                             VerticalContentAlignment="Center"
+                             TextChanged="OnSearchChanged" />
+                    <TextBlock x:Name="SearchPlaceholder"
+                               Margin="9,0,0,0"
+                               VerticalAlignment="Center"
+                               Opacity="0.5"
+                               IsHitTestVisible="False"
+                               Text="Ara…" />
+                </Grid>
+
+                <ScrollViewer x:Name="ListScroll"
+                              Grid.Row="2"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Focusable="False">
+                    <StackPanel x:Name="EntryListPanel" />
+                </ScrollViewer>
+
+                <TextBlock x:Name="HintText"
+                           Grid.Row="3"
+                           Margin="2,8,2,0"
+                           FontSize="11"
+                           Opacity="0.55"
+                           TextWrapping="Wrap"
+                           Visibility="Collapsed" />
+            </Grid>
         </Grid>
     </Border>
+    <!-- Covers the panel stroke directly under the pill so the two read as one shape. -->
+    <Border x:Name="NeckCover"
+            Height="3"
+            VerticalAlignment="Top"
+            HorizontalAlignment="Center"
+            IsHitTestVisible="False"
+            SnapsToDevicePixels="True" />
+    </Grid>
 </UserControl>

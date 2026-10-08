@@ -381,6 +381,10 @@ public partial class TopBarWindow : Window
         CancelPendingClose(QuickSettingsHost, ref _qsClosePending);
         QuickSettingsHost.OnFlyoutOpened(_pendingQuickPage);
         AnimateFlyoutOpen(QuickSettingsHost);
+        if (_pendingQuickPage == QuickSettingsPage.Mixer)
+        {
+            NoteIslandVolume();
+        }
     }
 
     private void OnBrightnessPopupOpened(object sender, EventArgs e)
@@ -388,14 +392,22 @@ public partial class TopBarWindow : Window
         CancelPendingClose(BrightnessHost, ref _brightnessClosePending);
         BrightnessHost.OnFlyoutOpened();
         AnimateFlyoutOpen(BrightnessHost);
+        NoteIslandBrightness(apply: true);
     }
 
     /// <summary>
     /// Win11-style flyout entrance: content slides down from under the bar while fading in.
+    /// The island uses a shorter rise plus a slight scale so the panel feels attached to the chip.
     /// The animation restarts cleanly on every open (prior clocks are cleared first).
     /// </summary>
-    private static void AnimateFlyoutOpen(FrameworkElement content)
+    private static void AnimateFlyoutOpen(FrameworkElement content, bool fromChip = false)
     {
+        if (fromChip)
+        {
+            AnimateChipFlyout(content, opening: true, onDone: null, fromScaleX: 0.96, fromScaleY: 0.96);
+            return;
+        }
+
         var transform = content.RenderTransform as TranslateTransform ?? new TranslateTransform(0, -FlyoutSlideDip);
         content.RenderTransform = transform;
         transform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -426,8 +438,14 @@ public partial class TopBarWindow : Window
     /// Bekleyen kapanış, popup yeniden açılırsa <see cref="CancelPendingClose"/> ile iptal edilir
     /// (animasyon clock'ları temizlenince Completed tetiklenmez, yeni popup kapanmaz).
     /// </summary>
-    private static void AnimateFlyoutClose(FrameworkElement content, Action onDone)
+    private static void AnimateFlyoutClose(FrameworkElement content, Action onDone, bool fromChip = false)
     {
+        if (fromChip)
+        {
+            AnimateChipFlyout(content, opening: false, onDone, fromScaleX: 0.96, fromScaleY: 0.96);
+            return;
+        }
+
         var transform = content.RenderTransform as TranslateTransform ?? new TranslateTransform();
         content.RenderTransform = transform;
         transform.BeginAnimation(TranslateTransform.YProperty, null);
@@ -452,11 +470,105 @@ public partial class TopBarWindow : Window
         });
     }
 
+    /// <summary>
+    /// Grows from the top center with a fade. Horizontal scale starts at
+    /// <paramref name="fromScaleX"/>, vertical scale at <paramref name="fromScaleY"/>.
+    /// The top edge does not rise. Close reverses and is faster.
+    /// </summary>
+    /// <param name="fadeTarget">
+    /// Opacity host when it must not be <paramref name="content"/>. The island scales an
+    /// inner surface and fades the popup child: a scale on the popup child moves WPF's
+    /// placement corners.
+    /// </param>
+    private static void AnimateChipFlyout(
+        FrameworkElement content,
+        bool opening,
+        Action? onDone,
+        double fromScaleX,
+        double fromScaleY,
+        FrameworkElement? fadeTarget = null)
+    {
+        FrameworkElement fade = fadeTarget ?? content;
+        content.RenderTransformOrigin = new Point(0.5, 0);
+        (ScaleTransform scale, TranslateTransform move) = ChipMotion(content);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        move.BeginAnimation(TranslateTransform.YProperty, null);
+        move.Y = 0;
+        fade.BeginAnimation(UIElement.OpacityProperty, null);
+
+        double startX = opening ? fromScaleX : 1;
+        double endX = opening ? 1 : fromScaleX;
+        double startY = opening ? fromScaleY : 1;
+        double endY = opening ? 1 : fromScaleY;
+        double fromOpacity = opening ? 0 : 1;
+        double toOpacity = opening ? 1 : 0;
+        var duration = TimeSpan.FromMilliseconds(opening ? ChipFlyoutOpenMs : ChipFlyoutCloseMs);
+        var ease = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn };
+
+        scale.ScaleX = startX;
+        scale.ScaleY = startY;
+        fade.Opacity = fromOpacity;
+
+        var scaleX = new DoubleAnimation(startX, endX, duration) { EasingFunction = ease };
+        if (onDone is not null)
+        {
+            scaleX.Completed += (_, _) => onDone();
+        }
+
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleX);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(startY, endY, duration)
+        {
+            EasingFunction = ease,
+        });
+        fade.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(fromOpacity, toOpacity, duration)
+        {
+            EasingFunction = ease,
+        });
+    }
+
+    private static (ScaleTransform Scale, TranslateTransform Move) ChipMotion(FrameworkElement content)
+    {
+        if (content.RenderTransform is TransformGroup group
+            && group.Children.Count >= 2
+            && group.Children[0] is ScaleTransform scale
+            && group.Children[1] is TranslateTransform move)
+        {
+            return (scale, move);
+        }
+
+        var createdScale = new ScaleTransform(1, 1);
+        var createdMove = new TranslateTransform(0, 0);
+        var created = new TransformGroup();
+        created.Children.Add(createdScale);
+        created.Children.Add(createdMove);
+        content.RenderTransform = created;
+        return (createdScale, createdMove);
+    }
+
     private static void CancelPendingClose(FrameworkElement content, ref bool pending)
     {
         pending = false;
         content.BeginAnimation(UIElement.OpacityProperty, null);
-        if (content.RenderTransform is TranslateTransform transform)
+        if (content.RenderTransform is TransformGroup group)
+        {
+            foreach (Transform child in group.Children)
+            {
+                if (child is ScaleTransform scale)
+                {
+                    scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+                    scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+                    scale.ScaleX = 1;
+                    scale.ScaleY = 1;
+                }
+                else if (child is TranslateTransform move)
+                {
+                    move.BeginAnimation(TranslateTransform.YProperty, null);
+                    move.Y = 0;
+                }
+            }
+        }
+        else if (content.RenderTransform is TranslateTransform transform)
         {
             transform.BeginAnimation(TranslateTransform.YProperty, null);
             transform.Y = 0;
@@ -470,6 +582,8 @@ public partial class TopBarWindow : Window
     private const double FlyoutFadeMs = 140;
     private const double FlyoutCloseSlideMs = 110;
     private const double FlyoutCloseFadeMs = 90;
+    private const double ChipFlyoutOpenMs = 200;
+    private const double ChipFlyoutCloseMs = 140;
 
     private bool _qsClosePending;
     private bool _brightnessClosePending;
@@ -552,6 +666,7 @@ public partial class TopBarWindow : Window
 
         CancelPendingClose(BrightnessHost, ref _brightnessClosePending);
         CloseFlyouts();
+        BrightnessPopup.PlacementTarget = BrightnessButton;
         BrightnessHost.Refresh();
         BrightnessPopup.IsOpen = true;
     }
@@ -606,9 +721,6 @@ public partial class TopBarWindow : Window
         AnimateFlyoutOpen(MediaHost);
     }
 
-    private bool _islandClosePending;
-    private bool _islandPulseRunning;
-
     /// <summary>
     /// Island servisi. Adı bilerek <c>Island</c>, <c>IslandService</c> değil: C#'ta bir özelliğin
     /// adı tip adıyla aynı olursa sınıf gövdesindeki o ad özelliğe bağlanır ve aynı sınıftaki
@@ -616,76 +728,6 @@ public partial class TopBarWindow : Window
     /// kontrolü yazılı kalıyor.
     /// </summary>
     private IslandService? Island => _engine.Island;
-
-    /// <summary>Adaya tıkla: panel açıkken kapatır, kapalıyken açar.</summary>
-    private void OnIslandPillClick(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        ToggleIsland();
-    }
-
-    private void ToggleIsland()
-    {
-        IslandService? island = Island;
-        if (island is null || !island.Config.Enabled)
-        {
-            return;
-        }
-
-        if (IslandPopup.IsOpen)
-        {
-            CloseIsland();
-            return;
-        }
-
-        CancelPendingClose(IslandHost, ref _islandClosePending);
-
-        // Aynı anda tek panel açık olsun (Media/Brightness ile aynı kalıp): ada tıklamak
-        // başka bir flyout'u kapatmadan kendisini açmamalı.
-        CloseFlyouts();
-        IslandPopup.IsOpen = true;
-    }
-
-    private void CloseIsland(bool animate = true)
-    {
-        if (!IslandPopup.IsOpen)
-        {
-            _islandClosePending = false;
-            return;
-        }
-
-        if (animate && !_islandClosePending)
-        {
-            _islandClosePending = true;
-            AnimateFlyoutClose(IslandHost, () =>
-            {
-                _islandClosePending = false;
-                IslandPopup.IsOpen = false;
-            });
-        }
-        else
-        {
-            CancelPendingClose(IslandHost, ref _islandClosePending);
-            IslandPopup.IsOpen = false;
-        }
-    }
-
-    private void OnIslandPopupOpened(object sender, EventArgs e)
-    {
-        CancelPendingClose(IslandHost, ref _islandClosePending);
-
-        // Abonelik burada kurulur, pencere kurulurken değil: liste yalnız panel açıkken
-        // güncellenir (IslandHost.Detach, OnPanelClosed'da bunu tersine çevirir).
-        if (Island is { } island)
-        {
-            IslandHost.Attach(island);
-        }
-
-        IslandHost.OnPanelOpened();
-        AnimateFlyoutOpen(IslandHost);
-    }
-
-    private void OnIslandPopupClosed(object sender, EventArgs e) => IslandHost.OnPanelClosed();
 
     private void OnIslandKeyDown(object sender, KeyEventArgs e)
     {
@@ -703,145 +745,6 @@ public partial class TopBarWindow : Window
         if (IslandHost.HandleNavigationKey(e.Key))
         {
             e.Handled = true;
-        }
-    }
-
-    private void AttachIsland()
-    {
-        // Yalnızca birincil bar: pano dinleyicisi ve kayıt listesi uygulama genelinde tek
-        // tane, ikinci bir ada aynı listeyi ikinci kez gösterirdi (ADR-009'daki tray aynası
-        // kuralının aynısı).
-        if (!Monitor.IsPrimary)
-        {
-            return;
-        }
-
-        IslandService? island = Island;
-        if (island is null)
-        {
-            UpdateIslandPill();
-            return;
-        }
-
-        island.Changed += OnIslandChanged;
-        island.EntryAdded += OnIslandEntryAdded;
-        UpdateIslandPill();
-    }
-
-    private void DetachIsland()
-    {
-        if (Island is { } island)
-        {
-            island.Changed -= OnIslandChanged;
-            island.EntryAdded -= OnIslandEntryAdded;
-        }
-
-        IslandHost.Detach();
-    }
-
-    // IslandService bildirimleri tanım gereği UI dispatcher'ında yükselir
-    // (IslandService.RaiseChanged): atlamak gerekmiyor.
-    private void OnIslandChanged(object? sender, EventArgs e) => UpdateIslandPill();
-
-    private void OnIslandEntryAdded(object? sender, EventArgs e)
-    {
-        UpdateIslandPill();
-        PulseIslandPill();
-    }
-
-    /// <summary>
-    /// Pill'in görünümünü servis durumuna göre tazeler: ada yalnızca birincil barda ve ada
-    /// açıkken görünür, önizleme en yeni kaydı gösterir.
-    /// </summary>
-    private void UpdateIslandPill()
-    {
-        IslandService? island = Island;
-        bool available = island is not null && island.Config.Enabled && Monitor.IsPrimary;
-        if (!available || island is null)
-        {
-            IslandPill.Visibility = Visibility.Collapsed;
-
-            // Ayar kapatıldıysa açık panel ekranda asılı kalmasın.
-            if (IslandPopup.IsOpen)
-            {
-                CloseIsland(animate: false);
-            }
-
-            return;
-        }
-
-        IslandPill.Visibility = Visibility.Visible;
-        IslandEntry? latest = island.Latest;
-
-        // Glyph'ler panelin satır glifleriyle aynı kaynaktan gelir (emoji/escape dizisi; MDL2
-        // kodu doğrulanmadan XAML'e girmez — yanlış kod noktası parse hatasıyla prosesi
-        // düşürür).
-        IslandGlyph.Text = latest is not null && latest.Kind == IslandEntryKind.File
-            ? IslandFlyout.FileGlyph
-            : IslandFlyout.TextGlyph;
-        IslandPreviewText.Text = latest is null ? "Boş" : IslandPruner.FormatPreview(latest.Text);
-        IslandCountText.Text = island.Entries.Count > 0
-            ? island.Entries.Count.ToString(CultureInfo.CurrentCulture)
-            : string.Empty;
-    }
-
-    /// <summary>
-    /// Yeni kayıt geldiğinde kısa nabız. Ölçek, RenderTransform'un ScaleX/ScaleY'sine
-    /// animasyonla verilir; <c>RenderTransform</c>'un kendisine <c>DoubleAnimation</c>
-    /// bağlamak tip uyuşmazlığıdır ve FillBehavior.HoldEnd, AutoReverse ile birlikte
-    /// kullanılınca ada kalıcı olarak %6 büyük bırakır.
-    /// </summary>
-    private void PulseIslandPill()
-    {
-        if (_islandPulseRunning || IslandPill.Visibility != Visibility.Visible)
-        {
-            return;
-        }
-
-        var transform = IslandPill.RenderTransform as ScaleTransform;
-        if (transform is null)
-        {
-            transform = new ScaleTransform(1, 1);
-            IslandPill.RenderTransformOrigin = new Point(0.5, 0.5);
-            IslandPill.RenderTransform = transform;
-        }
-
-        _islandPulseRunning = true;
-        var pulse = new DoubleAnimation(1d, 1.06d, TimeSpan.FromMilliseconds(160))
-        {
-            AutoReverse = true,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            FillBehavior = FillBehavior.Stop,
-        };
-        pulse.Completed += (_, _) => _islandPulseRunning = false;
-        transform.BeginAnimation(ScaleTransform.ScaleXProperty, pulse);
-        transform.BeginAnimation(ScaleTransform.ScaleYProperty, pulse);
-    }
-
-    private void OnIslandDragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop)
-            ? DragDropEffects.Copy
-            : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void OnIslandPillDrop(object sender, DragEventArgs e)
-    {
-        e.Handled = true;
-
-        if (!e.Data.GetDataPresent(DataFormats.FileDrop) || Island is not { } island)
-        {
-            return;
-        }
-
-        if (e.Data.GetData(DataFormats.FileDrop) is string[] paths && paths.Length > 0)
-        {
-            island.AddDroppedFiles(paths);
-
-            // Kopyalama STA worker'da olur ve liste ancak bitince değişir; kullanıcıya
-            // kabul edildiğini şimdi göster (EntryAdded gelince zaten bir nabız daha oynar).
-            PulseIslandPill();
         }
     }
 
@@ -1026,7 +929,11 @@ public partial class TopBarWindow : Window
             : Visibility.Collapsed;
     }
 
-    private void OnVolumeChanged(object? sender, EventArgs e) => ApplyVolume(_engine.Volume.Snapshot);
+    private void OnVolumeChanged(object? sender, EventArgs e)
+    {
+        ApplyVolume(_engine.Volume.Snapshot);
+        NoteIslandVolume();
+    }
 
     private void OnTrayMirrorChanged(object? sender, EventArgs e) => ApplyTrayMirror(_engine.TrayMirror.Items);
 
@@ -1035,12 +942,14 @@ public partial class TopBarWindow : Window
         _mediaActive = _engine.Media.HasActiveSession;
         SetPlainToolTip(MediaButton, BuildMediaTooltip(_engine.Media.Snapshot));
         ApplyStatusItemLayout();
+        NoteIslandMedia(apply: true);
     }
 
     private void OnMediaSessionsChanged(object? sender, EventArgs e)
     {
         _mediaActive = _engine.Media.HasActiveSession;
         ApplyStatusItemLayout();
+        NoteIslandMedia(apply: true);
     }
 
     private static string BuildMediaTooltip(MediaSnapshot snapshot)
@@ -1092,6 +1001,11 @@ public partial class TopBarWindow : Window
             };
             el.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        if (Monitor.IsPrimary && _presence is not null)
+        {
+            ApplyIslandFace(_presence.View);
+        }
     }
 
     private void OnStatusStripRightClick(object sender, MouseButtonEventArgs e)
@@ -1126,7 +1040,7 @@ public partial class TopBarWindow : Window
         List<string> current = TopBarStatusItemIds.Normalize(_config.Current.TopBar.StatusItems);
         var visible = new HashSet<string>(current, StringComparer.Ordinal);
 
-        foreach (string id in TopBarStatusItemIds.DefaultOrder)
+        foreach (string id in TopBarStatusItemIds.CatalogOrder)
         {
             var item = new System.Windows.Controls.MenuItem
             {
@@ -1273,6 +1187,7 @@ public partial class TopBarWindow : Window
         TopBarStatusItemIds.Notifications => "Bildirimler",
         TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
         TopBarStatusItemIds.Volume => "Ses",
+        TopBarStatusItemIds.Brightness => "Parlaklık",
         TopBarStatusItemIds.Network => "Ağ",
         TopBarStatusItemIds.Battery => "Pil",
         TopBarStatusItemIds.Media => "Medya",
@@ -1309,7 +1224,7 @@ public partial class TopBarWindow : Window
         {
             if (!items.Contains(id, StringComparer.Ordinal))
             {
-                items = InsertByDefaultOrder(items, id);
+                items = TopBarStatusItemIds.InsertInCatalogOrder(items, id);
             }
         }
         else
@@ -1322,12 +1237,6 @@ public partial class TopBarWindow : Window
         }
 
         PersistStatusItems(items);
-    }
-
-    private static List<string> InsertByDefaultOrder(List<string> current, string id)
-    {
-        var set = new HashSet<string>(current, StringComparer.Ordinal) { id };
-        return TopBarStatusItemIds.DefaultOrder.Where(set.Contains).ToList();
     }
 
     private void OnMoveStatusItemLeft(object sender, RoutedEventArgs e)
@@ -1945,6 +1854,9 @@ public partial class TopBarWindow : Window
                 host.MouseEnter += (_, _) => host.Background = hoverBrush;
                 host.MouseLeave += (_, _) => host.Background = Brushes.Transparent;
                 host.MouseDown += OnTrayMirrorItemMouseDown;
+                // Tunnel marks the release handled before StatusStrip's bubble opens WharfBar's
+                // own menu. The bubble handler is the same method and only swallows.
+                host.PreviewMouseRightButtonUp += OnTrayMirrorItemRightUp;
                 host.MouseRightButtonUp += OnTrayMirrorItemRightUp;
                 SetPlainToolTip(host, item.Tooltip);
                 _trayMirrorImages[item.Key] = host;
@@ -1965,23 +1877,42 @@ public partial class TopBarWindow : Window
         e.Handled = true;
         // Çift tık: ikinci fiziksel tıklamada ClickCount==2 (MouseLeftButtonDown UIElement'te
         // yok; MouseDown üzerinden ClickCount ile ayrıştırılır). Sıra: down/up, down/up, dblclk/up.
-        if (e.ChangedButton == MouseButton.Left && e.ClickCount >= 2)
+        // Sağ tık burada iletilmez: düğme hâlâ basılıyken üst bar capture'dadır, enjekte edilen
+        // sağ tık tepsi düğmesine değil bu pencereye gider. İletim bırakmada (RightUp).
+        if (!TrayGestureMap.TryForward(
+                e.ChangedButton == MouseButton.Right,
+                e.ClickCount,
+                isRelease: false,
+                out TrayClick kind))
         {
-            ForwardTrayClick(item, TrayClick.DoubleLeft, host);
+            return;
         }
-        else
-        {
-            ForwardTrayClick(item, e.ChangedButton == MouseButton.Right ? TrayClick.Right : TrayClick.Left, host);
-        }
+
+        ForwardTrayClick(item, kind, host);
     }
 
     private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)
     {
-        // Blocks the status-strip context menu when the click landed on a tray icon.
-        if (sender is Border { Tag: TrayMirrorItem })
+        if (sender is not Border { Tag: TrayMirrorItem item } host)
         {
-            e.Handled = true;
+            return;
         }
+
+        // Preview (tünel) ve bubble aynı metodu paylaşır. İletim yalnız tünelde: bubble ikinci
+        // bir sağ tık basar ve menüyü kapatır. Handled, StatusStrip'in kendi menüsünü keser.
+        bool forward = e.RoutedEvent == UIElement.PreviewMouseRightButtonUpEvent;
+        e.Handled = true;
+        if (!forward)
+        {
+            return;
+        }
+
+        if (Mouse.Captured != null)
+        {
+            Mouse.Capture(null);
+        }
+
+        ForwardTrayClick(item, TrayClick.Right, host);
     }
 
     private void ForwardTrayClick(TrayMirrorItem item, TrayClick kind, FrameworkElement source)

@@ -7,6 +7,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Services;
@@ -34,8 +35,14 @@ public sealed partial class IslandFlyout : UserControl
     internal const string TextGlyph = "\u2261";
 
     private IslandService? _service;
+    private MediaSessionService? _media;
     private readonly List<IslandEntry> _rows = [];
     private int _selectedIndex = -1;
+    private int _bodySwapId;
+
+    internal event EventHandler? ClipboardRequested;
+
+    internal event EventHandler? MusicRequested;
 
     public IslandFlyout()
     {
@@ -67,25 +74,244 @@ public sealed partial class IslandFlyout : UserControl
         EntryListPanel.Children.Clear();
     }
 
-    /// <summary>Panel açıldı: yüzeyi tazele, aramayı sıfırla, en yeni kaydı seç.</summary>
-    internal void OnPanelOpened()
+    /// <summary>Panel açıldı: pano gövdesi. Müzik gövdesi <see cref="PresentMusic"/> ile gelir.</summary>
+    internal void OnPanelOpened() => PresentClipboard(showBack: false);
+
+    internal void AttachMedia(MediaSessionService service)
     {
-        // Yarı saydam yüzey her açılışta yeniden üretilir (MediaFlyout ile aynı): tema panel
-        // kapalıyken değişmiş olabilir.
-        FlyoutRoot.Background = FlyoutSurface.Create();
+        if (_media is not null)
+        {
+            _media.Changed -= OnMediaSnapshotChanged;
+            _media.SessionsChanged -= OnMediaSnapshotChanged;
+        }
+
+        _media = service;
+        _media.Changed += OnMediaSnapshotChanged;
+        _media.SessionsChanged += OnMediaSnapshotChanged;
+    }
+
+    internal void DetachMedia()
+    {
+        if (_media is not null)
+        {
+            _media.Changed -= OnMediaSnapshotChanged;
+            _media.SessionsChanged -= OnMediaSnapshotChanged;
+            _media = null;
+        }
+    }
+
+    /// <summary>
+    /// Scaled surface. This is not the popup child: WPF aligns a popup on the child's
+    /// transformed corners, so a scale on <see cref="IslandFlyout"/> itself shifts the
+    /// panel off the pill for the whole open.
+    /// </summary>
+    internal FrameworkElement PanelSurface => FlyoutRoot;
+
+    /// <summary>
+    /// Arranged panel width in DIP. Zero until layout; the XAML <c>Width</c> is not a fallback.
+    /// </summary>
+    internal double PanelWidthDip
+    {
+        get
+        {
+            double arranged = FlyoutRoot.ActualWidth > 1 ? FlyoutRoot.ActualWidth : ActualWidth;
+            return IslandPopupAlign.WidthForPlacement(arranged);
+        }
+    }
+
+    /// <summary>Hap ve panel aynı dolguyu paylaşsın diye boyun kapağı da boyanır.</summary>
+    internal void ApplySurface()
+    {
+        var brush = FlyoutSurface.Create();
+        FlyoutRoot.Background = brush;
+        NeckCover.Background = brush;
+    }
+
+    /// <summary>Panelin üst çizgisini hapın altında kapatan şerit. Genişlik hapla aynı.</summary>
+    internal void SetNeck(double pillDip) => NeckCover.Width = Math.Max(0, pillDip);
+
+    /// <summary>Aynı popup'ın müzik gövdesi. <paramref name="focus"/> yalnız sabitleyen tıklamada.</summary>
+    internal void PresentMusic(bool focus, bool crossfade = false)
+    {
+        ApplySurface();
+        if (MusicCover.Clip is null)
+        {
+            MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 56, 56), 8, 8);
+        }
+
+        ApplyMusic();
+        RevealBody(MusicBody, ClipboardBody, crossfade);
+        if (!focus)
+        {
+            return;
+        }
+
+        Focusable = true;
+        MusicPlayButton.Focus();
+    }
+
+    /// <summary>Aynı popup'ın pano gövdesi. Geri düğmesi yalnız müzikten geçildiyse durur.</summary>
+    internal void PresentClipboard(bool showBack, bool focus = true, bool crossfade = false)
+    {
+        ApplySurface();
+        BackToMusicButton.Visibility = showBack ? Visibility.Visible : Visibility.Collapsed;
         SearchBox.Clear();
         _selectedIndex = 0;
         Rebuild();
-        SearchBox.Focus();
+        RevealBody(ClipboardBody, MusicBody, crossfade);
+        if (focus)
+        {
+            FocusClipboardSearch();
+        }
+    }
 
-        // Popup kendi penceresini Opened'ten sonra gösteriyor; odak ilk denemede
-        // yapışmazsa bir sonraki dispatcher turunda yeniden denenir. Kullanıcının tıklaması
-        // bu arada olamaz (Input önceliği, sıradaki mesajdan önce çalışır).
+    /// <summary>Hover ile açılmış panoyu sabitleyen tıklama arama kutusuna odaklar.</summary>
+    internal void FocusClipboardSearch()
+    {
+        if (SearchHost.Visibility != Visibility.Visible)
+        {
+            Focusable = true;
+            Focus();
+            return;
+        }
+
+        SearchBox.Focus();
         if (!SearchBox.IsFocused)
         {
             _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(() => SearchBox.Focus()));
         }
     }
+
+    /// <summary>
+    /// Müzik ve pano aynı popup içinde ~150 ms çapraz solar. Yükseklik birlikte akar;
+    /// ilk açılışta panel animasyonu yeter, <paramref name="crossfade"/> kapalı kalır.
+    /// </summary>
+    private void RevealBody(FrameworkElement show, FrameworkElement hide, bool crossfade)
+    {
+        bool swap = crossfade
+            && hide.Visibility == Visibility.Visible
+            && show.Visibility != Visibility.Visible;
+        if (!swap)
+        {
+            _bodySwapId++;
+            StopBodyMotion(show, hide);
+            hide.Visibility = Visibility.Collapsed;
+            show.Opacity = 1;
+            show.Visibility = Visibility.Visible;
+            BodyHost.Height = double.NaN;
+            return;
+        }
+
+        int id = ++_bodySwapId;
+        double fromHeight = BodyHost.ActualHeight;
+        if (fromHeight < 1)
+        {
+            fromHeight = hide.ActualHeight;
+        }
+
+        BodyHost.BeginAnimation(FrameworkElement.HeightProperty, null);
+        BodyHost.Height = fromHeight;
+        show.BeginAnimation(OpacityProperty, null);
+        hide.BeginAnimation(OpacityProperty, null);
+        show.Opacity = 0;
+        show.Visibility = Visibility.Visible;
+        show.Measure(new Size(380, double.PositiveInfinity));
+        double toHeight = Math.Max(show.DesiredSize.Height, 1);
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        var duration = TimeSpan.FromMilliseconds(150);
+        show.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = ease });
+        hide.BeginAnimation(OpacityProperty, new DoubleAnimation(1, 0, duration) { EasingFunction = ease });
+
+        var height = new DoubleAnimation(fromHeight, toHeight, duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        height.Completed += (_, _) =>
+        {
+            if (id != _bodySwapId)
+            {
+                return;
+            }
+
+            StopBodyMotion(show, hide);
+            hide.Visibility = Visibility.Collapsed;
+            show.Opacity = 1;
+            BodyHost.Height = double.NaN;
+        };
+        BodyHost.BeginAnimation(FrameworkElement.HeightProperty, height);
+    }
+
+    private void StopBodyMotion(FrameworkElement show, FrameworkElement hide)
+    {
+        show.BeginAnimation(OpacityProperty, null);
+        hide.BeginAnimation(OpacityProperty, null);
+        hide.Opacity = 1;
+        BodyHost.BeginAnimation(FrameworkElement.HeightProperty, null);
+    }
+
+    private void OnMediaSnapshotChanged(object? sender, EventArgs e)
+    {
+        if (MusicBody.Visibility == Visibility.Visible)
+        {
+            ApplyMusic();
+        }
+    }
+
+    private void ApplyMusic()
+    {
+        MediaSnapshot snapshot = _media?.Snapshot ?? MediaSnapshot.Idle;
+        bool hasSession = snapshot.HasSession;
+        MusicNow.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
+        MusicTransport.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
+        MusicEmpty.Visibility = hasSession ? Visibility.Collapsed : Visibility.Visible;
+        MusicSessions.Visibility = _media is { SessionIds.Count: > 1 }
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (!hasSession)
+        {
+            MusicTitle.Text = string.Empty;
+            MusicArtist.Text = string.Empty;
+            MusicArt.Visibility = Visibility.Collapsed;
+            MusicPlaceholder.Visibility = Visibility.Visible;
+            return;
+        }
+
+        MusicTitle.Text = string.IsNullOrEmpty(snapshot.Title) ? snapshot.AppName : snapshot.Title;
+        MusicArtist.Text = snapshot.Artist;
+        MusicSessionName.Text = snapshot.AppName;
+        MusicPlayGlyph.Text = snapshot.IsPlaying ? "\uE769" : "\uE768";
+
+        if (snapshot.Thumbnail is not null)
+        {
+            MusicArt.Source = snapshot.Thumbnail;
+            MusicArt.Visibility = Visibility.Visible;
+            MusicPlaceholder.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            MusicArt.Visibility = Visibility.Collapsed;
+            MusicPlaceholder.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnClipboardAffordanceClick(object sender, RoutedEventArgs e)
+        => ClipboardRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnBackToMusicClick(object sender, RoutedEventArgs e)
+        => MusicRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OnPreviousTrackClick(object sender, RoutedEventArgs e) => _media?.Previous();
+
+    private void OnPlayPauseClick(object sender, RoutedEventArgs e) => _media?.TogglePlayPause();
+
+    private void OnNextTrackClick(object sender, RoutedEventArgs e) => _media?.Next();
+
+    private void OnPreviousSessionClick(object sender, RoutedEventArgs e) => _media?.SelectPrevious();
+
+    private void OnNextSessionClick(object sender, RoutedEventArgs e) => _media?.SelectNext();
 
     /// <summary>
     /// Panel kapandı. Canlı abonelik bırakılır: gizliyken her kopyalamada listeyi yeniden
@@ -107,6 +333,11 @@ public sealed partial class IslandFlyout : UserControl
         {
             return;
         }
+
+        bool historyEmpty = _service.Entries.Count == 0 && SearchBox.Text.Length == 0;
+        ClipboardEmpty.Visibility = historyEmpty ? Visibility.Visible : Visibility.Collapsed;
+        SearchHost.Visibility = historyEmpty ? Visibility.Collapsed : Visibility.Visible;
+        ListScroll.Visibility = historyEmpty ? Visibility.Collapsed : Visibility.Visible;
 
         string? query = SearchBox.Text;
         List<IslandEntry> matches = _service.Entries
@@ -135,9 +366,15 @@ public sealed partial class IslandFlyout : UserControl
             EntryListPanel.Children.Add(BuildRow(_rows[i], i == _selectedIndex, selectedBrush));
         }
 
-        SearchPlaceholder.Visibility = SearchBox.Text.Length == 0
+        SearchPlaceholder.Visibility = SearchBox.Text.Length == 0 && !historyEmpty
             ? Visibility.Visible
             : Visibility.Collapsed;
+        if (historyEmpty)
+        {
+            HintText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
         UpdateHint(matches.Count, shown);
         ScrollSelectedIntoView();
     }
@@ -324,6 +561,11 @@ public sealed partial class IslandFlyout : UserControl
     /// <returns>Tüketilen tuş için <c>true</c> (çağıran <c>e.Handled</c> yapar).</returns>
     internal bool HandleNavigationKey(Key key)
     {
+        if (MusicBody.Visibility == Visibility.Visible)
+        {
+            return false;
+        }
+
         switch (key)
         {
             case Key.Up:

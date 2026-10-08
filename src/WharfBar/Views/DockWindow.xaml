@@ -11,57 +11,22 @@
         SizeToContent="Manual"
         Background="Transparent"
         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-        UseLayoutRounding="True"
-        AllowsTransparency="True">
+        UseLayoutRounding="True">
 
     <!-- ContextMenu / MenuItem styles live in App.xaml (BasedOn WPF-UI) so Fluent
          templates are not replaced by Aero2's light icon gutter. -->
 
-    <!-- Layered window: the strip is a WPF-drawn rounded surface (theme-aware brush set from
-         code) and everything outside it is fully transparent — but NOT click-through.
-         WS_EX_TRANSPARENT is only ever set on the whole HWND, and only while auto-hide has the
-         dock parked off-screen (DockHitTest.ApplyPassthrough); whenever the dock is interactive
-         the transparent band around the plate belongs to the window and swallows clicks. That
-         is the known side effect in spec §7.2 (~18 px/side), carried over unchanged. The window
-         is fixed at the maximum magnified extent (never resized during hover — SetWindowPos per
-         frame stutters); the Surface hugs the DockStrip's live width and stays centred.
-
-         Drop/DragOver are attached to this Grid, not to the plate. Two facts are certain: the
-         Window is Background="Transparent", so the whole window rect is hit-testable whatever
-         this Grid paints, and the transparent band beside the plate therefore swallows clicks
-         whenever the dock is interactive (§7.2's known side effect); and the handlers hang off
-         the root Grid rather than off Surface.
-         What is NOT certain — do not assert it — is how far the drop region reaches. This Grid
-         deliberately has no Background, so a point in the band hit-tests to the Window itself,
-         and whether a drop landing there still reaches the routed handlers below or is refused
-         with a "no drop" cursor has never been measured: the OLE drop path was not read, and no
-         test covers WPF input. Verify by hand instead (.agent/conventions.md): auto-hide OFF,
-         drag a file from Explorer onto the band ~30 px beside the plate, and record whether the
-         dock adds it. If it does not, the follow-up is to decide whether the drop region should
-         be narrowed — not to reword this comment. The drop region is not narrowed by this
-         redesign either way.
-         Drop/DragOver are declared in the same block (TopBarWindow.xaml:156-157 — a two-step edit
-         silently leaves it dead). -->
+    <!-- AllowsTransparency is set in the ctor from dock.backgroundMode, before
+         InitializeComponent. Mica is the plate itself (DWM). Tint and transparent rebuild
+         the window as a layered rounded plate; there is no magnification halo around it.
+         Drop/DragOver stay on this Grid (a two-step edit that splits them leaves drop dead). -->
     <Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">
         <Border x:Name="Surface"
-                Padding="12,6"
                 Background="Transparent"
-                CornerRadius="12"
-                BorderThickness="1"
-                BorderBrush="#1AFFFFFF"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Bottom">
-            <!-- Grid (not a bare pair of children) because Border hosts a single child:
-                 the 1 px inner highlight sits above the strip without intercepting input.
-                 The 12 DIP horizontal inset matches the plate padding and keeps the line
-                 inside the CornerRadius="12" arcs — at y = 7 DIP the plate edge is only
-                 ~1.1 DIP in, so a full-width square-cornered line would paint two specks
-                 of #24FFFFFF outside the plate. -->
-            <Grid>
-                <Border BorderThickness="0,1,0,0" BorderBrush="#24FFFFFF"
-                        Margin="12,0,12,-1" IsHitTestVisible="False" />
-                <controls:DockStrip x:Name="Strip" HorizontalAlignment="Center" />
-            </Grid>
+                BorderThickness="0"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <controls:DockStrip x:Name="Strip" HorizontalAlignment="Center" VerticalAlignment="Center" />
         </Border>
 
         <!-- Reorder affordance. A sibling of the plate, not a child: the plate resizes with
