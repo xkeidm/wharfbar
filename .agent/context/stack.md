@@ -44,7 +44,8 @@ RAM/başlangıç maliyeti içindir (gerekçe: [`../../docs/01-architecture.md`](
 | `Services/DockItemStore.cs` | Bağımsız sabit liste (`dock.items`; `App` tek örneği) |
 | `Services/MinimizedWindowsSource.cs` | Küçültülmüş pencere tablosu (arka iş parçacığı, 800 ms) |
 | `Services/DockStripBuilder.cs` | Bölüm ayraç slotları (1 DIP) |
-| `Views/Controls/DockStrip.cs` | Şerit `Panel` — büyütme + reflow, `CursorPosition`/`Phase` |
+| `Services/DockPlateMetrics.cs` | Levha geometrisi (düğme, aralık, pay, yükseklik/genişlik) |
+| `Views/Controls/DockStrip.cs` | Şerit `Panel` — canlı ölçek 1; matematik `DockStripLayout`'da |
 | `Views/Controls/DockItemCell.xaml` | Tek hücre: ikon + çalışan çizgisi \| ayraç |
 
 ## Bilinçli dışarıda (v1)

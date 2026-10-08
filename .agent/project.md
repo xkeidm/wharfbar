@@ -22,8 +22,8 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 - **Dock:** macOS tarzı alt şerit (overlay; Topmost ± auto-hide) — **tek kaynağı kendi listesi**
   (`dock.items` / `DockItemStore`; Windows görev çubuğunun **pin tarafına dokunulmuyor** —
   ADR-005 revizyonu, `config.pinnedApps` yalnızca göç seed'i olarak bir kez okunur). Üç bölüm
-  sırayla **Pinned | Running | Minimized**, 1 px ayraçla ayrılmış; büyütme macOS tipidir
-  (imlecin üstü + 3 komşu, gerçek reflow). Sürükle-sırala, Explorer'dan dosya bırakma,
+  sırayla **Pinned | Running | Minimized**, tek sürekli şerit; ortalanmış levha
+  (`dock.backgroundMode`: Mica / saydam / renkli). Sürükle-sırala, Explorer'dan dosya bırakma,
   alt-sol/orta/sağ konum; sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır,
   Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere,
   **Pencereler**).
@@ -93,7 +93,7 @@ bekliyor). Kod kökü
 AppBar kaydı + garantili `ABM_REMOVE`, `ABN_*` callback’leri, explorer restart sonrası yeniden kayıt,
 tek örnek Mutex, WPF-UI Mica + sistem light/dark (veya config `theme`), kare köşeler
 (`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`; kendi `dock.items` listesi + canlı
-çalışan uygulamalar ve küçültülmüş pencereler → üç bölümlü şerit, macOS tipi büyütme + reflow,
+çalışan uygulamalar ve küçültülmüş pencereler → üç bölümlü şerit, ortalanmış levha (ölçek 1),
 sürükle-sırala, dosya bırakma, konum seçimi, süreç başlatma / pencere odaklama, "Pencereler"
 alt menüsü, canlı DPI, fullscreen gizleme, `WorkAreaChanged` yeniden konumlanma, auto-hide +
 hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
@@ -103,9 +103,8 @@ hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppDa
 görev çubuğu gizle/restore (`TaskbarVisibilityService`; keep-hidden izleme; çıkışta restore → `ABM_REMOVE`),
 canlı çalışan uygulamalar (`RunningAppsSource`) + küçültülmüş pencereler (`MinimizedWindowsSource`)
 → `DockAppsComposer`, üst bar tray overflow düğmesi (`TrayOverflowInvoker` / `Win+B`).
-Dock varsayılan ikon **28 DIP** / plaka ~46 DIP, ikon aralığı 12 DIP, pencere en kötü büyümeye göre
-~64 DIP, monitör alt kenarına yaslı (`IShellItemImageFactory` ile DPI-keskin, büyütme tavanında
-raster'lanmış ikonlar). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
+Dock varsayılan glif **24 DIP**, düğme 40, levha yüksekliği 56, aralık 4 DIP; pencere levhaya
+eşittir (`IShellItemImageFactory` glif boyutunda). Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
 tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Canlı ağ özellikleri

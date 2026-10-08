@@ -37,13 +37,13 @@
 - **Dock yeniden tasarımı — macOS mantığı ✓ (kod; fare ile doğrulama bekliyor)** — ADR-005
   revizyonu: dock'un tek kaynağı artık kendi `dock.items` listesi, görev çubuğu **okunmaz /
   yazılmaz** (`TaskbarPinnedAppsSource` silindi). Üç bölüm (Pinned \| Running \| Minimized,
-  1 px ayraçlı), komşu büyümesi + yatay reflow (`DockStrip` + saf `DockMagnification` /
-  `DockStripLayout`), sabit pencere bütçesi (hover'da `SetWindowPos` yok), sürükle-sırala,
+  ayraçsız), canlı ölçek 1 ve ortalanmış levha (`DockPlateMetrics`; büyütme matematiği
+  testli kalır, uygulanmaz), hover'da `SetWindowPos` yok, sürükle-sırala,
   Explorer'dan dosya bırakma, alt-sol/orta/sağ konum, `WM_DPICHANGED` ile canlı DPI,
   "Pencereler" alt menüsü (`MinimizedWindowsSource` önbelleğinden), ayar sayfasında içerik listesi.
   Spec: [`../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md`](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md);
   plan: [`../../docs/superpowers/plans/2026-10-04-dock-macos-redesign.md`](../../docs/superpowers/plans/2026-10-04-dock-macos-redesign.md).
-  **Canlı uçtan uca doğrulama yapılmadı** — büyütme/reflow geçişi, OLE bırakma kabulü ve tıklama
+  **Canlı uçtan uca doğrulama yapılmadı** — levha modları (Mica / saydam / renkli), OLE bırakma kabulü ve tıklama
   bastırma elle denenmedi (aralık hesabıyla sınırlı; bkz. `docs/04-gotchas.md`).
 - **Renk kaplaması (veil) ✓ (kod; manuel doğrulama bekliyor)** — tam ekran katmanlı kaplama (`VeilWindow`, click-through + 280 ms fade), `VeilService` (durum + fade + `RegisterHotKey` host + config kalıcılığı), QS `veil` karosu + global kısayol (varsayılan Ctrl+F11, config'te değiştirilebilir), Kaplama ayarlar sayfası (`VeilPage`; renk/opaklık/kısayol). Karar: [ADR-007](../../docs/decisions/007-veil-overlay.md); spec: [`../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../../docs/superpowers/plans/2026-08-18-veil-overlay.md). Manuel doğrulama listesi spec'in "Doğrulama (manuel)" bölümünde.
 - **Medya paneli (SMTC) ✓ (kod; manuel doğrulama bekliyor)** — üst bar `media` öğesi (yalnızca oturum varken görünür; `brightness` sonrası, katalog **v4** migration) + medya flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron seçici). `MediaSessionService` (Windows SMTC izleme: snapshot + komutlar + `Changed`/`SessionsChanged` + 10 sn retry), `MediaSessionSelector` (en son aktif politikası + `MoveCurrent` halkası), `MediaSnapshot` modeli. Karar: [ADR-008](../../docs/decisions/008-media-panel.md); spec: [`../../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../../docs/superpowers/specs/2026-08-18-media-panel-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-media-panel.md`](../../docs/superpowers/plans/2026-08-18-media-panel.md). Manuel doğrulama listesi planın "Manuel doğrulama" bölümünde.

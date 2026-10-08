@@ -49,7 +49,7 @@
 - **Dock'un kendi listesini tutması, görev çubuğu pinlerine dokunmaması** (ADR-005 revizyonu) —
   `TaskbarPinnedAppsSource` silindi; geri gelirse karar geri alınmış demektir ve ADR güncellenir
 - Dock büyütme matematiği **saf** tutulur (`DockMagnification` / `DockStripLayout`: WPF tipi yok,
-  birim testli); pencere **bir kez** en kötü büyümeye göre boyutlanır, hover'da `SetWindowPos`
+  birim testli) ama canlı şerit ölçeği **1**'dir; pencere levhaya eşittir, hover'da `SetWindowPos`
   çağrılmaz (docs/04-gotchas.md)
 - Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,

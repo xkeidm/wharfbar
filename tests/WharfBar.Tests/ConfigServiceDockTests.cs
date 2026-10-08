@@ -261,6 +261,37 @@ public class ConfigServiceDockTests : IDisposable
         Assert.Empty(loaded.PinnedApps);
         Assert.Equal(DockMagnification.Default, loaded.Dock.Magnification, 6);
         Assert.Equal(DockPositions.BottomCenter, loaded.Dock.Position);
+        Assert.Equal(DockConfig.DefaultIconSize, loaded.Dock.IconSize);
+        Assert.Equal(TopBarBackgroundModes.Mica, loaded.Dock.BackgroundMode);
+    }
+
+    [Fact]
+    public void LoadOrCreate_KeepsExplicitIconSizeAndTint()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "WharfBar"));
+        File.WriteAllText(
+            ConfigFile,
+            "{\"schemaVersion\":2,\"dock\":{\"iconSize\":32,\"backgroundMode\":\"tint\",\"tintOpacity\":80,\"surface\":\"acrylic\"}}");
+
+        AppConfig loaded = NewService().LoadOrCreate();
+
+        Assert.Equal(32d, loaded.Dock.IconSize);
+        Assert.Equal(TopBarBackgroundModes.Tint, loaded.Dock.BackgroundMode);
+        Assert.Equal(80, loaded.Dock.TintOpacity);
+    }
+
+    [Fact]
+    public void LoadOrCreate_OldAcrylicSurfaceWithoutMode_BecomesMica()
+    {
+        Directory.CreateDirectory(Path.Combine(_root, "WharfBar"));
+        File.WriteAllText(
+            ConfigFile,
+            "{\"schemaVersion\":2,\"dock\":{\"iconSize\":28,\"surface\":\"acrylic\"}}");
+
+        AppConfig loaded = NewService().LoadOrCreate();
+
+        Assert.Equal(24d, loaded.Dock.IconSize);
+        Assert.Equal(TopBarBackgroundModes.Mica, loaded.Dock.BackgroundMode);
     }
 
     [Fact]

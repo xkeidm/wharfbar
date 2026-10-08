@@ -26,20 +26,14 @@ namespace WharfBar.Views;
 /// </summary>
 public partial class DockWindow : Window
 {
-    /// <summary>Vertical padding around icons (DIP).</summary>
-    private const double VerticalPaddingDip = 6d;
+    /// <summary>Vertical padding around the button row (DIP).</summary>
+    private const double VerticalPaddingDip = DockPlateMetrics.VerticalPaddingDip;
 
     /// <summary>Horizontal inset inside the dock surface (DIP).</summary>
-    private const double HorizontalPaddingDip = 12d;
+    private const double HorizontalPaddingDip = DockPlateMetrics.HorizontalPaddingDip;
 
-    /// <summary>Gap between adjacent icons (DIP). Wider than early 4 DIP — less cramped.</summary>
-    private const double IconGapDip = 12d;
-
-    /// <summary>Plate DIP reserved for the running indicator band (DIP).</summary>
-    private const double RunningIndicatorSizeDip = 4d;
-
-    /// <summary>Air between the running pill and the plate's bottom edge (DIP).</summary>
-    private const double RunningIndicatorGapDip = 4d;
+    /// <summary>Gap between buttons (DIP).</summary>
+    private const double IconGapDip = DockPlateMetrics.GapDip;
 
     /// <summary>
     /// Gap between dock window bottom and the primary monitor's bottom edge (DIP).
@@ -49,7 +43,6 @@ public partial class DockWindow : Window
     private const double BottomGapDip = 0d;
 
     private const int AutoHideAnimMs = 200;
-    private const double MinWidthDip = 180d;
 
     /// <summary>Magnification enter/exit durations (ms).</summary>
     private const int PhaseInMs = 130;
@@ -66,16 +59,6 @@ public partial class DockWindow : Window
 
     /// <summary>Below this distance the phase is treated as already reached.</summary>
     private const double PhaseSettleEpsilon = 1e-3d;
-
-    /// <summary>Mica translucency over the theme color (0–255 alpha).</summary>
-    private const byte MicaDarkAlpha = 0x99;
-
-    private const byte MicaLightAlpha = 0xD9;
-
-    /// <summary>Acrylic surface translucency (0–255 alpha over the theme color).</summary>
-    private const byte AcrylicDarkAlpha = 0xCC;
-
-    private const byte AcrylicLightAlpha = 0xE6;
 
     private readonly AppConfig _config;
     private readonly TaskbarVisibilityService _taskbar;
@@ -96,6 +79,9 @@ public partial class DockWindow : Window
     private MinimizedWindowsSource? _minimizedSource;
     private DockAppsComposer? _composer;
     private WindowActivationService? _activation;
+    private WindowAppearance? _appearance;
+    private DispatcherTimer? _tintSaveTimer;
+    private int _pendingTintOpacity;
 
     /// <summary>
     /// Live DPI for this window. Starts at <see cref="MonitorInfo.Dpi"/> and is refreshed
@@ -105,7 +91,7 @@ public partial class DockWindow : Window
     private uint _monitorDpi;
 
     private readonly DispatcherTimer _cursorTimer;
-    private double _cursorTarget;
+    private double _cursorTarget = 0d;
     private long _lastCursorFrameMs;
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
@@ -172,6 +158,7 @@ public partial class DockWindow : Window
 
         Monitor = monitor;
         _monitorDpi = monitor.Dpi;
+        AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(config.Dock.BackgroundMode);
         InitializeComponent();
         _strip = Strip;
 
@@ -195,13 +182,9 @@ public partial class DockWindow : Window
         _cursorTimer.Tick += OnCursorFrame;
 
         ApplyStripGeometry();
-
-        // Keep XAML padding in sync with the height budget used by SetWindowPos.
-        Surface.Padding = new Thickness(
-            HorizontalPaddingDip,
-            VerticalPaddingDip,
-            HorizontalPaddingDip,
-            VerticalPaddingDip);
+        ApplyPlatePadding();
+        Surface.ContextMenu = new ContextMenu();
+        Surface.ContextMenuOpening += OnPlateContextMenuOpening;
     }
 
     /// <summary>The monitor this dock window is anchored to.</summary>
@@ -271,12 +254,7 @@ public partial class DockWindow : Window
         }
 
         _iconSizeDip = next;
-
-        Surface.Padding = new Thickness(
-            HorizontalPaddingDip,
-            VerticalPaddingDip,
-            HorizontalPaddingDip,
-            VerticalPaddingDip);
+        ApplyPlatePadding();
 
         // Before RebuildStrip: SetRows bakes slot widths from the strip's current IconSize,
         // so pushing the new metrics afterwards would leave the layout one icon size stale.
@@ -321,23 +299,46 @@ public partial class DockWindow : Window
         }
     }
 
+    private void ApplyPlatePadding()
+    {
+        Surface.Padding = new Thickness(
+            HorizontalPaddingDip,
+            VerticalPaddingDip,
+            HorizontalPaddingDip,
+            VerticalPaddingDip);
+    }
+
     /// <summary>
-    /// The dock surface is drawn by WPF (layered window), so DWM backdrops are off the table
-    /// (docs/04-gotchas.md:7). Mica is a translucent theme tint; Acrylic is denser. Both follow
-    /// the system light/dark preference.
+    /// Mica: the window is the plate and DWM draws it. Tint and transparent: the window is
+    /// clear and the rounded <see cref="Surface"/> carries the fill.
     /// </summary>
     private void ApplySurfaceFromConfig()
     {
-        bool acrylic = string.Equals(_config.Dock.Surface, DockSurfaceStyles.Acrylic, StringComparison.OrdinalIgnoreCase);
-        bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
-        byte baseRgb = dark ? (byte)0x20 : (byte)0xFA;
-        byte alpha = acrylic
-            ? (dark ? AcrylicDarkAlpha : AcrylicLightAlpha)
-            : (dark ? MicaDarkAlpha : MicaLightAlpha);
+        string mode = TopBarBackgroundModes.NormalizeMode(_config.Dock.BackgroundMode);
+        if (!TopBarBackgroundModes.NeedsTransparency(mode))
+        {
+            _appearance?.Apply();
+            Surface.Background = Brushes.Transparent;
+            Surface.CornerRadius = new CornerRadius(0);
+            return;
+        }
 
-        var brush = new SolidColorBrush(Color.FromArgb(alpha, baseRgb, baseRgb, baseRgb));
+        _appearance?.ApplyTranslucent(null);
+        Surface.CornerRadius = new CornerRadius(DockPlateMetrics.CornerRadiusDip);
+        Surface.Background = mode == TopBarBackgroundModes.Tint
+            ? CreateTintBrush(_config.Dock.TintOpacity)
+            : Brushes.Transparent;
+    }
+
+    private static Brush CreateTintBrush(int opacity)
+    {
+        int clamped = TopBarBackgroundModes.ClampOpacity(opacity);
+        byte alpha = (byte)(int)Math.Round(clamped / 100.0 * 255.0);
+        bool dark = ApplicationThemeManager.GetAppTheme() == ApplicationTheme.Dark;
+        byte rgb = dark ? (byte)0x20 : (byte)0xFA;
+        var brush = new SolidColorBrush(Color.FromArgb(alpha, rgb, rgb, rgb));
         brush.Freeze();
-        Surface.Background = brush;
+        return brush;
     }
 
     /// <summary>
@@ -362,8 +363,12 @@ public partial class DockWindow : Window
         IntPtr hwnd = _source.Handle;
         WindowOverlayStyles.ExcludeFromTaskSwitcher(hwnd);
 
-        // Layered window: keep the composition surface clear so only the strip is visible.
-        _source.CompositionTarget.BackgroundColor = Colors.Transparent;
+        bool translucent = TopBarBackgroundModes.NeedsTransparency(_config.Dock.BackgroundMode);
+        _appearance = new WindowAppearance(
+            this,
+            hwnd,
+            translucent ? WindowBackdropType.None : WindowBackdropType.Mica,
+            translucent ? DwmCornerPreference.DoNotRound : DwmCornerPreference.Round);
         ApplySurfaceFromConfig();
 
         DockHitTest.ApplyInteractive(hwnd);
@@ -380,7 +385,6 @@ public partial class DockWindow : Window
         _composer.Changed += OnComposerChanged;
 
         ApplyStripGeometry();
-        Surface.MouseMove += OnSurfaceMouseMove;
         Surface.MouseLeave += OnSurfaceMouseLeave;
 
         RebuildStrip();
@@ -445,8 +449,8 @@ public partial class DockWindow : Window
         _autoHide.Changed -= OnAutoHideChanged;
         _autoHide.Dispose();
 
-        Surface.MouseMove -= OnSurfaceMouseMove;
         Surface.MouseLeave -= OnSurfaceMouseLeave;
+        _tintSaveTimer?.Stop();
         _cursorTimer.Tick -= OnCursorFrame;
         _cursorTimer.Stop();
 
@@ -458,24 +462,6 @@ public partial class DockWindow : Window
 
     private void OnComposerChanged(object? sender, EventArgs e) =>
         Dispatcher.BeginInvoke(RebuildStrip);
-
-    private void OnSurfaceMouseMove(object sender, MouseEventArgs e)
-    {
-        // Hover is tracked on Surface, not Strip: Surface owns the 12/6 padding, and Strip's
-        // Background only fills between the slots. Hooking Strip made the padding ring at both
-        // ends of the plate a leave zone, so the dock collapsed while the pointer was still on it.
-        // The coordinate space is unchanged though — GetPosition(Strip) still measures from the
-        // strip's own left edge, which is what HitTestCursor indexes against.
-        _cursorTarget = Strip.HitTestCursor(e.GetPosition(Strip).X);
-
-        if (!_cursorTimer.IsEnabled)
-        {
-            _lastCursorFrameMs = Environment.TickCount64;
-            _cursorTimer.Start();
-        }
-
-        AnimatePhase(1d, PhaseInMs);
-    }
 
     private void OnSurfaceMouseLeave(object sender, MouseEventArgs e)
     {
@@ -821,6 +807,181 @@ public partial class DockWindow : Window
         ];
     }
 
+    private void OnPlateContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (FindCell(e.OriginalSource as DependencyObject) is not null)
+        {
+            return;
+        }
+
+        if (Surface.ContextMenu is not ContextMenu menu)
+        {
+            return;
+        }
+
+        menu.Items.Clear();
+        FillBackgroundMenu(menu);
+    }
+
+    private static DockItemCell? FindCell(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is DockItemCell cell)
+            {
+                return cell;
+            }
+
+            source = VisualTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
+    private void FillBackgroundMenu(ContextMenu menu)
+    {
+        menu.Items.Add(new MenuItem
+        {
+            Header = "Arka plan",
+            IsEnabled = false,
+        });
+
+        string mode = TopBarBackgroundModes.NormalizeMode(_config.Dock.BackgroundMode);
+        int opacity = TopBarBackgroundModes.ClampOpacity(_config.Dock.TintOpacity);
+        var radios = new List<MenuItem>(3)
+        {
+            CreateBackgroundRadio("Mica", TopBarBackgroundModes.Mica, mode),
+            CreateBackgroundRadio("Transparent", TopBarBackgroundModes.Transparent, mode),
+            CreateBackgroundRadio("Tint", TopBarBackgroundModes.Tint, mode),
+        };
+
+        var opacityHost = new MenuItem
+        {
+            StaysOpenOnClick = true,
+            IsEnabled = mode == TopBarBackgroundModes.Tint,
+        };
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        var label = new System.Windows.Controls.TextBlock
+        {
+            Text = $"Opaklık {opacity}%",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 8, 0),
+            Width = 88,
+        };
+        var slider = new Slider
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Width = 120,
+            Value = opacity,
+            IsSnapToTickEnabled = true,
+            TickFrequency = 1,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        slider.ValueChanged += (_, args) =>
+        {
+            int v = (int)Math.Round(args.NewValue);
+            label.Text = $"Opaklık {v}%";
+            ScheduleDockTintSave(v);
+        };
+        row.Children.Add(label);
+        row.Children.Add(slider);
+        opacityHost.Header = row;
+
+        foreach (MenuItem radio in radios)
+        {
+            string radioMode = (string)radio.Tag!;
+            radio.Click += (_, _) =>
+            {
+                SetDockBackgroundMode(radioMode);
+                SyncDockBackgroundMenu(
+                    radios,
+                    opacityHost,
+                    TopBarBackgroundModes.NormalizeMode(_config.Dock.BackgroundMode));
+            };
+            menu.Items.Add(radio);
+        }
+
+        menu.Items.Add(opacityHost);
+    }
+
+    private static MenuItem CreateBackgroundRadio(string header, string mode, string current)
+    {
+        return new MenuItem
+        {
+            Header = header,
+            IsCheckable = true,
+            IsChecked = current == mode,
+            StaysOpenOnClick = true,
+            Tag = mode,
+        };
+    }
+
+    private static void SyncDockBackgroundMenu(
+        IReadOnlyList<MenuItem> radios,
+        MenuItem opacityHost,
+        string mode)
+    {
+        foreach (MenuItem radio in radios)
+        {
+            radio.IsChecked = string.Equals(radio.Tag as string, mode, StringComparison.Ordinal);
+        }
+
+        opacityHost.IsEnabled = mode == TopBarBackgroundModes.Tint;
+    }
+
+    private void PersistDockBackground(string mode, int? opacity = null)
+    {
+        _config.Dock.BackgroundMode = TopBarBackgroundModes.NormalizeMode(mode);
+        if (opacity is not null)
+        {
+            _config.Dock.TintOpacity = TopBarBackgroundModes.ClampOpacity(opacity.Value);
+        }
+
+        ((App)Application.Current).Config?.Save(_config);
+    }
+
+    private void SetDockBackgroundMode(string mode)
+    {
+        _tintSaveTimer?.Stop();
+        string normalized = TopBarBackgroundModes.NormalizeMode(mode);
+        bool needTx = TopBarBackgroundModes.NeedsTransparency(normalized);
+        PersistDockBackground(normalized);
+
+        if (needTx != AllowsTransparency)
+        {
+            ((App)Application.Current).RecreateDock();
+            return;
+        }
+
+        ApplySurfaceFromConfig();
+    }
+
+    private void ScheduleDockTintSave(int opacity)
+    {
+        _pendingTintOpacity = TopBarBackgroundModes.ClampOpacity(opacity);
+        if (TopBarBackgroundModes.NormalizeMode(_config.Dock.BackgroundMode) == TopBarBackgroundModes.Tint)
+        {
+            Surface.Background = CreateTintBrush(_pendingTintOpacity);
+        }
+
+        if (_tintSaveTimer is null)
+        {
+            _tintSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
+            _tintSaveTimer.Tick += (_, _) =>
+            {
+                _tintSaveTimer.Stop();
+                if (TopBarBackgroundModes.NormalizeMode(_config.Dock.BackgroundMode) == TopBarBackgroundModes.Tint)
+                {
+                    PersistDockBackground(TopBarBackgroundModes.Tint, _pendingTintOpacity);
+                }
+            };
+        }
+
+        _tintSaveTimer.Stop();
+        _tintSaveTimer.Start();
+    }
+
     private ContextMenu BuildContextMenuForItem(DockAppItem item)
     {
         var menu = new ContextMenu();
@@ -1056,10 +1217,7 @@ public partial class DockWindow : Window
     private int ResolveIconPixelSize()
     {
         uint dpi = _source is null ? _monitorDpi : Display.GetDpi(_source.Handle);
-        // Request the bitmap at the magnification ceiling so a magnified icon stays sharp —
-        // upscaling a resting-size bitmap looks blurry (docs/04-gotchas.md:31).
-        double maxScale = DockMagnification.Clamp(_config.Dock.Magnification);
-        int px = Display.DipToPixels(_iconSizeDip * maxScale, dpi);
+        int px = Display.DipToPixels(_iconSizeDip, dpi);
         return Math.Clamp(px <= 0 ? 24 : px, 16, 256);
     }
 
@@ -1142,8 +1300,7 @@ public partial class DockWindow : Window
         }
 
         int widthPx = ComputeMaxWidthPx(dpi);
-        int minWidthPx = Display.DipToPixels(MinWidthDip, dpi);
-        widthPx = Math.Clamp(widthPx, minWidthPx, monitor.Width);
+        widthPx = Math.Clamp(widthPx, 1, monitor.Width);
 
         int x = ResolvePlacementX(monitor, widthPx, dpi);
         int visibleY = monitor.Bottom - heightPx - bottomGapPx;
@@ -1183,7 +1340,7 @@ public partial class DockWindow : Window
         // thread (laggy hover slide, delayed top-bar menus).
         int widthPx = _lastPlacementWidthPx > 0
             ? _lastPlacementWidthPx
-            : Math.Max(Display.DipToPixels(MinWidthDip, dpi), 1);
+            : 1;
         int heightPx = _lastPlacementHeightPx > 0
             ? _lastPlacementHeightPx
             : Display.DipToPixels(MaxHeightDip, dpi);
@@ -1321,29 +1478,22 @@ public partial class DockWindow : Window
 
     private int ComputeMaxWidthPx(uint dpi)
     {
-        // Budget the window for the worst magnified layout. Hover only ever re-runs WPF
-        // measure/arrange — no SetWindowPos per frame, which is what used to stutter.
-        double panel = _strip.MaxLiveWidth();
-        double width = panel + (2d * HorizontalPaddingDip);
+        int count = _strip.SlotCount;
+        double width = DockPlateMetrics.PlateWidth(Math.Max(count, 1), _iconSizeDip);
         return Display.DipToPixels(width, dpi);
     }
 
-    private double MaxHeightDip =>
-        DockStripLayout.MaxExtentHeight(
-            _iconSizeDip,
-            RunningIndicatorGapDip,
-            RunningIndicatorSizeDip,
-            VerticalPaddingDip,
-            DockMagnification.Clamp(_config.Dock.Magnification));
+    private double MaxHeightDip => DockPlateMetrics.PlateHeight(_iconSizeDip);
 
-    /// <summary>Pushes icon metrics and the magnification ceiling into the strip.</summary>
+    /// <summary>Pushes button metrics into the strip. Scale stays at 1 — the plate does not grow.</summary>
     private void ApplyStripGeometry()
     {
-        _strip.IconSize = _iconSizeDip;
+        _strip.GlyphSize = _iconSizeDip;
+        _strip.IconSize = DockPlateMetrics.ButtonSize(_iconSizeDip);
         _strip.IconGap = IconGapDip;
-        _strip.IndicatorGap = RunningIndicatorGapDip;
-        _strip.IndicatorSize = RunningIndicatorSizeDip;
-        _strip.MaxScale = DockMagnification.Clamp(_config.Dock.Magnification);
+        _strip.IndicatorGap = 0d;
+        _strip.IndicatorSize = 0d;
+        _strip.MaxScale = 1d;
     }
 
     private void OnWorkAreaChanged(object? sender, EventArgs e)

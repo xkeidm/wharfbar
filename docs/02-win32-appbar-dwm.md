@@ -187,18 +187,14 @@ UI `QuickSettingsFlyout` üzerinden.
 // HBITMAP/HICON → Imaging.CreateBitmapSourceFromHBitmap/HIcon → ImageSource
 ```
 
-Varsayılan `dock.iconSize` **28 DIP** (görev çubuğu benzeri, 24’ten hafif büyük); plaka içeriği
-ikon + padding + çalışan çizgisi bandı + göstergenin altındaki boşluktan hesaplanır
-(2*6 + 28 + 4 + 4 = **48 DIP** @ 28), **pencere** ise en kötü büyümeye göre bir kez
-boyutlanır (`DockStripLayout.MaxExtentHeight` → 48 + 28*0.15 = **~52 DIP** @ 1.15).
+Varsayılan `dock.iconSize` **24 DIP** (glif). Düğme glif + 16 DIP, aralık 4, levha payı 10×8;
+24'te düğme 40 ve levha yüksekliği **56 DIP**. Pencere levhaya eşittir (ölçek 1).
 Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
-yok). İkon aralığı **12 DIP**. Klasik `.exe` / `.lnk` için uygundur.
+yok). Klasik `.exe` / `.lnk` için uygundur.
 **UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
 için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
 
-İkon bitmap'i taban boyutta değil, **büyütme tavanında** istenir (`ResolveIconPixelSize` =
-`iconSize × magnification`, 16–256 px'e kırpılır): taban boyutunda raster'ı büyütmek bulanık
-görünür. Ölçek değişince `RebuildStrip` her ikonu yeni tavanla yeniden ister.
+İkon bitmap'i glif boyutunda istenir (`ResolveIconPixelSize` = `iconSize`, 16–256 px'e kırpılır).
 
 Yatay hizalama `dock.position` ile seçilir: `bottom-left` / `bottom-center` / `bottom-right`.
 `DockPositions.Normalize` geçersiz/boş değerde `bottom-center` döndürür (yan dock kapsam dışı:
@@ -325,33 +321,19 @@ arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada od
 `PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
 “önde” sayılır (Electron vb. alt pencereler).
 
-**Hover ve pencere boyutu:** hafif büyütme **vardır** (2026-10-04, ADR-005 revizyonu; 2026-10-04
-sonrası görev çubuğu tarzına çekildi). Özel `DockStrip : Panel`, `CursorPosition` (kesirli, ikon
-biriminde) + `Phase` (0→1) bağımlılık özelliklerinden ölçek ve slot ofseti hesaplar; kurulum
-makinesi reflow yapabilir, ancak **varsayılan tavan 1.15×** iken pratikte devreye girmez.
-Eğri ve yerleşim saf `DockMagnification` / `DockStripLayout` içindedir ve birim testine tabidir.
-Tavan `dock.magnification` (varsayılan **1.15**, aralık 1.0–2.0; ayarlar kaydırıcısı 1.0–1.5),
-düşüş katsayısı 0.82 ve taban 1.0'a kelepçeli: `1.15 × 0.82 = 0.943` → 1.0, yani **yalnız
-imlecin üstündeki ikon** büyür ve komşular kaymaz (`RadiusFor(1.15) = 1` yalnızca tampon
-boyutlandırması içindir). Bölüm ayracı **yoktur** — pin/çalışan/küçültülmüş tek sürekli şerittir.
-`Phase` girişte 130 ms, çıkışta 180 ms; imleç konumu ise kare hızından bağımsız yumuşatmayla
-hedefe sürülür.
+**Hover ve pencere boyutu:** canlı ölçek **1**. Hover düğmenin içini doldurur (köşe 4 DIP).
+Çalışan işareti düğmenin içinde **8×3 DIP** hap, alttan 3 DIP. `DockMagnification` /
+`DockStripLayout` saf ve testli kalır; `dock.magnification` yüklenir, uygulanmaz.
+Bölüm ayracı **yoktur**.
 
-Pencere **baştan** maksimum büyümeye göre boyutlandırılır (`DockStripLayout.MaxExtentWidth` /
-`MaxExtentHeight`); kare başına `SetWindowPos` **çağrılmaz** — yalnızca WPF ölçüm/yerleşim
-çalışır. `DesiredSize` canlı toplam genişliği döndürür, plaka onu sarar ve ortalanır.
-`MaxExtentWidth` geçerli olmak için hiçbir slot ölçeğinin tavanı aşmamasını ister; `Phase`
-bu yüzden `CubicEase/EaseOut` ile sürülür.
+Pencere `DockPlateMetrics.PlateWidth` / `PlateHeight` kadardır (boş dock bir düğme bütçeler).
+Hover sırasında `SetWindowPos` **çağrılmaz**. ScrollViewer yoktur; çok sayıda ikon ekran
+genişliğine kırpılır.
 
-ScrollViewer yoktur; çok sayıda ikon ekran genişliğine kırpılır.
-
-**Dock yüzeyi:** Katmanlı pencere (`AllowsTransparency=True`) — strip yüzeyi `Surface`
-border'ın WPF fırçasıyla çizilir; pencere kenarları (headroom) şeffaf ve tıklama geçirir,
-dock çevresinde görünür kutu oluşmaz. **DWM backdrop kullanılmaz** (tüm pencereyi doldurur,
-kenarlarda kutu yaratır; ayrıca `AllowsTransparency` ile birlikte zaten yanlıştır —
-`docs/04-gotchas.md:7`). `dock.surface` iki **WPF çizimi** yarı saydam dolgu arasında seçim yapar:
-`mica` = tema rengi koyu `#202020` @ `%60` (`0x99`) / açık `#FAFAFA` @ `%85` (`0xD9`);
-`acrylic` = aynı rgb daha yoğun, koyu `#CC` / açık `#E6`.
+**Dock yüzeyi:** `dock.backgroundMode`. `mica` (varsayılan): pencere levhadır, gerçek DWM Mica,
+`DWMWCP_ROUND`, `AllowsTransparency=false`. `transparent` ve `tint`: pencere yeniden kurulur,
+katmanlıdır, köşe WPF'te 14 DIP; tint dolgusu koyu `#202020` / açık `#FAFAFA`, alpha =
+`tintOpacity`/100. Eski `dock.surface` (`mica` ve `acrylic`) yüklemede `mica` moduna iner.
 
 **Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
 dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,

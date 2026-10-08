@@ -43,17 +43,17 @@ src/WharfBar/
     MediaFlyout.xaml(.cs)       # Medya flyout: kapak/başlık/sanatçı/kontroller + oturum seçici (ADR-008)
     IslandFlyout.xaml(.cs)      # Ada paneli: arama + tek birleşik zaman çizelgesi (pano + bırakılan dosya; ADR-010)
     AboutWindow.xaml(.cs)       # Hakkında diyaloğu (AppBar yok)
-    DockWindow.xaml(.cs)        # alt overlay; kendi listesinden 3 bölümlü dock şeridi; hover büyütme + reflow; tam ekran / work-area
+    DockWindow.xaml(.cs)        # alt overlay; kendi listesinden 3 bölümlü dock şeridi; levha (Mica / saydam / renkli); tam ekran / work-area
     VeilWindow.xaml(.cs)        # tam ekran kaplama overlay (click-through, fade; ADR-007)
     SettingsWindow.xaml(.cs)     # Ayarlar ana penceresi (NavigationView)
     DockItemViewModel.cs        # slotun çizime hazır anlık görüntüsü (ikon + tooltip + bölüm bayrakları)
   Views/Controls/
-    DockStrip.cs                # şerit `Panel`: slot ölçeği + yatay reflow (matematik `DockStripLayout`'da)
-    DockItemCell.xaml(.cs)      # tek slot: ikon (alt kenarından büyür) + çalışan çizgisi | ayraç
+    DockStrip.cs                # şerit `Panel`: canlı ölçek 1 (matematik `DockStripLayout`'da)
+    DockItemCell.xaml(.cs)      # tek slot: düğme + glif + hover dolgusu + çalışan hapı
   Views/Pages/
     GeneralPage.xaml(.cs)       # Ayarlar: genel (autostart)
     AppearancePage.xaml(.cs)    # Ayarlar: görünüm (tema, arka plan, accent)
-    DockPage.xaml(.cs)          # Ayarlar: dock (içerik listesi, auto-hide, ikon boyutu, yüzey, büyütme, konum, çalışanlar)
+    DockPage.xaml(.cs)          # Ayarlar: dock (içerik listesi, auto-hide, ikon boyutu, arka plan, konum, çalışanlar)
     TopBarPage.xaml(.cs)        # Ayarlar: üst çubuk (durum öğeleri)
     VeilPage.xaml(.cs)          # Ayarlar: Kaplama (renk/opaklık/kısayol; ADR-007)
     IslandPage.xaml(.cs)        # Ayarlar: Ada (görünürlük/kalıcılık/limitler/bakım; ADR-010)
@@ -194,14 +194,14 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
-| `DockWindow` | Alt overlay; **kendi bağımsız listesi** (pin + running + küçültülmüş, bölüm ayraçlı); hover **büyütme + reflow** (özel `DockStrip` paneli, imlecin üstü + 3 komşu, `Phase`/`CursorPosition`); sürükle-sırala, dosya bırakma, konum (alt-sol/orta/sağ), "Pencereler" alt menüsü; katmanlı pencere + tema renkli yüzey (Mica/Acrylic WPF ile çizilir); AppBar yok |
+| `DockWindow` | Alt overlay; **kendi bağımsız listesi** (pin + running + küçültülmüş); sürükle-sırala, dosya bırakma, konum (alt-sol/orta/sağ), "Pencereler" alt menüsü; levha `dock.backgroundMode` (`mica` gerçek DWM, `transparent`/`tint` katmanlı yuvarlak `Surface`); AppBar yok |
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore. Baseline watchdog state dosyasına yazılır, `--taskbar-watchdog` alt süreci spawn edilir; stale dosya varsa açılışta tray önce gösterilir (self-heal) |
 | `TaskbarWatchdog` | Headless mod (`Program.Main` dallanır, WPF başlamaz): PID + start-time izler, restore'suz ölümde baseline'ı uygular. PID reuse ve yeni-instance dosya yenilemesi güvenli |
 | `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
 | `MinimizedWindowsSource` | Tüm üst düzey pencere tablosunu **arka iş parçacığında** 800 ms'de bir tarar (`GetTopLevelCandidates` + pencere başına `IsIconic`); `Windows` önbelleğinden `ForProcess(pid)` alt kümesi — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
 | `DockItemStore` | Dock'un tek kaynağı: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
 | `DockAppsComposer` | Pinned \| Running \| Minimized bölümlerini birleştirir; çalışan uygulamayı yolla eşleşen ilk sabitlenen öğeye bağlar; saf `Compose` çekirdeği test edilir; `ItemsEqual` ile yalnız gerçek değişimde yeniden üretir |
-| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` | Satır başına bir öğe (ayraç slotu **yok**, tek sürekli şerit) ve **saf** büyütme/yerleşim matematiği: düşüş eğrisi (0.82), etki yarıçapı, slot ölçekleri, reflow ofsetleri, pencere için max genişlik/yükseklik bütçesi — hepsi testli, WPF tipi yok |
+| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` / `DockPlateMetrics` | Satır başına bir öğe (ayraç slotu **yok**). Büyütme matematiği saf ve testli kalır; canlı şerit ölçeği 1. Levha ölçüsü `DockPlateMetrics` (düğme, aralık 4, pay 10×8) |
 | `ShortcutResolver` | `.lnk` → hedef yol / args / etiket çözümleme (bırakılan kısayolun dock listesine girmesi için). Dinamik `.lnk` **oluşturma** yolu 2026-10-04'te, görev çubuğuna `.lnk` yazan `TogglePin` ile birlikte kaldırıldı |
 | `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |
 | `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
@@ -388,8 +388,9 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
   "autostart": true,
   "dock": {
     "autoHide": true,
-    "iconSize": 28,
-    "surface": "mica",
+    "iconSize": 24,
+    "backgroundMode": "mica",
+    "tintOpacity": 40,
     "position": "bottom-center",
     "magnification": 1.15,
     "showRunningApps": true,
@@ -440,11 +441,13 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
-| `dock.iconSize` | DIP; 16–36 aralığına sıkıştırılır (varsayılan **28**, görev çubuğu benzeri). Eski 48/72 ve kısa süreli 24 varsayılanı yüklemede 28’e migrate edilir |
-| `dock.surface` | `mica` \| `acrylic`; **WPF'in çizdiği** iki yarı saydam dolgu (dock katmanlı pencere olduğu için gerçek DWM backdrop kullanılamaz — `docs/04-gotchas.md:7`). Varsayılan **`mica`**; bilinmeyen değer → `mica`. Dolgu rengi **nötr gri**: koyu `#202020` @ `0x99`/`0xCC`, açık `#FAFAFA` @ `0xD9`/`0xE6` (`mica`/`acrylic`) — `ApplicationThemeManager.GetAppTheme()` ile seçilir, yani **tema rengi değil ve DWM'den gelmez**; üst barın Mica tonuyla aynı değeri kullanmaz |
+| `dock.iconSize` | Glif DIP; 16–36 (varsayılan **24**). Eski 48/72 ve önceki varsayılan **28** yüklemede 24'e iner; aradaki açık boyutlar kalır |
+| `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica`. Mica gerçek DWM; saydam/renkli katmanlı yuvarlak levha. Geçiş dock'u yeniden kurar |
+| `dock.tintOpacity` | 0–100; yalnız `tint`; varsayılan **40** |
+| `dock.surface` | Emekli JSON alanı (`mica` \| `acrylic`). Yüklemede yok sayılır ve `mica`'ya sabitlenir; seçim `backgroundMode` üzerinden |
 | `dock.items` | macOS tarzı sıralı sabit liste (Path/Args/Label) — **dock'un tek kaynağı**; sıra config sırasıdır. Anahtar normalize tam yoldur, `DockItemStore` yolla tekilleştirir |
 | `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right`; geçersiz/boş → `bottom-center`. Yan dock kapsam dışı |
-| `dock.magnification` | Hover tavanı 1.0–2.0 (varsayılan **1.15**; ayarlar kaydırıcısı 1.0–1.5). Pencere bütçesi **ve** ikon raster boyutu bu değerden türetilir, bu yüzden tek başına kaydetmek şeridi yeniden kurar |
+| `dock.magnification` | JSON hâlâ yüklenir ve 1.0–2.0'a sıkıştırılır (varsayılan 1.15). Canlı şerit uygulamıyor; ölçek 1 |
 | `dock.showRunningApps` | Sabitlenmemiş çalışanlar + küçültülmüş pencereler |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |

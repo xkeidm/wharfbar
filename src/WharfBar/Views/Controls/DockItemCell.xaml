@@ -24,14 +24,25 @@
         <Border x:Name="IconImage"
                 Background="Transparent"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Bottom"
-                RenderTransformOrigin="0.5,1">
+                VerticalAlignment="Center"
+                RenderTransformOrigin="0.5,0.5">
             <Border.RenderTransform>
                 <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
             </Border.RenderTransform>
-            <Image x:Name="IconGlyph"
-                   Stretch="Uniform"
-                   SnapsToDevicePixels="True" />
+            <Grid>
+                <Border x:Name="HoverPlate"
+                        CornerRadius="4"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        IsHitTestVisible="False"
+                        Visibility="Collapsed"
+                        Background="{DynamicResource ControlFillColorSecondaryBrush}" />
+                <Image x:Name="IconGlyph"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Stretch="Uniform"
+                       SnapsToDevicePixels="True" />
+            </Grid>
         </Border>
 
         <!-- Windows 11 taskbar running indicator: wide, thin, fully rounded ends. Width and

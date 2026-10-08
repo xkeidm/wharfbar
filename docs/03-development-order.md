@@ -52,7 +52,7 @@
 
 > **2026-10-04'te yeniden tasarıldı** (ADR-005 revizyonu): aşağıdaki liste o günün hâlini
 > anlatır. Dock artık görev çubuğunu yansıtmıyor; kendi `dock.items` listesini kullanıyor,
-> macOS tipi büyütme + reflow ile çiziliyor ve sürükle-sırala / dosya bırakma / konum /
+> ortalanmış levha (Mica / saydam / renkli, canlı ölçek 1) ile çiziliyor ve sürükle-sırala / dosya bırakma / konum /
 > ayar sayfası içerik listesi var. Güncel hâl:
 > [2026-10-04 spec](superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
 

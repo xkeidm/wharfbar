@@ -111,11 +111,11 @@ internal static class DockPositions
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
 internal sealed class DockConfig
 {
-    /// <summary>Taskbar-like icon size in DIP (slightly above shell medium; not macOS-dock large).</summary>
-    public const double DefaultIconSize = 28d;
+    /// <summary>Windows 11 taskbar glyph size in DIP.</summary>
+    public const double DefaultIconSize = 24d;
 
-    /// <summary>Previous brief default; remapped to <see cref="DefaultIconSize"/> on load.</summary>
-    public const double PreviousDefaultIconSize = 24d;
+    /// <summary>Previous default; remapped to <see cref="DefaultIconSize"/> on load.</summary>
+    public const double PreviousDefaultIconSize = 28d;
 
     public const double MinIconSize = 16d;
 
@@ -128,10 +128,16 @@ internal sealed class DockConfig
     public double IconSize { get; set; } = DefaultIconSize;
 
     /// <summary>
-    /// Surface backdrop: <c>mica</c> or <c>acrylic</c>. The tint color comes from the Windows
-    /// system theme via the DWM backdrop — the same source as the top bar.
+    /// Retired. Old configs stored <c>mica</c> or <c>acrylic</c> here; both load as
+    /// <see cref="BackgroundMode"/> <c>mica</c>. Kept so those JSON keys still deserialize.
     /// </summary>
     public string Surface { get; set; } = DockSurfaceStyles.Mica;
+
+    /// <summary><c>mica</c>, <c>transparent</c>, or <c>tint</c>. Independent of the top bar.</summary>
+    public string BackgroundMode { get; set; } = TopBarBackgroundModes.Mica;
+
+    /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
+    public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
 
     /// <summary>
     /// The dock's own ordered, persisted item list. Display order equals list order.

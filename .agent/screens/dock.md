@@ -7,13 +7,12 @@ Görev çubuğu (Windows 11) tarzı alt şerit. AppBar **değil** (ADR-001); `To
 fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
 hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
 
-> **Katmanlı pencere:** `AllowsTransparency=True` — plaka yüzeyi WPF çizimli (`Surface`
-> border fırçası, köşe yarıçapı 12 DIP); pencere kenarları (büyütme headroom'u) gerçekten
-> **şeffaf + tıklama geçirir**, böylece dock çevresinde görünür bir kutu olmaz. Gerçek
-> DWM Mica/Acrylic **kullanılamaz** (`AllowsTransparency` ile birlikte yanlıştır —
-> `docs/04-gotchas.md:7`); `dock.surface` yalnızca iki WPF dolgusu arasında seçim yapar.
-> **Gölge yok** — `DropShadowEffect` büyütme animasyonunda kare başına yazılım maliyeti;
-> karar: [2026-10-04 spec §2/§9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
+> **Levha pencerenin kendisidir.** `dock.backgroundMode`: `mica` (varsayılan) gerçek DWM
+> Mica + sistem yuvarlak köşe (`DWMWCP_ROUND`), `AllowsTransparency=false`. `transparent` ve
+> `tint` pencereyi yeniden kurar (`RecreateDock`); pencere boştur, yuvarlak dolgu `Surface`
+> üzerindedir (köşe 14 DIP). İkisi birlikte kullanılmaz (`docs/04-gotchas.md`). Eski
+> `dock.surface` (`mica`/`acrylic`) yüklemede `mica` moduna taşınır. Büyütme taşması yok:
+> ölçek 1, pencere levhaya eşittir. Hover düğmenin içini doldurur.
 
 ## İçerik
 
@@ -31,34 +30,24 @@ Windows görev çubuğunun **pin tarafına dokunulmuyor**: `User Pinned` klasör
 görev çubuğuna `.lnk` yazılmıyor (ADR-005 revizyonu). Görev çubuğunu gizleme/geri yükleme
 bu kararın dışında — o hâlâ §3'ün konusu.
 
-## Büyütme
+## Levha
 
-Özel `DockStrip : Panel`. Fare konumu kesirli `CursorPosition` olarak okunur (16 ms kare
-zamanlayıcısı, kare hızından bağımsız yumuşatma); ölçek `DockMagnification.ScaleAtDistance`,
-slot ofseti `DockStripLayout.ComputeOffsets` ile hesaplanır. Varsayılan tavan **1.15×**
-(görev çubuğu hafifliği; macOS'un 1.65× reflow'u reddedildi): düşüş katsayısı 0.82 ve taban
-1.0'a kelepçeli olduğu için `1.15 × 0.82 = 0.943` → **1.0**, yani **yalnız imlecin üstündeki
-ikon** büyür ve komşular **hiç kaymaz** — reflow etkisi özel duruma düşmeden aritmetikle
-biter. `RadiusFor(1.15) = 1` yalnızca tampon boyutlandırması içindir. Kaydırıcı aralığı
-**1.0–1.5** (adım 0.05); `Clamp` üst sınırı hâlâ 2.0, yani eski bir config'deki 1.65 değeri
-okunur ama kaydırıcıda 1.50'ye kırpılır. `Phase` girişte 130 ms, çıkışta 180 ms. Eğri ve
-yerleşim saf sınıflarda; birim testli.
+`DockPlateMetrics`. Varsayılan glif **24 DIP** (eski 28 yüklemede 24'e iner; 16–36 aralığındaki
+diğer boyutlar kalır). Düğme = glif + 8+8, aralık 4, yatay pay 10, dikey pay 8. 24'te düğme 40,
+levha yüksekliği 56. Hover, düğmeyi `ControlFillColorSecondaryBrush` ile doldurur (köşe 4).
+Çalışan işareti düğmenin içinde **8×3 DIP** hap, alttan 3 DIP. Kart kenarı ve üst çizgi yok.
 
-İkonlar alt-ortadan büyür (`RenderTransformOrigin="0.5,1"`); plaka dikeyde taban yüksekliğinde
-sabit kalır, ikon üst kenarın üstüne taşar. Yatayda plaka iki yana büyüyüp ortalanır (pay
-1.15×'te 4.2 px, gözle fark edilmez). Çalışan göstergesi **16×3 DIP** pill, `CornerRadius=2`,
-ikonun altında 4 DIP; tooltip sistem stili (250 ms gecikme, 8 sn).
-
-Pencere baştan en kötü büyümeye göre boyutlanır; **hover sırasında `SetWindowPos` çalışmaz**,
-yalnızca WPF ölçüm/yerleşim. ScrollViewer yoktur — çok sayıda ikon pencere genişliğine
-kırpılır.
+`DockMagnification` / `DockStripLayout` saf ve testli kalır; canlı şerit `MaxScale = 1` basar,
+`dock.magnification` yüklenir ama uygulanmaz. Pencere `PlateWidth` / `PlateHeight` kadardır
+(boş dock bir düğme bütçeler). Hover'da `SetWindowPos` yok. ScrollViewer yoktur.
 
 ## Etkileşim
 
 | Aksiyon | Davranış |
 |---|---|
 | Sol tık | Öne getir / çalıştır; ikinci tık küçült (`WindowActivationService`) |
-| Sağ tık | Aşağıdaki menü |
+| Sağ tık (ikon) | Aşağıdaki menü |
+| Sağ tık (boş levha) | Arka plan: Mica / Transparent / Tint + opaklık (tint) |
 | Sürükle | Sabit öğeleri sırala; accent çizgi hedefi gösterir; tıklama bastırılır |
 | Bırakma | `.lnk/.exe/.bat/.cmd` ekler; yola göre tekilleştirir |
 
@@ -80,18 +69,18 @@ Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan
 
 ## Ayarlar
 
-[Ayarlar → Dock](../screens/settings.md#dock): `autoHide`, `iconSize` (16–36), `surface`
-(Mica/Acrylic), `magnification` (kaydırıcı 1.0–1.5), `position` (alt-sol/orta/sağ), `showRunningApps`,
-içerik listesi (ekle/sil/sürükleyerek sırala). Konum yalnız **alt kenar** hizasıdır; yan dock
-kapsam dışı.
+[Ayarlar → Dock](../screens/settings.md#dock): `autoHide`, `iconSize` (16–36, varsayılan 24),
+`backgroundMode` (Mica / Saydam / Renkli) + `tintOpacity` (0–100, yalnız tint), `position`
+(alt-sol/orta/sağ), `showRunningApps`, içerik listesi (ekle/sil/sürükleyerek sırala).
+Mica ↔ saydam/renkli geçişi dock'u yeniden kurar. Konum yalnız **alt kenar** hizasıdır.
 
 ## Tuzaklar
 
 `docs/04-gotchas.md` → "Dock'ta ..." girdirleri. Ayrıca:
 
-- Büyütme açıkken pencerenin saydam kenarı plakadan geniş olduğu için tıklamayı yutar (mevcut davranış).
-- OLE bırakma kabulü **ölçülmedi**: katmanlı `Topmost` pencere hedef olarak kabul edilmezse
-  dosya bırakma **ve** uygulama içi sıralama birlikte düşer (`RegisterDragDrop` HWND başına).
+- OLE bırakma kabulü **ölçülmedi**. Mica modu katmanlı değildir; saydam ve renkli modlar
+  katmanlıdır. Katmanlı `Topmost` pencere hedef olarak kabul edilmezse dosya bırakma **ve**
+  uygulama içi sıralama birlikte düşer (`RegisterDragDrop` HWND başına).
 - Sürükleme ile tıklama aynı butonda; bastırma **anahtarsızdır** (`_suppressNextClick`), çünkü
   bırakma sırayı değiştirip serbest bırakılan hücrenin içeriğini değiştirir.
 - Yeniden tasarım **fare ile hiç çalıştırılmadı**; büyütme/reflow/sıralama elle doğrulanmamıştır

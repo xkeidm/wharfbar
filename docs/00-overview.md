@@ -6,7 +6,7 @@ WharfBar, Windows masaüstüne macOS’a benzer bir **üst bar** ve **dock** ekl
 
 - **Top bar:** Saat ve durum göstergeleri; ekran alanını AppBar ile rezerve eder.
 - **Dock:** Kendi listesindeki uygulamalar; tıklanınca süreç başlatır veya pencereyi odaklar;
-  hover'da macOS tipi büyütme + komşu kayması.
+  ortalanmış levha (Mica / saydam / renkli).
 
 Görsel dil **Windows Fluent** (Mica, sistem teması) olmalıdır; macOS ikon dili / blur / marka öğeleri
 kullanılmaz — yalnızca düzen kavramı (üst bar + dock) ilham alınır.
