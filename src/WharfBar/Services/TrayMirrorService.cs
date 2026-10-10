@@ -147,11 +147,19 @@ internal sealed class TrayMirrorService : IDisposable
         if (item.Tag is not AutomationElement)
         {
             IntPtr toolbar = _lastToolbar;
-            if (toolbar != IntPtr.Zero)
+            if (toolbar == IntPtr.Zero)
             {
-                TrayToolbar.ClickItem(toolbar, item.Index, kind);
+                return;
             }
 
+            RECT anchor = ToNativeRect(anchorRect);
+            if (anchor.Width > 0 && TrayToolbar.TryGetItemScreenRect(toolbar, item.Index, out RECT button))
+            {
+                // Snapshot before SendMessage: the owner may create the menu inside that call.
+                BeginReanchor(button, anchor);
+            }
+
+            TrayToolbar.ClickItem(toolbar, item.Index, kind);
             return;
         }
 
@@ -582,37 +590,29 @@ internal sealed class TrayMirrorService : IDisposable
 
             // Physical input for every kind — InvokePattern is unverified on the 25H2 XAML
             // tray buttons, while a real click is exactly what a human would have done.
+            // Right-click is included: UIA cannot express it, and the owner's own menu
+            // (HMENU / flyout) opens from the physical button, then re-anchor moves it.
             if (!targetRect.IsEmpty && targetRect.Width > 0 && targetRect.Height > 0)
             {
+                RECT anchor = ToNativeRect(anchorRect);
+                var buttonRect = new RECT
+                {
+                    Left = (int)Math.Round(targetRect.Left),
+                    Top = (int)Math.Round(targetRect.Top),
+                    Right = (int)Math.Round(targetRect.Right),
+                    Bottom = (int)Math.Round(targetRect.Bottom),
+                };
+                if (anchor.Width > 0)
+                {
+                    // Before the click, so a menu created inside SendInput is still "new".
+                    BeginReanchor(buttonRect, anchor);
+                }
+
                 SendInputMouse.Click(
-                    (int)(targetRect.Left + targetRect.Width / 2),
-                    (int)(targetRect.Top + targetRect.Height / 2),
+                    (buttonRect.Left + buttonRect.Right) / 2,
+                    (buttonRect.Top + buttonRect.Bottom) / 2,
                     kind);
                 TrayPeekDiagnostics.LogNote("click sent");
-
-                // The app anchors its popup by its own strategy (icon rect at the parked
-                // bottom edge, restored cursor, screen corner). Move it below the mirror
-                // icon the user actually clicked; bounded watcher, own thread, no-op when
-                // no qualifying popup appears. Matching is geometric (button rect zone) —
-                // the 25H2 XAML buttons all report explorer's pid, so pid is useless here.
-                if (!anchorRect.IsEmpty && anchorRect.Width > 0 && !targetRect.IsEmpty)
-                {
-                    var anchor = new RECT
-                    {
-                        Left = (int)Math.Round(anchorRect.Left),
-                        Top = (int)Math.Round(anchorRect.Top),
-                        Right = (int)Math.Round(anchorRect.Right),
-                        Bottom = (int)Math.Round(anchorRect.Bottom),
-                    };
-                    var buttonRect = new RECT
-                    {
-                        Left = (int)Math.Round(targetRect.Left),
-                        Top = (int)Math.Round(targetRect.Top),
-                        Right = (int)Math.Round(targetRect.Right),
-                        Bottom = (int)Math.Round(targetRect.Bottom),
-                    };
-                    _ = Task.Run(() => TrayMenuReanchor.TryReanchor(buttonRect, anchor));
-                }
             }
             else
             {
@@ -642,6 +642,30 @@ internal sealed class TrayMirrorService : IDisposable
             _taskbar.EndTrayPeek();
             TrayPeekDiagnostics.LogNote("click end");
         }
+    }
+
+    private static RECT ToNativeRect(Rect rect) => new()
+    {
+        Left = (int)Math.Round(rect.Left),
+        Top = (int)Math.Round(rect.Top),
+        Right = (int)Math.Round(rect.Right),
+        Bottom = (int)Math.Round(rect.Bottom),
+    };
+
+    /// <summary>
+    /// Starts the popup watch with a snapshot taken now. The caller must invoke this before
+    /// the synthetic click. Matching stays geometric (button zone + <c>#32768</c>); 25H2 XAML
+    /// tray buttons all report explorer's pid, so pid cannot pick the menu.
+    /// </summary>
+    private static void BeginReanchor(RECT buttonRect, RECT anchor)
+    {
+        if (buttonRect.Width <= 0 || anchor.Width <= 0)
+        {
+            return;
+        }
+
+        HashSet<IntPtr> snapshot = TrayMenuReanchor.CaptureVisibleWindows();
+        _ = Task.Run(() => TrayMenuReanchor.TryReanchor(buttonRect, anchor, snapshot));
     }
 
     /// <summary>

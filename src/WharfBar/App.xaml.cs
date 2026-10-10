@@ -189,7 +189,9 @@ public partial class App : Application
         _monitors?.RecreateTopBars();
     }
 
-    /// <summary>Rebuilds every dock when AllowsTransparency must flip (Mica ↔ tint/transparent).</summary>
+    /// <summary>
+    /// Rebuilds every dock when <c>AllowsTransparency</c> must flip (Mica ↔ tint/transparent).
+    /// </summary>
     internal void RecreateDock()
     {
         _monitors?.RecreateDocks();

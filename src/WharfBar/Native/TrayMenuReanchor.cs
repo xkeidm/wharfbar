@@ -107,14 +107,38 @@ internal static class TrayMenuReanchor
     }
 
     /// <summary>
+    /// Hwnds visible right now. Call this before the synthetic click so a menu that the
+    /// owner creates synchronously is not already in the "existing" set when the watch starts.
+    /// </summary>
+    internal static HashSet<IntPtr> CaptureVisibleWindows()
+    {
+        var existing = new HashSet<IntPtr>();
+        NativeMethods.EnumWindows((hwnd, lParam) =>
+        {
+            if (NativeMethods.IsWindowVisible(hwnd))
+            {
+                existing.Add(hwnd);
+            }
+
+            return true;
+        }, IntPtr.Zero);
+        return existing;
+    }
+
+    /// <summary>
     /// Watches up to <see cref="WatchTimeoutMs"/> for a new popup near
     /// <paramref name="buttonRect"/> and moves it below <paramref name="anchor"/>. Runs on a
     /// background thread; bounded, so no cancellation is required. No-op when no candidate
     /// appears (menu already closed, shell-hosted flyout elsewhere, …).
+    /// Pass a pre-click <see cref="CaptureVisibleWindows"/> snapshot so a menu created by the
+    /// click is not treated as already open.
     /// </summary>
-    internal static void TryReanchor(RECT buttonRect, RECT anchor)
+    internal static void TryReanchor(RECT buttonRect, RECT anchor) =>
+        TryReanchor(buttonRect, anchor, CaptureVisibleWindows());
+
+    internal static void TryReanchor(RECT buttonRect, RECT anchor, HashSet<IntPtr> existing)
     {
-        if (buttonRect.Width <= 0 || anchor.Width <= 0)
+        if (buttonRect.Width <= 0 || anchor.Width <= 0 || existing is null)
         {
             return;
         }
@@ -126,17 +150,6 @@ internal static class TrayMenuReanchor
 
         RECT clickZone = ComputeClickZone(buttonRect, monitorBounds);
         uint ownPid = (uint)Environment.ProcessId;
-
-        var existing = new HashSet<IntPtr>();
-        NativeMethods.EnumWindows((hwnd, lParam) =>
-        {
-            if (NativeMethods.IsWindowVisible(hwnd))
-            {
-                existing.Add(hwnd);
-            }
-
-            return true;
-        }, IntPtr.Zero);
 
         var deadline = DateTime.UtcNow.AddMilliseconds(WatchTimeoutMs);
         while (DateTime.UtcNow < deadline)

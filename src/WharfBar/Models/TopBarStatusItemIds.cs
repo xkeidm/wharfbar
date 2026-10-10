@@ -14,7 +14,11 @@ internal static class TopBarStatusItemIds
     internal const string Battery = "battery";
     internal const string Media = "media";
 
-    internal static readonly IReadOnlyList<string> DefaultOrder =
+    /// <summary>
+    /// Full show/hide catalog, including items omitted from <see cref="DefaultOrder"/>.
+    /// Right-click and the Top Bar settings page iterate this so a hidden item can come back.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> CatalogOrder =
     [
         TrayMirror,
         TrayOverflow,
@@ -28,7 +32,22 @@ internal static class TopBarStatusItemIds
         Battery,
     ];
 
-    private static readonly HashSet<string> Known = new(DefaultOrder, StringComparer.Ordinal);
+    /// <summary>
+    /// Fresh installs and "reset to default" omit volume, brightness, and media.
+    /// Those stay in <see cref="CatalogOrder"/>. A saved <c>statusItems</c> list is not stripped.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> DefaultOrder =
+    [
+        TrayMirror,
+        TrayOverflow,
+        DateTime,
+        Notifications,
+        ControlCenter,
+        Network,
+        Battery,
+    ];
+
+    private static readonly HashSet<string> Known = new(CatalogOrder, StringComparer.Ordinal);
 
     /// <summary>
     /// Keeps first occurrence of known ids only; empty/null → default full set.
@@ -61,6 +80,17 @@ internal static class TopBarStatusItemIds
         }
 
         return result.Count == 0 ? DefaultOrder.ToList() : result;
+    }
+
+    /// <summary>
+    /// Puts <paramref name="id"/> back into the visible set and reorders by
+    /// <see cref="CatalogOrder"/> so a re-enabled volume/brightness/media icon is not dropped.
+    /// </summary>
+    internal static List<string> InsertInCatalogOrder(IReadOnlyList<string> current, string id)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        var set = new HashSet<string>(current, StringComparer.Ordinal) { id };
+        return CatalogOrder.Where(set.Contains).ToList();
     }
 
     /// <summary>

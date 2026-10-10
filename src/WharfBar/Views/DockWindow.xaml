@@ -18,7 +18,8 @@
 
     <!-- AllowsTransparency is set in the ctor from dock.backgroundMode, before
          InitializeComponent. Mica is the plate itself (DWM). Tint and transparent rebuild
-         the window as a layered rounded plate. Drop/DragOver stay on this Grid. -->
+         the window as a layered rounded plate; there is no magnification halo around it.
+         Drop/DragOver stay on this Grid (a two-step edit that splits them leaves drop dead). -->
     <Grid AllowDrop="True" DragOver="OnSurfaceDragOver" Drop="OnSurfaceDrop">
         <Border x:Name="Surface"
                 Background="Transparent"

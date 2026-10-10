@@ -10,6 +10,33 @@ internal enum TrayClick
     DoubleLeft,
 }
 
+/// <summary>
+/// Which mirrored gesture is replayed onto the real tray button. Right-click menus open on
+/// button-up (<c>WM_RBUTTONUP</c> / <c>WM_CONTEXTMENU</c>). Forwarding the right button on
+/// down injects that click while the top bar still has mouse capture, so the tray button
+/// never sees the up and the owner's menu does not open. Left clicks stay on down.
+/// </summary>
+internal static class TrayGestureMap
+{
+    internal static bool TryForward(bool isRightButton, int clickCount, bool isRelease, out TrayClick kind)
+    {
+        if (isRightButton)
+        {
+            kind = TrayClick.Right;
+            return isRelease;
+        }
+
+        if (isRelease)
+        {
+            kind = default;
+            return false;
+        }
+
+        kind = clickCount >= 2 ? TrayClick.DoubleLeft : TrayClick.Left;
+        return true;
+    }
+}
+
 /// <summary>Metadata for one button in the tray toolbar.</summary>
 internal sealed record TrayButtonInfo(int CommandId, int ImageIndex, string Tooltip);
 
@@ -137,12 +164,46 @@ internal static class TrayToolbar
         }
     }
 
+    /// <summary>Button rect in screen pixels (client rect mapped with <c>ClientToScreen</c>).</summary>
+    internal static bool TryGetItemScreenRect(IntPtr toolbar, int index, out RECT screen)
+    {
+        screen = default;
+        if (!TryGetItemRect(toolbar, index, out RECT client))
+        {
+            return false;
+        }
+
+        var topLeft = new POINT { X = client.Left, Y = client.Top };
+        var bottomRight = new POINT { X = client.Right, Y = client.Bottom };
+        if (!ClientToScreen(toolbar, ref topLeft) || !ClientToScreen(toolbar, ref bottomRight))
+        {
+            return false;
+        }
+
+        screen = new RECT
+        {
+            Left = topLeft.X,
+            Top = topLeft.Y,
+            Right = bottomRight.X,
+            Bottom = bottomRight.Y,
+        };
+        return screen.Width > 0 && screen.Height > 0;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
     internal static void ClickItem(IntPtr toolbar, int index, TrayClick kind)
     {
         if (!TryGetItemRect(toolbar, index, out RECT rect))
         {
             return;
         }
+
+        // The icon owner calls TrackPopupMenu from WM_RBUTTONUP / WM_CONTEXTMENU. That
+        // fails unless the process which just received the user's click grants foreground.
+        // The shell builds the notify from these mouse messages; we do not pack NIN_* .
+        _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
 
         int x = (rect.Left + rect.Right) / 2;
         int y = (rect.Top + rect.Bottom) / 2;

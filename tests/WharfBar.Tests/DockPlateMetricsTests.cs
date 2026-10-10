@@ -20,6 +20,7 @@ public class DockPlateMetricsTests
     [Fact]
     public void StripWidth_UsesFourDipGapsBetweenButtons()
     {
+        // 3 * 40 + 2 * 4
         Assert.Equal(128d, DockPlateMetrics.StripWidth(3, 24d));
     }
 

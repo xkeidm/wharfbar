@@ -65,5 +65,20 @@ public class IslandConfigTests
         Assert.Equal("session", config.Persistence);
         Assert.Equal(30, config.RetentionDays);
         Assert.Equal(200, config.MaxItems);
+        Assert.Equal("persistent", config.MusicPresence);
+    }
+
+    [Theory]
+    [InlineData("persistent", "persistent")]
+    [InlineData("Persistent", "persistent")]
+    [InlineData("transient", "transient")]
+    [InlineData("Transient", "transient")]
+    [InlineData(null, "persistent")]
+    [InlineData("", "persistent")]
+    [InlineData("session", "persistent")]
+    [InlineData("nope", "persistent")]
+    public void NormalizeMusicPresence_FallsBackToPersistent(string? input, string expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizeMusicPresence(input));
     }
 }

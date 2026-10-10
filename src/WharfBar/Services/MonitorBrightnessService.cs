@@ -33,9 +33,25 @@ internal sealed class MonitorBrightnessService : IDisposable
     private readonly List<MonitorItem> _monitors = [];
     private readonly DispatcherTimer _throttleTimer;
     private readonly Dictionary<string, int> _pendingBrightnessUpdates = new(StringComparer.Ordinal);
+    private ManagementEventWatcher? _brightnessWatcher;
+    private int? _announcedBrightness;
     private bool _isDisposed;
 
     internal event EventHandler? MonitorsChanged;
+
+    /// <summary>Hardware or in-app brightness moved. HUD consumers seed the first value.</summary>
+    internal event EventHandler? BrightnessChanged;
+
+    internal int? AnnouncedBrightness
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _announcedBrightness;
+            }
+        }
+    }
 
     internal IReadOnlyList<MonitorItem> Monitors
     {
@@ -57,6 +73,7 @@ internal sealed class MonitorBrightnessService : IDisposable
         _throttleTimer.Tick += OnThrottleTimerTick;
 
         RefreshMonitors();
+        TryStartBrightnessWatcher();
     }
 
     /// <summary>
@@ -179,8 +196,107 @@ internal sealed class MonitorBrightnessService : IDisposable
             System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
             {
                 MonitorsChanged?.Invoke(this, EventArgs.Empty);
+                int? sample = FirstSupportedBrightness();
+                if (sample is int value)
+                {
+                    PublishBrightness(value);
+                }
             });
         });
+    }
+
+    private int? FirstSupportedBrightness()
+    {
+        lock (_lock)
+        {
+            MonitorItem? supported = _monitors.FirstOrDefault(static m => m.IsSupported);
+            return supported?.CurrentBrightness;
+        }
+    }
+
+    private void PublishBrightness(int percent)
+    {
+        percent = Math.Clamp(percent, 0, 100);
+        lock (_lock)
+        {
+            if (_announcedBrightness == percent)
+            {
+                return;
+            }
+
+            _announcedBrightness = percent;
+        }
+
+        void Raise() => BrightnessChanged?.Invoke(this, EventArgs.Empty);
+        System.Windows.Threading.Dispatcher? dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            Raise();
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(Raise);
+    }
+
+    /// <summary>
+    /// Laptop brightness keys raise <c>WmiMonitorBrightnessEvent</c>. Desktops without the
+    /// class skip the watch; the island then only sees refreshes and in-app sets.
+    /// </summary>
+    private void TryStartBrightnessWatcher()
+    {
+        _ = Task.Run(() =>
+        {
+            ManagementEventWatcher? watcher = null;
+            try
+            {
+                if (_isDisposed)
+                {
+                    return;
+                }
+
+                watcher = new ManagementEventWatcher(
+                    new ManagementScope(@"\\.\root\wmi"),
+                    new WqlEventQuery("SELECT * FROM WmiMonitorBrightnessEvent"));
+                watcher.EventArrived += OnWmiBrightnessArrived;
+                watcher.Start();
+
+                lock (_lock)
+                {
+                    if (_isDisposed)
+                    {
+                        watcher.Stop();
+                        watcher.Dispose();
+                        return;
+                    }
+
+                    _brightnessWatcher = watcher;
+                    watcher = null;
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MonitorBrightnessService] brightness watch skipped: {ex.Message}");
+                watcher?.Dispose();
+            }
+        });
+    }
+
+    private void OnWmiBrightnessArrived(object sender, EventArrivedEventArgs e)
+    {
+        try
+        {
+            object? raw = e.NewEvent.Properties["Brightness"]?.Value;
+            if (raw is null)
+            {
+                return;
+            }
+
+            PublishBrightness(Convert.ToInt32(raw, System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[MonitorBrightnessService] brightness event dropped: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -197,6 +313,8 @@ internal sealed class MonitorBrightnessService : IDisposable
             item.CurrentBrightness = brightness;
             _pendingBrightnessUpdates[item.Id] = brightness;
         }
+
+        PublishBrightness(brightness);
 
         if (!_throttleTimer.IsEnabled)
         {
@@ -333,10 +451,27 @@ internal sealed class MonitorBrightnessService : IDisposable
         _isDisposed = true;
         _throttleTimer.Stop();
 
+        ManagementEventWatcher? watcher;
         lock (_lock)
         {
+            watcher = _brightnessWatcher;
+            _brightnessWatcher = null;
             CleanupPhysicalMonitors_NoLock();
             _monitors.Clear();
+        }
+
+        if (watcher is not null)
+        {
+            try
+            {
+                watcher.EventArrived -= OnWmiBrightnessArrived;
+                watcher.Stop();
+                watcher.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[MonitorBrightnessService] brightness watch stop failed: {ex.Message}");
+            }
         }
     }
 }

@@ -133,6 +133,8 @@ public partial class QuickSettingsFlyout : UserControl
         _networkDetails = null;
     }
 
+    internal bool IsMixerPage => _page == QuickSettingsPage.Mixer;
+
     internal void ShowPage(QuickSettingsPage page)
     {
         _page = page;

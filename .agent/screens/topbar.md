@@ -20,9 +20,54 @@ Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
   - **WharfBar hakkında** → `AboutWindow`
   - **WharfBar'ı kapat** → düzgün çıkış (görev çubuğu restore + `ABM_REMOVE`)
 
+## Orta — ada hapı (`IslandPill`, ADR-010 + ADR-011)
+
+Yalnızca **birincil** monitör. Ada ayarı açıkken ortada bir hap durur
+(`Visibility=Collapsed` yalnız kapalıyken veya birincil olmayan barda). AppBar **30 DIP**
+kalır; çok satırlı haller aynı `IslandPopup`'ın altında, hapın **ortasına** hizalı açılır
+(ikinci pencere yok, iç içe `Popup` yok). `Placement=Bottom` solu hizaladığı için
+`IslandPopupAlign.HorizontalOffset` panel merkezi ile hap merkezini eşitler. Offset
+yalnız **ölçülmüş** genişlikle yazılır (XAML `Width` yedek değildir); genişlik 0 iken
+panel `Opacity=0` kalır, sonra ortalanıp belirir. Hap veya panel sonradan değişince
+(DPI, gövde, hover) yeniden hesaplanır ve çalışma alanına clamp edilir. Panel üst kenarı hapın altına ~2 DIP biner. Açıkken hapın alt
+köşeleri düzleşir, dolgu panelinkiyle aynıdır (`FlyoutSurface`); kapanınca yine kapsüldür.
+
+Hap, barın içinde dikey ortalanmış bir kapsüldür (`Height=24`, `CornerRadius=12`,
+boşta yaklaşık **108 DIP** — `IslandIdleDip`). Dolgu ve 1 px kontur tema fırçalarıdır
+(`ControlFillColorDefaultBrush`, `ControlStrokeColorDefaultBrush`); hover
+`ControlFillColorSecondaryBrush` ve hap ~4 DIP genişler. Açık ve koyu temada aynı
+kaynaklar çözülür. Glifler Segoe MDL2 / Fluent (`AppIconFontFamily`). Genişlik değişimi
+~200 ms `CubicEase`. Boşta genişlik tabandır; parça adı ve sayaç bunun üstüne büyür.
+
+- **Boşta:** gösterge çubuğu — pano glifi (`E8C8`) + **Pano**. Üzerine gelince aynı
+  `IslandPopup` pano gövdesiyle açılır (kayıt yoksa kısa boş durum cümlesi). İmleç
+  ayrılınca ~300 ms. Tıklama sabitler. **Sürükle-bırak** aynı kontrolde (`AllowDrop`).
+- **Şimdi çalıyor** (`island.musicPresence`, varsayılan `persistent`): hap nota (`E90C`)
+  + tek satır parça adı olarak genişler (CubicEase). Ad `IslandPresence.TitleMaxWidth`
+  ile sol istatistik ve sağ şeride değmeyecek şekilde kesilir. Üzerine gelince müzik
+  paneli açılır; imleç ayrılınca ~300 ms. Tıklama paneli sabitler. Oturum bitince hap boşta.
+- **Kısa süre** (`transient`): hap boşta kalır. Çalma, parça değişimi veya oynat/duraklat
+  aynı paneli ~2,5 sn açar. O sırada tıklama sabitler.
+- **Ses / parlaklık:** karıştırıcı veya parlaklık paneli açık değilken gelen değişiklik
+  hapı ~1,6 sn ikon + yuvarlak sayaca çevirir (`AccentFillColorDefaultBrush`), sonra
+  önceki hapa döner. Tıklama mevcut karıştırıcıyı veya parlaklık flyout'unu açar.
+
+Sabit panel dış tıklama, Esc, hapa tekrar tıklama ve `CloseFlyouts` ile kapanır.
+Panel açılışı hapın genişliğinden gövdeye doğru büyür (üst orta, solma, ~200 ms); aralık
+açılmaz. Ölçek popup çocuğunda değil, iç yüzeydedir (`PanelSurface`): WPF yerleşimi
+çocuğun dönüşmüş köşesini kullanır, ölçek çocukta kalırsa panel hapın solunda açılır ve
+ölçek 1'e dönünce de orada kalır. Kapanış tersi ve biraz daha hızlıdır. Müzik ile pano
+aynı popup içinde ~150 ms çapraz solar. Müzik panelindeki pano düğmesi gövdeyi listeye
+çevirir; geri müzik. Ses/parlaklık sayacının dolgusu seviye değişince akar.
+
+Kurallar `IslandPresence` (süre, yüz, HUD önceliği). Pencere tek atımlık zamanlayıcı kullanır.
+
 ## Sağ küme — durum şeridi (`StatusStrip`)
 
-Varsayılan soldan sağa sıra ve davranış (config `topBar.statusItems`):
+Varsayılan soldan sağa sıra `volume`, `brightness` ve `media` **içermez** (ada HUD ve
+şimdi çalanı taşır). Üçü katalogda durur: sağ tık menüsü ve Üst Çubuk ayarı onları
+yeniden açabilir. Kullanıcının kayıtlı `statusItems` listesi soyulmaz; görünürlerse
+aşağıdaki flyout'lar açılır.
 
 | id | Arayüz | Tıklama davranışı |
 |----|--------|-------------------|

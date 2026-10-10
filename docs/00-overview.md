@@ -26,7 +26,7 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 | Üst AppBar | `ABE_TOP`, work area rezervasyonu |
 | Çoklu monitör | Monitör bazında top bar / dock aç-kapat; her bar kendi monitöründe AppBar |
 | Dock overlay | Topmost; AppBar şart değil (ADR-001) |
-| Pinned / running apps | Kendi kalıcı listesi (`dock.items`) + `EnumWindows`/AUMID; `SHGetFileInfo`; **görev çubuğunun pin tarafına dokunulmaz** — `User Pinned` okunmaz, görev çubuğuna `.lnk` yazılmaz (görev çubuğunu gizleme/restore bu kararın dışında; ADR-005 revizyonu, 2026-10-04) |
+| Pinned / running apps | Sol: `User Pinned\TaskBar` **salt okunur** (kapalı pinler dahil) + `dock.items`; sağ: sabitlenmemiş çalışanlar (`EnumWindows`/AUMID); `SHGetFileInfo`. Görev çubuğu pin klasörüne **yazılmaz** (ADR-005, 2026-10-07). Gizleme/restore ayrı disiplindir |
 | Tepsi hibrit + ayna | Durum simülasyonu + native overflow düğmesi; üçüncü taraf ikon aynası belgelenmiş comctl32 `TB_*` mesajlarıyla (ADR-009); gizli ikonlar native overflow'da |
 | Görev çubuğu | WharfBar çalışırken gizle/auto-hide; çıkışta önceki duruma geri yükle (ADR-005) |
 | Config | JSON, `%AppData%/WharfBar/config.json` |

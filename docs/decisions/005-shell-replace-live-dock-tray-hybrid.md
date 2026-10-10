@@ -20,6 +20,15 @@ Tasarım: [`../superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`
 > §2 (tepsi hibrit) ve §3–5’in görev çubuğu gizleme/restore disiplini **değişmemiştir.**
 > Yeniden tasarımın gerekçesi ve kapsamı:
 > [`../superpowers/specs/2026-10-04-dock-macos-redesign-design.md`](../superpowers/specs/2026-10-04-dock-macos-redesign-design.md).
+>
+> **Revizyon (2026-10-07): okuma geri geldi, yazma gelmedi.** Sol grup yine Windows görev
+> çubuğunun `User Pinned\TaskBar` kısayollarını **salt okunur** gösterir — kapalı pinler
+> dahil, görev çubuğu sırasında (`Taskband\Favorites` blob'u; blob'da adı geçmeyenler dosya
+> adına göre). Çalışan uygulama eşleşen pine bağlanır ve sağda ikinci kez belirmez.
+> `dock.items` ile aynı hedef tek kutuda birleşir; sol sırada görev çubuğu pinleri öndedir,
+> yalnız dock'ta olanlar onların ardına eklenir. **Yazma yok:** `.lnk` oluşturulmaz,
+> silinmez, yeniden yazılmaz; `Taskband` yazılmaz. “Dock'a sabitle / Dock'tan kaldır”
+> yalnızca `dock.items` listesini değiştirir.
 
 ## Karar
 
@@ -30,8 +39,9 @@ uygulansalar çift çubuk / boş tepsi / sahte pin listesi üretirler.
 
 | Kaynak | Kullanım |
 |--------|----------|
-| `dock.items` (config) | **Tek** sabit listesi; sıra = görüntü sırası |
-| `EnumWindows` + AppUserModelID | Çalışan uygulama gruplama / göstergesi (değişmedi) |
+| `User Pinned\TaskBar\*.lnk` | **Salt okunur** sol grup (2026-10-07). Kapalı pinler dahil; sıra görev çubuğu sırası. Yazılmaz |
+| `dock.items` (config) | WharfBar'ın kendi pinleri. Görev çubuğunda olmayanlar sol grubun sonuna eklenir. “Dock'a sabitle / kaldır” **yalnız bunu** yazar |
+| `EnumWindows` + AppUserModelID | Çalışan uygulama gruplama / göstergesi (değişmedi). Sabitlenmemiş olanlar sağda |
 | `config.pinnedApps` | Eski şema alanı; yalnızca `dock.items`’e bir kez taşınır, sonra boşaltılır |
 
 Göç tek seferliktir ve `ConfigService.MigrateDockItems` yapar: `dock.items` boşken eski kök
@@ -128,10 +138,10 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
 ## Gerekçe
 
 - ~~Config’teki demo pinler gerçek görev çubuğu pinlerini yansıtmaz; kullanıcı “yerine geçen”
-  dock bekler.~~ **2026-10-04’te tersine döndü:** yansıma zorunluluğu değil, listeden
-  bağımsız bir liste isteniyor. Aynı gerekçeyi tersinden okuyan karşı-argüman bugün geçerli:
-  bir “yerine geçen” dock için başka bir uygulamanın (explorer) pin listesini okumak zorunda
-  kalmak, o listedeki kırılganlığı (`Quick Launch` yolu, dil, sürüm) WharfBar’a taşır.
+  dock bekler.~~ **2026-10-04’te tersine döndü**, **2026-10-07’de okuma geri geldi:** kapalı
+  görev çubuğu pinleri solda görünmeli. Okuma salt okunurdur; yazma hâlâ yok, böylece
+  `Quick Launch` klasörü WharfBar tarafından bozulmaz. Sıra blob'dan okunamazsa dosya adına
+  düşülür — bu, görev çubuğu sırasının yedeğidir, yazma değildir.
 - Resmi API ile yabancı tepsi ikonlarını okumak desteklenmez; tam ayna kırılgan ve sınır
   ihlali riski taşır. Native overflow düğmesi yeterli erişim verir.
 - Görev çubuğu görünürken altta iki şerit kalır; gizleme onayıyla (B) ürün hedefi netleşti.
@@ -156,8 +166,8 @@ zehirlenmiş state baseline sanılır ve tüm oturumlar bozuk restore eder — c
 1. **Tam tepsi aynası** (yabancı ikon çiz + forward) — belgelenmemiş API / RPM; reddedildi.
 2. **Görev çubuğuna dokunmama** (önceki non-goal) — çift çubuk; kullanıcı B ile reddetti.
 3. **Yalnızca config pinleri** — canlı shell pinleriyle uyumsuz; yetersiz.
-   **2026-10-04’te bu alternatif kabul edildi** (§1 revizyonu): görev çubuğunun pin tarafına
-   dokunulmadığı için “uyumsuzluk” artık bir maliyet değil; liste büyütüldü (sürükle-sırala,
-   dosya bırakma, ayar editörü) ve dock yine de “yerine geçen” deneyimi sunuyor. Bu yüzden
-   **bugün reddedilenler listesi yalnız 1, 2 ve 4’ü kapsar.**
+   **2026-10-04’te kabul edildi, 2026-10-07’de görüntü için geri alındı:** sol grup yine
+   görev çubuğu pinlerini okur. Yazma yolu `dock.items` olarak kaldı (sürükle-sırala, dosya
+   bırakma, ayar editörü). **Bugün reddedilenler 1, 2 ve 4’tür;** 3 yalnız yazma tarafında
+   durur.
 4. **İki ayrı ADR** (taskbar vs tray) — sıkı bağlı ürün kararı; tek ADR tercih edildi.

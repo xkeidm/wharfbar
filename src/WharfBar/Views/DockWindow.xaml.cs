@@ -77,6 +77,7 @@ public partial class DockWindow : Window
     private readonly ProcessLauncherService _launcher = new();
     private RunningAppsSource? _runningSource;
     private MinimizedWindowsSource? _minimizedSource;
+    private TaskbarPinnedAppsSource? _taskbarPins;
     private DockAppsComposer? _composer;
     private WindowActivationService? _activation;
     private WindowAppearance? _appearance;
@@ -158,6 +159,8 @@ public partial class DockWindow : Window
 
         Monitor = monitor;
         _monitorDpi = monitor.Dpi;
+
+        // Must be set before InitializeComponent — WPF locks AllowsTransparency after creation.
         AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(config.Dock.BackgroundMode);
         InitializeComponent();
         _strip = Strip;
@@ -289,7 +292,7 @@ public partial class DockWindow : Window
         }
 
         // DockConfig is plain data with no change notification, and the composer — which owns the
-        // Running/Minimized sections — only rebuilds when one of its sources raises Changed. The
+        // right-hand running apps — only rebuilds when one of its sources raises Changed. The
         // store is that relay: Reload raises Changed with the list itself untouched, and the
         // composer's ItemsEqual check then keeps a toggle that moves nothing off the strip.
         if (_composer is not null && _appliedShowRunningApps != _config.Dock.ShowRunningApps)
@@ -380,7 +383,8 @@ public partial class DockWindow : Window
             ?? throw new InvalidOperationException("App.DockItems is not initialized yet.");
         _runningSource = new RunningAppsSource(Dispatcher);
         _minimizedSource = new MinimizedWindowsSource(Dispatcher);
-        _composer = new DockAppsComposer(store, _runningSource, _minimizedSource, _config.Dock);
+        _taskbarPins = new TaskbarPinnedAppsSource(Dispatcher);
+        _composer = new DockAppsComposer(store, _runningSource, _minimizedSource, _config.Dock, _taskbarPins);
         _activation = new WindowActivationService();
         _composer.Changed += OnComposerChanged;
 
@@ -444,6 +448,8 @@ public partial class DockWindow : Window
         _runningSource = null;
         _minimizedSource?.Dispose();
         _minimizedSource = null;
+        _taskbarPins?.Dispose();
+        _taskbarPins = null;
         _activation = null;
 
         _autoHide.Changed -= OnAutoHideChanged;
@@ -1081,9 +1087,9 @@ public partial class DockWindow : Window
         }
 
         // 6. Pencereler — the cached window table only. EnumWindows on the UI thread stalls on a
-        // hung HWND, and the menu opens on the UI thread. Gated on IsRunning, not on Section: the
-        // composer marks pinned-and-running tiles IsRunning with a live handle too
-        // (DockAppsComposer.cs:84-87), and those are the tiles a user actually right-clicks.
+        // hung HWND, and the menu opens on the UI thread. Gated on IsRunning, not on Section: a
+        // pinned app that is running stays one Pinned tile with IsRunning and a live handle,
+        // and that is the tile a user actually right-clicks.
         if (item.IsRunning && item.MainWindowHandle != IntPtr.Zero)
         {
             // The return value is the owning thread id; the out-param is the process id — only

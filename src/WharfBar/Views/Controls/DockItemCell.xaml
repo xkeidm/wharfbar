@@ -30,6 +30,8 @@
                 <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
             </Border.RenderTransform>
             <Grid>
+                <!-- Rounded square behind the glyph, only while the pointer is on this slot.
+                     It scales with the icon; it is not a slot-wide underline. -->
                 <Border x:Name="HoverPlate"
                         CornerRadius="4"
                         HorizontalAlignment="Center"
@@ -41,16 +43,21 @@
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"
                        Stretch="Uniform"
-                       SnapsToDevicePixels="True" />
+                       SnapsToDevicePixels="True"
+                       UseLayoutRounding="True"
+                       RenderOptions.BitmapScalingMode="HighQuality" />
             </Grid>
         </Border>
 
-        <!-- Windows 11 taskbar running indicator: wide, thin, fully rounded ends. Width and
-             height are pushed in by DockStrip from the indicator metrics. -->
+        <!-- Windows 11 running indicator: a short capsule under this icon only.
+             Collapsed unless the app is running — pinned/closed icons must not share a bar.
+             Width, height, and corner radius are pushed in by ApplyMetrics. -->
         <Border x:Name="RunningPill"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom"
-                CornerRadius="2"
+                CornerRadius="1"
+                UseLayoutRounding="True"
+                SnapsToDevicePixels="True"
                 Background="{DynamicResource TextFillColorPrimaryBrush}"
                 Visibility="Collapsed" />
 

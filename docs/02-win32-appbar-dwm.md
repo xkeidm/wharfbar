@@ -182,12 +182,17 @@ UI `QuickSettingsFlyout` üzerinden.
 ## e) Uygulama ikonu (dock)
 
 ```csharp
-// Tercih: IShellItemImageFactory.GetImage(sizePx) — DPI’ya göre keskin
-// Yedek: SHGetFileInfo(..., SHGFI_ICON | SHGFI_LARGEICON / SMALLICON)
-// HBITMAP/HICON → Imaging.CreateBitmapSourceFromHBitmap/HIcon → ImageSource
+// Tercih: SHGetFileInfo(SHGFI_ICONLOCATION) + SHDefExtractIcon(istenen px)
+//         — kabuk jumbo kaynağından küçültür; 16/32 bitmap büyütülmez
+// Yedek:  SHGetFileInfo(SHGFI_SYSICONINDEX) + SHGetImageList(SHIL_JUMBO 256 / SHIL_EXTRALARGE 48)
+// Son:    SHGFI_ICON | LARGEICON / SMALLICON
+// HICON → CreateBitmapSourceFromHIcon; çizim UseLayoutRounding + SnapsToDevicePixels
 ```
 
-Varsayılan `dock.iconSize` **24 DIP** (glif). Düğme glif + 16 DIP, aralık 4, levha payı 10×8;
+Çalışan göstergesi yalnızca `IsRunning` iken, düğmenin içinde **8×3 DIP** kapsül, alttan 3 DIP.
+Çalışmayan sabitlerde çizgi yok.
+
+Varsayılan `dock.iconSize` **24 DIP**. Düğme glif + 16 DIP, aralık 4, levha payı 10×8;
 24'te düğme 40 ve levha yüksekliği **56 DIP**. Pencere levhaya eşittir (ölçek 1).
 Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
 yok). Klasik `.exe` / `.lnk` için uygundur.
@@ -334,6 +339,7 @@ genişliğine kırpılır.
 `DWMWCP_ROUND`, `AllowsTransparency=false`. `transparent` ve `tint`: pencere yeniden kurulur,
 katmanlıdır, köşe WPF'te 14 DIP; tint dolgusu koyu `#202020` / açık `#FAFAFA`, alpha =
 `tintOpacity`/100. Eski `dock.surface` (`mica` ve `acrylic`) yüklemede `mica` moduna iner.
+Mica ile `AllowsTransparency` birlikte değildir (`docs/04-gotchas.md`).
 
 **Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
 dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,

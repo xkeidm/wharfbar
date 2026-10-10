@@ -28,6 +28,7 @@ public partial class IslandPage : Page
         EnabledToggle.Checked += OnEnabledChanged;
         EnabledToggle.Unchecked += OnEnabledChanged;
         PersistenceCombo.SelectionChanged += OnPersistenceChanged;
+        MusicPresenceCombo.SelectionChanged += OnMusicPresenceChanged;
         RetentionBox.LostFocus += OnRetentionLostFocus;
         MaxItemsBox.LostFocus += OnMaxItemsLostFocus;
 
@@ -66,6 +67,7 @@ public partial class IslandPage : Page
         IslandConfig island = Cfg.Island;
         EnabledToggle.IsChecked = island.Enabled;
         PersistenceCombo.SelectedIndex = IsPersistent(island.Persistence) ? 1 : 0;
+        MusicPresenceCombo.SelectedIndex = IslandNormalizer.IsTransientMusic(island.MusicPresence) ? 1 : 0;
 
         // IslandNormalizer her zaman 1..3650 / 10..5000'e sıkıştırır; kutular da aynı değeri
         // gösterir (elle config.json'a yazılmış taşma değerler kullanıcıyı şaşırtmasın).
@@ -104,6 +106,19 @@ public partial class IslandPage : Page
             : IslandConfig.PersistenceSession;
 
         UpdateLimitsEnabled();
+        SaveAndApply();
+    }
+
+    private void OnMusicPresenceChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading || MusicPresenceCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        Cfg.Island.MusicPresence = MusicPresenceCombo.SelectedIndex == 1
+            ? IslandConfig.MusicPresenceTransient
+            : IslandConfig.MusicPresencePersistent;
         SaveAndApply();
     }
 

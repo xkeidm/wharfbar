@@ -219,6 +219,24 @@ internal static class NativeMethods
     internal const uint SHGFI_LARGEICON = 0x000000000;
     internal const uint SHGFI_SMALLICON = 0x000000001;
 
+    /// <summary>Icon file path in <c>szDisplayName</c>, index in <c>iIcon</c>. No HICON to destroy.</summary>
+    internal const uint SHGFI_ICONLOCATION = 0x000001000;
+
+    /// <summary>System image-list index in <c>iIcon</c>. The returned handle is the shell list — do not destroy it.</summary>
+    internal const uint SHGFI_SYSICONINDEX = 0x000004000;
+
+    /// <summary>32×32 image list.</summary>
+    internal const int SHIL_LARGE = 0;
+
+    /// <summary>16×16 image list.</summary>
+    internal const int SHIL_SMALL = 1;
+
+    /// <summary>48×48 image list. Native size — do not upscale <see cref="SHIL_LARGE"/> instead.</summary>
+    internal const int SHIL_EXTRALARGE = 2;
+
+    /// <summary>256×256 image list. Desktop large/jumbo glyphs live here.</summary>
+    internal const int SHIL_JUMBO = 4;
+
     /// <summary><c>IShellItemImageFactory.GetImage</c> — return an icon, not a thumbnail.</summary>
     internal const int SIIGBF_ICONONLY = 0x00000004;
 
@@ -326,6 +344,33 @@ internal static class NativeMethods
         ref SHFILEINFO psfi,
         uint cbFileInfo,
         uint uFlags);
+
+    /// <summary>
+    /// Shell image list for <paramref name="iImageList"/> (<see cref="SHIL_JUMBO"/> /
+    /// <see cref="SHIL_EXTRALARGE"/>). Caller <see cref="Marshal.ReleaseComObject"/>s the list.
+    /// </summary>
+    [DllImport("shell32.dll", ExactSpelling = true)]
+    internal static extern int SHGetImageList(int iImageList, ref Guid riid, out IImageList ppv);
+
+    /// <summary>
+    /// Extracts the shell icon resource at <paramref name="nIconSize"/> (low word = pixels).
+    /// Picks the jumbo resource and scales down; does not stretch a 16/32 bitmap.
+    /// </summary>
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    internal static extern int SHDefExtractIcon(
+        string pszIconFile,
+        int iIndex,
+        uint uFlags,
+        out IntPtr phiconLarge,
+        out IntPtr phiconSmall,
+        uint nIconSize);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO piconinfo);
+
+    [DllImport("gdi32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    internal static extern int GetObject(IntPtr h, int c, out BITMAP pv);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, PreserveSig = true)]
     internal static extern int SHCreateItemFromParsingName(
@@ -555,7 +600,7 @@ internal struct SIZE
     public int cy;
 }
 
-/// <summary>Shell item → sized HBITMAP (Windows 7+). Used for DPI-aware dock icons.</summary>
+/// <summary>Shell item → sized HBITMAP (Windows 7+). Kept for callers that already hold a factory.</summary>
 [ComImport]
 [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -563,6 +608,83 @@ internal interface IShellItemImageFactory
 {
     [PreserveSig]
     int GetImage(SIZE size, int flags, out IntPtr phbm);
+}
+
+/// <summary>Shell image list. <see cref="GetIcon"/> is the 8th method; earlier slots stay so the vtable matches.</summary>
+[ComImport]
+[Guid("46EB5926-582E-4017-9FDF-E8998DAA0950")]
+[InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+internal interface IImageList
+{
+    [PreserveSig]
+    int Add(IntPtr hbmImage, IntPtr hbmMask, ref int pi);
+
+    [PreserveSig]
+    int ReplaceIcon(int i, IntPtr hicon, ref int pi);
+
+    [PreserveSig]
+    int SetOverlayImage(int iImage, int iOverlay);
+
+    [PreserveSig]
+    int Replace(int i, IntPtr hbmImage, IntPtr hbmMask);
+
+    [PreserveSig]
+    int AddMasked(IntPtr hbmImage, int crMask, ref int pi);
+
+    [PreserveSig]
+    int Draw(ref IMAGELISTDRAWPARAMS pimldp);
+
+    [PreserveSig]
+    int Remove(int i);
+
+    /// <summary>Caller <see cref="NativeMethods.DestroyIcon"/>s <paramref name="picon"/>.</summary>
+    [PreserveSig]
+    int GetIcon(int i, int flags, out IntPtr picon);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct IMAGELISTDRAWPARAMS
+{
+    public int cbSize;
+    public IntPtr himl;
+    public int i;
+    public IntPtr hdcDst;
+    public int x;
+    public int y;
+    public int cx;
+    public int cy;
+    public int xBitmap;
+    public int yBitmap;
+    public int rgbBk;
+    public int rgbFg;
+    public int fStyle;
+    public int dwRop;
+    public int fState;
+    public int Frame;
+    public int crEffect;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct ICONINFO
+{
+    [MarshalAs(UnmanagedType.Bool)]
+    public bool fIcon;
+    public int xHotspot;
+    public int yHotspot;
+    public IntPtr hbmMask;
+    public IntPtr hbmColor;
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct BITMAP
+{
+    public int bmType;
+    public int bmWidth;
+    public int bmHeight;
+    public int bmWidthBytes;
+    public ushort bmPlanes;
+    public ushort bmBitsPixel;
+    public IntPtr bmBits;
 }
 
 /// <summary>

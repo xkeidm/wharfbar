@@ -289,6 +289,15 @@ internal sealed class IslandConfig
     /// <summary>Çözülemeyen <c>Persistence</c> değerlerinin düştüğü mod.</summary>
     internal const string DefaultPersistence = PersistenceSession;
 
+    /// <summary>Müzik varken ada parça adını göstermeye devam eder.</summary>
+    internal const string MusicPresencePersistent = "persistent";
+
+    /// <summary>Müzik varken ada boşta kalır; panel yalnız kısa süre açılır.</summary>
+    internal const string MusicPresenceTransient = "transient";
+
+    /// <summary>Çözülemeyen <c>MusicPresence</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
+    internal const string DefaultMusicPresence = MusicPresencePersistent;
+
     public bool Enabled { get; set; } = DefaultEnabled;
 
     /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
@@ -299,6 +308,12 @@ internal sealed class IslandConfig
 
     /// <summary>Kayıt sayısı sert tavanı (gün limitinden bağımsız).</summary>
     public int MaxItems { get; set; } = DefaultMaxItems;
+
+    /// <summary>
+    /// Müzik adada nasıl durur: <c>persistent</c> (varsayılan) veya <c>transient</c>.
+    /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
+    /// </summary>
+    public string MusicPresence { get; set; } = DefaultMusicPresence;
 }
 
 /// <summary>Pure static normalization helpers for <see cref="IslandConfig"/> (unit-tested).</summary>
@@ -315,4 +330,18 @@ internal static class IslandNormalizer
             ? IslandConfig.PersistencePersistent
             : IslandConfig.DefaultPersistence;
     }
+
+    /// <summary>
+    /// Returns <see cref="IslandConfig.MusicPresenceTransient"/> or
+    /// <see cref="IslandConfig.DefaultMusicPresence"/>. Unknown text falls back to persistent.
+    /// </summary>
+    internal static string NormalizeMusicPresence(string? value)
+    {
+        return string.Equals(value, IslandConfig.MusicPresenceTransient, StringComparison.OrdinalIgnoreCase)
+            ? IslandConfig.MusicPresenceTransient
+            : IslandConfig.DefaultMusicPresence;
+    }
+
+    internal static bool IsTransientMusic(string? value)
+        => NormalizeMusicPresence(value) == IslandConfig.MusicPresenceTransient;
 }

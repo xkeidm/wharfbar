@@ -55,7 +55,8 @@ internal sealed class DockStrip : Panel
 
     public double IndicatorGap { get; set; } = 2d;
 
-    public double IndicatorSize { get; set; } = 4d;
+    /// <summary>Matches the 2 DIP running pill so the plate does not reserve a thick underline.</summary>
+    public double IndicatorSize { get; set; } = 2d;
 
     public double MaxScale { get; set; } = DockMagnification.Default;
 

@@ -6,12 +6,46 @@ namespace WharfBar.Tests;
 public class TopBarStatusItemIdsTests
 {
     [Fact]
-    public void DefaultOrder_ContainsMedia_AfterBrightness()
+    public void DefaultOrder_OmitsHudItems_CatalogKeepsThem()
     {
-        var order = TopBarStatusItemIds.DefaultOrder.ToList();
-        int brightnessIndex = order.IndexOf(TopBarStatusItemIds.Brightness);
-        Assert.True(brightnessIndex >= 0);
-        Assert.Equal(TopBarStatusItemIds.Media, order[brightnessIndex + 1]);
+        Assert.DoesNotContain(TopBarStatusItemIds.Volume, TopBarStatusItemIds.DefaultOrder);
+        Assert.DoesNotContain(TopBarStatusItemIds.Brightness, TopBarStatusItemIds.DefaultOrder);
+        Assert.DoesNotContain(TopBarStatusItemIds.Media, TopBarStatusItemIds.DefaultOrder);
+
+        var catalog = TopBarStatusItemIds.CatalogOrder.ToList();
+        int brightness = catalog.IndexOf(TopBarStatusItemIds.Brightness);
+        Assert.Equal(TopBarStatusItemIds.Volume, catalog[brightness - 1]);
+        Assert.Equal(TopBarStatusItemIds.Media, catalog[brightness + 1]);
+
+        foreach (string id in TopBarStatusItemIds.DefaultOrder)
+        {
+            Assert.Contains(id, catalog);
+        }
+    }
+
+    [Fact]
+    public void Normalize_KeepsSavedVolumeBrightnessMedia()
+    {
+        var saved = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Volume,
+            TopBarStatusItemIds.Brightness,
+            TopBarStatusItemIds.Media,
+            TopBarStatusItemIds.Battery,
+        };
+        Assert.Equal(saved, TopBarStatusItemIds.Normalize(saved));
+    }
+
+    [Fact]
+    public void InsertInCatalogOrder_ReenablesVolumeBetweenNeighbors()
+    {
+        List<string> placed = TopBarStatusItemIds.InsertInCatalogOrder(
+            TopBarStatusItemIds.DefaultOrder.ToList(),
+            TopBarStatusItemIds.Volume);
+        int volume = placed.IndexOf(TopBarStatusItemIds.Volume);
+        Assert.True(volume > placed.IndexOf(TopBarStatusItemIds.ControlCenter));
+        Assert.True(volume < placed.IndexOf(TopBarStatusItemIds.Network));
     }
 
     [Fact]

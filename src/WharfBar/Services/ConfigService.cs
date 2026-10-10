@@ -281,6 +281,7 @@ internal sealed class ConfigService
         config.Island.Persistence = IslandNormalizer.NormalizePersistence(config.Island.Persistence);
         config.Island.RetentionDays = IslandNormalizer.ClampRetentionDays(config.Island.RetentionDays);
         config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
+        config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);

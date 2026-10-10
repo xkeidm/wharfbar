@@ -53,12 +53,6 @@ public partial class DockPage : Page
         IconSizeSlider.Value = Cfg.Dock.IconSize;
         IconSizeLabel.Text = $"{(int)Cfg.Dock.IconSize} DIP";
         ShowRunningToggle.IsChecked = Cfg.Dock.ShowRunningApps;
-        PositionCombo.SelectedIndex = DockPositions.Normalize(Cfg.Dock.Position) switch
-        {
-            DockPositions.BottomLeft => 1,
-            DockPositions.BottomRight => 2,
-            _ => 0,
-        };
         string mode = TopBarBackgroundModes.NormalizeMode(Cfg.Dock.BackgroundMode);
         BackgroundCombo.SelectedIndex = mode switch
         {
@@ -69,6 +63,12 @@ public partial class DockPage : Page
         OpacitySlider.Value = TopBarBackgroundModes.ClampOpacity(Cfg.Dock.TintOpacity);
         OpacityLabel.Text = $"{TopBarBackgroundModes.ClampOpacity(Cfg.Dock.TintOpacity)}%";
         UpdateOpacityRow(mode);
+        PositionCombo.SelectedIndex = DockPositions.Normalize(Cfg.Dock.Position) switch
+        {
+            DockPositions.BottomLeft => 1,
+            DockPositions.BottomRight => 2,
+            _ => 0,
+        };
 
         RebuildItems();
     }

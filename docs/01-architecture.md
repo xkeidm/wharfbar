@@ -125,7 +125,8 @@ src/WharfBar/
     DockItemStore.cs            # dock'un sıralı, tekilleştirilmiş, kalıcı sabit listesi (App tek örneği)
     RunningAppsSource.cs        # EnumWindows arka plan + AUMID gruplama
     MinimizedWindowsSource.cs   # tüm üst düzey pencere tablosu + küçültülmüş alt küme (arka iş parçacığı, 800 ms)
-    DockAppsComposer.cs         # Pinned | Running | Minimized bölümlerini birleştiren zarif bileşik (saf `Compose`)
+    DockAppsComposer.cs         # solda görev çubuğu pinleri (salt okunur) + dock.items, sağda sabitlenmemiş çalışanlar
+    TaskbarPinnedAppsSource.cs # User Pinned\TaskBar *.lnk salt okunur tarama; yazma yok
     DockStripBuilder.cs         # bölüm değişimlerine 1 px ayraç slotu ekler
     DockMagnification.cs        # SAF büyütme matematiği: düşüş eğrisi, etki yarıçapı, kare hızından bağımsız yumuşatma
     DockStripLayout.cs          # SAF yatay yerleşim: slot ölçekleri, reflow ofsetleri, pencere bütçesi (max genişlik/yükseklik)
@@ -194,14 +195,15 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `Dwm` | Köşe tercihi, immersive dark, backdrop yedek, frame extend |
 | `WindowAppearance` | WPF-UI tema + Mica; DWM ince ayar; tema yenileme |
 | `SingleInstanceGuard` | Named Mutex; ikinci örneği engeller |
-| `DockWindow` | Alt overlay; **kendi bağımsız listesi** (pin + running + küçültülmüş); sürükle-sırala, dosya bırakma, konum (alt-sol/orta/sağ), "Pencereler" alt menüsü; levha `dock.backgroundMode` (`mica` gerçek DWM, `transparent`/`tint` katmanlı yuvarlak `Surface`); AppBar yok |
+| `DockWindow` | Alt overlay; solda salt okunur görev çubuğu pinleri + `dock.items`, sağda sabitlenmemiş çalışanlar, uygulama başına bir ikon; düğme ritmi (ikon 24, düğme 40, aralık 4, plaka payı 10×8), büyütme yok; arka plan `mica` (DWM, pencere = plaka) veya `transparent`/`tint` (katmanlı, köşe 14); sürükle-sırala, dosya bırakma, konum (alt-sol/orta/sağ), "Pencereler" alt menüsü; AppBar yok |
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore. Baseline watchdog state dosyasına yazılır, `--taskbar-watchdog` alt süreci spawn edilir; stale dosya varsa açılışta tray önce gösterilir (self-heal) |
 | `TaskbarWatchdog` | Headless mod (`Program.Main` dallanır, WPF başlamaz): PID + start-time izler, restore'suz ölümde baseline'ı uygular. PID reuse ve yeni-instance dosya yenilemesi güvenli |
 | `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
 | `MinimizedWindowsSource` | Tüm üst düzey pencere tablosunu **arka iş parçacığında** 800 ms'de bir tarar (`GetTopLevelCandidates` + pencere başına `IsIconic`); `Windows` önbelleğinden `ForProcess(pid)` alt kümesi — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
-| `DockItemStore` | Dock'un tek kaynağı: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
-| `DockAppsComposer` | Pinned \| Running \| Minimized bölümlerini birleştirir; çalışan uygulamayı yolla eşleşen ilk sabitlenen öğeye bağlar; saf `Compose` çekirdeği test edilir; `ItemsEqual` ile yalnız gerçek değişimde yeniden üretir |
-| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` / `DockPlateMetrics` | Satır başına bir öğe (ayraç slotu **yok**). Büyütme matematiği saf ve testli kalır; canlı şerit ölçeği 1. Levha ölçüsü `DockPlateMetrics` (düğme, aralık 4, pay 10×8) |
+| `DockItemStore` | Dock'un yazma listesi: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
+| `TaskbarPinnedAppsSource` | `User Pinned\TaskBar\*.lnk` **salt okunur**. Sıra `Taskband\Favorites` blob'undaki dosya adıdır; yoksa dosya adı. Klasöre ve kayıt defterine yazmaz |
+| `DockAppsComposer` | Sol: görev çubuğu pin sırası, sonra yalnız `dock.items`'te olanlar (aynı hedef bir kez). Sağ: sabitlenmemiş çalışanlar. Eşleşme: tam yol, AppUserModelId veya çözülmüş `.lnk`; klasör pinleri `explorer.exe` ile birleşmez. Kapalı pin `IsRunning` false. Küçültülmüş pencere, süreci zaten şeritteyse ikinci kutu olmaz |
+| `DockStripBuilder` / `DockStripLayout` / `DockMagnification` / `DockPlateMetrics` | Satır başına bir öğe (ayraç yok). Canlı şerit ölçek 1; plaka ölçüsü `DockPlateMetrics` (düğme, aralık 4, pay 10×8). Büyütme matematiği testli durur, pencereye uygulanmaz |
 | `ShortcutResolver` | `.lnk` → hedef yol / args / etiket çözümleme (bırakılan kısayolun dock listesine girmesi için). Dinamik `.lnk` **oluşturma** yolu 2026-10-04'te, görev çubuğuna `.lnk` yazan `TogglePin` ile birlikte kaldırıldı |
 | `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |
 | `TrayOverflowInvoker` | Peek-show gizli tepsi → `TrayOverflowNative` → overflow; sonra yeniden gizle |
@@ -228,18 +230,25 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 
 Ayrı pencere **değildir**: ada üst barın **içinde**, Grid'in orta hücresinde ortalanmış bir
 `Border`; panel aynı pencere içindeki `Popup`. Kararın tamamı:
-[`decisions/010-island-clipboard-drop.md`](decisions/010-island-clipboard-drop.md).
+[`decisions/010-island-clipboard-drop.md`](decisions/010-island-clipboard-drop.md),
+kompakt hap: [`decisions/011-island-presence.md`](decisions/011-island-presence.md).
 
 ```
 TopBarWindow.xaml — kök Grid (sütun yok; üç küme aynı hücre)
   ├─ StackPanel (sol)  : logo + sistem istatistikleri
   ├─ Border "IslandPill" (HorizontalAlignment=Center, AllowDrop)   ← ada
-  └─ StackPanel "StatusStrip" (sağ) : tray aynası, saat, bildirim, QS, ses, pil …
+  └─ StackPanel "StatusStrip" (sağ) : tray aynası, saat, bildirim, QS, ağ, pil …
+     (volume / brightness / media katalogda; varsayılan sırada yok — ADR-011)
 
 Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
                      AllowsTransparency=True, PopupAnimation=None)
   └─ local:IslandFlyout (arama kutusu + ScrollViewer/StackPanel liste)
 ```
+
+Ada yalnız birincil barda, AppBar **30 DIP** kalacak şekilde ortalanmış bir haptır (ADR-011).
+Boşta pano glifi; `persistent` müzikte nota + parça adı; ses/parlaklık değişiminde kısa sayaç.
+Çok satır panel aynı `IslandPopup` (müzik ↔ pano). Kurallar `IslandPresence`. Tıklama ve
+dosya bırakma aynı kontrolde kalır.
 
 ### Yeni dosyalar ve görevleri
 
@@ -248,6 +257,7 @@ Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=Tru
 | `Native/ClipboardNative.cs` | Belgelenmiş pano P/Invoke'ları: `OpenClipboard`/`CloseClipboard`, `GetClipboardData`, `SetClipboardData`, `EmptyClipboard`, `IsClipboardFormatAvailable`, `RegisterClipboardFormatW`, `GlobalAlloc`/`GlobalLock`/`GlobalUnlock`/`GlobalFree`/`GlobalSize`, `Add`/`RemoveClipboardFormatListener`, `GetClipboardOwner` + `GetWindowThreadProcessId`. `TryReadText` opt-out işaretini **fail-closed** okur; `TryWriteText` metni UTF-16 olarak yazar **ve** opt-out'u birlikte yazar; `GetOwnerProcessName` kaynak uygulama adını verir |
 | `Models/IslandEntry.cs` | `internal enum IslandEntryKind { Text, File }` + `internal sealed record IslandEntry(long Id, IslandEntryKind Kind, string Text, string? FilePath, DateTime CapturedAtUtc, string? SourceApp)` — tek birleşik zaman çizelgesinin kaydı |
 | `Services/IslandPruner.cs` | **Saf** çekirdek (Win32 ve dosya sistemi yok → tamamı testli): `ShouldCapture`, `Prepend` (ardışık aynı → yukarı), `Prune` (gün + `MaxItems`, oturumluk modda gün limiti yok), `Matches`, `FormatPreview`, `FormatRelativeTime`, `BuildDropFileName` |
+| `Services/IslandPresence.cs` | Hap yüzü, müzik paneli süresi, HUD önceliği (WPF yok). `TitleMaxWidth` dar monitör tavanı |
 | `Services/IslandStore.cs` | Ayrı kalıcılık dosyası: `island.json` (tmp + `File.Replace`), `Drop` klasörü; tek `_ioGate` kilidi; `.bak` / `.bak.1`; 64 MB boyut tavanı; tek bozuk alan tüm geçmişi düşürmez; **sıralamaz** (sıra tüketicinin işi) |
 | `Services/ClipboardMessageWindow.cs` | Mesaj-only `HwndSource` (`ParentWindow = -3`, mevcut `MonitorMessageWindow` kalıbı); `WM_CLIPBOARDUPDATE` UI thread'inde `ClipboardChanged` yükseltir |
 | `Services/IslandService.cs` | Yaşam döngüsü + orkestrasyon: STA okuma thread'i, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
@@ -320,8 +330,8 @@ Uygulanan (Faz 1–9):
    (self-heal); `ABM_GETSTATE` + `Shell_TrayWnd` görünürlük baseline; baseline watchdog dosyasına
    yazılır; ardından `ShowWindow(SW_HIDE)` ile gizle ve `--taskbar-watchdog` alt süreci spawn edilir
 5. `TopBarWindow.Show()` — AppBar + sol Windows menü + `StatusService` / overflow
-6. `DockWindow.Show(config)` — overlay; `DockItemStore` + `RunningAppsSource` + `MinimizedWindowsSource`
-   → `DockAppsComposer` ile kendi listesinin üç bölümü; AppBar kaydı yok
+6. `DockWindow.Show(config)` — overlay; `TaskbarPinnedAppsSource` (salt okunur) + `DockItemStore` + `RunningAppsSource` + `MinimizedWindowsSource`
+   → `DockAppsComposer` (solda pinler, kapalılar dahil; sağda sabitlenmemiş çalışanlar); AppBar kaydı yok
 7. `TrayIconService` — kendi tepsi ikonu + Quit menüsü
 8. `OnSourceInitialized` (TopBar) → `HwndSource.AddHook`; `RegisterWindowMessage("TaskbarCreated")`;
    `AppBar` oluştur (`ABE_TOP`, callback mesajı `WharfBarAppBarMessage`); durum şeridi bağlanır;
@@ -392,7 +402,6 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "backgroundMode": "mica",
     "tintOpacity": 40,
     "position": "bottom-center",
-    "magnification": 1.15,
     "showRunningApps": true,
     "items": [
       { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
@@ -410,9 +419,6 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
       "dateTime",
       "notifications",
       "controlCenter",
-      "volume",
-      "brightness",
-      "media",
       "network",
       "battery"
     ]
@@ -427,7 +433,8 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "enabled": true,
     "persistence": "session",
     "retentionDays": 30,
-    "maxItems": 200
+    "maxItems": 200,
+    "musicPresence": "persistent"
   },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
@@ -441,18 +448,18 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
 | `autostart` | `true` → Startup’ta `WharfBar.lnk`; `false` → kısayol silinir (`AutostartService`) |
 | `dock.autoHide` | `true` → kenar bandı proximity + animasyonlu gizleme; `false` → her zaman görünür |
-| `dock.iconSize` | Glif DIP; 16–36 (varsayılan **24**). Eski 48/72 ve önceki varsayılan **28** yüklemede 24'e iner; aradaki açık boyutlar kalır |
-| `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica`. Mica gerçek DWM; saydam/renkli katmanlı yuvarlak levha. Geçiş dock'u yeniden kurar |
-| `dock.tintOpacity` | 0–100; yalnız `tint`; varsayılan **40** |
-| `dock.surface` | Emekli JSON alanı (`mica` \| `acrylic`). Yüklemede yok sayılır ve `mica`'ya sabitlenir; seçim `backgroundMode` üzerinden |
-| `dock.items` | macOS tarzı sıralı sabit liste (Path/Args/Label) — **dock'un tek kaynağı**; sıra config sırasıdır. Anahtar normalize tam yoldur, `DockItemStore` yolla tekilleştirir |
+| `dock.iconSize` | DIP; 16–36 (varsayılan **24**). Eski 48/72 ve önceki 28 varsayılanı yüklemede 24'e çekilir |
+| `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica`. Üst çubuktan bağımsız. Mica gerçek DWM'dir (`AllowsTransparency=false`). Tint/transparent katmanlı penceredir; geçiş dock'u yeniden kurar |
+| `dock.tintOpacity` | 0–100; yalnız `tint`; varsayılan **40**. Dolgu koyu `#202020` / açık `#FAFAFA` |
+| `dock.surface` | Emekli JSON alanı (`mica` \| `acrylic`). Yüklemede `mica`'ya sabitlenir; seçim `backgroundMode` üzerinden |
+| `dock.items` | Sıralı yazma listesi (Path/Args/Label). Görev çubuğu pinleri ayrıca salt okunur; “sabitle / kaldır” yalnız bu listeyi değiştirir. Anahtar normalize tam yoldur |
 | `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right`; geçersiz/boş → `bottom-center`. Yan dock kapsam dışı |
-| `dock.magnification` | JSON hâlâ yüklenir ve 1.0–2.0'a sıkıştırılır (varsayılan 1.15). Canlı şerit uygulamıyor; ölçek 1 |
+| `dock.magnification` | JSON'da durur, yüklemede 1.0–2.0'a sıkıştırılır (varsayılan 1.15), **uygulanmaz**. Şerit ölçeği 1'dir |
 | `dock.showRunningApps` | Sabitlenmemiş çalışanlar + küçültülmüş pencereler |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 2'den bağımsız). Güncel **5**: eksik `controlCenter` `volume` önüne, eksik `brightness` `volume` sonrasına, eksik `media` `brightness` sonrasına eklenir (`Ensure*`; eski sürüm açılışta 5'e taşınır — ADR-008/009) |
-| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → varsayılan tam set (`trayOverflow`, … `trayMirror` dahil, … `battery`). Soft alan (`schemaVersion` 2) |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → `DefaultOrder`. **Varsayılan** `volume` / `brightness` / `media` içermez (ADR-011); üçü katalogda kalır, kayıtlı liste soyulmaz, `statusCatalogVersion` bu yüzden 5'te kalır. Soft alan (`schemaVersion` 2) |
 | `topBar.showSystemStats` | Sol kümede Windows logosunun yanındaki `CPU x% · GPU y% · RAM z%` okuması (varsayılan **`true`**; soft bool — eksik alan varsayılana düşer). GPU sayacı yoksa GPU bölümü gösterilmez |
 | `topBar.showGpuPerAdapter` | Birden çok fiziksel GPU varsa GPU bölümlerini numaralandır (`GPU0 x% · GPU1 y%`); kapalıyken tek toplam segment (varsayılan **`true`**; soft bool). Tek GPU'da iki mod da aynı görünür |
 | `veil.enabled` | Kaplama açık/kapalı (kalıcı; QS karosu + kısayol + sayfa toggle'ı yazar). Varsayılan **`false`** |
@@ -463,6 +470,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `island.persistence` | `"session"` \| `"persistent"` (varsayılan **`"session"`**). **String, enum değil** — enum-typed alan `"Persistent"` değerinde `JsonException` fırlatıp tüm config'i sıfırlıyordu. `IslandNormalizer.NormalizePersistence` büyük/küçük harf duyarsız; çözülemeyen değer `"session"`'a düşer (ADR-010) |
 | `island.retentionDays` | Persistent modda kaç gün geriye bakılır; yüklemede `ClampRetentionDays` ile 1–3650 (varsayılan **30**). Oturumluk modda yok sayılır (ADR-010) |
 | `island.maxItems` | Kayıt sayısı sert tavanı (gün limitinden bağımsız); yüklemede `ClampMaxItems` ile 10–5000 (varsayılan **200**). Panel ayrıca en fazla 200 satır kurar (`IslandFlyout.MaxRenderedRows`); fazlası "N kayıt daha var (arama ile daralt)" notuyla bildirilir (ADR-010) |
+| `island.musicPresence` | `"persistent"` (varsayılan) \| `"transient"`. Müzik hapta nasıl durur (ADR-011). Soft string; `IslandNormalizer.NormalizeMusicPresence`, çözülemeyen → `persistent`. `schemaVersion` artmaz |
 | `pinnedApps` | **Legacy.** Yalnızca `ConfigService.MigrateDockItems` tarafından, `dock.items` boşken bir kez okunur ve sonra **boşaltılır**. Canlı görev çubuğu `.lnk` taraması 2026-10-04'te kaldırıldı (ADR-005 revizyonu) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

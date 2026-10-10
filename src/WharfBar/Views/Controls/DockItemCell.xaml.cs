@@ -2,7 +2,6 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Controls;
@@ -24,7 +23,6 @@ internal sealed partial class DockItemCell : UserControl
     public DockItemCell()
     {
         InitializeComponent();
-        RenderOptions.SetBitmapScalingMode(IconGlyph, BitmapScalingMode.HighQuality);
         Cursor = System.Windows.Input.Cursors.Hand;
     }
 
@@ -69,10 +67,18 @@ internal sealed partial class DockItemCell : UserControl
 
     internal void SetMagnification(double scale)
     {
+        // The plate no longer grows under the pointer. The argument stays so DockStrip's
+        // arrange path compiles against the old call; the scale is not applied.
         _ = scale;
         IconScale.ScaleX = 1d;
         IconScale.ScaleY = 1d;
     }
+
+    private static bool MetricsChanged(double next, double applied) =>
+        double.IsNaN(applied) || Math.Abs(next - applied) >= MetricsEpsilon;
+
+    private static void OnRowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
+        ((DockItemCell)d).ApplyRow();
 
     protected override void OnMouseEnter(MouseEventArgs e)
     {
@@ -88,12 +94,6 @@ internal sealed partial class DockItemCell : UserControl
         base.OnMouseLeave(e);
         HoverPlate.Visibility = Visibility.Collapsed;
     }
-
-    private static bool MetricsChanged(double next, double applied) =>
-        double.IsNaN(applied) || Math.Abs(next - applied) >= MetricsEpsilon;
-
-    private static void OnRowChanged(DependencyObject d, DependencyPropertyChangedEventArgs e) =>
-        ((DockItemCell)d).ApplyRow();
 
     private void ApplyRow()
     {
