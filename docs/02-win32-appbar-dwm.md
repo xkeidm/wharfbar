@@ -58,7 +58,9 @@ tekrar çalıştırılıp yerleşim yeniden uygulanır. Eski kayıt ölen shell 
 
 ### Dock ve AppBar
 
-Üst bar için AppBar uygundur. Dock için macOS benzeri overlay (Topmost + auto-hide) genelde yeterlidir; alt AppBar zorunlu değildir. Bkz. ADR-001.
+Üst bar için AppBar uygundur. Dock plakası overlay'dir (Topmost + auto-hide); plaka HWND'i AppBar yapılmaz — `ABM_QUERYPOS` alt kenarda pencereyi monitör genişliğine gerer. Bkz. ADR-001.
+
+`dock.autoHide=false` iken kardeş bir pencere (`DockWorkAreaReservation`) `ABE_BOTTOM` kaydıyla plaka yüksekliğinde, tam genişlikte bir şerit rezerve eder. Pencere ham `CreateWindowEx` ile kurulur (`WS_EX_LAYERED` + alpha 0 + `WS_EX_TRANSPARENT`): WPF `HwndSource` bu şeridi siyah boyar, çünkü DWM redirection `LWA_ALPHA`'yı yok sayar. Duvar kâğıdı görünür, tıklama masaüstüne düşer. Maximize pencere work area'yı izlediği için dock tepesinde durur; masaüstü ikonları aynı kenarı kullanır. Oto-gizle `ABM_REMOVE` çağırır. `SPI_SETWORKAREA` bu iş için kullanılmaz (25H2'de sessiz no-op). Çıkışta kayıt `ABM_REMOVE` ile bırakılır.
 
 ---
 
@@ -189,8 +191,12 @@ UI `QuickSettingsFlyout` üzerinden.
 // HICON → CreateBitmapSourceFromHIcon; çizim UseLayoutRounding + SnapsToDevicePixels
 ```
 
-Çalışan göstergesi yalnızca `IsRunning` iken, düğmenin içinde **8×3 DIP** kapsül, alttan 3 DIP.
-Çalışmayan sabitlerde çizgi yok.
+Masaüstünde açık pencere (`IsOpenOnDesktop`): kalıcı kare (`ControlFillColorSecondaryBrush`)
+ve plakadan **3 DIP** aralıkla **16×3 DIP** kapsül (24 DIP ikonda), alttan 2 DIP, renk
+`AccentFillColorDefaultBrush`. Alta alınmış uygulama (`IsRunning`, bütün pencereler
+`IsIconic`): kare yok, altta **8×3 DIP** nötr mini çizgi (`TextFillColorPrimaryBrush`).
+Kapalı pinde çizgi yok. `IsRunning` kalır, tıklama geri yükler. Düğmenin alt **8 DIP**
+şeridi her iki çizgiye de ayrılır.
 
 Varsayılan `dock.iconSize` **24 DIP**. Düğme glif + 16 DIP, aralık 4, levha payı 10×8;
 24'te düğme 40 ve levha yüksekliği **56 DIP**. Pencere levhaya eşittir (ölçek 1).
@@ -326,8 +332,10 @@ arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada od
 `PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
 “önde” sayılır (Electron vb. alt pencereler).
 
-**Hover ve pencere boyutu:** canlı ölçek **1**. Hover düğmenin içini doldurur (köşe 4 DIP).
-Çalışan işareti düğmenin içinde **8×3 DIP** hap, alttan 3 DIP. `DockMagnification` /
+**Hover ve pencere boyutu:** canlı ölçek **1**. Hover kareyi boyar (köşe 4 DIP,
+`ControlFillColorSecondaryBrush`); kare alt **8 DIP** şeridin üstünde biter. Masaüstünde açık
+pencerede aynı kare ve **16×3 DIP** `AccentFillColorDefaultBrush` çizgi durur. Alta alınmış
+uygulamada kare yok, altta **8×3 DIP** nötr mini çizgi vardır. `DockMagnification` /
 `DockStripLayout` saf ve testli kalır; `dock.magnification` yüklenir, uygulanmaz.
 Bölüm ayracı **yoktur**.
 

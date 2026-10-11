@@ -162,6 +162,6 @@ Plan: [`superpowers/plans/2026-08-18-media-panel.md`](superpowers/plans/2026-08-
 
 - [ ] İkincil monitör / work-area stratejisi
 - [ ] UWP/Store ikonları (tam yol)
-- [x] Dock work area rezervasyonu (auto-hide OFF): `SPI_SETWORKAREA` alt kenar = dock tepesi (AppBar değil — ADR-001); oto-gizle ON: rezervasyon yok, maximize altı tam kaplar
+- [x] Dock work area rezervasyonu (auto-hide OFF): kardeş `ABE_BOTTOM` (`DockWorkAreaReservation`) alt kenar = dock tepesi; plaka AppBar değil (ADR-001). `SPI_SETWORKAREA` 25H2'de ölü, bu işi o yapmaz. Oto-gizle ON: `ABM_REMOVE`, maximize altı tam kaplar
 - [ ] Daha zengin durum menüleri / bildirim merkezi benzeri UI
 

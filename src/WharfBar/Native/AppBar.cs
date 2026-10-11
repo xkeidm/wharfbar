@@ -149,6 +149,23 @@ internal sealed class AppBar : IDisposable
     }
 
     /// <summary>
+    /// Drops the shell registration so the work area is released, but allows
+    /// <see cref="Register"/> again. Auto-hide uses this to give the bottom edge back.
+    /// <see cref="Remove"/> is the permanent shutdown path.
+    /// </summary>
+    internal void Unregister()
+    {
+        if (IsRemoved || !_isRegistered)
+        {
+            return;
+        }
+
+        APPBARDATA data = CreateData();
+        NativeMethods.SHAppBarMessage(NativeMethods.ABM_REMOVE, ref data);
+        _isRegistered = false;
+    }
+
+    /// <summary>
     /// Releases the reserved work area. Idempotent and thread-safe: only the first caller
     /// reaches the shell, so wiring this to several shutdown events is intentional.
     /// </summary>

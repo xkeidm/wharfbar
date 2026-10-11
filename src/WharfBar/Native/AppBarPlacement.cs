@@ -28,6 +28,23 @@ internal static class AppBarPlacement
         workBottom < monitorBottom;
 
     /// <summary>
+    /// Full-width strip along the bottom of <paramref name="monitor"/>. Maximized windows
+    /// and desktop icons both follow this edge. Height is clamped to the monitor.
+    /// </summary>
+    internal static RECT BottomStrip(in RECT monitor, int heightPx)
+    {
+        int span = Math.Max(0, monitor.Height);
+        int height = Math.Clamp(heightPx, 0, span);
+        return new RECT
+        {
+            Left = monitor.Left,
+            Top = monitor.Bottom - height,
+            Right = monitor.Right,
+            Bottom = monitor.Bottom,
+        };
+    }
+
+    /// <summary>
     /// Keep-hidden tray visibility poll. Fast enough to catch explorer re-showing
     /// <c>Shell_TrayWnd</c>, slow enough not to crowd the WPF dispatcher.
     /// </summary>

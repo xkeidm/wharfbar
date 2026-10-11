@@ -21,8 +21,10 @@ using TextBlock = Wpf.Ui.Controls.TextBlock;
 namespace WharfBar.Views;
 
 /// <summary>
-/// Windows-taskbar-style dock overlay anchored to the primary monitor work-area bottom.
-/// Not an AppBar — placement uses physical-pixel SetWindowPos only.
+/// Windows-taskbar-style dock overlay. The plate is not an AppBar — placement uses
+/// physical-pixel SetWindowPos only. When auto-hide is off, a sibling bottom AppBar
+/// (<see cref="DockWorkAreaReservation"/>) reserves the strip so maximized windows
+/// and desktop icons stop at the plate's top edge.
 /// </summary>
 public partial class DockWindow : Window
 {
@@ -72,6 +74,7 @@ public partial class DockWindow : Window
     private double _appliedMagnification;
 
     private readonly DockAutoHideController _autoHide;
+    private DockWorkAreaReservation? _edgeReservation;
     private HwndSource? _source;
     private readonly AppIconService _icons = new();
     private readonly ProcessLauncherService _launcher = new();
@@ -420,25 +423,35 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Reserves the dock strip at the target monitor's work-area bottom when the dock is
-    /// always visible (auto-hide off), so maximized apps stop at the dock's top edge. In
-    /// auto-hide mode nothing is reserved and maximized apps cover the full bottom.
+    /// Reserves the dock strip at the target monitor's bottom when the dock is always
+    /// visible (auto-hide off). The reservation is a bottom AppBar, not
+    /// <c>SPI_SETWORKAREA</c> — that call is a no-op on 25H2, so neither maximized
+    /// windows nor desktop icons would move. Auto-hide releases the AppBar and the
+    /// bottom edge is free again.
     /// </summary>
     private void ApplyWorkAreaReservation()
     {
         if (_source is null || _autoHide.Enabled || !TryGetPlacementGeometry(out PlacementGeometry geo))
         {
+            _edgeReservation?.Release();
             _taskbar.SetDockReservation(Monitor, 0);
             return;
         }
 
         uint dpi = Display.GetDpi(_source.Handle);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-        _taskbar.SetDockReservation(Monitor, geo.HeightPx + bottomGapPx);
+        int heightPx = geo.HeightPx + bottomGapPx;
+        _edgeReservation ??= new DockWorkAreaReservation();
+        _edgeReservation.Reserve(Monitor.Bounds, heightPx);
+        _taskbar.SetDockReservation(Monitor, heightPx);
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _edgeReservation?.Dispose();
+        _edgeReservation = null;
+        _taskbar.SetDockReservation(Monitor, 0);
+
         FullscreenState.Instance.Changed -= OnFullscreenChanged;
         WorkAreaChanged.Raised -= OnWorkAreaChanged;
 
@@ -1300,6 +1313,13 @@ public partial class DockWindow : Window
         finally
         {
             _isApplyingPlacement = false;
+        }
+
+        // Slide frames must not touch the shell. The reservation only changes when the
+        // plate is parked visible (auto-hide off) or when auto-hide turns the strip loose.
+        if (!_isAnimatingY)
+        {
+            ApplyWorkAreaReservation();
         }
     }
 

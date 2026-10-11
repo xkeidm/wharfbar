@@ -14,6 +14,39 @@ public class AppBarPlacementTests
     };
 
     [Fact]
+    public void BottomStrip_SpansTheMonitorWidthAtTheBottom()
+    {
+        RECT monitor = Rect(0, 0, 1920, 1080);
+        RECT strip = AppBarPlacement.BottomStrip(monitor, 56);
+
+        Assert.Equal(0, strip.Left);
+        Assert.Equal(1024, strip.Top);
+        Assert.Equal(1920, strip.Right);
+        Assert.Equal(1080, strip.Bottom);
+    }
+
+    [Fact]
+    public void BottomStrip_ClampsHeightToTheMonitor()
+    {
+        RECT monitor = Rect(100, 200, 1000, 800);
+        RECT strip = AppBarPlacement.BottomStrip(monitor, 10_000);
+
+        Assert.Equal(100, strip.Left);
+        Assert.Equal(200, strip.Top);
+        Assert.Equal(1000, strip.Right);
+        Assert.Equal(800, strip.Bottom);
+    }
+
+    [Fact]
+    public void BottomStrip_ZeroHeightSitsOnTheBottomEdge()
+    {
+        RECT strip = AppBarPlacement.BottomStrip(Rect(0, 0, 1920, 1080), 0);
+        Assert.Equal(0, strip.Height);
+        Assert.Equal(1080, strip.Bottom);
+        Assert.Equal(1080, strip.Top);
+    }
+
+    [Fact]
     public void NeedsShellSetPos_WhenNeverCommitted_IsTrue()
     {
         RECT approved = Rect(0, 0, 1920, 48);
