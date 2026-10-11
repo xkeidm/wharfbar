@@ -25,7 +25,9 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 - **Dock:** alt şerit (overlay; Topmost ± auto-hide). Solda görev çubuğu pinleri **salt
   okunur** (kapalılar dahil, görev çubuğu sırası; ADR-005 2026-10-07 — klasöre **yazılmaz**)
   ve `dock.items` içinde olup orada olmayanlar. Çalışan pin aynı tek ikonda kalır. Sağda
-  yalnız sabitlenmemiş çalışanlar. Küçültülmüş pencere ikinci ikon olmaz. İkon büyümez.
+  yalnız sabitlenmemiş çalışanlar. Küçültülmüş veya arkadaki pencere ikinci ikon olmaz;
+  aynı uygulama (kanonik yol, AppUserModelId veya pid) tek kutudur, birden fazla
+  pencere/süreç o kutuda sayılır. İkon büyümez.
   Varsayılan ikon **24 DIP**, düğme 40, aralık **4 DIP**, plaka payı 10×8 DIP. Arka plan
   `mica` / `transparent` / `tint` (üst çubuktan bağımsız).
   “Dock'a sabitle / kaldır” yalnız `dock.items`. Sürükle-sırala, Explorer'dan dosya bırakma,
@@ -114,7 +116,8 @@ monitör alt kenarına yaslı (`SHGetFileInfo` + `SHDefExtractIcon`, yedek `IIma
 Üst bar tooltip’leri Segoe UI (MDL2 mirası tofu yok). Overflow: gizli taskbar’da peek-show.
 Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`). **Hızlı ayarlar**
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
-tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Canlı ağ özellikleri
+tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Açık panelde sayfa
+geçişi 220 ms kayma+solma (`QuickSettingsPageMotion`); ilk açılışta yok. Canlı ağ özellikleri
 tamamlandı: canlı Wi-Fi listesi + bağlanma (`WifiService`, wlanapi.dll; QS Wifi sayfası + şifre paneli),
 BT cihaz listesi (`BluetoothService`), gece ışığı gerçek durum + toggle (`NightLightService`,
 CloudStore best-effort + oturum override), native yansıtma paneli 4 mod (`ProjectionService`,

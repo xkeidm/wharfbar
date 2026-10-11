@@ -123,7 +123,7 @@ src/WharfBar/
     TaskbarWatchdogState.cs     # watchdog baseline JSON store (%LOCALAPPDATA%/WharfBar)
     TaskbarWatchdog.cs          # --taskbar-watchdog modu: restore'suz ölümde görev çubuğunu dışarıdan geri getirir
     DockItemStore.cs            # dock'un sıralı, tekilleştirilmiş, kalıcı sabit listesi (App tek örneği)
-    RunningAppsSource.cs        # EnumWindows arka plan + AUMID gruplama
+    RunningAppsSource.cs        # EnumWindows arka plan; yol + AUMID + pid ile uygulama başına bir kimlik
     MinimizedWindowsSource.cs   # tüm üst düzey pencere tablosu + küçültülmüş alt küme (arka iş parçacığı, 800 ms)
     DockAppsComposer.cs         # solda görev çubuğu pinleri (salt okunur) + dock.items, sağda sabitlenmemiş çalışanlar
     TaskbarPinnedAppsSource.cs # User Pinned\TaskBar *.lnk salt okunur tarama; yazma yok
@@ -166,7 +166,7 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | Bileşen | Görev |
 |---------|--------|
 | `TopBarWindow` | AppBar; sol logo menü; **ortada ada** (`IslandPill` + `IslandPopup`); sağ küme; hızlı ayarlar; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (oturum yokken gizli); `network` → QS Network |
-| `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ) — ADR-006 |
+| `QuickSettingsFlyout` | Win11 tarzı hızlı ayarlar (karolar / ses karıştırıcı / ağ). Açık panelde sayfa geçişi 220 ms kayma+solma (`QuickSettingsPageMotion`); ilk açılışta yok — ADR-006 |
 | `BrightnessFlyout` | Monitorian tarzı monitör parlaklık popover'ı (master slider + bağımsız monitör kartları) |
 | `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) izleme: snapshot (kapak/başlık/sanatçı/çalma durumu), komutlar (Oynat/Duraklat, İleri/Geri), oturum seçimi; olaylar kurulduğu Dispatcher'a marshal; init hatası 10 sn retry; `Changed` / `SessionsChanged` (ADR-008) |
 | `MediaSessionSelector` | Saf seçim politikası: en son aktif oturum başta; `MoveCurrent` ile seçici halkasında ilerleme; yalnızca playing/paused oturumlar — unit testli (ADR-008) |
@@ -198,11 +198,11 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `DockWindow` | Alt overlay; solda salt okunur görev çubuğu pinleri + `dock.items`, sağda sabitlenmemiş çalışanlar, uygulama başına bir ikon; düğme ritmi (ikon 24, düğme 40, aralık 4, plaka payı 10×8), büyütme yok; arka plan `mica` (DWM, pencere = plaka) veya `transparent`/`tint` (katmanlı, köşe 14); sürükle-sırala, dosya bırakma, konum (alt-sol/orta/sağ), "Pencereler" alt menüsü; AppBar yok |
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore. Baseline watchdog state dosyasına yazılır, `--taskbar-watchdog` alt süreci spawn edilir; stale dosya varsa açılışta tray önce gösterilir (self-heal) |
 | `TaskbarWatchdog` | Headless mod (`Program.Main` dallanır, WPF başlamaz): PID + start-time izler, restore'suz ölümde baseline'ı uygular. PID reuse ve yeni-instance dosya yenilemesi güvenli |
-| `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`; AUMID gruplama |
+| `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`. Pencereler uygulama kimliğinde birleşir: kanonik exe yolu, AppUserModelId veya pid (geçişli). İkinci süreç düşmez; `WindowCount` pencereleri sayar |
 | `MinimizedWindowsSource` | Tüm üst düzey pencere tablosunu **arka iş parçacığında** 800 ms'de bir tarar (`GetTopLevelCandidates` + pencere başına `IsIconic`); `Windows` önbelleğinden `ForProcess(pid)` alt kümesi — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
 | `DockItemStore` | Dock'un yazma listesi: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar\*.lnk` **salt okunur**. Sıra `Taskband\Favorites` blob'undaki dosya adıdır; yoksa dosya adı. Klasöre ve kayıt defterine yazmaz |
-| `DockAppsComposer` | Sol: görev çubuğu pin sırası, sonra yalnız `dock.items`'te olanlar (aynı hedef bir kez). Sağ: sabitlenmemiş çalışanlar. Eşleşme: tam yol, AppUserModelId veya çözülmüş `.lnk`; klasör pinleri `explorer.exe` ile birleşmez. Kapalı pin `IsRunning` false. Küçültülmüş pencere, süreci zaten şeritteyse ikinci kutu olmaz |
+| `DockAppsComposer` | Sol: görev çubuğu pin sırası, sonra yalnız `dock.items`'te olanlar (aynı hedef bir kez). Sağ: sabitlenmemiş çalışanlar. Eşleşme: tam yol (`\\?\` soyulur), AppUserModelId veya çözülmüş `.lnk`; klasör pinleri `explorer.exe` ile birleşmez. Kapalı pin `IsRunning` false. Aynı uygulama (yol / AUMID / pid) tek kutu; `WindowCount` > 1 iken sayı rozeti. Küçültülmüş veya arkadaki pencere ikinci kutu olmaz |
 | `DockStripBuilder` / `DockStripLayout` / `DockMagnification` / `DockPlateMetrics` | Satır başına bir öğe (ayraç yok). Canlı şerit ölçek 1; plaka ölçüsü `DockPlateMetrics` (düğme, aralık 4, pay 10×8). Büyütme matematiği testli durur, pencereye uygulanmaz |
 | `ShortcutResolver` | `.lnk` → hedef yol / args / etiket çözümleme (bırakılan kısayolun dock listesine girmesi için). Dinamik `.lnk` **oluşturma** yolu 2026-10-04'te, görev çubuğuna `.lnk` yazan `TogglePin` ile birlikte kaldırıldı |
 | `WindowActivationService` | Çalışan pencereye odaklama; öndeyse tekrar tıklamada `SW_MINIMIZE` |

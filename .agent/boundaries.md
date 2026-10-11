@@ -46,7 +46,9 @@
 - Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını salt okur** (kapalı pinler
   dahil, görev çubuğu sırası) + `dock.items` içinde olup görev çubuğunda olmayanlar + `EnumWindows`
   / AUMID. **Yazma yok** (ADR-005, 2026-10-07) — “Dock’a sabitle / Dock’tan kaldır” yalnızca
-  `dock.items` listesini değiştirir
+  `dock.items` listesini değiştirir. Aynı uygulama (kanonik exe yolu, AppUserModelId veya
+  süreç kimliği; geçişli) **tek kutudur** — arka plandaki ikinci pencere veya aynı exe'nin
+  ikinci süreci sağda yeni ikon açmaz; sayı o kutunun rozetindedir
 - **Görev çubuğu pin klasörüne yazılmaz** (ADR-005). `TaskbarPinnedAppsSource` salt okunurdur;
   `.lnk` oluşturmak, silmek veya `Taskband` yazmak kararı bozar
 - Dock plakası ikonla birlikte büyümez. `DockMagnification` / `DockStripLayout` saf ve testli
@@ -96,7 +98,8 @@
 - Registry `Run` ile autostart (tercih Startup klasörü)
 - `AllowUnsafeBlocks` açmak
 - Ham DWM Mica’yı WPF-UI backdrop yerine birincil yapmak
-- Dock’u AppBar’a çevirmek (ADR-001 değişikliği)
+- Dock plakasını AppBar yapmak (ADR-001; görünür dock’un şeridini ayıran kardeş
+  `ABE_BOTTOM` penceresi serbesttir — `DockWorkAreaReservation`, 2026-10-10)
 - Dış bağımlılık ekleme (WPF-UI dışı yeni paketler)
 - `global.json` eklemek / SDK sürümü sabitlemek (makinede yalnızca .NET 9 SDK var; 8.x’e
   sabitleme derlemeyi kırar)

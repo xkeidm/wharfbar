@@ -3,9 +3,14 @@
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-Görev çubuğu (Windows 11) tarzı alt şerit. AppBar **değil** (ADR-001); `Topmost` overlay,
+Görev çubuğu (Windows 11) tarzı alt şerit. Plaka AppBar **değil** (ADR-001); `Topmost` overlay,
 fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
 hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
+
+Auto-hide **kapalıyken** kardeş bir boyasız `ABE_BOTTOM` (`DockWorkAreaReservation`, ham
+pencere, alpha 0) plaka yüksekliğinde tam genişlik ayırır. Duvar kâğıdı durur. Büyütülmüş
+pencere bu çizgide kalır; masaüstü ikonları aynı work area kenarını kullanır.
+Auto-hide açıkken kayıt kalkar; pencereler altı tam kaplar.
 
 > **Pencere = plaka.** Büyütme headroom'u yok; hover ikonu plakadan taşırmıyor.
 > `dock.backgroundMode`: `mica` (varsayılan, `AllowsTransparency=false`, gerçek DWM Mica,
@@ -28,15 +33,22 @@ Windows görev çubuğu düzeni: uygulama başına **bir** ikon
 - **Sağ — Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı (eşit adlarda
   pencere tutamacı). `showRunningApps == false` iken bu taraf hiç üretilmez; kapalı
   pinler solda kalır.
-- Küçültülmüş pencere, uygulaması zaten şeritteyse **ikinci kutu olmaz**. Çalışan
-  listesine hiç girmemiş bir sürecin pencereleri sağda **süreç başına bir** kutu olur
-  (pencere başına değil). "Pencereler" alt menüsü pencereleri listelemeye devam eder
-  (`MinimizedWindowsSource` önbelleği; UI thread'inde `EnumWindows` yok).
+- Küçültülmüş veya arkadaki pencere, uygulaması zaten şeritteyse **ikinci kutu olmaz**.
+  Kimlik geçişli birleşir (`RunningAppsSource.Collapse`): kanonik exe yolu, AppUserModelId
+  veya süreç kimliği. Aynı exe'nin AUMID'siz penceresi ve ikinci süreci de aynı kutudur.
+  Çalışan listesine hiç girmemiş bir süreç sağda **süreç başına bir** kutu olur
+  (pencere başına değil). "Pencereler" alt menüsü kutunun **bütün süreçlerinin**
+  pencerelerini listeler (`MinimizedWindowsSource` önbelleği; UI thread'inde `EnumWindows` yok).
+- Birden fazla pencere veya süreç tek kutuda kalır. `WindowCount` > 1 iken ikonun sağ
+  üstünde sayı rozeti durur; tooltip `Ad (N)` olur. Çalışan kapsül değişmez: masaüstünde
+  açık pencere varsa uzun accent çizgi, hepsi küçültülmüşse kısa nötr çizgi.
 
-Eşleşme (`PinMatches`): tam yol, büyük/küçük harf duyarsız; pin yolu bir AppUserModelId
-ise çalışan `Id`; kayıt hâlâ `.lnk` ise çözülen hedef yol veya kısayolun AppUserModelId'si.
-Klasör pinleri `explorer.exe` ile birleşmez. Aynı dosya adını paylaşan iki farklı exe
-birleşmez. `User Pinned` **okunur, yazılmaz** (ADR-005, 2026-10-07).
+Eşleşme (`PinMatches`): tam yol, büyük/küçük harf duyarsız (`\\?\` ve `\??\` önekleri
+soyulur); pin yolu bir AppUserModelId ise çalışan `Id` veya grubun diğer AUMID'leri;
+kayıt hâlâ `.lnk` ise çözülen hedef yol veya kısayolun AppUserModelId'si. Klasör pinleri
+`explorer.exe` ile birleşmez. Aynı dosya adını paylaşan iki farklı exe birleşmez
+(`System32` ile `SysWOW64` de ayrı tam yoldur). Farklı exe adları, ortak AppUserModelId
+veya süreç kimliği yoksa ayrı kalır. `User Pinned` **okunur, yazılmaz** (ADR-005, 2026-10-07).
 
 Şerit **tek parça** — bölümler arasında ayraç yok (macOS denemesi reddedildi,
 [spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
@@ -48,13 +60,28 @@ birleşmez. `User Pinned` **okunur, yazılmaz** (ADR-005, 2026-10-07).
 **10×8 DIP**. Varsayılan ikon **24 DIP** → düğme 40, plaka yüksekliği **56 DIP**. Eski
 28 DIP varsayılanı yüklemede 24'e çekilir; 16–36 aralığındaki diğer değerler kalır.
 
-Hover, düğmeyi `ControlFillColorSecondaryBrush` ile boyar (yarıçap 4 DIP, `HoverPlate`). İkon büyümez. Çalışan göstergesi
-düğmenin içinde **8×3 DIP** kapsül, alttan 3 DIP; yalnız `IsRunning`. Tooltip sistem stili
-(250 ms gecikme, 8 sn). Kart çerçevesi ve üst ışık çizgisi yok.
+Hover dolgusu `ControlFillColorSecondaryBrush`, yarıçap 4 DIP (`HoverPlate`). Kare, düğmenin
+üstünde durur; altta gösterge için **8 DIP** şerit kalır (plaka düğmeden 8 DIP kısadır). İkon
+büyümez. Masaüstünde açık pencere (`IsOpenOnDesktop`): kalıcı kare + ikonun altında,
+plakadan **3 DIP** aralıkla, **16×3 DIP** kapsül (24 DIP ikonda; genişlik glifle ölçeklenir),
+alttan 2 DIP, renk `AccentFillColorDefaultBrush`. Alta alınmış uygulama (`IsRunning` ve
+bütün pencereler `IsIconic`): kare yok, altta **8×3 DIP** nötr mini çizgi
+(`TextFillColorPrimaryBrush`). Kapalı pinde çizgi yok; dolgu yalnız hover'da. Birden fazla pencere/süreçte çizginin
+yanında değil, glifin sağ üstünde accent sayı rozeti (`WindowCount`) durur. Tıklama alta
+alınmış pencereyi yine geri yükler. Tooltip sistem stili
+(250 ms gecikme, 8 sn); sayı 1'den büyükse `Ad (N)`. Kart çerçevesi ve üst ışık çizgisi yok.
 
 `DockMagnification` / `DockStripLayout` saf ve testli kalır; canlı şerit `MaxScale = 1` basar.
 Pencere `PlateWidth` / `PlateHeight` kadardır (boş dock bir düğme bütçeler). Hover'da `SetWindowPos` yok.
 ScrollViewer yoktur — çok sayıda ikon pencere genişliğine kırpılır. `dock.magnification` JSON'da durur ve okunur, uygulanmaz.
+İkon belirme/kaybolma sırasında plaka genişliği şeridin canlı genişliğini izler (`DockMotion`, 160 ms).
+
+## Hareket
+
+Belirme, kaybolma, açık/kapalı kapsül, hover dolgusu ve sayı rozeti **160 ms** sürer
+(`DockMotion`). Slot ve kapsül genişliği `CubicEase` / `EaseInOut`; opaklık girişte
+`EaseOut`, çıkışta `EaseIn`. Yeni ikon slotuyla birlikte 0'dan 1'e ölçeklenir ve solar.
+Hover ikonu büyütmez; canlı şerit ölçeği 1'dir. Dock'un ilk yerleşimi anındır; sonraki değişimler yumuşar.
 
 ## Etkileşim
 
