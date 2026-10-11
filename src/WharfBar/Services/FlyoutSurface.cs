@@ -14,7 +14,7 @@ internal static class FlyoutSurface
 
     internal static SolidColorBrush Create()
     {
-        Color color = (Application.Current.TryFindResource("ApplicationBackgroundBrush") as SolidColorBrush)?.Color
+        Color color = (Application.Current?.TryFindResource("ApplicationBackgroundBrush") as SolidColorBrush)?.Color
             ?? Color.FromRgb(0x20, 0x20, 0x20);
         color.A = Alpha;
         var brush = new SolidColorBrush(color);

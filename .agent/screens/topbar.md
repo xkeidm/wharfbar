@@ -112,6 +112,14 @@ topbar'a tıklama (çapa butonları hariç — onlar toggle/re-target yapar), ES
 açılırsa bekleyen kapanış animasyonu `CancelPendingClose` ile iptal edilir (yeniden açılan
 popup kapanmaz). Parlaklık flyout'u aynı açılış/kapanış animasyonlarını kullanır.
 
+Panel açıkken sayfa değişimi (`ShowPage`, `QuickSettingsPageMotion`) 220 ms `CubicEase`
+EaseOut ile kayar ve solar. İleri (Main → Mixer / Network / Wi-Fi / Bluetooth / Yansıt)
+giden sayfayı sola, yenisini sağdan 20 DIP içeri alır; geri tam tersidir. Aynı derinlikteki
+sayfalar (Mixer ↔ Network gibi) yalnızca çapraz solar. `PageHost` `ClipToBounds` ile taşmayı
+kırpar; giden sayfa tıklama almaz. Geçiş bitmeden yeni bir sayfa seçilirse önceki çift
+bırakılır ve animasyon yeniden başlar. Flyout ilk açılışında bu kayma yoktur — açılış
+animasyonu paneli zaten gösterir.
+
 ### Wi-Fi sayfası (ağ listesi + şifre paneli)
 
 `WifiService` (wlanapi.dll) canlı ağ listesi: SSID, sinyal çubukları (`WifiService.SignalBars`),

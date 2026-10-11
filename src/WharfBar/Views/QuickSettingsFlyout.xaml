@@ -70,9 +70,9 @@
             Padding="16"
             Margin="0,0,12,0"
             SnapsToDevicePixels="True">
-        <Grid>
+        <Grid x:Name="PageHost" ClipToBounds="True">
             <!-- MAIN -->
-            <Grid x:Name="MainPage" Visibility="Visible">
+            <Grid x:Name="MainPage" Visibility="Visible" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -142,7 +142,7 @@
             </Grid>
 
             <!-- MIXER (single device + dropdown + sessions) -->
-            <Grid x:Name="MixerPage" Visibility="Collapsed">
+            <Grid x:Name="MixerPage" Visibility="Collapsed" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -254,7 +254,7 @@
             </Grid>
 
             <!-- NETWORK -->
-            <Grid x:Name="NetworkPage" Visibility="Collapsed">
+            <Grid x:Name="NetworkPage" Visibility="Collapsed" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -406,7 +406,7 @@
             </Grid>
 
             <!-- WIFI -->
-            <Grid x:Name="WifiPage" Visibility="Collapsed">
+            <Grid x:Name="WifiPage" Visibility="Collapsed" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -509,7 +509,7 @@
             </Grid>
 
             <!-- BLUETOOTH -->
-            <Grid x:Name="BluetoothPage" Visibility="Collapsed">
+            <Grid x:Name="BluetoothPage" Visibility="Collapsed" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -571,7 +571,7 @@
             </Grid>
 
             <!-- PROJECT -->
-            <Grid x:Name="ProjectPage" Visibility="Collapsed">
+            <Grid x:Name="ProjectPage" Visibility="Collapsed" VerticalAlignment="Top">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />

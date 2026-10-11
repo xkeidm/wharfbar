@@ -30,6 +30,8 @@ public partial class QuickSettingsFlyout : UserControl
     private int _activeSessionDrags;
     private bool _masterDragging;
     private QuickSettingsPage _page = QuickSettingsPage.Main;
+    private bool _flyoutOpen;
+    private int _pageMotionGeneration;
 
     private sealed class SessionRowState
     {
@@ -137,13 +139,10 @@ public partial class QuickSettingsFlyout : UserControl
 
     internal void ShowPage(QuickSettingsPage page)
     {
+        QuickSettingsPage from = _page;
+        QuickSettingsPageShift shift = QuickSettingsPageMotion.Shift(from, page, _flyoutOpen);
+        StopPageMotion();
         _page = page;
-        MainPage.Visibility = page == QuickSettingsPage.Main ? Visibility.Visible : Visibility.Collapsed;
-        MixerPage.Visibility = page == QuickSettingsPage.Mixer ? Visibility.Visible : Visibility.Collapsed;
-        NetworkPage.Visibility = page == QuickSettingsPage.Network ? Visibility.Visible : Visibility.Collapsed;
-        WifiPage.Visibility = page == QuickSettingsPage.Wifi ? Visibility.Visible : Visibility.Collapsed;
-        BluetoothPage.Visibility = page == QuickSettingsPage.Bluetooth ? Visibility.Visible : Visibility.Collapsed;
-        ProjectPage.Visibility = page == QuickSettingsPage.Project ? Visibility.Visible : Visibility.Collapsed;
 
         if (page == QuickSettingsPage.Mixer)
         {
@@ -193,6 +192,15 @@ public partial class QuickSettingsFlyout : UserControl
             _quick?.StartPolling();
         }
 
+        if (!shift.Animate)
+        {
+            RevealPage(page);
+        }
+        else
+        {
+            AnimatePageChange(PageElement(from), PageElement(page), shift);
+        }
+
         RefreshAll();
     }
 
@@ -200,11 +208,16 @@ public partial class QuickSettingsFlyout : UserControl
     {
         FlyoutRoot.Background = FlyoutSurface.Create();
         _quick?.StartPolling();
+        // The popup's own entrance already fades the panel in. Don't also slide the first page.
+        _flyoutOpen = false;
         ShowPage(page);
+        _flyoutOpen = true;
     }
 
     internal void OnFlyoutClosed()
     {
+        _flyoutOpen = false;
+        StopPageMotion();
         SetDevicePickerExpanded(false);
         _mixer?.StopPolling();
         _quick?.StopPolling();
@@ -212,6 +225,163 @@ public partial class QuickSettingsFlyout : UserControl
         _bluetooth?.StopPolling();
         _networkDetails?.StopPolling();
         WifiPasswordPanel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// In-panel page change: forward slides out to the left and the new page enters from
+    /// the right; back does the reverse; peer pages cross-fade. A click mid-transition
+    /// drops the previous outgoing page so opacity and hit-testing cannot stick.
+    /// </summary>
+    private void AnimatePageChange(FrameworkElement outgoing, FrameworkElement incoming, QuickSettingsPageShift shift)
+    {
+        foreach (FrameworkElement page in AllPages())
+        {
+            page.Visibility = ReferenceEquals(page, outgoing) || ReferenceEquals(page, incoming)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+
+        ResetPageMotion(outgoing);
+        ResetPageMotion(incoming);
+        outgoing.IsHitTestVisible = false;
+        Panel.SetZIndex(outgoing, 0);
+        Panel.SetZIndex(incoming, 1);
+
+        TranslateTransform outgoingTransform = EnsureTranslate(outgoing);
+        TranslateTransform incomingTransform = EnsureTranslate(incoming);
+        outgoingTransform.X = shift.OutgoingFromX;
+        incomingTransform.X = shift.IncomingFromX;
+        outgoing.Opacity = 1;
+        incoming.Opacity = 0;
+        LockPageHostTo(incoming);
+
+        int generation = ++_pageMotionGeneration;
+        IEasingFunction ease = QuickSettingsPageMotion.CreateEase();
+        TimeSpan duration = QuickSettingsPageMotion.Duration;
+        var outgoingFade = new DoubleAnimation(1, 0, duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        outgoingFade.Completed += (_, _) => FinishPageMotion(generation, outgoing, incoming);
+
+        outgoingTransform.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(
+            shift.OutgoingFromX,
+            shift.OutgoingToX,
+            duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        });
+        incomingTransform.BeginAnimation(TranslateTransform.XProperty, new DoubleAnimation(
+            shift.IncomingFromX,
+            shift.IncomingToX,
+            duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        });
+        outgoing.BeginAnimation(UIElement.OpacityProperty, outgoingFade);
+        incoming.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(0, 1, duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        });
+    }
+
+    private void FinishPageMotion(int generation, FrameworkElement outgoing, FrameworkElement incoming)
+    {
+        if (generation != _pageMotionGeneration)
+        {
+            return;
+        }
+
+        _pageMotionGeneration++;
+        PageHost.Height = double.NaN;
+        ResetPageMotion(outgoing);
+        ResetPageMotion(incoming);
+        outgoing.Visibility = Visibility.Collapsed;
+        incoming.Visibility = Visibility.Visible;
+    }
+
+    private void StopPageMotion()
+    {
+        _pageMotionGeneration++;
+        PageHost.Height = double.NaN;
+        FrameworkElement current = PageElement(_page);
+        foreach (FrameworkElement page in AllPages())
+        {
+            ResetPageMotion(page);
+            page.Visibility = ReferenceEquals(page, current)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private void RevealPage(QuickSettingsPage page)
+    {
+        FrameworkElement current = PageElement(page);
+        foreach (FrameworkElement candidate in AllPages())
+        {
+            ResetPageMotion(candidate);
+            candidate.Visibility = ReferenceEquals(candidate, current)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+        }
+    }
+
+    private void LockPageHostTo(FrameworkElement incoming)
+    {
+        double width = PageHost.ActualWidth > 0 ? PageHost.ActualWidth : double.PositiveInfinity;
+        incoming.Measure(new Size(width, double.PositiveInfinity));
+        double height = incoming.DesiredSize.Height;
+        if (height > 0 && !double.IsPositiveInfinity(height))
+        {
+            PageHost.Height = height;
+        }
+    }
+
+    private static void ResetPageMotion(FrameworkElement page)
+    {
+        page.BeginAnimation(UIElement.OpacityProperty, null);
+        TranslateTransform transform = EnsureTranslate(page);
+        transform.BeginAnimation(TranslateTransform.XProperty, null);
+        transform.X = 0;
+        page.Opacity = 1;
+        page.IsHitTestVisible = true;
+        Panel.SetZIndex(page, 0);
+    }
+
+    private static TranslateTransform EnsureTranslate(FrameworkElement page)
+    {
+        if (page.RenderTransform is TranslateTransform transform)
+        {
+            return transform;
+        }
+
+        var created = new TranslateTransform();
+        page.RenderTransform = created;
+        return created;
+    }
+
+    private FrameworkElement PageElement(QuickSettingsPage page) => page switch
+    {
+        QuickSettingsPage.Mixer => MixerPage,
+        QuickSettingsPage.Network => NetworkPage,
+        QuickSettingsPage.Wifi => WifiPage,
+        QuickSettingsPage.Bluetooth => BluetoothPage,
+        QuickSettingsPage.Project => ProjectPage,
+        _ => MainPage,
+    };
+
+    private IEnumerable<FrameworkElement> AllPages()
+    {
+        yield return MainPage;
+        yield return MixerPage;
+        yield return NetworkPage;
+        yield return WifiPage;
+        yield return BluetoothPage;
+        yield return ProjectPage;
     }
 
     private void OnVolumeChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshMaster);
