@@ -32,9 +32,29 @@ internal sealed class DockItemStore
     internal static string Normalize(string path)
     {
         string trimmed = path?.Trim() ?? string.Empty;
+        if (trimmed.Length >= 2 && trimmed[0] == '"' && trimmed[^1] == '"')
+        {
+            trimmed = trimmed[1..^1].Trim();
+        }
+
         if (trimmed.Length == 0)
         {
             return string.Empty;
+        }
+
+        // QueryFullProcessImageName can hand back an extended path. A pin stored as a
+        // normal Win32 path must still match that process.
+        if (trimmed.StartsWith(@"\\?\", StringComparison.Ordinal))
+        {
+            trimmed = trimmed[4..];
+            if (trimmed.StartsWith(@"UNC\", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = @"\\" + trimmed[4..];
+            }
+        }
+        else if (trimmed.StartsWith(@"\??\", StringComparison.Ordinal))
+        {
+            trimmed = trimmed[4..];
         }
 
         // Exists for the inputs Path.GetFullPath refuses outright: paths past the Windows

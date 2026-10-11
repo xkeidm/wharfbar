@@ -19,11 +19,25 @@ internal sealed record DockAppItem(
     bool IsRunning,
     IntPtr MainWindowHandle,
     DockSection Section,
-    string WindowTitle)
+    string WindowTitle,
+    bool IsOpenOnDesktop = false,
+    int WindowCount = 0,
+    IReadOnlyList<uint>? ProcessIds = null)
 {
-    /// <summary>Tooltip copy: minimized tiles name the window, everything else the app.</summary>
-    internal string Tooltip =>
-        Section != DockSection.Minimized || string.IsNullOrEmpty(WindowTitle) || WindowTitle == Label
-            ? Label
-            : $"{Label} — {WindowTitle}";
+    /// <summary>
+    /// Tooltip copy: minimized tiles name the window, everything else the app.
+    /// Several windows or processes of that app append the count.
+    /// </summary>
+    internal string Tooltip
+    {
+        get
+        {
+            string name = Section != DockSection.Minimized
+                || string.IsNullOrEmpty(WindowTitle)
+                || WindowTitle == Label
+                ? Label
+                : $"{Label} — {WindowTitle}";
+            return WindowCount > 1 ? $"{name} ({WindowCount})" : name;
+        }
+    }
 }

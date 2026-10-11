@@ -17,8 +17,8 @@ public class DockAppsComposerTests
     private static List<PinnedApp> Pins(params string[] paths) =>
         [.. paths.Select(p => new PinnedApp(p, string.Empty, System.IO.Path.GetFileNameWithoutExtension(p)))];
 
-    private static RunningAppInfo Running(string id, string path, string label, IntPtr hwnd = default) =>
-        new(id, path, label, hwnd);
+    private static RunningAppInfo Running(string id, string path, string label, IntPtr hwnd = default, uint pid = 0) =>
+        new(id, path, label, hwnd, pid);
 
     private static AppWindowInfo Minimized(IntPtr hwnd, uint pid, string title) =>
         new(hwnd, title, pid, IsMinimized: true);
@@ -48,8 +48,51 @@ public class DockAppsComposerTests
             Pins(Notepad), [Running("Microsoft.Notepad", Notepad, "Not Defteri", (IntPtr)7)]);
         DockAppItem item = Assert.Single(items);
         Assert.True(item.IsRunning);
+        Assert.Equal(1, item.WindowCount);
         Assert.Equal((IntPtr)7, item.MainWindowHandle);
         Assert.Equal("Microsoft.Notepad", item.Id);
+    }
+
+    [Fact]
+    public void ApplyOpenMarks_RestoredWindow_KeepsTheColoredMark()
+    {
+        var hwnd = (IntPtr)7;
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad), [Running("Microsoft.Notepad", Notepad, "Not Defteri", hwnd)]);
+        AppWindowInfo[] windows = [new(hwnd, "Not Defteri", 10, IsMinimized: false)];
+
+        DockAppItem marked = Assert.Single(DockAppsComposer.ApplyOpenMarks(items, windows));
+        Assert.True(marked.IsRunning);
+        Assert.True(marked.IsOpenOnDesktop);
+    }
+
+    [Fact]
+    public void ApplyOpenMarks_MinimizedWindow_DropsTheColoredMark()
+    {
+        var hwnd = (IntPtr)7;
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad), [Running("Microsoft.Notepad", Notepad, "Not Defteri", hwnd)]);
+        AppWindowInfo[] windows = [new(hwnd, "Not Defteri", 10, IsMinimized: true)];
+
+        DockAppItem marked = Assert.Single(DockAppsComposer.ApplyOpenMarks(items, windows));
+        Assert.True(marked.IsRunning);
+        Assert.False(marked.IsOpenOnDesktop);
+    }
+
+    [Fact]
+    public void ApplyOpenMarks_RestoredSiblingOfTheSameProcess_KeepsTheColoredMark()
+    {
+        var iconic = (IntPtr)7;
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad), [Running("Microsoft.Notepad", Notepad, "Not Defteri", iconic)]);
+        AppWindowInfo[] windows =
+        [
+            new(iconic, "Not Defteri", 10, IsMinimized: true),
+            new((IntPtr)8, "Not Defteri", 10, IsMinimized: false),
+        ];
+
+        DockAppItem marked = Assert.Single(DockAppsComposer.ApplyOpenMarks(items, windows));
+        Assert.True(marked.IsOpenOnDesktop);
     }
 
     [Fact]
@@ -70,6 +113,7 @@ public class DockAppsComposerTests
         DockAppItem item = Assert.Single(Compose(Pins(Notepad)));
         Assert.Equal(Notepad, item.Id);
         Assert.False(item.IsRunning);
+        Assert.Equal(0, item.WindowCount);
         Assert.Equal(IntPtr.Zero, item.MainWindowHandle);
     }
 
@@ -157,6 +201,7 @@ public class DockAppsComposerTests
         Assert.Equal(DockSection.Running, item.Section);
         Assert.False(item.IsPinned);
         Assert.True(item.IsRunning);
+        Assert.Equal(2, item.WindowCount);
         Assert.Equal("Bir", item.Label);
         Assert.Equal((IntPtr)11, item.MainWindowHandle);
     }
@@ -404,6 +449,186 @@ public class DockAppsComposerTests
 
         DockAppItem same = named with { WindowTitle = "Not Defteri" };
         Assert.Equal("Not Defteri", same.Tooltip);
+    }
+
+    [Fact]
+    public void Compose_PinnedAumidWindowAndPathWindow_IsOneRunningPin()
+    {
+        // Foreground window reports an AppUserModelId; a second top-level window of the same
+        // exe (typical once the app is in the background) does not. Both used to become tiles.
+        const string aumid = "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App";
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [
+                Running(aumid, Notepad, "Not Defteri", (IntPtr)7, pid: 10),
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)8, pid: 11),
+            ],
+            [Minimized((IntPtr)8, 11, "Arka plan")]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsPinned);
+        Assert.True(item.IsRunning);
+        Assert.Equal(Notepad, item.Path);
+        Assert.Equal(2, item.WindowCount);
+        Assert.NotNull(item.ProcessIds);
+        Assert.Contains(10u, item.ProcessIds);
+        Assert.Contains(11u, item.ProcessIds);
+    }
+
+    [Fact]
+    public void Compose_BackgroundWindowOfTheSameProcess_StaysOnThePin()
+    {
+        const string aumid = "Contoso.App";
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [
+                Running(aumid, Notepad, "Not Defteri", (IntPtr)7, pid: 10),
+                Running("hwnd:8", string.Empty, "Helper", (IntPtr)8, pid: 10),
+            ],
+            [new AppWindowInfo((IntPtr)8, "Helper", 10, IsMinimized: true)]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsRunning);
+        Assert.Equal(2, item.WindowCount);
+    }
+
+    [Fact]
+    public void Compose_UnpinnedSameExeTwoProcesses_IsOneTileOnTheRight()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)7, pid: 10),
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)8, pid: 11),
+            ],
+            [Minimized((IntPtr)8, 11, "Arka plan")]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Running, item.Section);
+        Assert.False(item.IsPinned);
+        Assert.True(item.IsRunning);
+        Assert.Equal(2, item.WindowCount);
+        Assert.NotNull(item.ProcessIds);
+        Assert.Contains(10u, item.ProcessIds);
+        Assert.Contains(11u, item.ProcessIds);
+    }
+
+    [Fact]
+    public void Compose_UnpinnedMinimized_IsOneTileOnTheRight()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            [],
+            [Running(Notepad, Notepad, "Not Defteri", (IntPtr)7, pid: 10)],
+            [Minimized((IntPtr)7, 10, "Not Defteri")]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Running, item.Section);
+        Assert.False(item.IsPinned);
+        Assert.True(item.IsRunning);
+        Assert.Equal(1, item.WindowCount);
+    }
+
+    [Fact]
+    public void Compose_ExtendedProcessPath_BindsToTheWin32Pin()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [Running("np", @"\\?\C:\Windows\System32\notepad.exe", "Not Defteri", (IntPtr)7)]);
+
+        DockAppItem item = Assert.Single(items);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsRunning);
+        Assert.Equal(Notepad, item.Path);
+    }
+
+    [Fact]
+    public void Compose_DifferentExecutableNames_StayDistinctUnlessTheyShareAnAppUserModelId()
+    {
+        IReadOnlyList<DockAppItem> distinct = Compose(
+            [],
+            [
+                Running("a", @"C:\App\app.exe", "App", (IntPtr)1, pid: 1),
+                Running("b", @"C:\App\app.background.exe", "App Bg", (IntPtr)2, pid: 2),
+            ]);
+        Assert.Equal(2, distinct.Count);
+
+        const string aumid = "Contoso.App";
+        IReadOnlyList<DockAppItem> linked = Compose(
+            [new PinnedApp(aumid, string.Empty, "App")],
+            [
+                Running(aumid, @"C:\App\app.exe", "App", (IntPtr)1, pid: 1),
+                Running(aumid, @"C:\Windows\System32\ApplicationFrameHost.exe", "App", (IntPtr)2, pid: 2),
+            ]);
+
+        DockAppItem item = Assert.Single(linked);
+        Assert.Equal(DockSection.Pinned, item.Section);
+        Assert.True(item.IsRunning);
+        Assert.Equal(2, item.WindowCount);
+    }
+
+    [Fact]
+    public void Compose_System32AndSysWow64_StayDistinct()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(@"C:\Windows\System32\notepad.exe"),
+            [Running("wow", @"C:\Windows\SysWOW64\notepad.exe", "notepad", (IntPtr)3, pid: 9)]);
+
+        Assert.Equal(2, items.Count);
+        Assert.False(items[0].IsRunning);
+        Assert.Equal(DockSection.Running, items[1].Section);
+    }
+
+    [Fact]
+    public void ApplyOpenMarks_RestoredSiblingProcess_KeepsTheColoredMark()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)7, pid: 10),
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)8, pid: 11),
+            ]);
+        AppWindowInfo[] windows =
+        [
+            new((IntPtr)7, "A", 10, IsMinimized: true),
+            new((IntPtr)8, "B", 11, IsMinimized: false),
+        ];
+
+        DockAppItem marked = Assert.Single(DockAppsComposer.ApplyOpenMarks(items, windows));
+        Assert.True(marked.IsRunning);
+        Assert.True(marked.IsOpenOnDesktop);
+        Assert.Equal(2, marked.WindowCount);
+    }
+
+    [Fact]
+    public void ApplyOpenMarks_EveryProcessMinimized_DropsTheColoredMark()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            Pins(Notepad),
+            [
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)7, pid: 10),
+                Running(Notepad, Notepad, "Not Defteri", (IntPtr)8, pid: 11),
+            ]);
+        AppWindowInfo[] windows =
+        [
+            new((IntPtr)7, "A", 10, IsMinimized: true),
+            new((IntPtr)8, "B", 11, IsMinimized: true),
+        ];
+
+        DockAppItem marked = Assert.Single(DockAppsComposer.ApplyOpenMarks(items, windows));
+        Assert.True(marked.IsRunning);
+        Assert.False(marked.IsOpenOnDesktop);
+        Assert.Equal(DockSection.Pinned, marked.Section);
+    }
+
+    [Fact]
+    public void Tooltip_WhenSeveralWindows_IncludesTheCount()
+    {
+        DockAppItem item = new(
+            "x", Notepad, string.Empty, "Not Defteri", true, true, (IntPtr)1,
+            DockSection.Pinned, string.Empty, WindowCount: 3);
+        Assert.Equal("Not Defteri (3)", item.Tooltip);
     }
 
     [Fact]

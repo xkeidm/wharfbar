@@ -25,6 +25,12 @@ internal sealed class DockItemViewModel
 
     internal bool IsRunning => Item.IsRunning;
 
+    /// <summary>True when a window of this app is restored on the desktop, not minimized.</summary>
+    internal bool IsOpenOnDesktop => Item.IsOpenOnDesktop;
+
+    /// <summary>How many top-level windows or processes this one cell stands for.</summary>
+    internal int WindowCount => Item.WindowCount;
+
     internal static DockItemViewModel ForItem(DockAppItem item, ImageSource icon)
     {
         ArgumentNullException.ThrowIfNull(item);

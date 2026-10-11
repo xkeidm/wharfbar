@@ -60,6 +60,17 @@ public class DockItemStoreTests : IDisposable
     }
 
     [Fact]
+    public void Normalize_StripsTheExtendedPathPrefix()
+    {
+        Assert.Equal(
+            @"C:\Windows\System32\notepad.exe",
+            DockItemStore.Normalize(@"\\?\C:\Windows\System32\notepad.exe"));
+        Assert.Equal(
+            @"C:\Windows\System32\notepad.exe",
+            DockItemStore.Normalize(@"\??\C:\Windows\System32\notepad.exe"));
+    }
+
+    [Fact]
     public void Normalize_WhenPathIsWhitespaceOnly_ReturnsEmpty()
     {
         Assert.Equal(string.Empty, DockItemStore.Normalize("   "));

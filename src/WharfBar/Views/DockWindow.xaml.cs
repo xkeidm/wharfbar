@@ -1092,14 +1092,20 @@ public partial class DockWindow : Window
         // and that is the tile a user actually right-clicks.
         if (item.IsRunning && item.MainWindowHandle != IntPtr.Zero)
         {
-            // The return value is the owning thread id; the out-param is the process id — only
-            // the latter can match AppWindowInfo.Pid.
-            uint threadId = NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
+            // One cell can stand for several processes. The cached table is filtered by each
+            // pid; EnumWindows stays off this UI thread.
+            IReadOnlyList<AppWindowInfo> table = _minimizedSource?.Windows ?? [];
+            var seen = new HashSet<IntPtr>();
             List<AppWindowInfo> windows = [];
-            if (threadId != 0)
+            foreach (uint pid in ProcessIdsOf(item))
             {
-                foreach (AppWindowInfo candidate in MinimizedWindowsSource.ForProcess(_minimizedSource?.Windows ?? [], pid))
+                foreach (AppWindowInfo candidate in MinimizedWindowsSource.ForProcess(table, pid))
                 {
+                    if (!seen.Add(candidate.Handle))
+                    {
+                        continue;
+                    }
+
                     // A minimized tile *is* the window it stands for, so that handle is already
                     // on screen; listing it back is noise, and dropping it here is also what
                     // keeps an app with only that one window from showing an empty submenu.
@@ -1141,23 +1147,52 @@ public partial class DockWindow : Window
 
     private static void ForceQuitApp(DockAppItem item)
     {
-        if (item.MainWindowHandle == IntPtr.Zero)
+        foreach (uint pid in ProcessIdsOf(item))
         {
-            return;
-        }
-
-        try
-        {
-            NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
-            if (pid > 0)
+            try
             {
                 using var proc = Process.GetProcessById((int)pid);
                 proc.Kill(entireProcessTree: true);
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar force quit failed for {item.Label} (pid {pid}): {ex.Message}");
+            }
         }
-        catch (Exception ex)
+    }
+
+    /// <summary>
+    /// Process ids for this cell: the ones the composer collapsed, plus the representative
+    /// window's process when that lookup succeeds. Order is stable and duplicates are dropped.
+    /// </summary>
+    private static List<uint> ProcessIdsOf(DockAppItem item)
+    {
+        var pids = new List<uint>();
+        if (item.ProcessIds is not null)
         {
-            Debug.WriteLine($"WharfBar force quit failed for {item.Label}: {ex.Message}");
+            for (int i = 0; i < item.ProcessIds.Count; i++)
+            {
+                AddPid(pids, item.ProcessIds[i]);
+            }
+        }
+
+        if (item.MainWindowHandle != IntPtr.Zero)
+        {
+            uint threadId = NativeMethods.GetWindowThreadProcessId(item.MainWindowHandle, out uint pid);
+            if (threadId != 0)
+            {
+                AddPid(pids, pid);
+            }
+        }
+
+        return pids;
+    }
+
+    private static void AddPid(List<uint> pids, uint pid)
+    {
+        if (pid != 0 && !pids.Contains(pid))
+        {
+            pids.Add(pid);
         }
     }
 

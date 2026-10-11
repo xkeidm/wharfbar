@@ -61,9 +61,12 @@ internal sealed class DockAppsComposer : IDisposable
 
     /// <summary>
     /// Pure merge. The left group is the taskbar pin order, then dock pins that are not
-    /// already in that group. A running app binds to the first pin that is the same target
-    /// and does not appear again. Closed pins stay, with <see cref="DockAppItem.IsRunning"/>
-    /// false. Unpinned running apps follow on the right — one tile per app.
+    /// already in that group. Running windows collapse to one application first (canonical
+    /// exe path, AppUserModelId, or process id — transitive). That app binds to the first
+    /// pin that is the same target and does not appear again. Closed pins stay, with
+    /// <see cref="DockAppItem.IsRunning"/> false. Unpinned running apps follow on the right
+    /// — one tile per app, with <see cref="DockAppItem.WindowCount"/> when several windows
+    /// or processes share it.
     /// </summary>
     internal static IReadOnlyList<DockAppItem> Compose(
         IReadOnlyList<PinnedApp> pins,
@@ -75,6 +78,7 @@ internal sealed class DockAppsComposer : IDisposable
     {
         resolveShortcut ??= ResolveStoredShortcut;
         pins = MergePins(taskbarPins ?? [], pins, resolveShortcut);
+        running = RunningAppsSource.Collapse(running);
 
         var next = new List<DockAppItem>(pins.Count + running.Count);
         var matched = new bool[running.Count];
@@ -106,7 +110,9 @@ internal sealed class DockAppsComposer : IDisposable
             next.Add(new DockAppItem(
                 app.Id, pin.Path, pin.Args, pin.Label,
                 IsPinned: true, IsRunning: true, app.MainWindowHandle,
-                DockSection.Pinned, string.Empty));
+                DockSection.Pinned, string.Empty,
+                WindowCount: Math.Max(1, app.WindowCount),
+                ProcessIds: PidsOf(app)));
         }
 
         if (!showRunning)
@@ -118,8 +124,8 @@ internal sealed class DockAppsComposer : IDisposable
         var representedPids = new HashSet<uint>();
         for (int i = 0; i < running.Count; i++)
         {
-            // Matched or not, this process already has a tile (the pin, or the one added below).
-            RememberPid(running[i].MainWindowHandle, representedPids);
+            // Matched or not, this app already has a tile (the pin, or the one added below).
+            RememberApp(running[i], representedPids);
             if (matched[i])
             {
                 continue;
@@ -129,12 +135,14 @@ internal sealed class DockAppsComposer : IDisposable
             right.Add(new DockAppItem(
                 app.Id, app.Path, string.Empty, app.Label,
                 IsPinned: false, IsRunning: true, app.MainWindowHandle,
-                DockSection.Running, string.Empty));
+                DockSection.Running, string.Empty,
+                WindowCount: Math.Max(1, app.WindowCount),
+                ProcessIds: PidsOf(app)));
         }
 
         // One tile per process that the running list never claimed. Title-then-handle order
         // picks a stable representative: the scan is re-enumerated every 800 ms.
-        var minimizedOnly = new Dictionary<uint, AppWindowInfo>();
+        var minimizedOnly = new Dictionary<uint, (AppWindowInfo Window, int Count)>();
         foreach (AppWindowInfo window in minimized
             .OrderBy(static w => w.Title, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static w => w.Handle))
@@ -144,10 +152,17 @@ internal sealed class DockAppsComposer : IDisposable
                 continue;
             }
 
-            minimizedOnly.TryAdd(window.Pid, window);
+            if (!minimizedOnly.TryGetValue(window.Pid, out (AppWindowInfo Window, int Count) existing))
+            {
+                minimizedOnly[window.Pid] = (window, 1);
+            }
+            else
+            {
+                minimizedOnly[window.Pid] = (existing.Window, existing.Count + 1);
+            }
         }
 
-        foreach (AppWindowInfo window in minimizedOnly.Values)
+        foreach ((AppWindowInfo window, int count) in minimizedOnly.Values)
         {
             right.Add(new DockAppItem(
                 $"pid:{window.Pid}",
@@ -158,7 +173,9 @@ internal sealed class DockAppsComposer : IDisposable
                 IsRunning: true,
                 window.Handle,
                 DockSection.Running,
-                string.Empty));
+                string.Empty,
+                WindowCount: count,
+                ProcessIds: [window.Pid]));
         }
 
         right.Sort(static (a, b) =>
@@ -171,6 +188,96 @@ internal sealed class DockAppsComposer : IDisposable
 
         next.AddRange(right);
         return next;
+    }
+
+    /// <summary>
+    /// Colored plate and line are only for a window restored on the desktop. A running tile
+    /// whose windows are all minimized keeps <see cref="DockAppItem.IsRunning"/> (so a click
+    /// still restores it) but <see cref="DockAppItem.IsOpenOnDesktop"/> stays false.
+    /// An empty window table leaves running tiles marked open: the first scan has not landed.
+    /// </summary>
+    internal static IReadOnlyList<DockAppItem> ApplyOpenMarks(
+        IReadOnlyList<DockAppItem> items,
+        IReadOnlyList<AppWindowInfo> windows)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        windows ??= [];
+
+        var next = new List<DockAppItem>(items.Count);
+        foreach (DockAppItem item in items)
+        {
+            bool open = IsOpenOnDesktop(item, windows);
+            next.Add(open == item.IsOpenOnDesktop ? item : item with { IsOpenOnDesktop = open });
+        }
+
+        return next;
+    }
+
+    internal static bool IsOpenOnDesktop(DockAppItem item, IReadOnlyList<AppWindowInfo> windows)
+    {
+        if (!item.IsRunning || item.MainWindowHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (windows.Count == 0)
+        {
+            return true;
+        }
+
+        uint pid = 0;
+        bool found = false;
+        for (int i = 0; i < windows.Count; i++)
+        {
+            if (windows[i].Handle == item.MainWindowHandle)
+            {
+                found = true;
+                pid = windows[i].Pid;
+                break;
+            }
+        }
+
+        var pids = new HashSet<uint>();
+        if (pid != 0)
+        {
+            pids.Add(pid);
+        }
+
+        if (item.ProcessIds is not null)
+        {
+            for (int i = 0; i < item.ProcessIds.Count; i++)
+            {
+                if (item.ProcessIds[i] != 0)
+                {
+                    pids.Add(item.ProcessIds[i]);
+                }
+            }
+        }
+
+        if (!found && pids.Count == 0)
+        {
+            return true;
+        }
+
+        bool saw = found;
+        for (int i = 0; i < windows.Count; i++)
+        {
+            AppWindowInfo window = windows[i];
+            bool mine = window.Handle == item.MainWindowHandle
+                || (window.Pid != 0 && pids.Contains(window.Pid));
+            if (!mine)
+            {
+                continue;
+            }
+
+            saw = true;
+            if (!window.IsMinimized)
+            {
+                return true;
+            }
+        }
+
+        return !saw;
     }
 
     /// <summary>
@@ -286,12 +393,7 @@ internal sealed class DockAppsComposer : IDisposable
             return false;
         }
 
-        if (PathsMatch(pin.Path, app.Path))
-        {
-            return true;
-        }
-
-        if (IsAppUserModelId(app.Id) && IdEquals(pin.Path, app.Id))
+        if (PathHits(pin.Path, app) || IdHits(pin.Path, app))
         {
             return true;
         }
@@ -301,14 +403,50 @@ internal sealed class DockAppsComposer : IDisposable
             return false;
         }
 
-        if (PathsMatch(key.Path, app.Path))
+        return PathHits(key.Path, app) || IdHits(key.AppUserModelId, app);
+    }
+
+    private static bool PathHits(string? candidate, RunningAppInfo app)
+    {
+        if (PathsMatch(candidate ?? string.Empty, app.Path))
         {
             return true;
         }
 
-        return IsAppUserModelId(app.Id)
-            && !string.IsNullOrWhiteSpace(key.AppUserModelId)
-            && IdEquals(key.AppUserModelId, app.Id);
+        IReadOnlyList<string> extras = app.MatchPaths;
+        for (int i = 0; i < extras.Count; i++)
+        {
+            if (PathsMatch(candidate ?? string.Empty, extras[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IdHits(string? candidate, RunningAppInfo app)
+    {
+        if (string.IsNullOrWhiteSpace(candidate) || !IsAppUserModelId(candidate))
+        {
+            return false;
+        }
+
+        if (IsAppUserModelId(app.Id) && IdEquals(candidate, app.Id))
+        {
+            return true;
+        }
+
+        IReadOnlyList<string> extras = app.MatchIds;
+        for (int i = 0; i < extras.Count; i++)
+        {
+            if (IsAppUserModelId(extras[i]) && IdEquals(candidate, extras[i]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static PinMatchKey? ShortcutKey(string path, Func<string, PinMatchKey?> resolve)
@@ -344,6 +482,34 @@ internal sealed class DockAppsComposer : IDisposable
 
         bool isDirectory = full.Length > 0 && Directory.Exists(full);
         return new PinMatchKey(full, aumid, isDirectory);
+    }
+
+    private static IReadOnlyList<uint>? PidsOf(RunningAppInfo app)
+    {
+        if (app.ProcessIds.Count > 0)
+        {
+            return app.ProcessIds;
+        }
+
+        return app.ProcessId != 0 ? [app.ProcessId] : null;
+    }
+
+    private static void RememberApp(RunningAppInfo app, HashSet<uint> pids)
+    {
+        if (app.ProcessId != 0)
+        {
+            pids.Add(app.ProcessId);
+        }
+
+        for (int i = 0; i < app.ProcessIds.Count; i++)
+        {
+            if (app.ProcessIds[i] != 0)
+            {
+                pids.Add(app.ProcessIds[i]);
+            }
+        }
+
+        RememberPid(app.MainWindowHandle, pids);
     }
 
     private static void RememberPid(IntPtr hwnd, HashSet<uint> pids)
@@ -385,8 +551,31 @@ internal sealed class DockAppsComposer : IDisposable
                 || !string.Equals(a[i].WindowTitle, b[i].WindowTitle, StringComparison.Ordinal)
                 || a[i].IsPinned != b[i].IsPinned
                 || a[i].IsRunning != b[i].IsRunning
+                || a[i].IsOpenOnDesktop != b[i].IsOpenOnDesktop
                 || a[i].MainWindowHandle != b[i].MainWindowHandle
-                || a[i].Section != b[i].Section)
+                || a[i].Section != b[i].Section
+                || a[i].WindowCount != b[i].WindowCount
+                || !SamePids(a[i].ProcessIds, b[i].ProcessIds))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool SamePids(IReadOnlyList<uint>? a, IReadOnlyList<uint>? b)
+    {
+        int an = a?.Count ?? 0;
+        int bn = b?.Count ?? 0;
+        if (an != bn)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < an; i++)
+        {
+            if (a![i] != b![i])
             {
                 return false;
             }
@@ -410,8 +599,15 @@ internal sealed class DockAppsComposer : IDisposable
     /// </summary>
     private static string CanonicalPath(string? path)
     {
-        string trimmed = path?.Trim() ?? string.Empty;
-        if (trimmed.Length == 0 || !Path.IsPathRooted(trimmed))
+        string trimmed = path?.Trim().Trim('"') ?? string.Empty;
+        if (trimmed.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        bool extended = trimmed.StartsWith(@"\\?\", StringComparison.Ordinal)
+            || trimmed.StartsWith(@"\??\", StringComparison.Ordinal);
+        if (!extended && !Path.IsPathRooted(trimmed))
         {
             return trimmed;
         }
@@ -423,12 +619,14 @@ internal sealed class DockAppsComposer : IDisposable
 
     private void Rebuild()
     {
-        IReadOnlyList<DockAppItem> next = Compose(
-            _store.Items,
-            _running.Apps,
-            _minimized.Minimized,
-            _config.ShowRunningApps,
-            taskbarPins: _taskbarPins?.Pins);
+        IReadOnlyList<DockAppItem> next = ApplyOpenMarks(
+            Compose(
+                _store.Items,
+                _running.Apps,
+                _minimized.Minimized,
+                _config.ShowRunningApps,
+                taskbarPins: _taskbarPins?.Pins),
+            _minimized.Windows);
 
         if (ItemsEqual(_items, next))
         {
