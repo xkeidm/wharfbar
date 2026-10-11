@@ -31,6 +31,9 @@
                      Padding="12,6,12,6"
                      Foreground="{DynamicResource TextFillColorPrimaryBrush}" />
 
+        <!-- Pages set ScrollViewer.CanContentScroll=False so this host does not wrap
+             them in a DynamicScrollViewer. That wrapper measures with infinite height,
+             the page ScrollViewer never scrolls, and it swallows the mouse wheel. -->
         <ui:NavigationView x:Name="NavView" Grid.Row="1"
                            PaneDisplayMode="Left"
                            IsBackButtonVisible="Collapsed"

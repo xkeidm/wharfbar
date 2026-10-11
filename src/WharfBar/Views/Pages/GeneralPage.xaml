@@ -3,7 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
       Title="Genel"
-      Background="Transparent">
+      Background="Transparent"
+      ScrollViewer.CanContentScroll="False">
 
     <Page.Resources>
         <Style TargetType="TextBlock">
