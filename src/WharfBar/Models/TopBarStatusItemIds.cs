@@ -200,4 +200,32 @@ internal static class TopBarStatusItemIds
     }
 
     internal static bool IsKnown(string id) => Known.Contains(id);
+
+    /// <summary>
+    /// Moves <paramref name="draggedId"/> to the index <paramref name="targetId"/> had
+    /// before the removal. Dropping on the next item swaps with it; dropping on the last
+    /// item makes the dragged item last. The same id, or an id that is not in the list,
+    /// leaves the order unchanged.
+    /// </summary>
+    internal static bool Move(List<string> items, string draggedId, string targetId)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+
+        if (string.Equals(draggedId, targetId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        int from = items.FindIndex(x => string.Equals(x, draggedId, StringComparison.Ordinal));
+        int to = items.FindIndex(x => string.Equals(x, targetId, StringComparison.Ordinal));
+        if (from < 0 || to < 0)
+        {
+            return false;
+        }
+
+        string moved = items[from];
+        items.RemoveAt(from);
+        items.Insert(Math.Clamp(to, 0, items.Count), moved);
+        return true;
+    }
 }

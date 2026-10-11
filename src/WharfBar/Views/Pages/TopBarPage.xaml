@@ -95,8 +95,13 @@
             <TextBlock Text="Üst çubuğun sağ tarafında gösterilecek simgeleri seçin; ⋮⋮ tutamacından sürükleyerek sırasını belirleyin"
                        Style="{StaticResource SectionDescription}" />
 
-            <!-- Dynamically populated in code-behind -->
-            <StackPanel x:Name="StatusItemsPanel" />
+            <!-- Transparent background is the drop target, including the gaps between cards.
+                 A null background does not hit-test, so a drop between cards would be lost. -->
+            <StackPanel x:Name="StatusItemsPanel"
+                        Background="Transparent"
+                        AllowDrop="True"
+                        DragOver="OnListDragOver"
+                        Drop="OnListDrop" />
 
             <ui:Button x:Name="ResetButton" Content="Varsayılana Sıfırla"
                        Icon="{ui:SymbolIcon ArrowReset24}"

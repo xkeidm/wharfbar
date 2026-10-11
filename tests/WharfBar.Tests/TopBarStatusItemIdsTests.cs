@@ -143,4 +143,107 @@ public class TopBarStatusItemIdsTests
         TopBarStatusItemIds.EnsureTrayMirror(items);
         Assert.Equal([TopBarStatusItemIds.TrayMirror, TopBarStatusItemIds.TrayOverflow], items);
     }
+
+    [Fact]
+    public void Move_OntoTheNextItem_SwapsWithIt()
+    {
+        var items = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Notifications,
+            TopBarStatusItemIds.Network,
+        };
+
+        Assert.True(TopBarStatusItemIds.Move(
+            items,
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Notifications));
+        Assert.Equal(
+            [
+                TopBarStatusItemIds.Notifications,
+                TopBarStatusItemIds.DateTime,
+                TopBarStatusItemIds.Network,
+            ],
+            items);
+    }
+
+    [Fact]
+    public void Move_OntoThePreviousItem_SwapsWithIt()
+    {
+        var items = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Notifications,
+            TopBarStatusItemIds.Network,
+        };
+
+        Assert.True(TopBarStatusItemIds.Move(
+            items,
+            TopBarStatusItemIds.Notifications,
+            TopBarStatusItemIds.DateTime));
+        Assert.Equal(
+            [
+                TopBarStatusItemIds.Notifications,
+                TopBarStatusItemIds.DateTime,
+                TopBarStatusItemIds.Network,
+            ],
+            items);
+    }
+
+    [Fact]
+    public void Move_OntoTheLastItem_BecomesLast()
+    {
+        var items = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Notifications,
+            TopBarStatusItemIds.Network,
+            TopBarStatusItemIds.Battery,
+        };
+
+        Assert.True(TopBarStatusItemIds.Move(
+            items,
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Battery));
+        Assert.Equal(
+            [
+                TopBarStatusItemIds.Notifications,
+                TopBarStatusItemIds.Network,
+                TopBarStatusItemIds.Battery,
+                TopBarStatusItemIds.DateTime,
+            ],
+            items);
+    }
+
+    [Fact]
+    public void Move_WhenTargetIsTheDraggedItem_LeavesOrder()
+    {
+        var items = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Network,
+        };
+        var before = items.ToList();
+
+        Assert.False(TopBarStatusItemIds.Move(
+            items,
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.DateTime));
+        Assert.Equal(before, items);
+    }
+
+    [Fact]
+    public void Move_WhenIdIsMissing_LeavesOrder()
+    {
+        var items = new List<string>
+        {
+            TopBarStatusItemIds.DateTime,
+            TopBarStatusItemIds.Network,
+        };
+        var before = items.ToList();
+
+        Assert.False(TopBarStatusItemIds.Move(items, TopBarStatusItemIds.Battery, TopBarStatusItemIds.Network));
+        Assert.False(TopBarStatusItemIds.Move(items, TopBarStatusItemIds.DateTime, TopBarStatusItemIds.Battery));
+        Assert.Equal(before, items);
+    }
 }

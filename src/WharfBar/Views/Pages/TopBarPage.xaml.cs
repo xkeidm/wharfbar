@@ -14,7 +14,11 @@ namespace WharfBar.Views.Pages;
 /// </summary>
 public partial class TopBarPage : Page
 {
+    /// <summary>Tag on the grip, so a press there starts a reorder and a press on the switch does not.</summary>
+    private const string DragHandleTag = "status-drag-handle";
+
     private Point _dragOrigin;
+    private string? _draggingId;
 
     public TopBarPage()
     {
@@ -64,7 +68,6 @@ public partial class TopBarPage : Page
             Padding = new Thickness(16, 14, 16, 14),
             Margin = new Thickness(0, 0, 0, 8),
             Tag = id,
-            AllowDrop = isChecked,
         };
 
         var grid = new Grid();
@@ -100,22 +103,32 @@ public partial class TopBarPage : Page
 
         if (isChecked)
         {
-            var handle = new SymbolIcon
+            // The glyph alone is a poor hit target (only the ink is tested). A transparent
+            // border fills the grip column, and the switch — a ToggleButton — never sees
+            // this press, so it cannot capture the mouse and cancel the drag.
+            var handle = new Border
             {
-                Symbol = SymbolRegular.ReOrderDotsVertical24,
-                FontSize = 16,
-                Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(8, 0, 0, 0),
+                Tag = DragHandleTag,
+                Background = Brushes.Transparent,
+                Cursor = Cursors.SizeAll,
+                Padding = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Stretch,
                 ToolTip = "Sürükleyerek sırayı değiştirin",
+                Child = new SymbolIcon
+                {
+                    Symbol = SymbolRegular.ReOrderDotsVertical24,
+                    FontSize = 16,
+                    Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    IsHitTestVisible = false,
+                },
             };
             Grid.SetColumn(handle, 2);
             grid.Children.Add(handle);
 
             border.PreviewMouseLeftButtonDown += OnCardMouseLeftButtonDown;
+            border.PreviewMouseLeftButtonUp += OnCardMouseLeftButtonUp;
             border.PreviewMouseMove += OnCardMouseMove;
-            border.DragOver += OnCardDragOver;
-            border.Drop += OnCardDrop;
         }
 
         border.Child = grid;
@@ -126,15 +139,35 @@ public partial class TopBarPage : Page
 
     private void OnCardMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border)
+        // A press that is not a grip must not keep the previous card armed.
+        _draggingId = null;
+        _dragOrigin = default;
+
+        if (sender is not Border { Tag: string id } card || !IsDragHandle(e.OriginalSource, card))
         {
-            _dragOrigin = e.GetPosition(null);
+            return;
+        }
+
+        _dragOrigin = e.GetPosition(null);
+        _draggingId = id;
+        card.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnCardMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        _draggingId = null;
+        if (sender is UIElement element && element.IsMouseCaptured)
+        {
+            element.ReleaseMouseCapture();
         }
     }
 
     private void OnCardMouseMove(object sender, MouseEventArgs e)
     {
-        if (sender is not Border { Tag: string id } || e.LeftButton is not MouseButtonState.Pressed)
+        if (e.LeftButton is not MouseButtonState.Pressed
+            || sender is not Border card
+            || _draggingId is null)
         {
             return;
         }
@@ -148,35 +181,104 @@ public partial class TopBarPage : Page
             return;
         }
 
-        _ = DragDrop.DoDragDrop((Border)sender, id, DragDropEffects.Move);
+        string dragged = _draggingId;
+        _draggingId = null;
+        if (card.IsMouseCaptured)
+        {
+            card.ReleaseMouseCapture();
+        }
+
+        _ = DragDrop.DoDragDrop(card, dragged, DragDropEffects.Move);
     }
 
-    private void OnCardDragOver(object sender, DragEventArgs e)
+    private void OnListDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.StringFormat)
+        e.Effects = e.Data.GetDataPresent(DataFormats.StringFormat) && TargetCard(e) is not null
             ? DragDropEffects.Move
             : DragDropEffects.None;
         e.Handled = true;
     }
 
-    private void OnCardDrop(object sender, DragEventArgs e)
+    private void OnListDrop(object sender, DragEventArgs e)
     {
+        e.Handled = true;
         if (e.Data.GetData(DataFormats.StringFormat) is not string draggedId
-            || sender is not Border { Tag: string targetId }
-            || string.Equals(draggedId, targetId, StringComparison.Ordinal))
+            || TargetCard(e) is not Border { Tag: string targetId })
         {
             return;
         }
 
         List<string> items = TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems);
-        int targetIndex = items.FindIndex(x => string.Equals(x, targetId, StringComparison.Ordinal));
-        if (targetIndex < 0 || !items.Remove(draggedId))
+        if (!TopBarStatusItemIds.Move(items, draggedId, targetId))
         {
             return;
         }
 
-        items.Insert(items.IndexOf(targetId), draggedId);
         PersistAndRebuild(items);
+    }
+
+    /// <summary>
+    /// The visible card under the pointer, or the closer neighbor when the pointer is in
+    /// the gap. Distance is zero while the pointer is inside a card, so a card always
+    /// wins over the gap beside it.
+    /// </summary>
+    private Border? TargetCard(DragEventArgs e)
+    {
+        var visible = new HashSet<string>(
+            TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems),
+            StringComparer.Ordinal);
+        double y = e.GetPosition(StatusItemsPanel).Y;
+        Border? best = null;
+        double bestDistance = double.PositiveInfinity;
+
+        foreach (object child in StatusItemsPanel.Children)
+        {
+            if (child is not Border { Tag: string id } card || !visible.Contains(id))
+            {
+                continue;
+            }
+
+            double distance = VerticalDistance(card, y);
+            if (distance < bestDistance)
+            {
+                bestDistance = distance;
+                best = card;
+            }
+        }
+
+        return best;
+    }
+
+    private double VerticalDistance(Border card, double y)
+    {
+        Point top = card.TranslatePoint(new Point(0, 0), StatusItemsPanel);
+        double bottom = top.Y + card.ActualHeight;
+        if (y < top.Y)
+        {
+            return top.Y - y;
+        }
+
+        if (y > bottom)
+        {
+            return y - bottom;
+        }
+
+        return 0;
+    }
+
+    private static bool IsDragHandle(object? source, DependencyObject card)
+    {
+        for (DependencyObject? node = source as DependencyObject;
+             node is not null && !ReferenceEquals(node, card);
+             node = VisualTreeHelper.GetParent(node))
+        {
+            if (node is FrameworkElement { Tag: DragHandleTag })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // --- Status item toggles ---
