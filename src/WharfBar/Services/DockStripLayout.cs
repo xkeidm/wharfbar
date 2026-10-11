@@ -63,6 +63,68 @@ internal static class DockStripLayout
     }
 
     /// <summary>
+    /// Left edges when each slot is only partly present. <paramref name="presence"/> is 0
+    /// (gone) to 1 (full). A fractional slot takes that fraction of its width and of the gap
+    /// after it, and the final gap owned by the fullest slot is trimmed so a row of 1s
+    /// matches <see cref="ComputeOffsets"/> with a constant gap.
+    /// </summary>
+    public static void ComputePresenceOffsets(
+        int count,
+        double slotWidth,
+        double[] presence,
+        double[] scales,
+        double gap,
+        double[] offsets,
+        double[] slotWidths,
+        out double totalWidth)
+    {
+        ArgumentNullException.ThrowIfNull(presence);
+        ArgumentNullException.ThrowIfNull(scales);
+        ArgumentNullException.ThrowIfNull(offsets);
+        ArgumentNullException.ThrowIfNull(slotWidths);
+
+        if (count <= 0)
+        {
+            totalWidth = 0d;
+            return;
+        }
+
+        double x = 0d;
+        double maxPresence = 0d;
+        for (int i = 0; i < count; i++)
+        {
+            double p = presence[i];
+            if (double.IsNaN(p))
+            {
+                p = 0d;
+            }
+
+            p = Math.Clamp(p, 0d, 1d);
+            if (p > maxPresence)
+            {
+                maxPresence = p;
+            }
+
+            double scale = scales[i];
+            if (double.IsNaN(scale) || scale < 0d)
+            {
+                scale = 1d;
+            }
+
+            offsets[i] = x;
+            double width = slotWidth * p * scale;
+            slotWidths[i] = width;
+            x += width + (gap * p);
+        }
+
+        totalWidth = x - (gap * maxPresence);
+        if (totalWidth < 0d)
+        {
+            totalWidth = 0d;
+        }
+    }
+
+    /// <summary>
     /// Upper bound on the strip width for any cursor position: the resting width plus
     /// every slot that could ever grow. Sizing the window to this is what keeps
     /// <c>SetWindowPos</c> off the per-frame path.

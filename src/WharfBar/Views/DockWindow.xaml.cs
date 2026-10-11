@@ -98,8 +98,11 @@ public partial class DockWindow : Window
     private bool _isApplyingPlacement;
     private bool _isAnimatingY;
     private int _lastPlacementX;
+    private int _lastPlacementY;
     private int _lastPlacementWidthPx;
     private int _lastPlacementHeightPx;
+    private bool _hasPlacement;
+    private bool _plateFollowQueued;
     private int _lastVisibleY;
     private int _lastHiddenY;
     private bool _haveSlideRange;
@@ -108,7 +111,7 @@ public partial class DockWindow : Window
     // One left button, two gestures: a click launches, a drag reorders. The drag is the one
     // that needs bookkeeping, because the two share both their button and (after a reorder
     // drop) possibly their cell: the drop mutates the order, the composer's Changed rebuilds
-    // the strip, and DockStrip.SetRows re-maps the reused cell objects by index. So nothing
+    // the strip, and DockStrip.SetRows reuses cell objects by app identity. So nothing
     // below may compare against the row the cell holds at release time.
 
     /// <summary>Press point of the current left-drag, in window coordinates.</summary>
@@ -164,6 +167,8 @@ public partial class DockWindow : Window
         AllowsTransparency = TopBarBackgroundModes.NeedsTransparency(config.Dock.BackgroundMode);
         InitializeComponent();
         _strip = Strip;
+        _strip.LiveWidthChanged += OnStripLiveWidthChanged;
+        _strip.CellReleased += OnStripCellReleased;
 
         _config = config;
         _taskbar = taskbar;
@@ -771,7 +776,7 @@ public partial class DockWindow : Window
     private void ShowDropIndicator(int index)
     {
         if (index < 0
-            || index > Strip.SlotCount
+            || index > Strip.SettledSlotCount
             || VisualTreeHelper.GetParent(DropIndicator) is not UIElement host)
         {
             HideDropIndicator();
@@ -1498,17 +1503,21 @@ public partial class DockWindow : Window
             return;
         }
 
-        _lastPlacementX = x;
-        _lastPlacementWidthPx = widthPx;
-        _lastPlacementHeightPx = heightPx;
-
-        IntPtr hwnd = _source.Handle;
         IntPtr insertAfter = _isFullscreenHidden
             ? NativeMethods.HWND_BOTTOM
             : NativeMethods.HWND_TOPMOST;
 
+        // Always call SetWindowPos, even when the rect matches. Placement is also how the
+        // dock re-asserts topmost after another window covers it. The width-follow path
+        // skips this method when the pixel rect has not changed.
+        _hasPlacement = true;
+        _lastPlacementX = x;
+        _lastPlacementY = y;
+        _lastPlacementWidthPx = widthPx;
+        _lastPlacementHeightPx = heightPx;
+
         NativeMethods.SetWindowPos(
-            hwnd,
+            _source.Handle,
             insertAfter,
             x,
             y,
@@ -1519,10 +1528,59 @@ public partial class DockWindow : Window
 
     private int ComputeMaxWidthPx(uint dpi)
     {
-        int count = _strip.SlotCount;
-        double width = DockPlateMetrics.PlateWidth(Math.Max(count, 1), _iconSizeDip);
+        // Follow the strip's live width so an icon easing in or out moves the plate with it.
+        // The empty dock still reserves one button, matching the pre-animation budget.
+        double minStrip = DockPlateMetrics.StripWidth(1, _iconSizeDip);
+        double strip = _strip.HasLiveWidth
+            ? _strip.LiveWidth
+            : DockPlateMetrics.StripWidth(Math.Max(_strip.SettledSlotCount, 1), _iconSizeDip);
+        if (strip < minStrip)
+        {
+            strip = minStrip;
+        }
+
+        double width = strip + (2d * HorizontalPaddingDip);
         return Display.DipToPixels(width, dpi);
     }
+
+    private void OnStripLiveWidthChanged(object? sender, EventArgs e)
+    {
+        if (_plateFollowQueued || _source is null)
+        {
+            return;
+        }
+
+        _plateFollowQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(FollowPlateWidth));
+    }
+
+    private void FollowPlateWidth()
+    {
+        _plateFollowQueued = false;
+        if (_source is null || _isApplyingPlacement)
+        {
+            return;
+        }
+
+        if (!TryGetPlacementGeometry(out PlacementGeometry geo))
+        {
+            return;
+        }
+
+        int y = ResolvePlacementY(geo);
+        if (_hasPlacement
+            && geo.X == _lastPlacementX
+            && y == _lastPlacementY
+            && geo.WidthPx == _lastPlacementWidthPx
+            && geo.HeightPx == _lastPlacementHeightPx)
+        {
+            return;
+        }
+
+        ApplyPlacement();
+    }
+
+    private void OnStripCellReleased(DockItemCell cell) => DetachCellHandlers(cell);
 
     private double MaxHeightDip => DockPlateMetrics.PlateHeight(_iconSizeDip);
 

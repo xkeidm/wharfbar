@@ -30,13 +30,15 @@
                 <ScaleTransform x:Name="IconScale" ScaleX="1" ScaleY="1" />
             </Border.RenderTransform>
             <Grid>
-                <!-- Rounded square behind the glyph, only while the pointer is on this slot.
-                     It scales with the icon; it is not a slot-wide underline. -->
+                <!-- Rounded square behind the glyph. Shown on hover, and while a window of
+                     this app is restored on the desktop. Top-aligned so the indicator sits
+                     below it, not inside it. -->
                 <Border x:Name="HoverPlate"
                         CornerRadius="4"
                         HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
+                        VerticalAlignment="Top"
                         IsHitTestVisible="False"
+                        Opacity="0"
                         Visibility="Collapsed"
                         Background="{DynamicResource ControlFillColorSecondaryBrush}" />
                 <Image x:Name="IconGlyph"
@@ -49,16 +51,43 @@
             </Grid>
         </Border>
 
-        <!-- Windows 11 running indicator: a short capsule under this icon only.
-             Collapsed unless the app is running — pinned/closed icons must not share a bar.
-             Width, height, and corner radius are pushed in by ApplyMetrics. -->
+        <!-- Several windows or processes of this one app. The running line stays;
+             the count sits on the glyph so the lane metrics do not move. -->
+        <Border x:Name="WindowCountBadge"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top"
+                Margin="1,1,1,0"
+                MinWidth="14"
+                Height="14"
+                Padding="3,0"
+                CornerRadius="7"
+                Opacity="0"
+                Visibility="Collapsed"
+                IsHitTestVisible="False"
+                SnapsToDevicePixels="True"
+                UseLayoutRounding="True"
+                Background="{DynamicResource AccentFillColorDefaultBrush}">
+            <TextBlock x:Name="WindowCountText"
+                       FontSize="9"
+                       FontWeight="SemiBold"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       TextAlignment="Center"
+                       Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+        </Border>
+
+        <!-- Line under this icon, in the button's bottom lane. Long and accent when a
+             window is restored; short and neutral when the app is only minimized.
+             Width and color are pushed in by ApplyChrome. -->
         <Border x:Name="RunningPill"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Bottom"
                 CornerRadius="1"
                 UseLayoutRounding="True"
                 SnapsToDevicePixels="True"
-                Background="{DynamicResource TextFillColorPrimaryBrush}"
+                IsHitTestVisible="False"
+                Background="{DynamicResource AccentFillColorDefaultBrush}"
+                Opacity="0"
                 Visibility="Collapsed" />
 
     </Grid>

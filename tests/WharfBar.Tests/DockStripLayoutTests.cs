@@ -275,4 +275,49 @@ public class DockStripLayoutTests
             icon: 28d, indicatorGap: 2d, indicatorSize: 4d, verticalPadding: 6d, maxScale: 1.0d);
         Assert.Equal(46d, height, 6);
     }
+
+    [Fact]
+    public void ComputePresenceOffsets_WhenFullyPresent_MatchesConstantGap()
+    {
+        const int count = 3;
+        const double slot = 40d;
+        const double gap = 4d;
+        var presence = new[] { 1d, 1d, 1d };
+        var scales = new[] { 1d, 1d, 1d };
+        var offsets = new double[count];
+        var widths = new double[count];
+        var classicOffsets = new double[count];
+        var baseWidths = new[] { slot, slot, slot };
+
+        DockStripLayout.ComputePresenceOffsets(count, slot, presence, scales, gap, offsets, widths, out double total);
+        DockStripLayout.ComputeOffsets(count, baseWidths, scales, gap, classicOffsets, out double classic);
+
+        Assert.Equal(classic, total, 6);
+        Assert.Equal(128d, total, 6);
+        Assert.Equal(classicOffsets[0], offsets[0], 6);
+        Assert.Equal(classicOffsets[1], offsets[1], 6);
+        Assert.Equal(classicOffsets[2], offsets[2], 6);
+    }
+
+    [Fact]
+    public void ComputePresenceOffsets_WhenMiddleSlotLeaves_WidthEasesLinearly()
+    {
+        const double slot = 40d;
+        const double gap = 4d;
+        var scales = new[] { 1d, 1d, 1d };
+        var full = new[] { 1d, 1d, 1d };
+        var half = new[] { 1d, 0.5d, 1d };
+        var gone = new[] { 1d, 0d, 1d };
+        var offsets = new double[3];
+        var widths = new double[3];
+
+        DockStripLayout.ComputePresenceOffsets(3, slot, full, scales, gap, offsets, widths, out double start);
+        DockStripLayout.ComputePresenceOffsets(3, slot, half, scales, gap, offsets, widths, out double mid);
+        DockStripLayout.ComputePresenceOffsets(3, slot, gone, scales, gap, offsets, widths, out double end);
+
+        Assert.Equal(128d, start, 6);
+        Assert.Equal(84d, end, 6);
+        Assert.Equal((start + end) / 2d, mid, 6);
+        Assert.Equal(slot + gap, offsets[2], 6);
+    }
 }

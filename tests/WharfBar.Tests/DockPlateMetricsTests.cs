@@ -31,6 +31,16 @@ public class DockPlateMetricsTests
     }
 
     [Fact]
+    public void RunningMark_SitsBelowAShorterPlate()
+    {
+        Assert.Equal(8d, DockPlateMetrics.IndicatorLaneDip);
+        Assert.Equal(32d, DockPlateMetrics.HoverPlateSize(40d));
+        Assert.Equal(16d, DockPlateMetrics.PillWidth(24d));
+        Assert.Equal(24d, DockPlateMetrics.PillWidth(36d));
+        Assert.Equal(8d, DockPlateMetrics.MiniPillWidth(24d));
+    }
+
+    [Fact]
     public void EmptyStrip_HasNoButtonWidth()
     {
         Assert.Equal(0d, DockPlateMetrics.StripWidth(0, 24d));

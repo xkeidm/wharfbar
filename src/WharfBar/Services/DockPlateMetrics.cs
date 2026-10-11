@@ -24,14 +24,40 @@ internal static class DockPlateMetrics
     /// <summary>Hover mark corner radius (DIP).</summary>
     public const double HoverCornerRadiusDip = 4d;
 
-    /// <summary>Running indicator width (DIP).</summary>
-    public const double PillWidthDip = 8d;
+    /// <summary>Restored-window indicator width at the 24 DIP glyph (DIP). Scales with the glyph.</summary>
+    public const double PillWidthDip = 16d;
+
+    /// <summary>Minimized-app indicator width at the 24 DIP glyph (DIP). Scales with the glyph.</summary>
+    public const double MiniPillWidthDip = 8d;
+
+    /// <summary>Glyph size the <see cref="PillWidthDip"/> constant is designed against.</summary>
+    public const double PillWidthReferenceGlyphDip = 24d;
 
     /// <summary>Running indicator thickness (DIP).</summary>
     public const double PillThicknessDip = 3d;
 
+    /// <summary>Empty space between the hover plate and the indicator (DIP).</summary>
+    public const double PillGapDip = 3d;
+
     /// <summary>Distance from the button's bottom edge to the indicator (DIP).</summary>
-    public const double PillInsetDip = 3d;
+    public const double PillBottomInsetDip = 2d;
+
+    /// <summary>
+    /// Bottom of the button reserved for the indicator, so the plate stops above the line.
+    /// </summary>
+    public static double IndicatorLaneDip => PillBottomInsetDip + PillThicknessDip + PillGapDip;
+
+    /// <summary>Square behind the glyph. Same size for hover and for a running app.</summary>
+    public static double HoverPlateSize(double buttonSize) =>
+        Math.Max(0d, buttonSize - IndicatorLaneDip);
+
+    /// <summary>Indicator width for a restored window. 16 DIP when the glyph is 24.</summary>
+    public static double PillWidth(double glyphSize) =>
+        glyphSize * (PillWidthDip / PillWidthReferenceGlyphDip);
+
+    /// <summary>Short indicator under a minimized app. 8 DIP when the glyph is 24.</summary>
+    public static double MiniPillWidth(double glyphSize) =>
+        glyphSize * (MiniPillWidthDip / PillWidthReferenceGlyphDip);
 
     public static double ButtonSize(double iconSize) => iconSize + (2d * ButtonPadDip);
 
