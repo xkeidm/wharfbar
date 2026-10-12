@@ -21,7 +21,7 @@ internal static class LaunchpadPhoneRow
     internal const double PanelWidth = 268;
 
     /// <summary>Displayed width of the phone bezel. Height follows the frame bitmap.</summary>
-    internal const double PhoneMarkWidth = 120;
+    internal const double PhoneMarkWidth = 76;
 
     internal static UIElement Beside(UIElement card, LaunchpadPhoneSnapshot phone, Action<string> openPath)
     {
@@ -347,9 +347,9 @@ internal static class LaunchpadPhoneRow
         glyph.VerticalAlignment = VerticalAlignment.Center;
         var shell = new Border
         {
-            Width = 72,
-            Height = 128,
-            CornerRadius = new CornerRadius(14),
+            Width = PhoneMarkWidth,
+            Height = PhoneMarkWidth * (128d / 72d),
+            CornerRadius = new CornerRadius(12),
             BorderThickness = new Thickness(3),
             Child = glyph,
             HorizontalAlignment = HorizontalAlignment.Center,
