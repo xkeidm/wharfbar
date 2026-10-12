@@ -13,15 +13,18 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
 
 - **Top bar:** Sol Windows logo (çizim) + sistem istatistikleri (`CPU x% · GPU y% · RAM z%`;
   çoklu GPU'da `GPU0/GPU1` ayrımı: `topBar.showGpuPerAdapter`;
-  `topBar.showSystemStats`, `SystemStatsService`) + menü (Hakkında / Kapat); sağda durum şeridi
+  `topBar.showSystemStats`, `SystemStatsService`; üzerine gelince kıvılcım ve ağ hızı, bar 30 DIP) + menü (Hakkında / Kapat); sağda durum şeridi
   (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` →
   `network` → `battery`; özelleştirilebilir). `volume` / `brightness` / `media` katalogda kalır
   ama varsayılan sırada yoktur (ADR-011); kayıtlı `statusItems` soyulmaz. Ortada ada hapı:
-  boşta pano, `island.musicPresence` (`persistent` varsayılan / `transient`) ile şimdi çalıyor,
-  ses ve parlaklık için kısa sayaç. Çok satır panel tek popup; AppBar 30 DIP kalır. Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
-  + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat+bildirim → native `Win+N`;
+  boşta "Pano" veya `island.idleLabel=lastClip` ile son kayıt, `island.musicPresence`
+  (`persistent` varsayılan / `transient`) ile şimdi çalıyor, ses, parlaklık ve pil için kısa sayaç,
+  en fazla iki uydu (HUD sırasında kalıcı müzik ve pano birlikte). Düşük pil eşiği
+  `island.lowBatteryPercent` (varsayılan 20, kabul 5–50). Pano geçmişi birincil barda; ikincil hap müzik ve sayaç. Çok satır panel tek
+  popup; AppBar 30 DIP kalır (ADR-012, ADR-013). Arka plan kişiselleştirme: `mica` / `transparent` / `tint`
+  + opaklık kaydırıcısı (sağ tık menü). Saat tek satır `tr-TR`; saat tıklaması bildirim metni + ay takvimi; zil → native `Win+N`;
   `controlCenter` → QS Main; ses → QS Mixer; parlaklık → `BrightnessFlyout` (Monitorian DDC/CI + WMI hibrit);
-  medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); **AppBar** + tepsi hibrit.
+  medya → `MediaFlyout` (SMTC; oturum yokken gizli, ADR-008); ağ → QS Network (ADR-006); enerji tasarrufu karosu API/bayrak veya “Her zaman enerji tasarrufu kullan” geri okumasıyla yanar, tıklama o anahtarı çevirir (ADR-013); **AppBar** + tepsi hibrit.
 - **Dock:** alt şerit (overlay; Topmost ± auto-hide). Solda görev çubuğu pinleri **salt
   okunur** (kapalılar dahil, görev çubuğu sırası; ADR-005 2026-10-07 — klasöre **yazılmaz**)
   ve `dock.items` içinde olup orada olmayanlar. Çalışan pin aynı tek ikonda kalır. Sağda
@@ -30,16 +33,25 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   pencere/süreç o kutuda sayılır. İkon büyümez.
   Varsayılan ikon **24 DIP**, düğme 40, aralık **4 DIP**, plaka payı 10×8 DIP. Arka plan
   `mica` / `transparent` / `tint` (üst çubuktan bağımsız).
-  “Dock'a sabitle / kaldır” yalnız `dock.items`. Sürükle-sırala, Explorer'dan dosya bırakma,
-  alt-sol/orta/sağ konum; sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır,
+  “Dock'a sabitle / kaldır” `dock.items` ve, hedef dosya veya klasörse, `User Pinned\TaskBar`
+  içine `.lnk` yazar. `Taskband` yazılmaz. Sürükle-sırala, Explorer'dan dosya bırakma,
+  alt-sol/orta/sağ ve sol kenar; sağ tık bağlam menüsü (Uygulama Başlık Kartı, Dock'a Sabitle/Kaldır,
   Görevi Sonlandır, Pencereyi Kapat, Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere,
   **Pencereler**).
+  Hover'da DWM küçük resim; ikon altında görev çubuğu ilerleme çubuğu (UIA boşsa çubuk yok);
+  dikkat isteyen ikonda kısa accent nabız. Rozet, çizgi ve küçük resim yalnız o dock'ın
+  monitöründeki pencereleri sayar. Launchpad, İndirilenler ve çöp yerleşik karodur
+  (pin klasörüne yazılmaz). Launchpad dock karosunda açılır; Windows logosu menüyü açar.
+  Yüz tektir: ortada, duvar kâğıdının üstünde; kutu tarama bitmeden açılır, Tümü harf başlığı altındadır (ADR-016).
+  Telefon satırı yalnız bağlı cihaz varken: YourPhone başlangıç kartından ad, pil ve bildirim sayısı; eksik alan gizlenir.
+  Klasör yığını, küçültme anlık görüntüsü ve Store logosu ADR-014.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
 - **Monitör:** Monitör bazında (per-monitor) top bar / dock — `monitors` config ile her
   monitör ayrı açılır/kapanır; tüm bar'lar paylaşılan bir motor üzerinde çalışır; her bar
   kendi monitöründe AppBar (`SPI_SETWORKAREA` yedeği 25H2+'ta ölü — ADR-005 ek notu).
   Veil birincil monitörle sınırlı.
-- **Global menü yok** — top bar File/Edit benzeri uygulama menüsü taşımaz.
+- **Global menü yok** — odaktaki uygulamanın Dosya/Düzen menüsü 30 DIP çubuğa taşınmaz.
+  Wharf’ın kendi ayar sekmeleri zaten Ayarlar penceresindedir (ADR-015).
 
 ## Stack (özet)
 
@@ -60,7 +72,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 2. **Dock AppBar zorunlu değil** — overlay tercih (ADR-001). Top bar AppBar kullanır.
 3. **WPF-UI backdrop önce**; ham DWM Mica ile çakıştırma. **`AllowsTransparency=true` + Mica yasak.**
 4. **AppBar:** çıkışta `ABM_REMOVE`; `ABN_POSCHANGED` içinde `SHAppBarMessage` yok (`BeginInvoke`, aynı rect’te SETPOS atla); `WM_WINDOWPOSCHANGING` onaylı rect’e kıskaç (phantom taskbar work-area itmesi; dock kıskacı `Measure` etmez); onaylı rect’te `ABM_WINDOWPOSCHANGED` yok; explorer restart sonrası yeniden kayıt; DPI/display handler’lar.
-5. **v1:** UWP ikonları sınırlı (placeholder); görev çubuğu gizleme + restore (ADR-005); tek örnek Mutex.
+5. **v1:** Store logosu `PackageManager` + `SHLoadIndirectString` ile çözülür, varlık yoksa harf glifi (ADR-014); görev çubuğu gizleme + restore (ADR-005); tek örnek Mutex.
 6. **Autostart:** Startup klasörü > Registry Run (`AutostartService` + `AppConfig.autostart`).
 7. **Hit-testing + auto-hide** dock’ta uygulandı (`DockHitTest` + `DockAutoHideController`; `FullscreenState` köprüsü). Spec: [`../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md).
 8. **Durum:** saat / ağ / pil `.NET` + `GetSystemPowerStatus`; ses Core Audio; hızlı ayarlar
@@ -92,6 +104,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/006-...` | Hızlı ayarlar flyout (ses karıştırıcı + ağ) |
 | `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
 | `docs/decisions/008-...` | Medya paneli (SMTC) — çalan medya + kontroller |
+| `docs/decisions/013-...` | Üst bar derinliği — iki uydu, saat paneli, kıvılcım, enerji tasarrufu anahtarı |
 
 ## Mevcut repo durumu
 

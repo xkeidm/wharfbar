@@ -43,14 +43,13 @@
   maximize-yokken ~0.5 sn'lik state blip'i ile; boş okuma aynayı temizlemez (son iyi
   snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
   geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
-- Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını salt okur** (kapalı pinler
+- Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını okur** (kapalı pinler
   dahil, görev çubuğu sırası) + `dock.items` içinde olup görev çubuğunda olmayanlar + `EnumWindows`
-  / AUMID. **Yazma yok** (ADR-005, 2026-10-07) — “Dock’a sabitle / Dock’tan kaldır” yalnızca
-  `dock.items` listesini değiştirir. Aynı uygulama (kanonik exe yolu, AppUserModelId veya
+  / AUMID. “Dock’a sabitle / Dock’tan kaldır” `dock.items` listesini değiştirir ve hedef
+  dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar (ADR-005). Aynı uygulama (kanonik exe yolu, AppUserModelId veya
   süreç kimliği; geçişli) **tek kutudur** — arka plandaki ikinci pencere veya aynı exe'nin
   ikinci süreci sağda yeni ikon açmaz; sayı o kutunun rozetindedir
-- **Görev çubuğu pin klasörüne yazılmaz** (ADR-005). `TaskbarPinnedAppsSource` salt okunurdur;
-  `.lnk` oluşturmak, silmek veya `Taskband` yazmak kararı bozar
+- **Görev çubuğu pin klasörü** (ADR-005, 2026-10-11): “Dock'a sabitle / kaldır” hedef dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar veya eşleşen kısayolu siler. Yol o klasörün dışına çıkamaz. `Taskband` yazılmaz. `TaskbarPinnedAppsSource` okumaya devam eder
 - Dock plakası ikonla birlikte büyümez. `DockMagnification` / `DockStripLayout` saf ve testli
   durur; canlı şerit ölçeği 1'dir, pencere plaka boyutundadır, hover'da `SetWindowPos` çağrılmaz
   (docs/04-gotchas.md)
@@ -87,8 +86,9 @@
   - `Clear()` bırakılan dosya kopyalarını **silmez** (bilinçli); yalnız `DeleteDroppedFiles()`
      siler ve `Drop` klasörünü tarayarak yetimleri de kapsar. Silme yolları `Drop` önekiyle
      doğrulanır (elle düzenlenmiş `island.json` kullanıcının dosyasını silemez).
-  - Pano geçmişi yalnız **birincil** monitörün barında görünür (servis tek örnek).
-  - **Kompakt ada 30 DIP barın içinde kalır** (ADR-011): boşta / şimdi çalıyor / ses-parlaklık sayacı hapı AppBar'ı büyütmez, ikinci bir `Topmost` pencere açmaz, iç içe `Popup` kurmaz. Çok satırlı panel bugünkü tek `IslandPopup`'tır.
+  - Pano geçmişi yalnız **birincil** monitörün barında görünür (servis tek örnek). İkincil hap müzik ve sayaçtır: pano listesi, dosya bırakma ve pano uydusu yok.
+  - Raf (`CanOpenShelfFile`) yol saklar ve varsayılan uygulamayla açabilir. `Drop` klasörünün dışındaki bir dosyayı silmek yasaktır; silme yolu `Drop` önekini doğrular.
+  - **Kompakt ada 30 DIP barın içinde kalır** (ADR-011, ADR-012, ADR-013): boşta / şimdi çalıyor / ses-parlaklık-pil sayacı / en fazla iki uydu hapı AppBar'ı büyütmez, ikinci bir `Topmost` pencere açmaz, iç içe `Popup` kurmaz. HUD sırasında kalıcı müzik ve pano uydusu birlikte durabilir. Hap odaklıyken Sol/Sağ uydu seçer. Düşük pil eşiği `lowBatteryPercent` (varsayılan 20, 5–50). Çok satırlı panel bugünkü tek `IslandPopup`'tır. Saat paneli (bildirim metni + ay) ve istatistik kıvılcımı ada hapında değildir; kıvılcım metnin üzerine gelince açılır, bar 30 DIP kalır. Enerji tasarrufu karosu API veya sistem bayrağı açıksa yanar; tıklama “Her zaman enerji tasarrufu kullan” anahtarını UI Automation ile çevirir, pencere ekranda kalmaz, belgelenmemiş COM/WNF yok (ADR-013).
   - **Yeni paket yok.**
 
 
@@ -120,5 +120,4 @@
 - Cursor kurallarına Win32 rehberinin tamamını yapıştırmak (kanonik kaynak `.agent/` + `docs/`)
 - Gizli anahtar / kişisel config commit etmek
 - Dokümantasyonu güncellemeden mimari kararı sessizce tersine çevirmek
-- Dock'u görev çubuğu `User Pinned` klasörüne **yazmak** (`.lnk` oluşturmak/silmek) veya
-  `Taskband` değerini yazmak — okuma serbesttir (ADR-005, 2026-10-07); yazma yolu `dock.items`
+- `Taskband` değerini yazmak. `User Pinned\TaskBar` dışına `.lnk` yazmak veya o klasörün dışındaki bir dosyayı pin kaldırma diye silmek (ADR-005)
