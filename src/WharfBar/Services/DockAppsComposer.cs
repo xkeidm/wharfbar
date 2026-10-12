@@ -24,6 +24,7 @@ internal sealed class DockAppsComposer : IDisposable
     private readonly MinimizedWindowsSource _minimized;
     private readonly TaskbarPinnedAppsSource? _taskbarPins;
     private readonly DockConfig _config;
+    private readonly DockMonitorBounds? _monitor;
     private List<DockAppItem> _items = [];
 
     internal DockAppsComposer(
@@ -31,7 +32,8 @@ internal sealed class DockAppsComposer : IDisposable
         RunningAppsSource running,
         MinimizedWindowsSource minimized,
         DockConfig config,
-        TaskbarPinnedAppsSource? taskbarPins = null)
+        TaskbarPinnedAppsSource? taskbarPins = null,
+        DockMonitorBounds? monitor = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(running);
@@ -43,6 +45,7 @@ internal sealed class DockAppsComposer : IDisposable
         _minimized = minimized;
         _taskbarPins = taskbarPins;
         _config = config;
+        _monitor = monitor;
 
         _store.Changed += OnSourceChanged;
         _running.Changed += OnSourceChanged;
@@ -555,6 +558,8 @@ internal sealed class DockAppsComposer : IDisposable
                 || a[i].MainWindowHandle != b[i].MainWindowHandle
                 || a[i].Section != b[i].Section
                 || a[i].WindowCount != b[i].WindowCount
+                || a[i].Kind != b[i].Kind
+                || a[i].LocalPresence != b[i].LocalPresence
                 || !SamePids(a[i].ProcessIds, b[i].ProcessIds))
             {
                 return false;
@@ -619,6 +624,7 @@ internal sealed class DockAppsComposer : IDisposable
 
     private void Rebuild()
     {
+        IReadOnlyList<AppWindowInfo> windows = _minimized.Windows;
         IReadOnlyList<DockAppItem> next = ApplyOpenMarks(
             Compose(
                 _store.Items,
@@ -626,7 +632,13 @@ internal sealed class DockAppsComposer : IDisposable
                 _minimized.Minimized,
                 _config.ShowRunningApps,
                 taskbarPins: _taskbarPins?.Pins),
-            _minimized.Windows);
+            windows);
+        next = DockBuiltInTiles.MarkFolders(next, DockBuiltInTiles.IsDirectoryPin);
+        next = DockBuiltInTiles.Append(next, DockKnownFolder.TryGetDownloads());
+        if (_monitor is { } monitor)
+        {
+            next = DockMonitorWindowFilter.ApplyMeasured(next, windows, monitor);
+        }
 
         if (ItemsEqual(_items, next))
         {

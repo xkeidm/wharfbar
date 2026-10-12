@@ -51,6 +51,28 @@
             </Grid>
         </Border>
 
+        <!-- Accent ring only. Opacity pulses; the slot does not move or scale. -->
+        <Border x:Name="AttentionPulse"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                BorderThickness="2"
+                CornerRadius="4"
+                Opacity="0"
+                Visibility="Collapsed"
+                IsHitTestVisible="False"
+                BorderBrush="{DynamicResource AccentFillColorDefaultBrush}" />
+
+        <!-- Thin progress under the glyph. Absent until a real taskbar reading arrives. -->
+        <Grid x:Name="ProgressTrack"
+              Height="2"
+              Margin="8,0,8,8"
+              VerticalAlignment="Bottom"
+              Visibility="Collapsed"
+              IsHitTestVisible="False">
+            <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" Opacity="0.35" />
+            <Border x:Name="ProgressFill" HorizontalAlignment="Left" />
+        </Grid>
+
         <!-- Several windows or processes of this one app. The running line stays;
              the count sits on the glyph so the lane metrics do not move. -->
         <Border x:Name="WindowCountBadge"

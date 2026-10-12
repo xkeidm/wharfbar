@@ -31,6 +31,23 @@ internal static class AppBarPlacement
     /// Full-width strip along the bottom of <paramref name="monitor"/>. Maximized windows
     /// and desktop icons both follow this edge. Height is clamped to the monitor.
     /// </summary>
+    /// <summary>
+    /// Full-height strip along the left of <paramref name="monitor"/>. Width is the dock
+    /// plate thickness, clamped to the monitor.
+    /// </summary>
+    internal static RECT LeftStrip(in RECT monitor, int widthPx)
+    {
+        int span = Math.Max(0, monitor.Width);
+        int width = Math.Clamp(widthPx, 0, span);
+        return new RECT
+        {
+            Left = monitor.Left,
+            Top = monitor.Top,
+            Right = monitor.Left + width,
+            Bottom = monitor.Bottom,
+        };
+    }
+
     internal static RECT BottomStrip(in RECT monitor, int heightPx)
     {
         int span = Math.Max(0, monitor.Height);

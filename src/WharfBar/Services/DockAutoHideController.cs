@@ -20,7 +20,8 @@ internal readonly record struct EdgeProbeContext(
     int DockTop,
     int DockRight,
     int DockBottom,
-    uint Dpi);
+    uint Dpi,
+    bool LeftEdge);
 
 /// <summary>
 /// Proximity auto-hide: polls cursor against bottom edge band + dock rect.
@@ -196,6 +197,13 @@ internal sealed class DockAutoHideController : IDisposable
 
     private static bool IsInEdgeBand(int x, int y, EdgeProbeContext ctx, int bandHeightPx)
     {
+        if (ctx.LeftEdge)
+        {
+            return x < ctx.MonitorLeft + bandHeightPx
+                && y >= ctx.MonitorTop
+                && y < ctx.MonitorBottom;
+        }
+
         return y >= ctx.MonitorBottom - bandHeightPx
             && x >= ctx.MonitorLeft
             && x < ctx.MonitorRight;

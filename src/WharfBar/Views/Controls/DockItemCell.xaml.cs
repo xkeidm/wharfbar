@@ -3,7 +3,9 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using WharfBar.Models;
 using WharfBar.Services;
+using WharfBar.Views;
 
 namespace WharfBar.Views.Controls;
 
@@ -38,6 +40,9 @@ internal sealed partial class DockItemCell : UserControl
     private bool _badgeShown;
     private bool _badgeLatched;
     private int _badgeEpoch;
+    private DockProgressState _progress = DockProgressState.None;
+    private long _attentionUntil;
+    private int _pulseEpoch;
 
     public DockItemCell()
     {
@@ -45,6 +50,7 @@ internal sealed partial class DockItemCell : UserControl
         Cursor = Cursors.Hand;
         RenderTransform = _presenceScale;
         RenderTransformOrigin = new Point(0.5d, 0.5d);
+        ProgressTrack.SizeChanged += (_, _) => PaintProgress();
     }
 
     /// <summary>
@@ -150,6 +156,9 @@ internal sealed partial class DockItemCell : UserControl
             RunningPill.CornerRadius = new CornerRadius(DockPlateMetrics.PillThicknessDip);
             RunningPill.Margin = new Thickness(0, 0, 0, DockPlateMetrics.PillBottomInsetDip);
             IconImage.Margin = new Thickness(0);
+            AttentionPulse.Width = plate;
+            AttentionPulse.Height = plate;
+            AttentionPulse.CornerRadius = new CornerRadius(DockPlateMetrics.HoverCornerRadiusDip);
         }
 
         ApplyChrome();
@@ -227,7 +236,10 @@ internal sealed partial class DockItemCell : UserControl
     protected override void OnMouseLeave(MouseEventArgs e)
     {
         base.OnMouseLeave(e);
-        SetHoverPlate(Row?.IsOpenOnDesktop == true, snap: !MotionEnabled || !_chromeReady);
+        bool keepPlate = Row is { } row
+            && (row.Item.LocalPresence == DockLocalPresence.Open
+                || (row.Item.LocalPresence == DockLocalPresence.Unscoped && row.IsOpenOnDesktop));
+        SetHoverPlate(keepPlate, snap: !MotionEnabled || !_chromeReady);
     }
 
     private void ApplyRow()
@@ -239,6 +251,8 @@ internal sealed partial class DockItemCell : UserControl
             SetPill(false, false, 0d, snap: true);
             SetBadge(false, null, snap: true);
             SetHoverPlate(false, snap: true);
+            ApplyProgress(DockProgressState.None);
+            ClearAttention();
             _chromeReady = false;
             return;
         }
@@ -266,16 +280,34 @@ internal sealed partial class DockItemCell : UserControl
             return;
         }
 
-        bool open = row.IsOpenOnDesktop;
-        bool running = row.IsRunning;
-        bool showPill = open || running;
+        bool open;
+        bool showPill;
+        switch (row.Item.LocalPresence)
+        {
+            case DockLocalPresence.Open:
+                open = true;
+                showPill = true;
+                break;
+            case DockLocalPresence.Minimized:
+                open = false;
+                showPill = true;
+                break;
+            case DockLocalPresence.Absent:
+                open = false;
+                showPill = false;
+                break;
+            default:
+                open = row.IsOpenOnDesktop;
+                showPill = open || row.IsRunning;
+                break;
+        }
         double width = showPill && !double.IsNaN(_glyphSize)
             ? open
                 ? DockPlateMetrics.PillWidth(_glyphSize)
                 : DockPlateMetrics.MiniPillWidth(_glyphSize)
             : 0d;
         int count = row.WindowCount;
-        bool several = running && count > 1;
+        bool several = showPill && count > 1;
         string badge = count > 99 ? "99+" : count.ToString();
         bool snap = !MotionEnabled || !_chromeReady;
 
@@ -421,6 +453,112 @@ internal sealed partial class DockItemCell : UserControl
                 }
             });
         }
+    }
+
+    internal void ApplyProgress(DockProgressState state)
+    {
+        _progress = state;
+        PaintProgress();
+    }
+
+    internal void SyncAttention(long untilTick, long nowTick)
+    {
+        if (untilTick <= nowTick)
+        {
+            ClearAttention();
+            return;
+        }
+
+        if (_attentionUntil == untilTick)
+        {
+            return;
+        }
+
+        _attentionUntil = untilTick;
+        PlayPulse(Math.Max(1, untilTick - nowTick));
+    }
+
+    internal void ClearAttention()
+    {
+        _attentionUntil = 0;
+        _pulseEpoch++;
+        AttentionPulse.BeginAnimation(OpacityProperty, null);
+        AttentionPulse.Opacity = 0;
+        AttentionPulse.Visibility = Visibility.Collapsed;
+    }
+
+    private void PlayPulse(long durationMs)
+    {
+        _pulseEpoch++;
+        int token = _pulseEpoch;
+        AttentionPulse.BeginAnimation(OpacityProperty, null);
+        AttentionPulse.Visibility = Visibility.Visible;
+        AttentionPulse.Opacity = 0;
+        if (!MotionEnabled)
+        {
+            AttentionPulse.Opacity = 1;
+            return;
+        }
+
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            Duration = TimeSpan.FromMilliseconds(durationMs),
+        };
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(0d, KeyTime.FromPercent(0)));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(1d, KeyTime.FromPercent(0.35)));
+        animation.KeyFrames.Add(new LinearDoubleKeyFrame(0d, KeyTime.FromPercent(1)));
+        animation.Completed += (_, _) =>
+        {
+            if (token == _pulseEpoch)
+            {
+                AttentionPulse.Visibility = Visibility.Collapsed;
+            }
+        };
+        AttentionPulse.BeginAnimation(OpacityProperty, animation);
+    }
+
+    private void PaintProgress()
+    {
+        if (!_progress.IsVisible)
+        {
+            ProgressTrack.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ProgressTrack.Visibility = Visibility.Visible;
+        ProgressFill.Background = ProgressBrush(_progress.Kind);
+        ProgressFill.Opacity = _progress.Kind == DockProgressKind.Indeterminate ? 0.45 : 1;
+        if (_progress.Percent is double percent && ProgressTrack.ActualWidth > 0)
+        {
+            ProgressFill.HorizontalAlignment = HorizontalAlignment.Left;
+            ProgressFill.Width = ProgressTrack.ActualWidth * (Math.Clamp(percent, 0d, 100d) / 100d);
+            return;
+        }
+
+        ProgressFill.HorizontalAlignment = HorizontalAlignment.Stretch;
+        ProgressFill.ClearValue(WidthProperty);
+    }
+
+    private Brush ProgressBrush(DockProgressKind kind)
+    {
+        string key = kind switch
+        {
+            DockProgressKind.Error => "SystemFillColorCriticalBrush",
+            DockProgressKind.Paused => "SystemFillColorCautionBrush",
+            _ => "AccentFillColorDefaultBrush",
+        };
+
+        if (TryFindResource(key) is Brush brush)
+        {
+            return brush;
+        }
+
+        if (TryFindResource("AccentFillColorDefaultBrush") is Brush accent)
+        {
+            return accent;
+        }
+
+        return Brushes.DodgerBlue;
     }
 
     private void ApplyPillBrush(bool open)

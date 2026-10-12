@@ -67,6 +67,7 @@ public partial class DockPage : Page
         {
             DockPositions.BottomLeft => 1,
             DockPositions.BottomRight => 2,
+            DockPositions.Left => 3,
             _ => 0,
         };
 
@@ -249,6 +250,7 @@ public partial class DockPage : Page
         {
             1 => DockPositions.BottomLeft,
             2 => DockPositions.BottomRight,
+            3 => DockPositions.Left,
             _ => DockPositions.BottomCenter,
         };
         SaveAndApply();

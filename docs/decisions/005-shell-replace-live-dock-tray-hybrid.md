@@ -39,7 +39,7 @@ uygulansalar çift çubuk / boş tepsi / sahte pin listesi üretirler.
 
 | Kaynak | Kullanım |
 |--------|----------|
-| `User Pinned\TaskBar\*.lnk` | **Salt okunur** sol grup (2026-10-07). Kapalı pinler dahil; sıra görev çubuğu sırası. Yazılmaz |
+| `User Pinned\TaskBar\*.lnk` | Sol grup (2026-10-07 okuma; 2026-10-11 yazma). “Dock'a sabitle / kaldır” hedefi gerçek bir dosya veya klasörse buraya `.lnk` yazar veya eşleşen `.lnk`'i siler. `Taskband` yazılmaz |
 | `dock.items` (config) | WharfBar'ın kendi pinleri. Görev çubuğunda olmayanlar sol grubun sonuna eklenir. “Dock'a sabitle / kaldır” **yalnız bunu** yazar |
 | `EnumWindows` + AppUserModelID | Çalışan uygulama gruplama / göstergesi (değişmedi). Sabitlenmemiş olanlar sağda |
 | `config.pinnedApps` | Eski şema alanı; yalnızca `dock.items`’e bir kez taşınır, sonra boşaltılır |

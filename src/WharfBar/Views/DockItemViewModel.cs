@@ -31,6 +31,10 @@ internal sealed class DockItemViewModel
     /// <summary>How many top-level windows or processes this one cell stands for.</summary>
     internal int WindowCount => Item.WindowCount;
 
+    internal DockTileKind Kind => Item.Kind;
+
+    internal DockLocalPresence LocalPresence => Item.LocalPresence;
+
     internal static DockItemViewModel ForItem(DockAppItem item, ImageSource icon)
     {
         ArgumentNullException.ThrowIfNull(item);

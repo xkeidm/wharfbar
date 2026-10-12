@@ -202,8 +202,8 @@ Varsayılan `dock.iconSize` **24 DIP**. Düğme glif + 16 DIP, aralık 4, levha 
 24'te düğme 40 ve levha yüksekliği **56 DIP**. Pencere levhaya eşittir (ölçek 1).
 Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
 yok). Klasik `.exe` / `.lnk` için uygundur.
-**UWP/Store** paketleri farklı yol ister (AppxManifest) — **v1 tam destek yok**; çalışan UWP
-için placeholder kabul (ADR-005); kırık yarım yol sunulmaz.
+**UWP/Store** logosu `Windows.Management.Deployment` + `SHLoadIndirectString` ile çözülür;
+dosya yoksa harf glifi (ADR-014). Kırık görüntü yolu bırakılmaz.
 
 İkon bitmap'i glif boyutunda istenir (`ResolveIconPixelSize` = `iconSize`, 16–256 px'e kırpılır).
 
@@ -412,6 +412,28 @@ UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dl
 
 ---
 
+## l) Dock yüzeyi (ADR-014)
+
+Plaka AppBar değildir; canlı ölçek 1 kalır. Ayrıntı: [ADR-014](decisions/014-dock-surface.md).
+
+```csharp
+DwmRegisterThumbnail / DwmUpdateThumbnailProperties / DwmUnregisterThumbnail   // dwmapi.dll
+RegisterShellHookWindow / DeregisterShellHookWindow                           // user32.dll
+RegisterWindowMessage("SHELLHOOK"); HSHELL_FLASH = HSHELL_REDRAW | 0x8000
+SetWinEventHook(EVENT_SYSTEM_MINIMIZESTART, ..., WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)
+PrintWindow(PW_RENDERFULLCONTENT)                                             // user32.dll
+SHGetKnownFolderPath(FOLDERID_Downloads)                                      // shell32.dll
+SHFileOperationW(FO_DELETE | FOF_ALLOWUNDO)                                   // shell32.dll — kalıcı silme yok
+ShellExecuteW(verb: null)                                                     // shell32.dll
+SHLoadIndirectString                                                          // shlwapi.dll
+SHGetStockIconInfo(SIID_RECYCLER)
+PackageManager.FindPackagesForUser / Package.GetLogo                          // Windows.Management.Deployment
+```
+
+İlerleme `GetProgressValue` ile okunmaz. Görev çubuğu düğmesi UI Automation (`RangeValue`, `ItemStatus`) ile okunur; açık veri yoksa çubuk çizilmez.
+
+---
+
 ### user32.dll / kernel32.dll — pano (clipboard) — Island
 
 Belgelenmiş pano API'si; uygulama: `Native/ClipboardNative.cs` + `Services/ClipboardMessageWindow.cs`
@@ -465,7 +487,23 @@ GlobalLock(IntPtr mem) / GlobalUnlock(IntPtr mem) / GlobalSize(IntPtr mem) / Glo
 
 WPF tarafında sürükle-bırak OLE bırakma hedefiyle çalışır (`AllowDrop=True` + `DragOver`/`Drop`);
 bu, projede **ilk** `AllowDrop` kullanımı ve kayıtlı bir **AppBar** penceresinin bırakma hedefi
-olarak kabulü **canlı ölçülmedi** (bkz. `docs/04-gotchas.md`).
+olarak kabulü **canlı ölçülmedi** (bkz. `docs/04-gotchas.md`). Bırakma yalnız **birincil** hapta
+açıktır; ikincil bar `AllowDrop=false`.
+
+### user32.dll — ekran yakalama dışında bırakma (ada, son kayıt)
+
+Hap ayrı bir HWND değildir. `island.idleLabel = lastClip` ve boşta yüz boş olmayan bir önizleme
+gösterirken hap kendi penceresine alınır ve yalnız o pencere yakalamadan düşer. Üst çubuk
+karede kalır. Sabit "Pano", müzik ve sayaç sırasında hap çubuğa döner (ADR-012, ADR-015).
+
+```csharp
+// user32.dll — Native/WindowCapture.cs
+SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity)
+// WDA_NONE = 0
+// WDA_EXCLUDEFROMCAPTURE = 0x11
+```
+
+Başarısızlık `GetLastWin32Error` ile debug log'a yazılır; sessizce yutulmaz.
 
 ### wlanapi.dll — Wi-Fi listesi / bağlanma (Quick Settings)
 

@@ -46,9 +46,12 @@ internal static class WindowEnumeration
             return false;
         }
 
-        // DWM-cloaked windows are invisible to the user (shell-hidden apps, other
-        // virtual desktops) yet still report WS_VISIBLE — they must not count as running.
-        if (NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0
+        // Cloaked windows still report WS_VISIBLE. Another virtual desktop stays out.
+        // A minimized window is often cloaked too; it is still a running app and must
+        // stay on the dock (the monitor filter places it from its restored rect).
+        bool iconic = NativeMethods.IsIconic(hwnd);
+        if (!iconic
+            && NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0
             && cloaked != 0)
         {
             return false;

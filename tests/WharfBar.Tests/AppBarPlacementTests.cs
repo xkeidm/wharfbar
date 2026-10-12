@@ -14,6 +14,17 @@ public class AppBarPlacementTests
     };
 
     [Fact]
+    public void LeftStrip_SpansTheMonitorHeightAtTheLeft()
+    {
+        RECT monitor = Rect(0, 0, 1920, 1080);
+        RECT strip = AppBarPlacement.LeftStrip(monitor, 56);
+        Assert.Equal(0, strip.Left);
+        Assert.Equal(0, strip.Top);
+        Assert.Equal(56, strip.Right);
+        Assert.Equal(1080, strip.Bottom);
+    }
+
+    [Fact]
     public void BottomStrip_SpansTheMonitorWidthAtTheBottom()
     {
         RECT monitor = Rect(0, 0, 1920, 1080);

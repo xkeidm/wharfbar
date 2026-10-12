@@ -129,6 +129,8 @@ public class ConfigServiceDockTests : IDisposable
     {
         Assert.Equal(DockPositions.BottomLeft, DockPositions.Normalize("Bottom-Left"));
         Assert.Equal(DockPositions.BottomRight, DockPositions.Normalize("bottom-right"));
+        Assert.Equal(DockPositions.Left, DockPositions.Normalize("Left"));
+        Assert.True(DockPositions.IsLeft("left"));
     }
 
     [Fact]

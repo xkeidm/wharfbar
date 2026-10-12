@@ -121,8 +121,17 @@ internal sealed class DockStrip : Panel
     /// <summary>Raised when a cell leaves the strip and should drop its input handlers.</summary>
     internal event Action<DockItemCell>? CellReleased;
 
+    /// <summary>
+    /// When true the slots stack down the left edge. Live extent is still <see cref="LiveWidth"/>;
+    /// measure reports that extent as height.
+    /// </summary>
+    internal bool Vertical { get; set; }
+
     /// <summary>Button height. The running mark is drawn inside the button, so it adds no row.</summary>
     public double RestingHeight => IconSize;
+
+    /// <summary>Position along the strip axis: X when horizontal, Y when <see cref="Vertical"/>.</summary>
+    internal double Axis(Point point) => Vertical ? point.Y : point.X;
 
     /// <summary>
     /// Replaces the slot list. Cells are reused by app identity so a pinned icon that starts
@@ -316,7 +325,8 @@ internal sealed class DockStrip : Panel
         DockStripLayout.ComputePresenceOffsets(
             count, IconSize, _presence, _scales, IconGap, _offsets, _baseWidths, out double live);
         PublishLiveWidth(live);
-        return new Size(Math.Max(live, 0d), height);
+        double extent = Math.Max(live, 0d);
+        return Vertical ? new Size(height, extent) : new Size(extent, height);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -335,8 +345,11 @@ internal sealed class DockStrip : Panel
             cell.SetMagnification(_scales[i]);
             double slotWidth = _baseWidths[i];
             double drawWidth = IconSize * _scales[i];
-            double left = _offsets[i] + ((slotWidth - drawWidth) / 2d);
-            cell.Arrange(new Rect(left, 0d, Math.Max(drawWidth, 0d), height));
+            double along = _offsets[i] + ((slotWidth - drawWidth) / 2d);
+            double draw = Math.Max(drawWidth, 0d);
+            cell.Arrange(Vertical
+                ? new Rect(0d, along, height, draw)
+                : new Rect(along, 0d, draw, height));
         }
 
         return finalSize;

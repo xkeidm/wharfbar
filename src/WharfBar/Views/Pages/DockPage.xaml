@@ -193,6 +193,7 @@
                             <ComboBoxItem Content="Orta (varsayılan)" />
                             <ComboBoxItem Content="Sol" />
                             <ComboBoxItem Content="Sağ" />
+                            <ComboBoxItem Content="Sol kenar" />
                         </ComboBox>
                     </Grid>
 

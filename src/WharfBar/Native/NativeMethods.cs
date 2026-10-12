@@ -479,6 +479,10 @@ internal static class NativeMethods
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
+
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool AllowSetForegroundWindow(int dwProcessId);
@@ -633,6 +637,17 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     internal static extern IntPtr GetModuleHandle(string? lpModuleName);
+}
+
+[StructLayout(LayoutKind.Sequential)]
+internal struct WINDOWPLACEMENT
+{
+    public int length;
+    public int flags;
+    public int showCmd;
+    public POINT ptMinPosition;
+    public POINT ptMaxPosition;
+    public RECT rcNormalPosition;
 }
 
 [StructLayout(LayoutKind.Sequential)]

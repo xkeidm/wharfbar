@@ -28,7 +28,8 @@ internal sealed class DockWorkAreaReservation : IDisposable
     private AppBar? _appBar;
     private uint _taskbarCreatedMessage;
     private RECT _monitor;
-    private int _heightPx;
+    private int _thicknessPx;
+    private uint _edge = NativeMethods.ABE_BOTTOM;
     private RECT _lastApproved;
     private bool _haveLastApproved;
     private bool _applying;
@@ -42,12 +43,17 @@ internal sealed class DockWorkAreaReservation : IDisposable
     }
 
     /// <summary>
-    /// Reserves <paramref name="heightPx"/> at the bottom of <paramref name="monitor"/>.
-    /// A non-positive height releases the strip.
+    /// Reserves <paramref name="thicknessPx"/> on <paramref name="edge"/> (<c>ABE_BOTTOM</c>
+    /// or <c>ABE_LEFT</c>). A non-positive thickness releases the strip.
     /// </summary>
-    internal void Reserve(RECT monitor, int heightPx)
+    internal void Reserve(RECT monitor, int thicknessPx, uint edge = NativeMethods.ABE_BOTTOM)
     {
-        if (_disposed || monitor.Width <= 0 || monitor.Height <= 0 || heightPx <= 0)
+        if (edge != NativeMethods.ABE_LEFT)
+        {
+            edge = NativeMethods.ABE_BOTTOM;
+        }
+
+        if (_disposed || monitor.Width <= 0 || monitor.Height <= 0 || thicknessPx <= 0)
         {
             Release();
             return;
@@ -55,7 +61,8 @@ internal sealed class DockWorkAreaReservation : IDisposable
 
         bool same =
             _appBar is { IsRegistered: true }
-            && _heightPx == heightPx
+            && _thicknessPx == thicknessPx
+            && _edge == edge
             && AppBarPlacement.RectsEqual(_monitor, monitor)
             && _haveLastApproved;
         if (same)
@@ -64,16 +71,19 @@ internal sealed class DockWorkAreaReservation : IDisposable
         }
 
         bool monitorChanged = _hwnd != IntPtr.Zero && !AppBarPlacement.RectsEqual(_monitor, monitor);
+        bool edgeChanged = _appBar is not null && _edge != edge;
         _monitor = monitor;
-        _heightPx = heightPx;
+        _thicknessPx = thicknessPx;
+        _edge = edge;
         if (!EnsureWindow())
         {
             return;
         }
 
-        if (monitorChanged)
+        if (monitorChanged || edgeChanged)
         {
-            _appBar?.Unregister();
+            _appBar?.Remove();
+            _appBar = null;
             _haveLastApproved = false;
         }
 
@@ -96,7 +106,7 @@ internal sealed class DockWorkAreaReservation : IDisposable
 
         _appBar?.Unregister();
         _haveLastApproved = false;
-        _heightPx = 0;
+        _thicknessPx = 0;
         if (_hwnd != IntPtr.Zero)
         {
             NativeMethods.ShowWindow(_hwnd, NativeMethods.SW_HIDE);
@@ -126,6 +136,10 @@ internal sealed class DockWorkAreaReservation : IDisposable
     {
         if (_hwnd != IntPtr.Zero)
         {
+            _appBar ??= new AppBar(
+                _hwnd,
+                NativeMethods.RegisterWindowMessage(CallbackName),
+                _edge);
             return true;
         }
 
@@ -173,7 +187,7 @@ internal sealed class DockWorkAreaReservation : IDisposable
         _appBar = new AppBar(
             _hwnd,
             NativeMethods.RegisterWindowMessage(CallbackName),
-            NativeMethods.ABE_BOTTOM);
+            _edge);
         return true;
     }
 
@@ -209,7 +223,7 @@ internal sealed class DockWorkAreaReservation : IDisposable
             return;
         }
 
-        RECT strip = AppBarPlacement.BottomStrip(_monitor, _heightPx);
+        RECT strip = StripRect();
         NativeMethods.SetWindowPos(
             _hwnd,
             NativeMethods.HWND_BOTTOM,
@@ -220,9 +234,14 @@ internal sealed class DockWorkAreaReservation : IDisposable
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
     }
 
+    private RECT StripRect() =>
+        _edge == NativeMethods.ABE_LEFT
+            ? AppBarPlacement.LeftStrip(_monitor, _thicknessPx)
+            : AppBarPlacement.BottomStrip(_monitor, _thicknessPx);
+
     private void Apply()
     {
-        if (_disposed || _hwnd == IntPtr.Zero || _appBar is not { IsRegistered: true } || _applying || _heightPx <= 0)
+        if (_disposed || _hwnd == IntPtr.Zero || _appBar is not { IsRegistered: true } || _applying || _thicknessPx <= 0)
         {
             return;
         }
@@ -230,7 +249,7 @@ internal sealed class DockWorkAreaReservation : IDisposable
         _applying = true;
         try
         {
-            RECT desired = AppBarPlacement.BottomStrip(_monitor, _heightPx);
+            RECT desired = StripRect();
             if (desired.Width <= 0 || desired.Height <= 0)
             {
                 return;
@@ -294,7 +313,7 @@ internal sealed class DockWorkAreaReservation : IDisposable
                 _appBar?.ReRegister();
             }
 
-            if (_heightPx > 0)
+            if (_thicknessPx > 0)
             {
                 Apply();
             }

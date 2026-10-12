@@ -41,5 +41,33 @@
                 VerticalAlignment="Bottom"
                 Background="{DynamicResource AccentFillColorDefaultBrush}"
                 Visibility="Collapsed" />
+
+        <!-- One flyout for thumbnails and folder stacks. Not nested. -->
+        <Popup x:Name="SurfaceFlyout"
+               StaysOpen="True"
+               AllowsTransparency="True"
+               PopupAnimation="None"
+               Placement="Top">
+            <Border x:Name="SurfaceFlyoutCard"
+                    Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                    CornerRadius="8"
+                    Padding="8"
+                    MaxWidth="720">
+                <StackPanel x:Name="SurfaceFlyoutBody" />
+            </Border>
+        </Popup>
+
+        <Popup x:Name="MinimizeCue"
+               AllowsTransparency="True"
+               Placement="Absolute">
+            <Image x:Name="MinimizeShot"
+                   Stretch="Uniform"
+                   IsHitTestVisible="False"
+                   RenderTransformOrigin="0.5,0.5">
+                <Image.RenderTransform>
+                    <ScaleTransform x:Name="MinimizeScale" ScaleX="1" ScaleY="1" />
+                </Image.RenderTransform>
+            </Image>
+        </Popup>
     </Grid>
 </Window>

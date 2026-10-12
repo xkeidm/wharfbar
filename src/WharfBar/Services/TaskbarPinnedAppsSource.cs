@@ -14,8 +14,9 @@ namespace WharfBar.Services;
 internal readonly record struct ShortcutLaunch(bool Resolved, string Path, string Args, string Label);
 
 /// <summary>
-/// Read-only view of the Windows taskbar's User Pinned shortcuts.
-/// Never creates, deletes, or rewrites <c>.lnk</c> files, and never writes the Taskband registry value.
+/// Windows taskbar User Pinned shortcuts. This type only reads.
+/// <see cref="UserPinnedWriter"/> creates and deletes <c>.lnk</c> files in that folder.
+/// The Taskband registry value is never written.
 /// </summary>
 internal sealed class TaskbarPinnedAppsSource : IDisposable
 {

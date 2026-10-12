@@ -108,6 +108,8 @@ public partial class DockWindow : Window
     private bool _plateFollowQueued;
     private int _lastVisibleY;
     private int _lastHiddenY;
+    private int _lastVisibleX;
+    private int _lastHiddenX;
     private bool _haveSlideRange;
 
     // --- Click vs. drag arbitration -------------------------------------------------
@@ -155,7 +157,16 @@ public partial class DockWindow : Window
 
     private static void OnAnimYOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
-        ((DockWindow)d).SetWindowY((int)Math.Round((double)e.NewValue));
+        var window = (DockWindow)d;
+        int value = (int)Math.Round((double)e.NewValue);
+        if (window._strip.Vertical)
+        {
+            window.SetWindowX(value);
+        }
+        else
+        {
+            window.SetWindowY(value);
+        }
     }
 
     internal DockWindow(AppConfig config, TaskbarVisibilityService taskbar, MonitorInfo monitor)
@@ -207,6 +218,7 @@ public partial class DockWindow : Window
     /// </summary>
     internal void ApplyConfigChanges()
     {
+        ApplyStripGeometry();
         ApplyIconSizeFromConfig();
         ApplySurfaceFromConfig();
         ApplyRunningAndMagnificationChanges();
@@ -225,7 +237,7 @@ public partial class DockWindow : Window
             _autoHide.Start(BuildEdgeProbe);
             if (!wasEnabled && TryGetPlacementGeometry(out PlacementGeometry geo))
             {
-                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                SetWindowRect(geo.HiddenX, geo.HiddenY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyPassthrough(hwnd);
                 _autoHide.AssumeHidden();
             }
@@ -392,9 +404,16 @@ public partial class DockWindow : Window
         _runningSource = new RunningAppsSource(Dispatcher);
         _minimizedSource = new MinimizedWindowsSource(Dispatcher);
         _taskbarPins = new TaskbarPinnedAppsSource(Dispatcher);
-        _composer = new DockAppsComposer(store, _runningSource, _minimizedSource, _config.Dock, _taskbarPins);
+        _composer = new DockAppsComposer(
+            store,
+            _runningSource,
+            _minimizedSource,
+            _config.Dock,
+            _taskbarPins,
+            DockMonitorBounds.From(Monitor.Bounds));
         _activation = new WindowActivationService();
         _composer.Changed += OnComposerChanged;
+        AttachSurface(hwnd);
 
         ApplyStripGeometry();
         Surface.MouseLeave += OnSurfaceMouseLeave;
@@ -406,7 +425,7 @@ public partial class DockWindow : Window
         {
             if (TryGetPlacementGeometry(out PlacementGeometry geo))
             {
-                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                SetWindowRect(geo.HiddenX, geo.HiddenY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyPassthrough(hwnd);
                 _autoHide.AssumeHidden();
             }
@@ -440,14 +459,19 @@ public partial class DockWindow : Window
 
         uint dpi = Display.GetDpi(_source.Handle);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
-        int heightPx = geo.HeightPx + bottomGapPx;
+        bool left = geo.Vertical;
+        int thicknessPx = left ? geo.WidthPx : geo.HeightPx + bottomGapPx;
         _edgeReservation ??= new DockWorkAreaReservation();
-        _edgeReservation.Reserve(Monitor.Bounds, heightPx);
-        _taskbar.SetDockReservation(Monitor, heightPx);
+        _edgeReservation.Reserve(
+            Monitor.Bounds,
+            thicknessPx,
+            left ? NativeMethods.ABE_LEFT : NativeMethods.ABE_BOTTOM);
+        _taskbar.SetDockReservation(Monitor, left ? 0 : thicknessPx);
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        DetachSurface();
         _edgeReservation?.Dispose();
         _edgeReservation = null;
         _taskbar.SetDockReservation(Monitor, 0);
@@ -551,7 +575,7 @@ public partial class DockWindow : Window
         var viewModels = new List<DockItemViewModel>(rows.Count);
         foreach (DockStripRow row in rows)
         {
-            viewModels.Add(DockItemViewModel.ForItem(row.Item, _icons.GetIcon(row.Item.Path, iconPx)));
+            viewModels.Add(DockItemViewModel.ForItem(row.Item, DockIconFactory.Load(_icons, row.Item, iconPx)));
         }
 
         _strip.SetRows(viewModels);
@@ -585,10 +609,12 @@ public partial class DockWindow : Window
             cell.PreviewMouseLeftButtonDown += OnCellPreviewMouseLeftButtonDown;
             cell.MouseLeftButtonUp += OnCellMouseLeftButtonUp;
             cell.PreviewMouseMove += OnCellMouseMove;
+            cell.MouseEnter += OnSurfaceCellEnter;
+            cell.MouseLeave += OnSurfaceCellLeave;
 
             // Reorder and drop are store operations keyed by the pinned path; running and
             // minimized tiles carry a non-pinned id the store cannot move.
-            if (ReorderKeyFor(row) is not null)
+            if (ReorderKeyFor(row) is not null || row.Item.Kind == DockTileKind.Trash)
             {
                 cell.AllowDrop = true;
                 cell.DragOver += OnCellDragOver;
@@ -596,6 +622,7 @@ public partial class DockWindow : Window
             }
         }
 
+        ApplySurfaceChrome();
         ApplyPlacement();
     }
 
@@ -604,6 +631,8 @@ public partial class DockWindow : Window
         cell.PreviewMouseLeftButtonDown -= OnCellPreviewMouseLeftButtonDown;
         cell.MouseLeftButtonUp -= OnCellMouseLeftButtonUp;
         cell.PreviewMouseMove -= OnCellMouseMove;
+        cell.MouseEnter -= OnSurfaceCellEnter;
+        cell.MouseLeave -= OnSurfaceCellLeave;
         cell.DragOver -= OnCellDragOver;
         cell.Drop -= OnCellDrop;
 
@@ -668,7 +697,17 @@ public partial class DockWindow : Window
             return;
         }
 
+        if (sender is DockItemCell cell && TryHandleSpecialClick(cell, row))
+        {
+            ClearAttentionFor(row, cell);
+            return;
+        }
+
         _activation?.LaunchOrActivate(row.Item, _launcher);
+        if (sender is DockItemCell activated)
+        {
+            ClearAttentionFor(row, activated);
+        }
     }
 
     private void OnCellMouseMove(object sender, MouseEventArgs e)
@@ -707,6 +746,11 @@ public partial class DockWindow : Window
 
     private void OnCellDragOver(object sender, DragEventArgs e)
     {
+        if (TryHandleTrashDrag(sender, e))
+        {
+            return;
+        }
+
         // A file drop belongs to the surface, not to a reorder: leave it unhandled so it
         // bubbles up to OnSurfaceDragOver, which is the one that offers Copy.
         if (e.Data.GetDataPresent(DataFormats.FileDrop))
@@ -724,12 +768,16 @@ public partial class DockWindow : Window
 
         e.Effects = DragDropEffects.Move;
         e.Handled = true;
-        ShowDropIndicator(Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
+        ShowDropIndicator(Strip.ResolveInsertIndex(Strip.Axis(e.GetPosition(Strip))));
     }
 
     private void OnCellDrop(object sender, DragEventArgs e)
     {
         HideDropIndicator();
+        if (TryHandleTrashDrop(sender, e))
+        {
+            return;
+        }
 
         if (e.Data.GetDataPresent(DataFormats.FileDrop)
             || e.Data.GetData(DataFormats.StringFormat) is not string dragged
@@ -738,7 +786,7 @@ public partial class DockWindow : Window
             return;
         }
 
-        ItemStore?.Move(dragged, Strip.ResolveInsertIndex(e.GetPosition(Strip).X));
+        ItemStore?.Move(dragged, Strip.ResolveInsertIndex(Strip.Axis(e.GetPosition(Strip))));
         e.Handled = true;
     }
 
@@ -799,14 +847,22 @@ public partial class DockWindow : Window
         // RestingLeftOf, not a live offset: it reads the strip's resting buffer, so the line
         // marks where the tile lands in the resting order whatever phase the strip happens to
         // be at. (The 180 ms rest-out on drag start is a nicety; this is the guarantee.)
-        Point left = Strip.TranslatePoint(new Point(Strip.RestingLeftOf(index), 0), host);
+        double along = Strip.RestingLeftOf(index);
+        if (Strip.Vertical)
+        {
+            Point top = Strip.TranslatePoint(new Point(0, along), host);
+            DropIndicator.Width = Strip.RestingHeight;
+            DropIndicator.Height = 2;
+            DropIndicator.Margin = new Thickness(HorizontalPaddingDip, top.Y, 0, 0);
+        }
+        else
+        {
+            Point left = Strip.TranslatePoint(new Point(along, 0), host);
+            DropIndicator.Width = 2;
+            DropIndicator.Height = Strip.RestingHeight;
+            DropIndicator.Margin = new Thickness(left.X, 0, 0, VerticalPaddingDip);
+        }
 
-        // Height follows the strip's resting content height, and the bottom inset is the
-        // plate's own VerticalPaddingDip: the line is bottom-aligned to the *window*, which is
-        // VerticalPaddingDip lower than the strip's baseline. Without the inset the line would
-        // hang a few DIP below the icons it is measuring.
-        DropIndicator.Height = Strip.RestingHeight;
-        DropIndicator.Margin = new Thickness(left.X, 0, 0, VerticalPaddingDip);
         DropIndicator.Visibility = Visibility.Visible;
     }
 
@@ -1008,6 +1064,11 @@ public partial class DockWindow : Window
 
     private ContextMenu BuildContextMenuForItem(DockAppItem item)
     {
+        if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad)
+        {
+            return BuildBuiltInMenu(item);
+        }
+
         var menu = new ContextMenu();
 
         // 1. Header (App Icon + App Name)
@@ -1025,9 +1086,7 @@ public partial class DockWindow : Window
             Width = 18,
             Height = 18,
             Stretch = Stretch.Uniform,
-            Source = string.IsNullOrWhiteSpace(item.Path)
-                ? _icons.GetIcon(string.Empty, sizePx)
-                : _icons.GetIcon(item.Path, sizePx),
+            Source = DockIconFactory.Load(_icons, item, sizePx),
             Margin = new Thickness(0, 0, 8, 0),
         };
         RenderOptions.SetBitmapScalingMode(headerIcon, BitmapScalingMode.HighQuality);
@@ -1136,6 +1195,7 @@ public partial class DockWindow : Window
                 }
             }
 
+            windows = WhereOnThisMonitor(windows);
             if (windows.Count > 0)
             {
                 menu.Items.Add(new Separator());
@@ -1240,8 +1300,8 @@ public partial class DockWindow : Window
     }
 
     /// <summary>
-    /// Adds or removes the item from WharfBar's own dock list. The Windows taskbar is
-    /// never written — the dock stopped mirroring it in this redesign.
+    /// Pins into <c>dock.items</c> and, when the target is a real file or folder, into
+    /// User Pinned\TaskBar as a <c>.lnk</c>. Taskband is not written.
     /// </summary>
     private void TogglePin(DockAppItem item, bool pin)
     {
@@ -1257,9 +1317,13 @@ public partial class DockWindow : Window
         // RunningAppInfo, which for a Store/UWP app is an AppUserModelId rather than a path, and
         // DockItemStore keys on normalized paths — so an Id-based Remove silently missed those.
         // Path is pin.Path for both pinned shapes (DockAppsComposer.cs:76 and :85).
+        bool folderChanged = pin
+            ? UserPinnedWriter.TryPin(item.Path, item.Args, item.Label)
+            : UserPinnedWriter.TryUnpin(item.Path);
         bool changed = pin
             ? store.TryAdd(item.Path, item.Args, item.Label)
             : store.Remove(item.Path);
+        changed |= folderChanged;
 
         if (!changed)
         {
@@ -1307,8 +1371,9 @@ public partial class DockWindow : Window
         _isApplyingPlacement = true;
         try
         {
+            int x = ResolvePlacementX(geo);
             int y = ResolvePlacementY(geo);
-            SetWindowRect(geo.X, y, geo.WidthPx, geo.HeightPx);
+            SetWindowRect(x, y, geo.WidthPx, geo.HeightPx);
         }
         finally
         {
@@ -1325,6 +1390,11 @@ public partial class DockWindow : Window
 
     private int ResolvePlacementY(PlacementGeometry geo)
     {
+        if (geo.Vertical)
+        {
+            return geo.VisibleY;
+        }
+
         if (_autoHide.Enabled && _isAnimatingY && _source is not null
             && NativeMethods.GetWindowRect(_source.Handle, out RECT rect))
         {
@@ -1339,6 +1409,50 @@ public partial class DockWindow : Window
         }
 
         return geo.VisibleY;
+    }
+
+    private int ResolvePlacementX(PlacementGeometry geo)
+    {
+        if (!geo.Vertical)
+        {
+            return geo.VisibleX;
+        }
+
+        if (_autoHide.Enabled && _isAnimatingY && _source is not null
+            && NativeMethods.GetWindowRect(_source.Handle, out RECT rect))
+        {
+            return rect.Left;
+        }
+
+        if (_autoHide.Enabled
+            && _autoHide.State is DockAutoHideVisualState.Hidden or DockAutoHideVisualState.Hiding)
+        {
+            return geo.HiddenX;
+        }
+
+        return geo.VisibleX;
+    }
+
+    /// <summary>
+    /// Dock plate where it rests when shown. Auto-hide may have slid the window off-screen;
+    /// the launchpad still anchors to this rect.
+    /// </summary>
+    internal bool TryGetRestingRect(out RECT rect)
+    {
+        rect = default;
+        if (!_haveSlideRange || _lastPlacementWidthPx <= 0 || _lastPlacementHeightPx <= 0)
+        {
+            return false;
+        }
+
+        rect = new RECT
+        {
+            Left = _lastVisibleX,
+            Top = _lastVisibleY,
+            Right = _lastVisibleX + _lastPlacementWidthPx,
+            Bottom = _lastVisibleY + _lastPlacementHeightPx,
+        };
+        return true;
     }
 
     private bool TryGetPlacementGeometry(out PlacementGeometry geo)
@@ -1356,39 +1470,51 @@ public partial class DockWindow : Window
         }
 
         uint dpi = _monitorDpi;
-        int heightPx = Display.DipToPixels(MaxHeightDip, dpi);
+        int thicknessPx = Display.DipToPixels(MaxHeightDip, dpi);
         int bottomGapPx = Display.DipToPixels(BottomGapDip, dpi);
         RECT monitor = Monitor.Bounds;
+        bool left = DockPositions.IsLeft(_config.Dock.Position);
 
-        if (monitor.Width <= 0 || heightPx <= 0)
+        if (monitor.Width <= 0 || monitor.Height <= 0 || thicknessPx <= 0)
         {
             return false;
         }
 
-        int widthPx = ComputeMaxWidthPx(dpi);
-        widthPx = Math.Clamp(widthPx, 1, monitor.Width);
+        int lengthPx = ComputeMaxWidthPx(dpi);
+        if (left)
+        {
+            lengthPx = Math.Clamp(lengthPx, 1, monitor.Height);
+            int visibleX = monitor.Left;
+            int hiddenX = monitor.Left - thicknessPx;
+            int y = monitor.Top + Math.Max(0, (monitor.Height - lengthPx) / 2);
+            _lastVisibleX = visibleX;
+            _lastHiddenX = hiddenX;
+            _lastVisibleY = y;
+            _lastHiddenY = y;
+            _haveSlideRange = true;
+            geo = new PlacementGeometry(visibleX, hiddenX, y, y, thicknessPx, lengthPx, Vertical: true);
+            return true;
+        }
 
-        int x = ResolvePlacementX(monitor, widthPx, dpi);
-        int visibleY = monitor.Bottom - heightPx - bottomGapPx;
+        lengthPx = Math.Clamp(lengthPx, 1, monitor.Width);
+        int x = BottomAnchorX(monitor, lengthPx, dpi);
+        int visibleY = monitor.Bottom - thicknessPx - bottomGapPx;
         int hiddenY = monitor.Bottom;
 
+        _lastVisibleX = x;
+        _lastHiddenX = x;
         _lastVisibleY = visibleY;
         _lastHiddenY = hiddenY;
         _haveSlideRange = true;
 
-        geo = new PlacementGeometry(x, visibleY, hiddenY, widthPx, heightPx);
+        geo = new PlacementGeometry(x, x, visibleY, hiddenY, lengthPx, thicknessPx, Vertical: false);
         return true;
     }
 
-    /// <summary>
-    /// Horizontal anchor. Only bottom-left/center/right: the work-area reservation and the
-    /// downward auto-hide slide stay untouched, so a side-docked variant would be a
-    /// different feature (spec §4.2).
-    /// </summary>
-    private int ResolvePlacementX(RECT monitor, int widthPx, uint dpi)
+    /// <summary>Bottom-edge horizontal anchor. The left dock does not use this.</summary>
+    private int BottomAnchorX(RECT monitor, int widthPx, uint dpi)
     {
         int marginPx = Display.DipToPixels(12d, dpi);
-
         return DockPositions.Normalize(_config.Dock.Position) switch
         {
             DockPositions.BottomLeft => monitor.Left + marginPx,
@@ -1412,7 +1538,7 @@ public partial class DockWindow : Window
             : Display.DipToPixels(MaxHeightDip, dpi);
         int x = _lastPlacementWidthPx > 0
             ? _lastPlacementX
-            : ResolvePlacementX(monitor, widthPx, dpi);
+            : monitor.Left;
         int yVisible = _haveSlideRange
             ? _lastVisibleY
             : monitor.Bottom - heightPx;
@@ -1426,7 +1552,8 @@ public partial class DockWindow : Window
             yVisible,
             x + widthPx,
             yVisible + heightPx,
-            dpi);
+            dpi,
+            DockPositions.IsLeft(_config.Dock.Position));
     }
 
     private void OnAutoHideChanged(object? sender, EventArgs e)
@@ -1446,20 +1573,20 @@ public partial class DockWindow : Window
         {
             case DockAutoHideVisualState.Showing:
                 DockHitTest.ApplyInteractive(hwnd);
-                AnimateYTo(geo.VisibleY);
+                AnimateYTo(geo.Vertical ? geo.VisibleX : geo.VisibleY);
                 break;
             case DockAutoHideVisualState.Hiding:
                 DockHitTest.ApplyPassthrough(hwnd);
-                AnimateYTo(geo.HiddenY);
+                AnimateYTo(geo.Vertical ? geo.HiddenX : geo.HiddenY);
                 break;
             case DockAutoHideVisualState.Visible:
                 CancelYAnimation();
-                SetWindowRect(geo.X, geo.VisibleY, geo.WidthPx, geo.HeightPx);
+                SetWindowRect(geo.VisibleX, geo.VisibleY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyInteractive(hwnd);
                 break;
             case DockAutoHideVisualState.Hidden:
                 CancelYAnimation();
-                SetWindowRect(geo.X, geo.HiddenY, geo.WidthPx, geo.HeightPx);
+                SetWindowRect(geo.HiddenX, geo.HiddenY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyPassthrough(hwnd);
                 break;
         }
@@ -1478,10 +1605,18 @@ public partial class DockWindow : Window
             return;
         }
 
-        int fromY = rect.Top;
-        SetWindowRect(geo.X, fromY, geo.WidthPx, geo.HeightPx);
+        bool horizontal = geo.Vertical;
+        int from = horizontal ? rect.Left : rect.Top;
+        if (horizontal)
+        {
+            SetWindowRect(from, geo.VisibleY, geo.WidthPx, geo.HeightPx);
+        }
+        else
+        {
+            SetWindowRect(geo.VisibleX, from, geo.WidthPx, geo.HeightPx);
+        }
 
-        if (fromY == targetY)
+        if (from == targetY)
         {
             OnYAnimationCompleted();
             return;
@@ -1489,9 +1624,9 @@ public partial class DockWindow : Window
 
         CancelYAnimation();
         _isAnimatingY = true;
-        AnimYOffset = fromY;
+        AnimYOffset = from;
 
-        var anim = new DoubleAnimation(fromY, targetY, TimeSpan.FromMilliseconds(AutoHideAnimMs))
+        var anim = new DoubleAnimation(from, targetY, TimeSpan.FromMilliseconds(AutoHideAnimMs))
         {
             EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut },
             FillBehavior = FillBehavior.Stop,
@@ -1515,6 +1650,9 @@ public partial class DockWindow : Window
 
     private void SetWindowY(int y) =>
         SetWindowRect(_lastPlacementX, y, _lastPlacementWidthPx, _lastPlacementHeightPx);
+
+    private void SetWindowX(int x) =>
+        SetWindowRect(x, _lastPlacementY, _lastPlacementWidthPx, _lastPlacementHeightPx);
 
     private void SetWindowRect(int x, int y, int widthPx, int heightPx)
     {
@@ -1587,9 +1725,10 @@ public partial class DockWindow : Window
             return;
         }
 
+        int x = ResolvePlacementX(geo);
         int y = ResolvePlacementY(geo);
         if (_hasPlacement
-            && geo.X == _lastPlacementX
+            && x == _lastPlacementX
             && y == _lastPlacementY
             && geo.WidthPx == _lastPlacementWidthPx
             && geo.HeightPx == _lastPlacementHeightPx)
@@ -1607,8 +1746,12 @@ public partial class DockWindow : Window
     /// <summary>Pushes button metrics into the strip. Scale stays at 1 — the plate does not grow.</summary>
     private void ApplyStripGeometry()
     {
+        _strip.Vertical = DockPositions.IsLeft(_config.Dock.Position);
         _strip.GlyphSize = _iconSizeDip;
         _strip.IconSize = DockPlateMetrics.ButtonSize(_iconSizeDip);
+        SurfaceFlyout.Placement = _strip.Vertical
+            ? System.Windows.Controls.Primitives.PlacementMode.Right
+            : System.Windows.Controls.Primitives.PlacementMode.Top;
         _strip.IconGap = IconGapDip;
         _strip.IndicatorGap = 0d;
         _strip.IndicatorSize = 0d;
@@ -1629,9 +1772,10 @@ public partial class DockWindow : Window
 
     private void OnFullscreenChanged(object? sender, EventArgs e)
     {
-        // Auto-hide: the fullscreen app must cover the full monitor — hide the dock.
-        // Always-visible (auto-hide off): the dock reserves its strip and stays put.
-        if (FullscreenState.Instance.IsFullscreen && _autoHide.Enabled)
+        // The dock is topmost. A browser video fullscreen (ABN_FULLSCREENAPP) covers the
+        // monitor, so the strip has to leave even when auto-hide is off. The top bar only
+        // drops its z-order (ADR-003); this window would stay painted on the video.
+        if (FullscreenState.Instance.IsFullscreen)
         {
             _isFullscreenHidden = true;
             _autoHide.NotifyFullscreen(true);
@@ -1665,6 +1809,12 @@ public partial class DockWindow : Window
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        if (_shellHookMessage != 0 && msg == _shellHookMessage)
+        {
+            OnShellMessage(wParam, lParam);
+            return IntPtr.Zero;
+        }
+
         switch (msg)
         {
             case NativeMethods.WM_WINDOWPOSCHANGING:
@@ -1739,9 +1889,36 @@ public partial class DockWindow : Window
         }
 
         bool noMove = (pos.flags & NativeMethods.SWP_NOMOVE) != 0;
-        int proposedY = noMove ? current.Top : pos.y;
         bool allowSlide = _isAnimatingY
             || _autoHide.State is DockAutoHideVisualState.Showing or DockAutoHideVisualState.Hiding;
+        if (_strip.Vertical)
+        {
+            int proposedX = noMove ? current.Left : pos.x;
+            int alongY = noMove ? current.Top : pos.y;
+            int minX = Math.Min(_lastVisibleX, _lastHiddenX);
+            int maxX = Math.Max(_lastVisibleX, _lastHiddenX);
+            if (!_autoHide.Enabled || !allowSlide)
+            {
+                int parkedX = _autoHide.Enabled && _autoHide.State is DockAutoHideVisualState.Hidden
+                    ? _lastHiddenX
+                    : _lastVisibleX;
+                minX = maxX = parkedX;
+            }
+
+            int clampedX = Math.Clamp(proposedX, minX, maxX);
+            if (clampedX == proposedX && alongY == _lastVisibleY)
+            {
+                return;
+            }
+
+            pos.x = clampedX;
+            pos.y = _lastVisibleY;
+            pos.flags &= ~NativeMethods.SWP_NOMOVE;
+            Marshal.StructureToPtr(pos, lParam, false);
+            return;
+        }
+
+        int proposedY = noMove ? current.Top : pos.y;
         AppBarPlacement.GetDockSlideClampRange(
             _autoHide.Enabled,
             allowSlide,
@@ -1770,9 +1947,11 @@ public partial class DockWindow : Window
     }
 
     private readonly record struct PlacementGeometry(
-        int X,
+        int VisibleX,
+        int HiddenX,
         int VisibleY,
         int HiddenY,
         int WidthPx,
-        int HeightPx);
+        int HeightPx,
+        bool Vertical);
 }
