@@ -5,7 +5,15 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>Immutable UI-facing system stats snapshot.</summary>
-internal sealed record SystemStatsSnapshot(double? CpuPercent, double?[]? GpuPercents, double? RamPercent)
+internal sealed record SystemStatsSnapshot(
+    double? CpuPercent,
+    double?[]? GpuPercents,
+    double? RamPercent,
+    IReadOnlyList<double>? CpuHistory = null,
+    IReadOnlyList<double>? RamHistory = null,
+    IReadOnlyList<double>? GpuHistory = null,
+    string? NetworkDownText = null,
+    string? NetworkUpText = null)
 {
     /// <summary>Top-bar text; <paramref name="showGpuPerAdapter"/> numbers segments when two or more adapters report.</summary>
     internal string DisplayText(bool showGpuPerAdapter)
@@ -30,11 +38,21 @@ internal sealed class SystemStatsService : IDisposable
 {
     private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(2);
 
+    /// <summary>Sparkline window. Sampled on <see cref="SampleInterval"/>, not a faster timer.</summary>
+    private const int SampleHistoryCap = 30;
+
     private readonly DispatcherTimer _timer;
     private readonly GpuUsageQuery? _gpu;
     private readonly IReadOnlySet<string> _softwareAdapterKeys;
+    private readonly List<double> _cpuHistory = [];
+    private readonly List<double> _ramHistory = [];
+    private readonly List<double> _gpuHistory = [];
     private CpuTimesSample _prevCpu;
     private bool _havePrevCpu;
+    private long _prevReceived;
+    private long _prevSent;
+    private DateTime _prevNetAt;
+    private bool _haveNet;
     private bool _disposed;
 
     internal SystemStatsService()
@@ -42,7 +60,7 @@ internal sealed class SystemStatsService : IDisposable
         // Created on the UI thread (TopBarEngine ctor) so the timer ticks there.
         _gpu = GpuUsageQuery.TryCreate();
         _softwareAdapterKeys = SystemStatsNative.GetSoftwareAdapterLuidKeys();
-        Snapshot = new SystemStatsSnapshot(null, null, null);
+        Snapshot = new SystemStatsSnapshot(null, null, null, [], [], [], "—", "—");
 
         _timer = new DispatcherTimer { Interval = SampleInterval };
         _timer.Tick += (_, _) => SampleOnce();
@@ -80,15 +98,95 @@ internal sealed class SystemStatsService : IDisposable
         double? cpu = SampleCpu();
         double? ram = SampleRam();
         double?[]? gpu = SampleGpu() ?? Snapshot.GpuPercents;
+        (string down, string up) = SampleNetwork();
+        PushSample(_cpuHistory, cpu);
+        PushSample(_ramHistory, ram);
+        if (gpu is { Length: > 0 })
+        {
+            PushSample(_gpuHistory, SumGpuInstances([.. gpu.Select(static value => value ?? 0d)]));
+        }
 
-        SystemStatsSnapshot next = Snapshot with { CpuPercent = cpu, GpuPercents = gpu, RamPercent = ram };
-        if (next.ChangeKey == Snapshot.ChangeKey)
+        var next = new SystemStatsSnapshot(
+            cpu,
+            gpu,
+            ram,
+            _cpuHistory.ToArray(),
+            _ramHistory.ToArray(),
+            _gpuHistory.ToArray(),
+            down,
+            up);
+        if (SameSnapshot(Snapshot, next))
         {
             return;
         }
 
         Snapshot = next;
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private (string Down, string Up) SampleNetwork()
+    {
+        (long received, long sent) = NetworkRate.SumUpCounters();
+        DateTime now = DateTime.UtcNow;
+        double? down = null;
+        double? up = null;
+        if (_haveNet)
+        {
+            double elapsed = (now - _prevNetAt).TotalSeconds;
+            down = NetworkRate.BytesPerSecond(_prevReceived, received, elapsed);
+            up = NetworkRate.BytesPerSecond(_prevSent, sent, elapsed);
+        }
+
+        _prevReceived = received;
+        _prevSent = sent;
+        _prevNetAt = now;
+        _haveNet = true;
+        return (NetworkRate.FormatBytesPerSecond(down), NetworkRate.FormatBytesPerSecond(up));
+    }
+
+    private static void PushSample(List<double> history, double? value)
+    {
+        if (value is not double sample || double.IsNaN(sample) || double.IsInfinity(sample))
+        {
+            return;
+        }
+
+        history.Add(sample);
+        if (history.Count > SampleHistoryCap)
+        {
+            history.RemoveAt(0);
+        }
+    }
+
+    private static bool SameSnapshot(SystemStatsSnapshot current, SystemStatsSnapshot next)
+        => current.ChangeKey == next.ChangeKey
+           && current.NetworkDownText == next.NetworkDownText
+           && current.NetworkUpText == next.NetworkUpText
+           && SameHistory(current.CpuHistory, next.CpuHistory)
+           && SameHistory(current.RamHistory, next.RamHistory)
+           && SameHistory(current.GpuHistory, next.GpuHistory);
+
+    private static bool SameHistory(IReadOnlyList<double>? left, IReadOnlyList<double>? right)
+    {
+        if (left is null || right is null)
+        {
+            return left is null && right is null;
+        }
+
+        if (left.Count != right.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Count; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>CPU busy percentage since the previous sample; null until two samples exist.</summary>

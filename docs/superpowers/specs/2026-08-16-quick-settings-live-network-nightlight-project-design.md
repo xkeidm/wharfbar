@@ -138,7 +138,7 @@ deseni (geri düğmesi + başlık) korunur.
 | bluetooth | radyo aç/kapa (değişmez) | `Bluetooth` sayfası |
 | project | `Project` sayfası (Win+P yok) | `Project` sayfası |
 | nightlight | `NightLightService.SetEnabled(!IsEnabled)` (ms-settings değil) | — |
-| batterysaver | `ms-settings:batterysaver` (değişmez) | — |
+| batterysaver | “Her zaman enerji tasarrufu kullan” anahtarı, UI Automation (ADR-013) | Ayarlar penceresi ekranda kalmaz |
 
 ### In-place güncelleme + animasyon
 

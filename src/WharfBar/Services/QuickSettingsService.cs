@@ -62,6 +62,17 @@ internal sealed class QuickSettingsService : IDisposable
     /// </summary>
     private bool? _airplaneSessionOverride;
 
+    /// <summary>Karo ışığı: API, sistem bayrağı veya Ayarlar anahtarının geri okuması.</summary>
+    private bool _energySaverOn;
+
+    /// <summary>
+    /// "Her zaman enerji tasarrufu kullan" anahtarının son geri okuması.
+    /// Yazma başarısızsa değişmez. Pil yokken API <c>Disabled</c> kaldığı için karo bunu da sayar.
+    /// </summary>
+    private bool? _alwaysOnSwitch;
+
+    private bool _energySaverHooked;
+
     internal QuickSettingsService(NightLightService nightLight, VeilService veil)
     {
         _nightLight = nightLight;
@@ -78,6 +89,8 @@ internal sealed class QuickSettingsService : IDisposable
             Changed?.Invoke(this, EventArgs.Empty);
         };
         veil.Changed += _onVeilChanged;
+        _energySaverOn = ReadEnergySaverOn();
+        HookEnergySaver();
         Network = ReadNetworkDetails();
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -129,7 +142,16 @@ internal sealed class QuickSettingsService : IDisposable
                 _veil.SetEnabled(!_veil.IsEnabled);
                 break;
             case "batterysaver":
-                OpenSettingsUri("ms-settings:batterysaver");
+                bool requested = EnergySaverTile.RequestedOn(
+                    EnergySaverRead.ApiOn(),
+                    EnergySaverRead.SystemFlagOn(),
+                    _alwaysOnSwitch);
+                bool? applied = await Task.Run(() => EnergySaverAlwaysOn.TrySet(requested)).ConfigureAwait(true);
+                if (applied is bool on)
+                {
+                    _alwaysOnSwitch = on;
+                }
+
                 break;
         }
 
@@ -173,11 +195,49 @@ internal sealed class QuickSettingsService : IDisposable
         _disposed = true;
         _timer.Stop();
         _veil.Changed -= _onVeilChanged;
+        if (_energySaverHooked)
+        {
+            Windows.System.Power.PowerManager.EnergySaverStatusChanged -= OnEnergySaverStatusChanged;
+            _energySaverHooked = false;
+        }
     }
+
+    private void HookEnergySaver()
+    {
+        try
+        {
+            Windows.System.Power.PowerManager.EnergySaverStatusChanged += OnEnergySaverStatusChanged;
+            _energySaverHooked = true;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: energy saver listen failed — {ex.Message}");
+        }
+    }
+
+    private void OnEnergySaverStatusChanged(object? sender, object args)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            Refresh();
+            return;
+        }
+
+        _ = _dispatcher.BeginInvoke(Refresh);
+    }
+
+    private bool ReadEnergySaverOn()
+        => EnergySaverTile.IsActive(EnergySaverRead.ApiOn(), EnergySaverRead.SystemFlagOn(), _alwaysOnSwitch);
 
     private void Refresh()
     {
         _nightLight.PollRegistry();
+        _energySaverOn = ReadEnergySaverOn();
         NetworkDetails nextNet = ReadNetworkDetails();
         IReadOnlyList<QuickTileState> nextTiles = BuildTiles();
         Network = nextNet;
@@ -242,9 +302,9 @@ internal sealed class QuickSettingsService : IDisposable
                 "Enerji tasarrufu",
                 "\uEBC0",
                 IsEnabled: true,
-                IsActive: false,
+                IsActive: _energySaverOn,
                 HasChevron: false,
-                Tooltip: "Enerji tasarrufu ayarları"),
+                Tooltip: _energySaverOn ? "Enerji tasarrufu açık" : "Enerji tasarrufu"),
         ];
     }
 

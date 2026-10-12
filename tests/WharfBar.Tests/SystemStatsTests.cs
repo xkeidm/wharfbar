@@ -370,4 +370,47 @@ public class SystemStatsTests
             query.Dispose();
         }
     }
+
+    [Fact]
+    public void BytesPerSecond_RejectsResetAndZeroInterval()
+    {
+        Assert.Null(NetworkRate.BytesPerSecond(10, 5, 1));
+        Assert.Null(NetworkRate.BytesPerSecond(0, 100, 0));
+        Assert.Equal(50d, NetworkRate.BytesPerSecond(0, 100, 2));
+    }
+
+    [Fact]
+    public void FormatBytesPerSecond_UsesTurkishUnits()
+    {
+        Assert.Equal("—", NetworkRate.FormatBytesPerSecond(null));
+        Assert.Equal("—", NetworkRate.FormatBytesPerSecond(-1));
+        Assert.Equal("512 B/sn", NetworkRate.FormatBytesPerSecond(512));
+        Assert.Equal("1,5 KB/sn", NetworkRate.FormatBytesPerSecond(1536));
+        Assert.Equal("1,0 MB/sn", NetworkRate.FormatBytesPerSecond(1024d * 1024d));
+    }
+
+    [Fact]
+    public void Sparkline_Decimate_KeepsNewestPoints()
+    {
+        Assert.Empty(Sparkline.Decimate(null, 4));
+        Assert.Equal(new[] { 1d, 2d }, Sparkline.Decimate([1d, 2d], 4));
+        Assert.Equal(new[] { 3d, 4d }, Sparkline.Decimate([1d, 2d, 3d, 4d], 2));
+        Assert.Empty(Sparkline.Decimate([1d], 0));
+    }
+
+    [Fact]
+    public void NotificationDigest_CapsAtEight()
+    {
+        var rows = new NotificationText[10];
+        for (int i = 0; i < rows.Length; i++)
+        {
+            rows[i] = new NotificationText($"t{i}", $"b{i}");
+        }
+
+        IReadOnlyList<NotificationText> recent = NotificationDigest.TakeRecent(rows);
+        Assert.Equal(NotificationDigest.MaxItems, recent.Count);
+        Assert.Equal("t0", recent[0].Title);
+        Assert.Equal("t7", recent[7].Title);
+        Assert.Empty(NotificationDigest.TakeRecent(null));
+    }
 }

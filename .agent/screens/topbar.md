@@ -10,9 +10,8 @@ Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
 
 ## Sol küme
 
-- **Windows logosu** (geometri çizimi, font glifi değil — Mica'da kaybolmaz) → sol tık menü
-  (ikonun sol kenarına yapışık açılır; `OnAppMenuLoaded` WPF-UI'nin 30px'lik effect margin'inden
-  sol marjı sıfırlar — popup penceresi ekran kenarına clamp edilip menüyü sağa kaydırmasın):
+- **Windows logosu** (geometri çizimi, font glifi değil — Mica'da kaybolmaz) → **sol ve sağ tık** menüyü açar. Launchpad bu ikondan açılmaz; dock karosundadır (ADR-016). Menü ikonun sol kenarına yapışık açılır; `OnAppMenuLoaded` WPF-UI'nin 30px'lik effect margin'inden
+  sol marjı sıfırlar — popup penceresi ekran kenarına clamp edilip menüyü sağa kaydırmasın:
   - **Ayarlar (PC)** → `ms-settings:` · **Profil** → `ms-settings:yourinfo` · **Bilgisayar hakkında** → `ms-settings:about`
   - **Bilgisayarı kilitle** / **Uyku** → `PowerActions` (LockWorkStation / SetSuspendState)
   - **Kapat** / **Yeniden başlat** → `PowerActions` (shutdown.exe `/s|/r /t 0`)
@@ -20,10 +19,20 @@ Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
   - **WharfBar hakkında** → `AboutWindow`
   - **WharfBar'ı kapat** → düzgün çıkış (görev çubuğu restore + `ABM_REMOVE`)
 
-## Orta — ada hapı (`IslandPill`, ADR-010 + ADR-011)
+Sistem istatistikleri (`CPU · GPU · RAM`) aynı sol kümede, tek satırdır. Son örneklerin kıvılcımı ve ağ hızı (↓/↑ bayt/sn) metnin üzerine gelince açılan karttadır; çizgi metnin altına konursa 30 DIP bar büyür. GPU sayacı yoksa karttaki GPU satırı gizlenir. Sıcaklık yok. Ağ hızı `SystemStatsService` ile aynı 2 sn aralıktadır.
 
-Yalnızca **birincil** monitör. Ada ayarı açıkken ortada bir hap durur
-(`Visibility=Collapsed` yalnız kapalıyken veya birincil olmayan barda). AppBar **30 DIP**
+## Orta — ada hapı (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
+
+Müzik çalarken ve eklenti galerisinde görselleştirici açıksa hapta beş çubuk, varsayılan
+ses aygıtının tepe değerini gösterir. Tepe okunamazsa çubuklar düz kalır. Eşleşmiş bir
+Bluetooth cihazı bağlanınca adı hapta kısa süre durur; hızlı ayarlardaki Bluetooth karosu
+ayrı kalır. Kamera aynası galeriden açılır: kare hapın içindedir, izin veya meşgul kamera
+yazı bırakır, sahte kare yoktur. Widget’lar (saat, takvim) masaüstündedir, hapta değildir.
+
+Ada ayarı kapalıyken hap her barda çöker. **Birincil** barda ayar açıkken hap durur
+(boşta "Pano" veya son kayıt). **İkincil** barda hap yalnız yüz boşta değilken ya da panel
+açıkken görünür: müzik ve ses/parlaklık/pil sayaçları. Pano listesi, dosya bırakma ve pano
+uydusu ikincilde yoktur; ikinci `IslandService` yok. AppBar **30 DIP**
 kalır; çok satırlı haller aynı `IslandPopup`'ın altında, hapın **ortasına** hizalı açılır
 (ikinci pencere yok, iç içe `Popup` yok). `Placement=Bottom` solu hizaladığı için
 `IslandPopupAlign.HorizontalOffset` panel merkezi ile hap merkezini eşitler. Offset
@@ -33,34 +42,55 @@ panel `Opacity=0` kalır, sonra ortalanıp belirir. Hap veya panel sonradan değ
 köşeleri düzleşir, dolgu panelinkiyle aynıdır (`FlyoutSurface`); kapanınca yine kapsüldür.
 
 Hap, barın içinde dikey ortalanmış bir kapsüldür (`Height=24`, `CornerRadius=12`,
-boşta yaklaşık **108 DIP** — `IslandIdleDip`). Dolgu ve 1 px kontur tema fırçalarıdır
+boşta yaklaşık **108 DIP** — `IslandIdleDip`; görünen uydu bunu biraz büyütür). Dolgu ve 1 px kontur tema fırçalarıdır
 (`ControlFillColorDefaultBrush`, `ControlStrokeColorDefaultBrush`); hover
-`ControlFillColorSecondaryBrush` ve hap ~4 DIP genişler. Açık ve koyu temada aynı
-kaynaklar çözülür. Glifler Segoe MDL2 / Fluent (`AppIconFontFamily`). Genişlik değişimi
-~200 ms `CubicEase`. Boşta genişlik tabandır; parça adı ve sayaç bunun üstüne büyür.
+`ControlFillColorSecondaryBrush` ve hap ~4 DIP genişler. Klavye odağı konturu vurgu fırçasına çevirir.
+Açık ve koyu temada aynı kaynaklar çözülür. Glifler Segoe MDL2 / Fluent (`AppIconFontFamily`).
+Genişlik değişimi ~200 ms `CubicEase`. `SystemParameters.ClientAreaAnimation` kapalıyken
+genişlik, hover ölçeği ve çapraz solma süresi 0'dır. Boşta genişlik tabandır; parça adı,
+sayaç ve uydular bunun üstüne büyür. Parça adı tavanı uydu kromunu da sayar
+(`IslandPresence.TitleMaxWidth`).
 
-- **Boşta:** gösterge çubuğu — pano glifi (`E8C8`) + **Pano**. Üzerine gelince aynı
-  `IslandPopup` pano gövdesiyle açılır (kayıt yoksa kısa boş durum cümlesi). İmleç
-  ayrılınca ~300 ms. Tıklama sabitler. **Sürükle-bırak** aynı kontrolde (`AllowDrop`).
+- **Boşta:** pano glifi (`E8C8`) + `island.idleLabel`. Varsayılan `clipboard` → **Pano**.
+  `lastClip` → son metin kaydının 40 karakterlik önizlemesi (boşsa yine "Pano"). Üzerine
+  gelince 150 ms sonra aynı `IslandPopup` pano gövdesiyle açılır (kayıt yoksa kısa boş durum).
+  İmleç ayrılınca ~300 ms. Tıklama sabitler. **Sürükle-bırak** yalnız birincil hapta (`AllowDrop`).
 - **Şimdi çalıyor** (`island.musicPresence`, varsayılan `persistent`): hap nota (`E90C`)
-  + tek satır parça adı olarak genişler (CubicEase). Ad `IslandPresence.TitleMaxWidth`
-  ile sol istatistik ve sağ şeride değmeyecek şekilde kesilir. Üzerine gelince müzik
-  paneli açılır; imleç ayrılınca ~300 ms. Tıklama paneli sabitler. Oturum bitince hap boşta.
+  + tek satır parça adı olarak genişler. Ad `IslandPresence.TitleMaxWidth` ile sol istatistik
+  ve sağ şeride değmeyecek şekilde kesilir. Üzerine gelince 150 ms sonra müzik paneli açılır;
+  imleç ayrılınca ~300 ms. Tıklama paneli sabitler. Oturum bitince hap boşta. Çip ipucu, SMTC
+  konum ve süre verdiyse paneldeki aynı `m:ss / m:ss` metnini ekler; yüzde yazılmaz.
 - **Kısa süre** (`transient`): hap boşta kalır. Çalma, parça değişimi veya oynat/duraklat
   aynı paneli ~2,5 sn açar. O sırada tıklama sabitler.
-- **Ses / parlaklık:** karıştırıcı veya parlaklık paneli açık değilken gelen değişiklik
-  hapı ~1,6 sn ikon + yuvarlak sayaca çevirir (`AccentFillColorDefaultBrush`), sonra
-  önceki hapa döner. Tıklama mevcut karıştırıcıyı veya parlaklık flyout'unu açar.
+- **Ses / parlaklık / pil:** karıştırıcı veya parlaklık paneli açık değilken gelen değişiklik
+  hapı ~1,6 sn ikon + sayaca çevirir (`AccentFillColorDefaultBrush`), sonra önceki hapa döner.
+  Ses tıklaması karıştırıcıyı, parlaklık tıklaması parlaklık flyout'unu açar. Pilin paneli yoktur;
+  ipucu yüzdeyi içerir. Pil, takılınca ve yüzde bir kez eşiğin altına inince görünür.
+  Eşik `island.lowBatteryPercent` (varsayılan 20, kabul 5–50). Ada ayarında "Düşük pil eşiği".
+  Eşik değişince bir sonraki düşüş yeniden bir kez ateşlenebilir.
+- **Yeni kopya / dosya bırakma:** kısa süre metin yüzü. Her kopyada nabız yok; bırakma nabzı durur.
+- **Uydular:** en fazla iki, `FirstSatellite` / `SecondSatellite`. Müzik `E90C`, pano `E8C8`.
+  Şimdi çalıyor + pano yüzeyi yalnız pano uydusu. HUD + kalıcı müzik + pano yüzeyi ikisini birden gösterir (müzik, sonra pano). İkincil barda pano uydusu yok. `transient` müzik uydu değildir. Aynı tür tekrarlanmaz.
+  Tıklama `ClickSatellite` çağırır ve hap tıklamasına düşmez. Hap odaklıyken Sol/Sağ görünür uydular arasında seçim yürür; seçili uyduda vurgu konturu. Enter seçili uyduyu açar. Seçim yoksa Enter ve Space hapın kendi tıklamasıdır.
 
-Sabit panel dış tıklama, Esc, hapa tekrar tıklama ve `CloseFlyouts` ile kapanır.
+`lastClip` boşta gerçek bir önizleme gösterirken hap kendi penceresine alınır ve yalnız o
+pencere `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` ile kareden düşer. Üst çubuğun
+geri kalanı yakalamada kalır. "Pano", müzik ve sayaçta hap çubuğa döner.
+
+Sabit panel dış tıklama, Esc, hapa tekrar tıklama ve `CloseFlyouts` ile kapanır. Hap
+`Focusable`. Seçili uydu yoksa Enter ve Space tıklama ile aynı yolu açar. Müzik gövdesinde Sol önceki, Sağ sonraki
+parçadır. Pano arama kutusu odaktayken oklar ona kalır.
 Panel açılışı hapın genişliğinden gövdeye doğru büyür (üst orta, solma, ~200 ms); aralık
 açılmaz. Ölçek popup çocuğunda değil, iç yüzeydedir (`PanelSurface`): WPF yerleşimi
 çocuğun dönüşmüş köşesini kullanır, ölçek çocukta kalırsa panel hapın solunda açılır ve
 ölçek 1'e dönünce de orada kalır. Kapanış tersi ve biraz daha hızlıdır. Müzik ile pano
-aynı popup içinde ~150 ms çapraz solar. Müzik panelindeki pano düğmesi gövdeyi listeye
-çevirir; geri müzik. Ses/parlaklık sayacının dolgusu seviye değişince akar.
+aynı popup içinde ~150 ms çapraz solar. Müzik panelindeki pano düğmesi (yalnız birincil)
+gövdeyi listeye çevirir; geri müzik. Müzik paneli açıkken SMTC zaman çizelgesi ~1 sn'de bir
+yeniden okunur; konum ve süre birlikte varsa çubuk görünür. Oturum `IsPlaybackPositionEnabled`
+ise çubuğun yerinde kaydırıcı vardır ve sürükleme arar. Kapalıyken bu okuma yok. Süre yoksa yüzde yazılmaz.
+Ses/parlaklık/pil sayacının dolgusu seviye değişince akar.
 
-Kurallar `IslandPresence` (süre, yüz, HUD önceliği). Pencere tek atımlık zamanlayıcı kullanır.
+Kurallar `IslandPresence` (süre, yüz, HUD önceliği, 150 ms hover). Pencere tek atımlık zamanlayıcı kullanır; süre `NextDeadlineMs` ile kurulur.
 
 ## Sağ küme — durum şeridi (`StatusStrip`)
 
@@ -72,7 +102,7 @@ aşağıdaki flyout'lar açılır.
 | id | Arayüz | Tıklama davranışı |
 |----|--------|-------------------|
 | `trayOverflow` | "Gizli simgeler" (glif `E70E`) | overflow bölgesi popup'ı (Win+B) |
-| `dateTime` | saat+tarih tek satır, `tr-TR` kısaltmaları | sistem takvim/panel |
+| `dateTime` | saat+tarih tek satır, `tr-TR` kısaltmaları | `ClockPanelFlyout`: bildirim metni + ay takvimi |
 | `notifications` | zil glifi `EA8F` | Win+N (bildirim merkezi) |
 | `controlCenter` | hızlı ayarlar glifi `E9CE` | `QuickSettingsFlyout` → **Main** sekmesi |
 | `volume` | ses glifi `E767` | `QuickSettingsFlyout` → **Mixer** sekmesi |
@@ -138,6 +168,10 @@ bağlı olanlar `ConnectionStatus` ile işaretlenir. Radyo açık/kapalı özet 
 `ProjectionService` + `QueryDisplayConfig` ile mevcut topoloji seçili gösterilir;
 tıklama `SetDisplayConfig` ile uygular: **Yalnızca PC ekranı / Çoğalt / Genişlet / Yalnızca 2. ekran**.
 
+### Enerji tasarrufu karosu
+
+`batterysaver` karosu API, `SystemStatusFlag` veya “Her zaman enerji tasarrufu kullan” anahtarının geri okuması açıkken yanar. Tıklama o anahtarı UI Automation ile çevirir; Ayarlar penceresi ekranda kalmaz. Yazma tutmazsa karo yanmaz.
+
 ### Gece ışığı tile (gerçek durum)
 
 `NightLightService` (CloudStore best-effort) gerçek durumu okur; tile aktiflik rengini ona
@@ -174,7 +208,7 @@ Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
 
 - Üst bar öğesi `media` yalnızca oturum varken görünür (`_mediaActive`; Battery/Volume
   deseni) — oturum bitince kaybolur; sağ tık menüsünden kalıcı göster/gizle + sıralama.
-- Tooltip: "Başlık – Sanatçı" (metadata yoksa uygulama adı).
+- Tooltip: "Başlık – Sanatçı" (metadata yoksa uygulama adı). SMTC konum ve süre verdiyse aynı `m:ss / m:ss` eklenir.
 - Flyout oturum bitince **kapanmaz**; "Çalan medya yok" metnine döner (kapatma yalnızca
   kullanıcı: dış tıklama / ESC / tekrar tıklama — QS/Brightness ile aynı animasyonlu kapanış).
 - Açılışta `FlyoutSurface` yüzeyi tazelenir; QS ile aynı yukarıdan-aşağı slide+fade animasyonu.

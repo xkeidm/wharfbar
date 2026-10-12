@@ -45,7 +45,7 @@ olarak kalır (aşağıdaki UX notu). Üst bar varsayılan sıra ve `controlCent
   bu yüzden oturum override'ı tutulur; uçak açıkken Wi-Fi/BT karoları devre dışıdır
   (Windows UX'iyle aynı)
 - Yansıt: `Win+P` (`SendInputKeys`)
-- Gece ışığı / enerji tasarrufu: `ms-settings:` URI (doğrudan toggle v1'de yok)
+- Gece ışığı: CloudStore yazımı. Enerji tasarrufu: “Her zaman enerji tasarrufu kullan” anahtarı UI Automation ile (ADR-013); `ms-settings:` karoda kalmaz
 - Ağ sayfası: ethernet/Wi-Fi Settings deep-link
 
 ## Gerekçe

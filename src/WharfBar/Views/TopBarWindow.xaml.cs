@@ -55,6 +55,8 @@ public partial class TopBarWindow : Window
     private bool _volumeAvailable = true;
     private bool _mediaActive;
     private bool _mediaClosePending;
+    private bool _clockClosePending;
+    private StatsHoverCard? _statsHover;
     private bool _trayMirrorActive;
     private readonly Dictionary<string, Border> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
@@ -91,6 +93,8 @@ public partial class TopBarWindow : Window
         };
         ApplyStatusItemLayout();
         StatusStrip.MouseRightButtonUp += OnStatusStripRightClick;
+        _statsHover = new StatsHoverCard();
+        SystemStatsText.ToolTip = new ToolTip { Content = _statsHover };
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -184,8 +188,9 @@ public partial class TopBarWindow : Window
         VolumeButton.PreviewMouseLeftButtonUp += OnVolumeClick;
         BrightnessButton.PreviewMouseLeftButtonUp += OnBrightnessClick;
         MediaButton.PreviewMouseLeftButtonUp += OnMediaClick;
-        DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
-        NotificationsButton.PreviewMouseLeftButtonUp += OnDateTimeOrNotificationsClick;
+        DateTimeButton.PreviewMouseLeftButtonUp += OnDateTimeClick;
+        NotificationsButton.PreviewMouseLeftButtonUp += OnNotificationsClick;
+        ClockPanelHost.OpenCenterRequested += OnClockPanelOpenCenter;
 
         PreviewMouseDown += OnTopBarPreviewMouseDown;
         PreviewMouseRightButtonDown += OnTopBarPreviewMouseDown;
@@ -196,6 +201,7 @@ public partial class TopBarWindow : Window
         QuickSettingsHost.KeyDown += OnFlyoutHostKeyDown;
         BrightnessHost.KeyDown += OnFlyoutHostKeyDown;
         MediaHost.KeyDown += OnFlyoutHostKeyDown;
+        ClockPanelHost.KeyDown += OnFlyoutHostKeyDown;
     }
 
     /// <summary>
@@ -207,7 +213,7 @@ public partial class TopBarWindow : Window
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen && !MediaPopup.IsOpen
-            && !IslandPopup.IsOpen)
+            && !IslandPopup.IsOpen && !ClockPopup.IsOpen)
         {
             return;
         }
@@ -217,7 +223,8 @@ public partial class TopBarWindow : Window
             if (IsWithin(hit, QuickSettingsHost)
                 || IsWithin(hit, BrightnessHost)
                 || IsWithin(hit, MediaHost)
-                || IsWithin(hit, IslandHost))
+                || IsWithin(hit, IslandHost)
+                || IsWithin(hit, ClockPanelHost))
             {
                 return;
             }
@@ -227,7 +234,8 @@ public partial class TopBarWindow : Window
                 || IsWithin(hit, NetworkButton)
                 || IsWithin(hit, BrightnessButton)
                 || IsWithin(hit, MediaButton)
-                || IsWithin(hit, IslandPill))
+                || IsWithin(hit, IslandPill)
+                || IsWithin(hit, DateTimeButton))
             {
                 return;
             }
@@ -277,14 +285,20 @@ public partial class TopBarWindow : Window
     {
         e.Handled = true;
         CloseFlyouts();
-        if (AppMenuButton.ContextMenu is not { } menu)
+        if (AppMenu.IsOpen)
         {
+            AppMenu.IsOpen = false;
             return;
         }
 
-        menu.PlacementTarget = AppMenuButton;
-        menu.Placement = PlacementMode.Bottom;
-        menu.IsOpen = true;
+        // Open after this click finishes. Opening in the same mouse-up lets the
+        // click land outside the menu and dismiss it immediately.
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            AppMenu.PlacementTarget = AppMenuButton;
+            AppMenu.Placement = PlacementMode.Bottom;
+            AppMenu.IsOpen = true;
+        });
     }
 
     /// <summary>
@@ -480,13 +494,15 @@ public partial class TopBarWindow : Window
     /// inner surface and fades the popup child: a scale on the popup child moves WPF's
     /// placement corners.
     /// </param>
+    /// <param name="motion">When set, replaces the default open/close duration. Island passes zero for reduced motion.</param>
     private static void AnimateChipFlyout(
         FrameworkElement content,
         bool opening,
         Action? onDone,
         double fromScaleX,
         double fromScaleY,
-        FrameworkElement? fadeTarget = null)
+        FrameworkElement? fadeTarget = null,
+        TimeSpan? motion = null)
     {
         FrameworkElement fade = fadeTarget ?? content;
         content.RenderTransformOrigin = new Point(0.5, 0);
@@ -503,7 +519,7 @@ public partial class TopBarWindow : Window
         double endY = opening ? 1 : fromScaleY;
         double fromOpacity = opening ? 0 : 1;
         double toOpacity = opening ? 1 : 0;
-        var duration = TimeSpan.FromMilliseconds(opening ? ChipFlyoutOpenMs : ChipFlyoutCloseMs);
+        var duration = motion ?? TimeSpan.FromMilliseconds(opening ? ChipFlyoutOpenMs : ChipFlyoutCloseMs);
         var ease = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn };
 
         scale.ScaleX = startX;
@@ -641,13 +657,72 @@ public partial class TopBarWindow : Window
         QuickSettingsHost.OnFlyoutClosed();
     }
 
-    private void OnDateTimeOrNotificationsClick(object sender, MouseButtonEventArgs e)
+    private void OnDateTimeClick(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        ToggleClockPanel();
+    }
+
+    private void OnNotificationsClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
         CloseFlyouts();
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
             new Action(() => _engine.Notifications.TryOpen()));
+    }
+
+    private void OnClockPanelOpenCenter(object? sender, EventArgs e)
+    {
+        CloseClockPanel(animate: false);
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Input,
+            new Action(() => _engine.Notifications.TryOpen()));
+    }
+
+    private void ToggleClockPanel()
+    {
+        if (ClockPopup.IsOpen)
+        {
+            CloseClockPanel();
+            return;
+        }
+
+        CancelPendingClose(ClockPanelHost, ref _clockClosePending);
+        CloseFlyouts();
+        ClockPopup.PlacementTarget = DateTimeButton;
+        ClockPopup.IsOpen = true;
+    }
+
+    private void CloseClockPanel(bool animate = true)
+    {
+        if (!ClockPopup.IsOpen)
+        {
+            _clockClosePending = false;
+            return;
+        }
+
+        if (animate && !_clockClosePending)
+        {
+            _clockClosePending = true;
+            AnimateFlyoutClose(ClockPanelHost, () =>
+            {
+                _clockClosePending = false;
+                ClockPopup.IsOpen = false;
+            });
+        }
+        else
+        {
+            CancelPendingClose(ClockPanelHost, ref _clockClosePending);
+            ClockPopup.IsOpen = false;
+        }
+    }
+
+    private void OnClockPopupOpened(object sender, EventArgs e)
+    {
+        CancelPendingClose(ClockPanelHost, ref _clockClosePending);
+        ClockPanelHost.OnFlyoutOpened();
+        AnimateFlyoutOpen(ClockPanelHost);
     }
 
     private void OnBrightnessClick(object sender, MouseButtonEventArgs e)
@@ -754,6 +829,7 @@ public partial class TopBarWindow : Window
         CloseQuickSettings(animate);
         CloseBrightness(animate);
         CloseMedia(animate);
+        CloseClockPanel(animate);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -884,6 +960,7 @@ public partial class TopBarWindow : Window
         }
 
         ApplyStatusItemLayout();
+        NoteIslandBattery(apply: true);
     }
 
     private void ApplyVolume(VolumeSnapshot snapshot)
@@ -919,7 +996,10 @@ public partial class TopBarWindow : Window
     private void ApplySystemStats(SystemStatsSnapshot snapshot)
     {
         bool showGpuPerAdapter = _config.Current.TopBar?.ShowGpuPerAdapter != false;
-        SystemStatsText.Text = snapshot.DisplayText(showGpuPerAdapter);
+        string text = snapshot.DisplayText(showGpuPerAdapter);
+        SystemStatsText.Text = text;
+        Brush spark = TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue;
+        _statsHover?.Apply(snapshot, text, spark);
     }
 
     private void ApplySystemStatsVisibility()
@@ -964,9 +1044,11 @@ public partial class TopBarWindow : Window
             return snapshot.AppName;
         }
 
-        return string.IsNullOrEmpty(snapshot.Artist)
+        string text = string.IsNullOrEmpty(snapshot.Artist)
             ? snapshot.Title
             : $"{snapshot.Title} – {snapshot.Artist}";
+        string? clock = snapshot.TimelineText();
+        return clock is null ? text : $"{text} · {clock}";
     }
 
     private void ApplyStatusItemLayout()
@@ -1619,6 +1701,11 @@ public partial class TopBarWindow : Window
                 break;
 
             case NativeMethods.WM_WINDOWPOSCHANGED:
+                if (_pillParked)
+                {
+                    Dispatcher.BeginInvoke(PlaceShot, DispatcherPriority.Render);
+                }
+
                 if (_source is not null
                     && NativeMethods.GetWindowRect(_source.Handle, out RECT current)
                     && AppBarPlacement.ShouldNotifyShellWindowPosChanged(
