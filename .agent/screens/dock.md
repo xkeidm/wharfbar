@@ -3,9 +3,13 @@
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-Görev çubuğu (Windows 11) tarzı alt şerit. Plaka AppBar **değil** (ADR-001); `Topmost` overlay,
+Görev çubuğu (Windows 11) tarzı şerit. Varsayılan alt kenar. Ayarlardaki **Sol kenar**
+(`dock.position` = `left`) plakayı sol kenarda dik dizer, `ABE_LEFT` ile o kalınlıkta
+çalışma alanı ayırır ve oto-gizlemeyi sola kaydırır. Alt konumlar (`bottom-left` /
+`bottom-center` / `bottom-right`) yatay kalır. Plaka AppBar **değil** (ADR-001); `Topmost` overlay,
 fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
-hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir.
+hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir
+(`ABN_FULLSCREENAPP`, oto-gizle kapalıyken de — şerit topmost olduğu için videonun üstünde kalırdı).
 
 Auto-hide **kapalıyken** kardeş bir boyasız `ABE_BOTTOM` (`DockWorkAreaReservation`, ham
 pencere, alpha 0) plaka yüksekliğinde tam genişlik ayırır. Duvar kâğıdı durur. Büyütülmüş
@@ -25,11 +29,11 @@ Windows görev çubuğu düzeni: uygulama başına **bir** ikon
 ([spec §0 #10](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
 
 - **Sol — Pinned** — önce Windows görev çubuğunun `User Pinned\TaskBar` kısayolları,
-  **salt okunur**, kapalı pinler dahil, görev çubuğu sırasında (`Taskband\Favorites`;
+  kapalı pinler dahil, görev çubuğu sırasında (`Taskband\Favorites` yalnız okunur;
   ad blob'da yoksa dosya adı). Ardından `dock.items` içinde olup görev çubuğunda
   olmayanlar. Aynı hedef bir kez görünür. Uygulama çalışınca **aynı kutuda** kalır
   (`IsRunning`). Kapalı pinlerde kapsül yoktur. Sağda bir daha belirmez.
-  “Dock'a sabitle / kaldır” yalnız `dock.items` yazar; görev çubuğu klasörüne yazılmaz.
+  “Dock'a sabitle / kaldır” `dock.items` yazar ve hedef gerçek bir dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar. `Taskband` yazılmaz.
 - **Sağ — Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı (eşit adlarda
   pencere tutamacı). `showRunningApps == false` iken bu taraf hiç üretilmez; kapalı
   pinler solda kalır.
@@ -42,13 +46,23 @@ Windows görev çubuğu düzeni: uygulama başına **bir** ikon
 - Birden fazla pencere veya süreç tek kutuda kalır. `WindowCount` > 1 iken ikonun sağ
   üstünde sayı rozeti durur; tooltip `Ad (N)` olur. Çalışan kapsül değişmez: masaüstünde
   açık pencere varsa uzun accent çizgi, hepsi küçültülmüşse kısa nötr çizgi.
+  Rozet, çizgi ve küçük resim yalnız merkezi **bu** dock'un monitöründe olan pencereleri sayar
+  (ADR-014). Küçültülmüş pencerede merkez simge noktasından değil, geri yükleme
+  dikdörtgeninden (`rcNormalPosition`) okunur; yoksa sabitlenmemiş kutu kaybolurdu.
+  Cloak'lı küçültülmüş pencere çalışan kalır. Başka sanal masaüstünün cloak'ı sayılmaz.
+  Pin listesi her monitörde aynıdır.
+- **Launchpad** şeridin en solundadır. Glif dört yuvarlak karedir. Sol tık, ekranın ortasında kutuyu açar; kutu tarama bitmeden görünür, uygulamalar harf başlığı altında gelir. Arkada duvar kâğıdı görünür. Telefon bağlıysa kutunun sağında dikey panel açılır. Ekran fotoğrafı telefon çerçevesinin içindedir. Bildirim satırında uygulama ikonu vardır. Windows logosu menüyü açar. Kutunun alt şeridinde hesap çipi her zaman durur. Belgeler, İndirilenler, Resimler, Ayarlar, Widget, Eklenti ve Güç `launchpad.tools` ile seçilir; şeride sağ tık işaretli menüyü açar ve seçim hemen kaydolur. Düğme 40 DIP’tir, glif ortadadır; kart payı köşe kıvrımının dışında kalır.
+  Erişilemeyen `Programlar` bağlantısı atlanır. Widget ve eklenti galerisi kutunun altındadır. `dock.items` ve User Pinned
+  klasörüne yazılmaz.
+- **İndirilenler** pin grubunun hemen ardından, **Geri Dönüşüm Kutusu** şeridin en sağında
+  durur. İkisi de `dock.items` ve User Pinned klasörüne yazılmaz.
 
 Eşleşme (`PinMatches`): tam yol, büyük/küçük harf duyarsız (`\\?\` ve `\??\` önekleri
 soyulur); pin yolu bir AppUserModelId ise çalışan `Id` veya grubun diğer AUMID'leri;
 kayıt hâlâ `.lnk` ise çözülen hedef yol veya kısayolun AppUserModelId'si. Klasör pinleri
 `explorer.exe` ile birleşmez. Aynı dosya adını paylaşan iki farklı exe birleşmez
 (`System32` ile `SysWOW64` de ayrı tam yoldur). Farklı exe adları, ortak AppUserModelId
-veya süreç kimliği yoksa ayrı kalır. `User Pinned` **okunur, yazılmaz** (ADR-005, 2026-10-07).
+veya süreç kimliği yoksa ayrı kalır. `User Pinned` sabitlemede `.lnk` alır; `Taskband` yazılmaz (ADR-005).
 
 Şerit **tek parça** — bölümler arasında ayraç yok (macOS denemesi reddedildi,
 [spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
@@ -88,10 +102,14 @@ Hover ikonu büyütmez; canlı şerit ölçeği 1'dir. Dock'un ilk yerleşimi an
 | Aksiyon | Davranış |
 |---|---|
 | Sol tık | Öne getir / çalıştır; ikinci tık küçült (`WindowActivationService`) |
-| Sağ tık (ikon) | Aşağıdaki menü |
+| Sol tık (klasör / İndirilenler) | Dizin yığını flyout'u. Dosya `ShellExecuteW` (kayıtlı fiil). Klasör bir alt düzeye iner |
+| Sol tık (çöp) | `shell:RecycleBinFolder` |
+| Hover (çalışan uygulama) | O uygulamanın pencereleri, yan yana DWM küçük resim. Tıklama `TryActivate` |
+| Sağ tık (ikon) | Aşağıdaki menü. İndirilenler ve çöpte yalnız başlık + Aç |
 | Sağ tık (boş levha) | Arka plan: Mica / Transparent / Tint + opaklık (tint) |
 | Sürükle | Sabit öğeleri sırala; accent çizgi hedefi gösterir; tıklama bastırılır |
 | Bırakma | `.lnk/.exe/.bat/.cmd` ekler; yola göre tekilleştirir |
+| Bırakma (çöp) | `SHFileOperationW` `FO_DELETE` \| `FOF_ALLOWUNDO`. Reparse dizin reddedilir |
 
 Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan:
 
@@ -106,6 +124,23 @@ Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan
    (`MainWindowHandle != 0`) **ve** o süreç için **en az bir pencere** listede kaldıysa eklenir
    (`Section`'a göre değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır). Menü
    `MinimizedWindowsSource`'un önbelleğinden beslenir; UI thread'inde `EnumWindows` çağrılmaz.
+
+## Yüzey (ADR-014)
+
+Tek flyout (`SurfaceFlyout`): hover'da pencere küçük resimleri, klasör tıklanınca dizin
+yığını. İç içe `Popup` yok. DWM kaydı ayrılınca ve kapanışta düşer. Cloak'lı, küçültülmüş
+veya DWM'nin reddettiği pencerede başlık satırı kalır, siyah kare yok.
+
+İkonun altında ince ilerleme çubuğu, kabuğun görev çubuğu düğmesinde açtığı
+`RangeValue` / `ItemStatus` okumasını boyar (normal yüzde, indeterminate, paused, error).
+Okuma boşsa çubuk yoktur. Dikkat isteyen pencere ikonda ~1.6 sn accent nabız yapar;
+ikinci flaş süreyi baştan başlatır, aktivasyon bitirir. Konum oynamaz.
+
+Bir pencere küçülünce, yakalanan kare ~200 ms o ikona doğru ölçeklenir.
+`SystemParameters.ClientAreaAnimation` kapalıysa veya `PrintWindow` boşsa animasyon yok.
+Store uygulamasının logosu paket API'sinden gelir; dosya yoksa harf glifi.
+
+Canlı şerit ölçeği 1'dir. Hover `SetWindowPos` çağırmaz. Plaka AppBar değildir.
 
 ## Ayarlar
 

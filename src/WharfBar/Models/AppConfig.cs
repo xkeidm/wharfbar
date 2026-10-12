@@ -34,6 +34,8 @@ internal sealed class AppConfig
 
     public IslandConfig Island { get; set; } = new();
 
+    public LaunchpadConfig Launchpad { get; set; } = new();
+
     public List<PinnedApp> PinnedApps { get; set; } = [];
 
     public List<MonitorConfig> Monitors { get; set; } = [];
@@ -92,6 +94,9 @@ internal static class DockPositions
 
     internal const string BottomRight = "bottom-right";
 
+    /// <summary>Full-height left edge. The plate is vertical and reserves <c>ABE_LEFT</c>.</summary>
+    internal const string Left = "left";
+
     internal static string Normalize(string? position)
     {
         if (string.Equals(position, BottomLeft, StringComparison.OrdinalIgnoreCase))
@@ -104,8 +109,16 @@ internal static class DockPositions
             return BottomRight;
         }
 
+        if (string.Equals(position, Left, StringComparison.OrdinalIgnoreCase))
+        {
+            return Left;
+        }
+
         return BottomCenter;
     }
+
+    internal static bool IsLeft(string? position) =>
+        string.Equals(Normalize(position), Left, StringComparison.Ordinal);
 }
 
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
@@ -145,7 +158,7 @@ internal sealed class DockConfig
     /// </summary>
     public List<PinnedApp> Items { get; set; } = [];
 
-    /// <summary>Bottom anchor: <c>bottom-left</c>, <c>bottom-center</c>, or <c>bottom-right</c>.</summary>
+    /// <summary>Anchor: <c>bottom-left</c>, <c>bottom-center</c>, <c>bottom-right</c>, or <c>left</c>.</summary>
     public string Position { get; set; } = DockPositions.BottomCenter;
 
     /// <summary>Hover magnification ceiling; 1.0 disables magnification.</summary>
@@ -298,6 +311,24 @@ internal sealed class IslandConfig
     /// <summary>Çözülemeyen <c>MusicPresence</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
     internal const string DefaultMusicPresence = MusicPresencePersistent;
 
+    /// <summary>Boşta hap sabit <c>Pano</c> yazar.</summary>
+    internal const string IdleLabelClipboard = "clipboard";
+
+    /// <summary>Boşta hap son metin kaydının önizlemesini yazar.</summary>
+    internal const string IdleLabelLastClip = "lastClip";
+
+    /// <summary>Çözülemeyen <c>IdleLabel</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
+    internal const string DefaultIdleLabel = IdleLabelClipboard;
+
+    /// <summary>Düşük pil HUD eşiği. Aralık dışı yükleme buna döner.</summary>
+    internal const int DefaultLowBatteryPercent = 20;
+
+    /// <summary>Kabul edilen eşiğin alt sınırı.</summary>
+    internal const int MinLowBatteryPercent = 5;
+
+    /// <summary>Kabul edilen eşiğin üst sınırı.</summary>
+    internal const int MaxLowBatteryPercent = 50;
+
     public bool Enabled { get; set; } = DefaultEnabled;
 
     /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
@@ -314,6 +345,32 @@ internal sealed class IslandConfig
     /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
     /// </summary>
     public string MusicPresence { get; set; } = DefaultMusicPresence;
+
+    /// <summary>
+    /// Boşta hapta ne yazar: <c>clipboard</c> (varsayılan, "Pano") veya <c>lastClip</c>.
+    /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
+    /// </summary>
+    public string IdleLabel { get; set; } = DefaultIdleLabel;
+
+    /// <summary>
+    /// Pil sayacının eşiği (yüzde). Soft alan <c>lowBatteryPercent</c> —
+    /// <see cref="AppConfig.CurrentSchemaVersion"/> artmaz. Bilinmeyen veya 5–50 dışı
+    /// yükleme <see cref="DefaultLowBatteryPercent"/> olur; kullanıcının yazdığı değer
+    /// 5–50 aralığına sıkıştırılır.
+    /// </summary>
+    public int LowBatteryPercent { get; set; } = DefaultLowBatteryPercent;
+
+    /// <summary>Bars beside the track title while music is playing. Soft field.</summary>
+    public bool Visualizer { get; set; } = true;
+
+    /// <summary>Island notice when a paired Bluetooth device connects. Soft field.</summary>
+    public bool BluetoothNotice { get; set; } = true;
+
+    /// <summary>Live camera inside the pill. Off until the gallery enables it.</summary>
+    public bool CameraMirror { get; set; }
+
+    /// <summary>Desktop widgets currently placed: <c>clock</c>, <c>calendar</c>.</summary>
+    public List<string> OpenWidgets { get; set; } = [];
 }
 
 /// <summary>Pure static normalization helpers for <see cref="IslandConfig"/> (unit-tested).</summary>
@@ -344,4 +401,43 @@ internal static class IslandNormalizer
 
     internal static bool IsTransientMusic(string? value)
         => NormalizeMusicPresence(value) == IslandConfig.MusicPresenceTransient;
+
+    /// <summary>
+    /// Returns <see cref="IslandConfig.IdleLabelLastClip"/> or
+    /// <see cref="IslandConfig.DefaultIdleLabel"/>. Unknown text falls back to clipboard.
+    /// </summary>
+    internal static string NormalizeIdleLabel(string? value)
+    {
+        return string.Equals(value, IslandConfig.IdleLabelLastClip, StringComparison.OrdinalIgnoreCase)
+            ? IslandConfig.IdleLabelLastClip
+            : IslandConfig.DefaultIdleLabel;
+    }
+
+    internal static bool IsLastClipIdle(string? value)
+        => NormalizeIdleLabel(value) == IslandConfig.IdleLabelLastClip;
+
+    /// <summary>
+    /// Loaded config. Values inside 5–50 stay. Unknown or out of range becomes 20.
+    /// </summary>
+    internal static int NormalizeLowBatteryPercent(int value)
+        => value is >= IslandConfig.MinLowBatteryPercent and <= IslandConfig.MaxLowBatteryPercent
+            ? value
+            : IslandConfig.DefaultLowBatteryPercent;
+
+    /// <summary>A value the user just chose. Clamped into 5–50.</summary>
+    internal static int ClampLowBatteryPercent(int value)
+        => Math.Clamp(value, IslandConfig.MinLowBatteryPercent, IslandConfig.MaxLowBatteryPercent);
+}
+
+/// <summary>Which launchpad face opens from the Windows logo and the dock tile.</summary>
+internal sealed class LaunchpadConfig
+{
+    /// <summary><c>win11</c>, <c>mac</c>, or <c>win8</c>. See <see cref="Services.LaunchpadStyles"/>.</summary>
+    public string Style { get; set; } = LaunchpadStyles.Win11;
+
+    /// <summary>
+    /// Visible footer tool ids (<c>launchpad.tools</c>). A missing list means every default.
+    /// An empty list hides the strip. See <see cref="Services.LaunchpadTools"/>.
+    /// </summary>
+    public List<string> Tools { get; set; } = LaunchpadTools.DefaultIds.ToList();
 }

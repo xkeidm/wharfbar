@@ -278,10 +278,15 @@ internal sealed class ConfigService
         config.Veil.Opacity = VeilNormalizer.ClampOpacity(config.Veil.Opacity);
         config.Veil.Color = VeilNormalizer.NormalizeColor(config.Veil.Color);
         config.Island ??= new IslandConfig();
+        config.Launchpad ??= new LaunchpadConfig();
+        config.Launchpad.Style = LaunchpadStyles.Normalize(config.Launchpad.Style);
+        config.Launchpad.Tools = LaunchpadTools.Normalize(config.Launchpad.Tools);
         config.Island.Persistence = IslandNormalizer.NormalizePersistence(config.Island.Persistence);
         config.Island.RetentionDays = IslandNormalizer.ClampRetentionDays(config.Island.RetentionDays);
         config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
         config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
+        config.Island.IdleLabel = IslandNormalizer.NormalizeIdleLabel(config.Island.IdleLabel);
+        config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
