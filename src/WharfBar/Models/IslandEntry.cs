@@ -6,7 +6,10 @@ internal enum IslandEntryKind
     /// <summary>Panodan yakalanan metin.</summary>
     Text,
 
-    /// <summary>Island'a sürüklenip kopyalanan dosya.</summary>
+    /// <summary>
+    /// Island'a bırakılan dosya. Yeni kayıtlar orijinal yolu tutar; eski kayıtlarda
+    /// <c>Drop</c> kopyası da olabilir.
+    /// </summary>
     File,
 }
 
@@ -17,7 +20,10 @@ internal enum IslandEntryKind
 /// <param name="Id">Servis tarafından artan sayıcıdan verilir.</param>
 /// <param name="Kind">Kayıt türü.</param>
 /// <param name="Text">Görüntülenecek metin (dosyalarda dosya adı).</param>
-/// <param name="FilePath">Dosyanın <c>%AppData%\WharfBar\Drop</c> altındaki tam yolu.</param>
+/// <param name="FilePath">
+/// Dosyanın tam yolu. Yeni bırakmalar orijinal yolu tutar; eski kayıtlarda
+/// <c>%AppData%\WharfBar\Drop</c> altındaki kopya da olabilir.
+/// </param>
 /// <param name="CapturedAtUtc">Kaydın yakalandığı an (UTC).</param>
 /// <param name="SourceApp">Kaynağın süreç adı; dosya kayıtlarında boştur.</param>
 internal sealed record IslandEntry(

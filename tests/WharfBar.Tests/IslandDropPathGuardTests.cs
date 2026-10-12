@@ -1,5 +1,8 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Windows.Threading;
+using WharfBar.Models;
 using WharfBar.Services;
 using Xunit;
 
@@ -7,8 +10,10 @@ namespace WharfBar.Tests;
 
 /// <summary>
 /// Bırakma kopyası yollarının güvenlik sınırı. <c>island.json</c> elle düzenlenebildiği için
-/// <c>FilePath</c> güvenilmezdir; <c>Drop</c> dışındaki hiçbir yol silinmemeli veya
-/// çalıştırılmamalı. Testler gerçek dosya sistemi üzerinde çalışır, çünkü asıl tehlike
+/// <c>FilePath</c> güvenilmezdir; <c>Drop</c> dışındaki hiçbir yol silinmemelidir.
+/// Açma ayrı kapıdadır (<c>CanOpenShelfFile</c>): <c>Drop</c> öneki aranmaz, dizin,
+/// eksik yol, aygıt yolu ve junction kaçışı reddedilir. Testler gerçek dosya sistemi
+/// üzerinde çalışır, çünkü asıl tehlike
 /// (junction'ın Drop dışına taşıması) yalnız diskte görünür.
 /// </summary>
 public sealed class IslandDropPathGuardTests : IDisposable
@@ -166,6 +171,112 @@ public sealed class IslandDropPathGuardTests : IDisposable
     {
         string missing = Path.Combine(DropRoot, "yok", "a.txt");
         Assert.True(IslandService.AllDirectoryComponentsAreReal(Prefix, missing, out _));
+    }
+
+    [Fact]
+    public void CanOpenShelfFile_AcceptsRegularFile_RejectsDirectoryMissingAndDevice()
+    {
+        string file = WriteFile("raf.txt", "shelf");
+        string legacy = WriteFile(Path.Combine("Drop", "legacy.txt"), "old copy");
+        string directory = Path.Combine(_root, "bir-klasor");
+        Directory.CreateDirectory(directory);
+        string missing = Path.Combine(_root, "yok.txt");
+
+        WithIsland(service =>
+        {
+            Assert.True(service.CanOpenShelfFile(file));
+            Assert.False(IslandService.IsInsideDropPrefix(file, Prefix, out _));
+
+            // Eski Drop kopyası da normal dosyadır; açma Drop önekini şart koşmaz
+            // ama önekin içinde olmak da engel değildir.
+            Assert.True(service.CanOpenShelfFile(legacy));
+
+            Assert.False(service.CanOpenShelfFile(directory));
+            Assert.False(service.CanOpenShelfFile(missing));
+            Assert.False(service.CanOpenShelfFile(null));
+            Assert.False(service.CanOpenShelfFile(string.Empty));
+            Assert.False(service.CanOpenShelfFile("   "));
+            Assert.False(service.CanOpenShelfFile(@"\\.\NUL"));
+            Assert.False(service.CanOpenShelfFile("NUL"));
+
+            Assert.True(File.Exists(file));
+            Assert.True(Directory.Exists(directory));
+        });
+    }
+
+    /// <summary>
+    /// Junction ön ek testini geçer ama açma hedefi izler. Kapı bunu reddeder ve
+    /// hedef dosyaya dokunmaz.
+    /// </summary>
+    [Fact]
+    public void CanOpenShelfFile_RejectsJunctionEscape()
+    {
+        string outside = Path.Combine(_root, "OutsideOpen");
+        Directory.CreateDirectory(outside);
+        string victim = Path.Combine(outside, "tehlikeli.docx");
+        File.WriteAllText(victim, "important");
+
+        string link = Path.Combine(DropRoot, "baglanti-open");
+        Assert.True(CreateJunction(link, outside), "mklink /J başarısız — koruma test edilemiyor");
+
+        string throughLink = Path.Combine(link, "tehlikeli.docx");
+        Assert.True(File.Exists(throughLink), "junction hedefe ulaşmıyor");
+        Assert.True(IslandService.IsInsideDropPrefix(throughLink, Prefix, out _));
+
+        WithIsland(service =>
+        {
+            Assert.False(service.CanOpenShelfFile(throughLink));
+            Assert.False(service.CanOpenShelfFile(link));
+        });
+
+        Assert.True(File.Exists(victim));
+        Assert.Equal("important", File.ReadAllText(victim));
+    }
+
+    private void WithIsland(Action<IslandService> body)
+    {
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            IslandService? service = null;
+            try
+            {
+                service = new IslandService(
+                    Dispatcher.CurrentDispatcher,
+                    new IslandStore(_root),
+                    new IslandConfig
+                    {
+                        Enabled = false,
+                        Persistence = IslandConfig.PersistenceSession,
+                    });
+                body(service);
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+            finally
+            {
+                service?.Dispose();
+                try
+                {
+                    Dispatcher.CurrentDispatcher.InvokeShutdown();
+                }
+                catch (InvalidOperationException)
+                {
+                    // Dispatcher hiç kurulmadıysa kapatma da yoktur.
+                }
+            }
+        });
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.IsBackground = true;
+        thread.Start();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(20)), "STA test thread did not finish");
+        if (error is not null)
+        {
+            throw new Xunit.Sdk.XunitException(error.ToString());
+        }
     }
 
     /// <summary>Junction kurulumu yönetici yetkisi gerektirmez (mklink /J).</summary>

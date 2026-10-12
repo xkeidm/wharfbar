@@ -29,8 +29,10 @@ public partial class IslandPage : Page
         EnabledToggle.Unchecked += OnEnabledChanged;
         PersistenceCombo.SelectionChanged += OnPersistenceChanged;
         MusicPresenceCombo.SelectionChanged += OnMusicPresenceChanged;
+        IdleLabelCombo.SelectionChanged += OnIdleLabelChanged;
         RetentionBox.LostFocus += OnRetentionLostFocus;
         MaxItemsBox.LostFocus += OnMaxItemsLostFocus;
+        LowBatteryBox.LostFocus += OnLowBatteryLostFocus;
 
         _isLoading = false;
     }
@@ -68,6 +70,7 @@ public partial class IslandPage : Page
         EnabledToggle.IsChecked = island.Enabled;
         PersistenceCombo.SelectedIndex = IsPersistent(island.Persistence) ? 1 : 0;
         MusicPresenceCombo.SelectedIndex = IslandNormalizer.IsTransientMusic(island.MusicPresence) ? 1 : 0;
+        IdleLabelCombo.SelectedIndex = IslandNormalizer.IsLastClipIdle(island.IdleLabel) ? 1 : 0;
 
         // IslandNormalizer her zaman 1..3650 / 10..5000'e sıkıştırır; kutular da aynı değeri
         // gösterir (elle config.json'a yazılmış taşma değerler kullanıcıyı şaşırtmasın).
@@ -76,6 +79,9 @@ public partial class IslandPage : Page
             .ToString(CultureInfo.InvariantCulture);
         MaxItemsBox.Text = IslandNormalizer.ClampMaxItems(island.MaxItems)
             .ToString(CultureInfo.InvariantCulture);
+        int lowBattery = IslandNormalizer.NormalizeLowBatteryPercent(island.LowBatteryPercent);
+        LowBatteryBox.Text = lowBattery.ToString(CultureInfo.InvariantCulture);
+        LowBatteryValueText.Text = lowBattery.ToString(CultureInfo.InvariantCulture);
         _syncingLimits = false;
 
         UpdateLimitsEnabled();
@@ -122,6 +128,19 @@ public partial class IslandPage : Page
         SaveAndApply();
     }
 
+    private void OnIdleLabelChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading || IdleLabelCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        Cfg.Island.IdleLabel = IdleLabelCombo.SelectedIndex == 1
+            ? IslandConfig.IdleLabelLastClip
+            : IslandConfig.IdleLabelClipboard;
+        SaveAndApply();
+    }
+
     private void OnRetentionLostFocus(object sender, RoutedEventArgs e)
     {
         if (_isLoading || _syncingLimits)
@@ -160,6 +179,30 @@ public partial class IslandPage : Page
     private const string RetentionRangeText = "1–3650";
 
     private const string MaxItemsRangeText = "10–5000";
+
+    private const string LowBatteryRangeText = "5–50";
+
+    private void OnLowBatteryLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading || _syncingLimits)
+        {
+            return;
+        }
+
+        if (!int.TryParse(LowBatteryBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
+        {
+            LowBatteryErrorText.Text = $"{LowBatteryRangeText} aralığında bir tam sayı girin.";
+            LowBatteryErrorText.Visibility = Visibility.Visible;
+            return;
+        }
+
+        int percent = IslandNormalizer.ClampLowBatteryPercent(parsed);
+        LowBatteryErrorText.Visibility = Visibility.Collapsed;
+        LowBatteryBox.Text = percent.ToString(CultureInfo.InvariantCulture);
+        LowBatteryValueText.Text = percent.ToString(CultureInfo.InvariantCulture);
+        Cfg.Island.LowBatteryPercent = percent;
+        SaveAndApply();
+    }
 
     private bool TryCommitLimit(TextBox box, Func<int, int> clamp, string rangeText, out int value)
     {

@@ -66,6 +66,35 @@ public class IslandConfigTests
         Assert.Equal(30, config.RetentionDays);
         Assert.Equal(200, config.MaxItems);
         Assert.Equal("persistent", config.MusicPresence);
+        Assert.Equal("clipboard", config.IdleLabel);
+        Assert.Equal(20, config.LowBatteryPercent);
+        Assert.Equal(20, IslandConfig.DefaultLowBatteryPercent);
+    }
+
+    [Theory]
+    [InlineData(5, 5)]
+    [InlineData(20, 20)]
+    [InlineData(50, 50)]
+    [InlineData(4, 20)]
+    [InlineData(51, 20)]
+    [InlineData(0, 20)]
+    [InlineData(-1, 20)]
+    [InlineData(100, 20)]
+    public void NormalizeLowBatteryPercent_OutOfRangeBecomesDefault(int input, int expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizeLowBatteryPercent(input));
+    }
+
+    [Theory]
+    [InlineData(3, 5)]
+    [InlineData(5, 5)]
+    [InlineData(20, 20)]
+    [InlineData(50, 50)]
+    [InlineData(80, 50)]
+    [InlineData(0, 5)]
+    public void ClampLowBatteryPercent_StaysInAcceptedRange(int input, int expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.ClampLowBatteryPercent(input));
     }
 
     [Theory]
@@ -80,5 +109,20 @@ public class IslandConfigTests
     public void NormalizeMusicPresence_FallsBackToPersistent(string? input, string expected)
     {
         Assert.Equal(expected, IslandNormalizer.NormalizeMusicPresence(input));
+    }
+
+    [Theory]
+    [InlineData("clipboard", "clipboard")]
+    [InlineData("Clipboard", "clipboard")]
+    [InlineData("lastClip", "lastClip")]
+    [InlineData("LastClip", "lastClip")]
+    [InlineData("LASTCLIP", "lastClip")]
+    [InlineData(null, "clipboard")]
+    [InlineData("", "clipboard")]
+    [InlineData("pano", "clipboard")]
+    [InlineData("persistent", "clipboard")]
+    public void NormalizeIdleLabel_FallsBackToClipboard(string? input, string expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizeIdleLabel(input));
     }
 }

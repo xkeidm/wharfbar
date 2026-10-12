@@ -1,6 +1,6 @@
 # ADR-011: Ada — şimdi çalıyor, ses/parlaklık HUD, tek popup
 
-**Durum:** Kabul edildi (2026-10-07)
+**Durum:** Kabul edildi (2026-10-07). [ADR-012](012-island-multi-face.md) chip yüzlerini, ikincil monitör HUD'unu ve bırakma rafını genişletir; aşağıdaki karar tablosu olduğu gibi durur.
 **İlişki:** [ADR-010](010-island-clipboard-drop.md) formunu korur. Bu karar kompakt göstergeyi ve paneli genişletir.
 
 ## Karar

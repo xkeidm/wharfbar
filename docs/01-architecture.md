@@ -471,6 +471,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `island.retentionDays` | Persistent modda kaç gün geriye bakılır; yüklemede `ClampRetentionDays` ile 1–3650 (varsayılan **30**). Oturumluk modda yok sayılır (ADR-010) |
 | `island.maxItems` | Kayıt sayısı sert tavanı (gün limitinden bağımsız); yüklemede `ClampMaxItems` ile 10–5000 (varsayılan **200**). Panel ayrıca en fazla 200 satır kurar (`IslandFlyout.MaxRenderedRows`); fazlası "N kayıt daha var (arama ile daralt)" notuyla bildirilir (ADR-010) |
 | `island.musicPresence` | `"persistent"` (varsayılan) \| `"transient"`. Müzik hapta nasıl durur (ADR-011). Soft string; `IslandNormalizer.NormalizeMusicPresence`, çözülemeyen → `persistent`. `schemaVersion` artmaz |
+| `island.idleLabel` | `"clipboard"` (varsayılan, hap **Pano**) \| `"lastClip"` (son metin önizlemesi). Soft string; `IslandNormalizer.NormalizeIdleLabel`, çözülemeyen → `clipboard`. `schemaVersion` artmaz (ADR-012) |
 | `pinnedApps` | **Legacy.** Yalnızca `ConfigService.MigrateDockItems` tarafından, `dock.items` boşken bir kez okunur ve sonra **boşaltılır**. Canlı görev çubuğu `.lnk` taraması 2026-10-04'te kaldırıldı (ADR-005 revizyonu) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik

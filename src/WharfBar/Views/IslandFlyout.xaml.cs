@@ -34,11 +34,15 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Pano metni kaydı.</summary>
     internal const string TextGlyph = "\u2261";
 
+    private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
+
     private IslandService? _service;
     private MediaSessionService? _media;
     private readonly List<IslandEntry> _rows = [];
     private int _selectedIndex = -1;
     private int _bodySwapId;
+    private DispatcherTimer? _timelineTimer;
+    private bool _timelineArmed;
 
     internal event EventHandler? ClipboardRequested;
 
@@ -92,12 +96,19 @@ public sealed partial class IslandFlyout : UserControl
 
     internal void DetachMedia()
     {
+        StopTimelinePoll();
         if (_media is not null)
         {
             _media.Changed -= OnMediaSnapshotChanged;
             _media.SessionsChanged -= OnMediaSnapshotChanged;
             _media = null;
         }
+    }
+
+    /// <summary>İkincil monitörde pano düğmesi yok; liste de bağlanmaz.</summary>
+    internal void SetClipboardChrome(bool available)
+    {
+        ClipboardAffordance.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -141,6 +152,7 @@ public sealed partial class IslandFlyout : UserControl
 
         ApplyMusic();
         RevealBody(MusicBody, ClipboardBody, crossfade);
+        ArmTimelinePoll();
         if (!focus)
         {
             return;
@@ -154,6 +166,7 @@ public sealed partial class IslandFlyout : UserControl
     internal void PresentClipboard(bool showBack, bool focus = true, bool crossfade = false)
     {
         ApplySurface();
+        StopTimelinePoll();
         BackToMusicButton.Visibility = showBack ? Visibility.Visible : Visibility.Collapsed;
         SearchBox.Clear();
         _selectedIndex = 0;
@@ -190,7 +203,8 @@ public sealed partial class IslandFlyout : UserControl
     {
         bool swap = crossfade
             && hide.Visibility == Visibility.Visible
-            && show.Visibility != Visibility.Visible;
+            && show.Visibility != Visibility.Visible
+            && SystemParameters.ClientAreaAnimation;
         if (!swap)
         {
             _bodySwapId++;
@@ -276,6 +290,7 @@ public sealed partial class IslandFlyout : UserControl
             MusicArtist.Text = string.Empty;
             MusicArt.Visibility = Visibility.Collapsed;
             MusicPlaceholder.Visibility = Visibility.Visible;
+            MusicTimeline.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -295,6 +310,91 @@ public sealed partial class IslandFlyout : UserControl
             MusicArt.Visibility = Visibility.Collapsed;
             MusicPlaceholder.Visibility = Visibility.Visible;
         }
+
+        ApplyTimeline(snapshot);
+    }
+
+    private bool _writingSeek;
+
+    /// <summary>
+    /// Çubuk yalnız SMTC konum ve süre verdiğinde. Kaydırıcı ayrıca <see cref="MediaSnapshot.CanSeek"/> ister.
+    /// Sayılar süre metnidir, yüzde değil.
+    /// </summary>
+    private void ApplyTimeline(MediaSnapshot snapshot)
+    {
+        string? clock = snapshot.TimelineText();
+        if (clock is null || snapshot.Position is not TimeSpan position || snapshot.Duration is not TimeSpan duration
+            || duration <= TimeSpan.Zero)
+        {
+            MusicTimeline.Visibility = Visibility.Collapsed;
+            MusicSeek.Visibility = Visibility.Collapsed;
+            MusicProgressTrack.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        MusicTime.Text = clock;
+        System.Windows.Automation.AutomationProperties.SetName(MusicTime, clock);
+        MusicTimeline.Visibility = Visibility.Visible;
+
+        if (snapshot.CanSeek)
+        {
+            MusicProgressTrack.Visibility = Visibility.Collapsed;
+            MusicSeek.Visibility = Visibility.Visible;
+            MusicSeek.Maximum = duration.TotalMilliseconds;
+            if (!MusicSeek.IsMouseCaptureWithin)
+            {
+                _writingSeek = true;
+                MusicSeek.Value = Math.Clamp(position.TotalMilliseconds, 0, duration.TotalMilliseconds);
+                _writingSeek = false;
+            }
+
+            return;
+        }
+
+        MusicSeek.Visibility = Visibility.Collapsed;
+        MusicProgressTrack.Visibility = Visibility.Visible;
+        double ratio = Math.Clamp(position.TotalMilliseconds / duration.TotalMilliseconds, 0, 1);
+        MusicProgressDone.Width = new GridLength(ratio, GridUnitType.Star);
+        MusicProgressRest.Width = new GridLength(Math.Max(0, 1 - ratio), GridUnitType.Star);
+    }
+
+    private void OnSeekPointerUp(object sender, MouseButtonEventArgs e) => CommitSeek();
+
+    private void CommitSeek()
+    {
+        if (_writingSeek || MusicSeek.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        _media?.TrySeek(TimeSpan.FromMilliseconds(MusicSeek.Value));
+    }
+
+    private void ArmTimelinePoll()
+    {
+        _timelineArmed = true;
+        _media?.RefreshTimeline();
+        _timelineTimer ??= new DispatcherTimer { Interval = TimelinePollInterval };
+        _timelineTimer.Tick -= OnTimelineTick;
+        _timelineTimer.Tick += OnTimelineTick;
+        _timelineTimer.Start();
+    }
+
+    private void StopTimelinePoll()
+    {
+        _timelineArmed = false;
+        _timelineTimer?.Stop();
+    }
+
+    private void OnTimelineTick(object? sender, EventArgs e)
+    {
+        if (!_timelineArmed || MusicBody.Visibility != Visibility.Visible)
+        {
+            StopTimelinePoll();
+            return;
+        }
+
+        _media?.RefreshTimeline();
     }
 
     private void OnClipboardAffordanceClick(object sender, RoutedEventArgs e)
@@ -317,7 +417,11 @@ public sealed partial class IslandFlyout : UserControl
     /// Panel kapandı. Canlı abonelik bırakılır: gizliyken her kopyalamada listeyi yeniden
     /// kurmak, kayıtlı bir AppBar olan üst bar için bedava iş değildir.
     /// </summary>
-    internal void OnPanelClosed() => Detach();
+    internal void OnPanelClosed()
+    {
+        StopTimelinePoll();
+        Detach();
+    }
 
     /// <summary>
     /// <see cref="IslandService.Changed"/> yalnızca UI dispatcher'ında yükselir
@@ -522,14 +626,13 @@ public sealed partial class IslandFlyout : UserControl
     /// Bırakılan kopyayı varsayılan uygulamayla açar; dosya silinmez.
     /// </summary>
     /// <remarks>
-    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir — aynı sebepten
-    /// silme yolu <c>Drop</c> sınırını zorunlu tutuyor. Doğrulamadan çalıştırmak iki ayrı
-    /// güvenlik sınırı bırakırdı: elle düzenlenmiş bir kayıt, kullanıcının hiç bırakmadığı
-    /// bir dosyayı varsayılan uygulamasında açabilirdi.
+    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir. Silme hâlâ
+    /// <c>Drop</c> önekini zorunlu tutar. Açma <see cref="IslandService.CanOpenShelfFile"/>
+    /// kapısından geçer: raf yolu kopyalamadan durabilir, dizin ve kaçış yolları reddedilir.
     /// </remarks>
     private void OpenFile(string? path)
     {
-        if (_service is null || !_service.IsInsideDropRoot(path))
+        if (_service is null || !_service.CanOpenShelfFile(path))
         {
             if (path is not null)
             {
@@ -561,9 +664,22 @@ public sealed partial class IslandFlyout : UserControl
     /// <returns>Tüketilen tuş için <c>true</c> (çağıran <c>e.Handled</c> yapar).</returns>
     internal bool HandleNavigationKey(Key key)
     {
-        if (MusicBody.Visibility == Visibility.Visible)
+        // Arama kutusu odaktayken oklar metin imlecinde kalır. Müzik gövdesinde sol/sağ parça değiştirir.
+        if (!SearchBox.IsKeyboardFocused
+            && MusicBody.Visibility == Visibility.Visible
+            && ClipboardBody.Visibility != Visibility.Visible)
         {
-            return false;
+            switch (key)
+            {
+                case Key.Left:
+                    _media?.Previous();
+                    return true;
+                case Key.Right:
+                    _media?.Next();
+                    return true;
+                default:
+                    return false;
+            }
         }
 
         switch (key)

@@ -24,13 +24,14 @@ namespace WharfBar.Services;
 /// düşürürdü.</para>
 /// <para><b>Thread kuralı:</b> kurucu ve <see cref="Dispose"/> UI thread'inde çağrılmalıdır
 /// (mesaj-only <c>HwndSource</c> ve pano dinleyicisi bunu gerektirir).</para>
-/// <para><b>Dosya I/O'su UI thread'inde değil:</b> bırakılan dosyaların kopyalanması
-/// (<see cref="AddDroppedFiles"/>) ve düşen kayıtların kopyalarının silinmesi STA worker'da
-/// olur; <c>island.json</c>'un serileştirilip diske yazılması da STA worker'a verilir (snapshot
-/// UI thread'inde alınır). Üst bar kayıtlı bir AppBar olduğu için UI thread'inde yapılan büyük
-/// bir kopyalama, silme ya da ~13 MB'lık bir JSON yazma tüm masaüstünü dondurur. Tek istisna
-/// <see cref="Dispose"/>'daki son yazma: senkron kalır, çünkü kuyruğa atmak son kopyalamayı
-/// süreç sonuyla yarıştırıp sessizce düşürüyordu.</para>
+/// <para><b>Dosya I/O'su UI thread'inde değil:</b> <c>Drop</c> altında kalan eski kopyaların
+/// silinmesi STA worker'da olur; <c>island.json</c>'un serileştirilip diske yazılması da
+/// STA worker'a verilir (snapshot UI thread'inde alınır). Üst bar kayıtlı bir AppBar olduğu
+/// için UI thread'inde yapılan büyük bir silme ya da ~13 MB'lık bir JSON yazma tüm
+/// masaüstünü dondurur. Yeni bırakmalar kopyalanmaz (<see cref="AddDroppedFiles"/> orijinal
+/// yolu kaydeder, <c>Drop</c> klasörü açılmaz); kopyalama I/O'su olmadığı için bu iş STA
+/// worker'a atlanmaz. Tek istisna <see cref="Dispose"/>'daki son yazma: senkron kalır,
+/// çünkü kuyruğa atmak son yazmayı süreç sonuyla yarıştırıp sessizce düşürüyordu.</para>
 /// </remarks>
 internal sealed class IslandService : IDisposable
 {
@@ -422,7 +423,21 @@ internal sealed class IslandService : IDisposable
         ApplySnapshot(merged, entry, raiseEntryAdded: true);
     }
 
-    /// <summary>UI thread'inde çağrılır.</summary>
+    /// <summary>
+    /// UI thread'inde çağrılır. Bırakılan dosyayı <c>Drop</c> klasörüne kopyalamaz;
+    /// <see cref="IslandEntryKind.File"/> kaydının <see cref="IslandEntry.FilePath"/>'i
+    /// orijinal tam yoldur, <see cref="IslandEntry.Text"/> dosya adıdır. <c>Drop</c>
+    /// klasörü bu yüzden oluşturulmaz. Dizinler ve olmayan yollar
+    /// <see cref="File.Exists"/> ile elenir. Birden fazla dosya
+    /// <see cref="MergeDroppedFiles"/> ile birleşir; "eklendi" bildirimi yalnız son
+    /// kayıt içindir.
+    /// </summary>
+    /// <remarks>
+    /// Kopyalama kalkınca STA worker'a atlamak için bir dosya I/O'su kalmadı
+    /// (<c>File.Exists</c> metadata kontrolüdür). İş çağıranın thread'inde, yani UI
+    /// dispatcher'ında biter. UI dışında çağrılırsa kayıt listesi orada yazılmasın diye
+    /// iş UI'ya devredilir — zaman çizelgesi sözleşmesi değişmez.
+    /// </remarks>
     internal void AddDroppedFiles(IReadOnlyList<string> sourcePaths)
     {
         if (_disposed || sourcePaths.Count == 0)
@@ -430,53 +445,57 @@ internal sealed class IslandService : IDisposable
             return;
         }
 
-        // Dosya kopyalama isi STA worker'a devredilir: ust bar kayitli bir AppBar oldugu icin
-        // buyuk bir surukleme tum masaustunu dondururdu. Yalnizca Commit UI'da calisir.
-        Dispatcher? sta = _staDispatcher;
-        if (sta is null || !CanPostToUi)
+        if (!_dispatcher.CheckAccess())
         {
+            if (!CanPostToUi)
+            {
+                return;
+            }
+
+            _ = _dispatcher.BeginInvoke(() => AddDroppedFiles(sourcePaths), DispatcherPriority.Background);
             return;
         }
 
-        _ = sta.BeginInvoke(() => CopyDroppedFiles(sourcePaths), DispatcherPriority.Background);
-    }
-
-    /// <summary>STA worker'da çalışır: kayıtları kopyalar, birleştirmeyi UI'ya devreder.</summary>
-    private void CopyDroppedFiles(IReadOnlyList<string> sourcePaths)
-    {
         List<IslandEntry> added = [];
         foreach (string source in sourcePaths)
         {
-            if (!File.Exists(source))
+            if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
             {
                 continue;
             }
 
+            string full;
             try
             {
-                Directory.CreateDirectory(_store.DropRoot);
-                string target = UniqueDropPath(Path.GetFileName(source));
-                File.Copy(source, target, overwrite: false);
-                added.Add(new IslandEntry(
-                    Interlocked.Increment(ref _nextId),
-                    IslandEntryKind.File,
-                    Path.GetFileName(target),
-                    target,
-                    DateTime.UtcNow,
-                    null));
+                full = Path.GetFullPath(source);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
             {
-                Debug.WriteLine($"[WharfBar] island drop copy failed for {source}: {ex.Message}");
+                Debug.WriteLine($"[WharfBar] island drop path invalid: {source} ({ex.Message})");
+                continue;
             }
+
+            string name = Path.GetFileName(full);
+            if (name.Length == 0)
+            {
+                continue;
+            }
+
+            added.Add(new IslandEntry(
+                Interlocked.Increment(ref _nextId),
+                IslandEntryKind.File,
+                name,
+                full,
+                DateTime.UtcNow,
+                null));
         }
 
-        if (added.Count == 0 || _disposed || !CanPostToUi)
+        if (added.Count == 0)
         {
             return;
         }
 
-        _ = _dispatcher.BeginInvoke(() => MergeDroppedFiles(added), DispatcherPriority.Background);
+        MergeDroppedFiles(added);
     }
 
     /// <summary>UI thread'inde çalışır.</summary>
@@ -494,19 +513,6 @@ internal sealed class IslandService : IDisposable
 
         // Yalnızca sonuncusu "eklendi" sayılır: tek bildirim, tek nabız.
         ApplySnapshot(merged, last, raiseEntryAdded: true);
-    }
-
-    private string UniqueDropPath(string fileName)
-    {
-        string candidate = Path.Combine(_store.DropRoot, fileName);
-        int suffix = 1;
-        while (File.Exists(candidate))
-        {
-            candidate = Path.Combine(_store.DropRoot, IslandPruner.BuildDropFileName(fileName, suffix));
-            suffix++;
-        }
-
-        return candidate;
     }
 
     /// <summary>UI thread'inde çağrılır. Metni panoya yazar (yapıştırma yapılmaz).</summary>
@@ -553,19 +559,22 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// UI thread'inde çağrılır. Tüm kayıtları listeden düşürür ama bırakılan dosyaların
-    /// <b>kopyalarını silmez</b>: ayarlarda "Bırakılan dosyaları sil" ile "Tüm geçmişi
-    /// temizle" iki ayrı butondur ve dosyaları yalnız ilki siler. Önceki davranışta
+    /// UI thread'inde çağrılır. Tüm kayıtları listeden düşürür ama dosyaları silmez:
+    /// rafın orijinal yolu da, <c>Drop</c> altındaki eski kopya da diskte kalır.
+    /// Ayarlarda "Bırakılan dosyaları sil" ile "Tüm geçmişi temizle" iki ayrı butondur
+    /// ve <c>Drop</c> altındaki kopyaları yalnız ilki siler. Önceki davranışta
     /// "geçmişi temizle" diyen kullanıcı dosya kopyalarını haberi olmadan kaybediyordu
     /// ve iki buton gereksiz bir tekrar oluyordu. Kopyaların diskte kalması geri
     /// alınamaz veri kaybı değildir; <see cref="DeleteDroppedFiles"/> onları temizler.
+    /// <c>Drop</c> dışındaki bir raf dosyası bu eylemle de silinmez.
     /// </summary>
     internal void Clear() =>
         ApplySnapshot([], null, raiseEntryAdded: false, deleteDroppedFiles: false);
 
     /// <summary>
     /// UI thread'inde çağrılır. <c>Drop</c> klasörünü <b>tümüyle</b> boşaltır (alt klasörler
-    /// dâhil) ve dosya kayıtlarını listeden düşürür; panoya dokunmaz.
+    /// dâhil) ve dosya kayıtlarını listeden düşürür; panoya dokunmaz. Raf kaydı
+    /// <c>Drop</c> dışındaysa yalnız listeden çıkar — orijinal dosya silinmez.
     /// </summary>
     /// <remarks>
     /// <para><b>Klasör taranır, <c>_entries</c> taranmaz.</b> <see cref="Clear"/> dosya
@@ -573,7 +582,8 @@ internal sealed class IslandService : IDisposable
     /// liste boşalır — yalnız listeye bakan bir temizlik o andan sonra hiçbir şey silmeden
     /// çıkar, yani ayar sayfasındaki buton sessizce işlevsiz kalır. Aynı sebeple tek listeden
     /// hesaplanamayan yetimler de (MaxItems/retention budamasıyla düşenler dâhil) kapsanır;
-    /// kayıt–dosya eşleşmesi kurmaya gerek kalmaz.</para>
+    /// kayıt–dosya eşleşmesi kurmaya gerek kalmaz. Tarama <c>Drop</c> kökünün dışına çıkmaz:
+    /// rafın orijinal yolu bu klasörde değilse dosya durur.</para>
     /// <para>Silme STA worker'da olur (sınıf kuralı: dosya I/O'su UI thread'inde olmaz);
     /// kayıtların listeden düşürülmesi ise <c>_entries</c> UI-only olduğu için çağıranın
     /// thread'inde olur. Sıralama önemsiz: kaydın düşürülmesi kopyanın silinmesinden bağımsız,
@@ -659,8 +669,9 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Verilen kayıtların bırakma kopyalarını <c>Drop</c> klasöründen siler. Kayıt listeden
-    /// çıktığı anda kopyası da silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
+    /// Verilen kayıtların <c>Drop</c> altındaki eski kopyalarını siler. Raf kaydının yolu
+    /// <c>Drop</c> dışındaysa dosyaya dokunulmaz; kayıt zaten listeden düşmüştür. Eski kopya
+    /// listeden çıktığı anda silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
     /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır. Bu yol
     /// yalnızca kayıt yoluyla ilgili — <see cref="DeleteDroppedFiles"/> klasörün tamamını tarar.
     /// </summary>
@@ -706,12 +717,10 @@ internal sealed class IslandService : IDisposable
 
     /// <summary>
     /// Bir kayıt yolunun <c>Drop</c> kökü altında olduğunu doğrular ve tam yolünü verir.
-    /// <b>Silme ve açma yolları aynı sınırı kullanır</b>: kayıt <c>FilePath</c>'i diskin kendisinden
-    /// geldiği için güvenilmezdir (<c>island.json</c> elle düzenlenebilir,
-    /// <c>IslandStore.TryReadEntry</c> DropRoot kontrolü yapmaz). Silmede sınırın olmaması
-    /// Drop dışındaki bir dosyayı geri dönüşsüz siler; açmada olmaması o dosyayı
-    /// varsayılan uygulamada açar. İkisi de aynı girdiden beslendiği için iki ayrı kural
-    /// tutarsız olurdu.
+    /// <b>Silme sınırı</b>: kayıt <c>FilePath</c>'i diskin kendisinden geldiği için güvenilmezdir
+    /// (<c>island.json</c> elle düzenlenebilir, <c>IslandStore.TryReadEntry</c> DropRoot kontrolü
+    /// yapmaz). Sınırın olmaması Drop dışındaki bir dosyayı geri dönüşsüz siler. Açma bu ön eki
+    /// kullanmaz — raf orijinal yolu tutar; açma kapısı <see cref="CanOpenShelfFile"/>'dır.
     /// </summary>
     internal bool TryResolveInsideDrop(string? path, out string full)
     {
@@ -725,10 +734,184 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Kayıt yolu <c>Drop</c> altında mı? Açma yolunun sınırı — silme yolununkiyle aynı kural
-    /// (<see cref="TryResolveInsideDrop"/>), çünkü ikisi de aynı güvenilmeyen girdiyi paylaşıyor.
+    /// Kayıt yolu <c>Drop</c> altında mı? Silme yolunun sınırı
+    /// (<see cref="TryResolveInsideDrop"/>). Açma için <see cref="CanOpenShelfFile"/>.
     /// </summary>
     internal bool IsInsideDropRoot(string? path) => TryResolveInsideDrop(path, out _);
+
+    /// <summary>
+    /// Raf dosyası varsayılan uygulamayla açılabilir mi? <c>island.json</c> güvenilmezdir;
+    /// açmaya yalnız bu kapı izin verir. <c>Drop</c> öneki aranmaz. Yol mevcut normal bir
+    /// dosya olmalıdır: <see langword="null"/>, boş, dizin, aygıt yolu ve dizin
+    /// reparse/junction kaçışı reddedilir. Hiçbir şey çalıştırılmaz.
+    /// </summary>
+    internal bool CanOpenShelfFile(string? path)
+    {
+        if (!TryNormalizeOpenablePath(path, out string full))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Dizin (junction dahil) dosya değildir. File.Exists dizinlerde false döner;
+            // ikisi de fail-closed.
+            if (Directory.Exists(full) || !File.Exists(full))
+            {
+                return false;
+            }
+
+            if ((File.GetAttributes(full) & FileAttributes.Directory) != 0)
+            {
+                return false;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            Debug.WriteLine($"[WharfBar] island open skipped, unreadable: {full} ({ex.Message})");
+            return false;
+        }
+
+        if (!TryGetVolumePrefix(full, out string volumePrefix))
+        {
+            return false;
+        }
+
+        // Silme guard'ıyla aynı sınıf: yol üzerindeki her dizin bileşeni gerçek olmalı.
+        // Dosyanın kendisi bileşen sayılmaz (bulut yer tutucusu reparse noktası olabilir).
+        // Drop öneki yok — kök, sürücü veya UNC paylaşımıdır.
+        if (!AllDirectoryComponentsAreReal(volumePrefix, full, out string? reparseDir))
+        {
+            Debug.WriteLine(
+                $"[WharfBar] island open skipped, unsafe path component " +
+                $"({reparseDir ?? "unreadable"}): {full}");
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// Açılacak yolu tam yola çevirir. Aygıt ad alanı (<c>\\.\</c>, <c>\\?\</c> çözülmeden
+    /// kalanlar) ve ayrılmış DOS aygıt adları (<c>NUL</c>, <c>CON</c>, <c>COM1</c> …) reddedilir.
+    /// </summary>
+    private static bool TryNormalizeOpenablePath(string? path, out string full)
+    {
+        full = string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            full = Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            Debug.WriteLine($"[WharfBar] island open path invalid: {path} ({ex.Message})");
+            return false;
+        }
+
+        // \\.\ aygıt ad alanıdır (NUL, PhysicalDrive). \\?\ geniş yol öneki GetFullPath
+        // ile normal bir dosyaya çözülebilir; çözülmeden kalırsa aşağıdaki kontrol reddeder.
+        if (IsWin32DeviceNamespace(path) || IsWin32DevicePath(full) || ContainsReservedDeviceName(full))
+        {
+            Debug.WriteLine($"[WharfBar] island open skipped, device path: {path}");
+            full = string.Empty;
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// <see cref="AllDirectoryComponentsAreReal"/> için ayırıcı eklenmiş birim kökü.
+    /// <c>C:\</c> veya <c>\\sunucu\paylaşım\</c>. Aygıt kökü kabul edilmez.
+    /// </summary>
+    private static bool TryGetVolumePrefix(string full, out string prefix)
+    {
+        prefix = string.Empty;
+        string? root = Path.GetPathRoot(full);
+        if (string.IsNullOrEmpty(root) || IsWin32DevicePath(root) || IsWin32DevicePath(full))
+        {
+            return false;
+        }
+
+        prefix = root.EndsWith(Path.DirectorySeparatorChar) || root.EndsWith(Path.AltDirectorySeparatorChar)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        return true;
+    }
+
+    /// <summary><c>\\.\</c> aygıt ad alanı. Geniş yol öneki <c>\\?\</c> buna girmez.</summary>
+    private static bool IsWin32DeviceNamespace(string path) =>
+        path.StartsWith(@"\\.\", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("//./", StringComparison.Ordinal);
+
+    private static bool IsWin32DevicePath(string path) =>
+        IsWin32DeviceNamespace(path)
+        || path.StartsWith(@"\\?\", StringComparison.OrdinalIgnoreCase)
+        || path.StartsWith("//?/", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Yol parçalarından biri ayrılmış DOS aygıt adı mı (<c>NUL</c>, <c>CON</c>, <c>COM1</c>–<c>COM9</c>,
+    /// <c>LPT1</c>–<c>LPT9</c>, uzantılı biçimler dahil)?
+    /// </summary>
+    private static bool ContainsReservedDeviceName(string path)
+    {
+        foreach (string segment in path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+        {
+            if (IsReservedDeviceName(segment))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsReservedDeviceName(string segment)
+    {
+        if (segment.Length == 0)
+        {
+            return false;
+        }
+
+        string name = segment;
+        int colon = name.IndexOf(':');
+        if (colon >= 0)
+        {
+            name = name[..colon];
+        }
+
+        int dot = name.IndexOf('.');
+        if (dot >= 0)
+        {
+            name = name[..dot];
+        }
+
+        if (name.Equals("CON", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("PRN", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("AUX", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("NUL", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (name.Length != 4)
+        {
+            return false;
+        }
+
+        if (!name.StartsWith("COM", StringComparison.OrdinalIgnoreCase)
+            && !name.StartsWith("LPT", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return name[3] is >= '1' and <= '9';
+    }
 
     /// <summary>
     /// Yalnız sınır kontrolü: servis/mağaza olmadan test edilebilir saf kısım.

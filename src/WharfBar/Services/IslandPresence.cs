@@ -1,3 +1,5 @@
+using WharfBar.Models;
+
 namespace WharfBar.Services;
 
 /// <summary>
@@ -17,6 +19,30 @@ internal enum IslandPillFace
     NowPlaying,
     Volume,
     Brightness,
+    Clip,
+    Battery,
+    Drop,
+
+    /// <summary>Short notice when a paired Bluetooth device connects. The quick-settings tile stays.</summary>
+    Bluetooth,
+
+    /// <summary>Live camera preview inside the pill. Empty when capture is denied.</summary>
+    Camera,
+}
+
+/// <summary>Glyph beside the chip text. At most two, and never the same kind twice.</summary>
+internal enum IslandSatellite
+{
+    None,
+    Clipboard,
+    Music,
+}
+
+/// <summary>Idle chip text. An empty title means the window draws "Pano".</summary>
+internal enum IslandIdleLabel
+{
+    ClipboardName,
+    LastClip,
 }
 
 /// <summary>Body of the single popup under the chip. Never a second popup.</summary>
@@ -52,10 +78,12 @@ internal readonly record struct IslandPresenceView(
     bool MeterMuted,
     IslandPanelBody Panel,
     bool Pinned,
-    bool ShowClipboardBack);
+    bool ShowClipboardBack,
+    IslandSatellite FirstSatellite = IslandSatellite.None,
+    IslandSatellite SecondSatellite = IslandSatellite.None);
 
 /// <summary>
-/// Chip face, HUD preemption, and panel lifetime for the center island.
+/// Chip face, HUD preemption, satellite glyphs, and panel lifetime for the center island.
 /// Callers pass a millisecond clock (<see cref="Environment.TickCount64"/>).
 /// One deadline is exposed so the window can arm a single reset timer.
 /// </summary>
@@ -66,6 +94,12 @@ internal sealed class IslandPresence
     internal const long TransientHoldMs = 2500;
 
     internal const long HoverGraceMs = 300;
+
+    /// <summary>Pointer must rest on the pill this long before a hover panel opens.</summary>
+    internal const long HoverOpenDelayMs = 150;
+
+    /// <summary>Default percent. A sample that crosses from at or above the live threshold to below it raises one battery HUD.</summary>
+    internal const int LowBatteryPercent = 20;
 
     /// <summary>Hard cap on the now-playing title, DIP.</summary>
     internal const double MaxTitleDip = 220;
@@ -94,8 +128,26 @@ internal sealed class IslandPresence
     private bool _brightnessSeeded;
     private int _brightness;
 
+    private bool _clipboardSurface = true;
+    private IslandIdleLabel _idleLabel = IslandIdleLabel.ClipboardName;
+    private string _idlePreview = string.Empty;
+
+    private bool _batterySeeded;
+    private bool _batteryCharging;
+    private int _batteryPercent;
+    private int _lowBatteryPercent = LowBatteryPercent;
+
+    /// <summary>
+    /// False after a low-battery HUD until the sample is back at or above the threshold,
+    /// or <see cref="SetLowBatteryPercent"/> changes the line.
+    /// </summary>
+    private bool _lowEdgeArmed = true;
+
     private long? _hudUntil;
     private IslandPillFace _hudFace;
+    private string _hudTitle = string.Empty;
+    private bool _cameraOn;
+    private string _cameraTitle = "Kamera";
     private int _meter;
     private bool _hudMuted;
 
@@ -105,6 +157,7 @@ internal sealed class IslandPresence
     private bool _hoverArmed;
     private bool _pointerOverPill;
     private bool _pointerOverPanel;
+    private long? _hoverOpenAt;
     private long? _hoverCloseAt;
     private long? _transientUntil;
 
@@ -127,6 +180,52 @@ internal sealed class IslandPresence
         _modeSet = true;
         Expire(nowMs);
         _mode = mode;
+        Publish();
+    }
+
+    internal void SetClipboardSurface(bool available, long nowMs)
+    {
+        _clipboardSurface = available;
+        Expire(nowMs);
+        if (_hoverOpenAt is not null && !CanHoverOpen())
+        {
+            _hoverOpenAt = null;
+        }
+
+        Publish();
+    }
+
+    /// <summary>
+    /// Live low-battery line. Accepted percents are clamped to 5–50.
+    /// A change re-arms the edge so the next downward crossing can fire once;
+    /// it does not raise a HUD by itself.
+    /// </summary>
+    internal void SetLowBatteryPercent(int percent, long nowMs)
+    {
+        int next = IslandNormalizer.ClampLowBatteryPercent(percent);
+        Expire(nowMs);
+        if (next == _lowBatteryPercent)
+        {
+            Publish();
+            return;
+        }
+
+        _lowBatteryPercent = next;
+        _lowEdgeArmed = true;
+        Publish();
+    }
+
+    internal void SetIdleLabel(IslandIdleLabel label, long nowMs)
+    {
+        Expire(nowMs);
+        _idleLabel = label;
+        Publish();
+    }
+
+    internal void SetIdlePreview(string? preview, long nowMs)
+    {
+        Expire(nowMs);
+        _idlePreview = string.IsNullOrWhiteSpace(preview) ? string.Empty : preview.Trim();
         Publish();
     }
 
@@ -259,9 +358,112 @@ internal sealed class IslandPresence
         Publish();
     }
 
+    /// <summary>First sample seeds. Later samples HUD on plug-in or on one downward cross of the live threshold.</summary>
+    internal void ObserveBattery(bool present, bool charging, int percent, long nowMs)
+    {
+        Expire(nowMs);
+
+        if (!present)
+        {
+            if (_hudUntil is not null && _hudFace == IslandPillFace.Battery)
+            {
+                ClearHud();
+            }
+
+            _batterySeeded = false;
+            _lowEdgeArmed = true;
+            Publish();
+            return;
+        }
+
+        percent = Math.Clamp(percent, 0, 100);
+        if (!_batterySeeded)
+        {
+            _batterySeeded = true;
+            _batteryCharging = charging;
+            _batteryPercent = percent;
+            Publish();
+            return;
+        }
+
+        bool pluggedIn = !_batteryCharging && charging;
+        bool crossedLow = _lowEdgeArmed
+            && _batteryPercent >= _lowBatteryPercent
+            && percent < _lowBatteryPercent;
+        _batteryCharging = charging;
+        _batteryPercent = percent;
+
+        if (percent >= _lowBatteryPercent)
+        {
+            _lowEdgeArmed = true;
+        }
+
+        if (crossedLow)
+        {
+            _lowEdgeArmed = false;
+        }
+
+        if (pluggedIn || crossedLow)
+        {
+            StartHud(IslandPillFace.Battery, percent, muted: false, nowMs);
+        }
+
+        Publish();
+    }
+
+    /// <summary>Shows <paramref name="name"/> on the pill until the transient hold ends.</summary>
+    internal void NoteBluetooth(string? name, long nowMs)
+    {
+        Expire(nowMs);
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        StartHud(IslandPillFace.Bluetooth, 0, muted: false, nowMs, name.Trim());
+        _hudUntil = nowMs + TransientHoldMs;
+        Publish();
+    }
+
+    /// <summary>Keeps the camera face up while <paramref name="on"/> is true. A HUD still preempts it.</summary>
+    internal void SetCamera(bool on, string? title, long nowMs)
+    {
+        Expire(nowMs);
+        _cameraOn = on;
+        _cameraTitle = string.IsNullOrWhiteSpace(title) ? "Kamera" : title.Trim();
+        Publish();
+    }
+
+    internal void NoteNewClip(string? preview, long nowMs)
+    {
+        Expire(nowMs);
+        if (!_clipboardSurface || string.IsNullOrWhiteSpace(preview))
+        {
+            Publish();
+            return;
+        }
+
+        StartHud(IslandPillFace.Clip, 0, muted: false, nowMs, preview.Trim());
+        Publish();
+    }
+
+    internal void NoteFileDrop(string? displayName, long nowMs)
+    {
+        Expire(nowMs);
+        if (!_clipboardSurface || string.IsNullOrWhiteSpace(displayName))
+        {
+            Publish();
+            return;
+        }
+
+        StartHud(IslandPillFace.Drop, 0, muted: false, nowMs, displayName.Trim());
+        Publish();
+    }
+
     internal IslandPillCommand Click(long nowMs)
     {
         Expire(nowMs);
+        _hoverOpenAt = null;
         IslandPillFace face = CurrentFace();
 
         if (face == IslandPillFace.Volume)
@@ -278,13 +480,32 @@ internal sealed class IslandPresence
             return IslandPillCommand.OpenBrightnessFlyout;
         }
 
+        if (face is IslandPillFace.Clip or IslandPillFace.Drop)
+        {
+            if (_clipboardSurface)
+            {
+                ClearHud();
+                OpenClipboard(fromMusic: false);
+            }
+
+            Publish();
+            return IslandPillCommand.None;
+        }
+
+        if (face == IslandPillFace.Battery || face == IslandPillFace.Bluetooth)
+        {
+            ClearHud();
+            Publish();
+            return IslandPillCommand.None;
+        }
+
         if (_panel == IslandPanelBody.None)
         {
             if (face == IslandPillFace.NowPlaying)
             {
                 OpenPinnedMusic();
             }
-            else if (face == IslandPillFace.Idle)
+            else if (face == IslandPillFace.Idle && _clipboardSurface)
             {
                 OpenClipboard(fromMusic: false);
             }
@@ -305,22 +526,36 @@ internal sealed class IslandPresence
         return IslandPillCommand.None;
     }
 
+    internal IslandPillCommand ClickSatellite(IslandSatellite satellite, long nowMs)
+    {
+        Expire(nowMs);
+
+        if (satellite == IslandSatellite.Music && _hasSession)
+        {
+            _hoverOpenAt = null;
+            ClearHud();
+            OpenPinnedMusic();
+        }
+        else if (satellite == IslandSatellite.Clipboard && _clipboardSurface)
+        {
+            _hoverOpenAt = null;
+            ClearHud();
+            OpenClipboard(fromMusic: false);
+        }
+
+        Publish();
+        return IslandPillCommand.None;
+    }
+
     internal void PointerEnterPill(long nowMs)
     {
         Expire(nowMs);
         _pointerOverPill = true;
         _hoverCloseAt = null;
 
-        if (_panel == IslandPanelBody.None)
+        if (_panel == IslandPanelBody.None && IsHoverFace(CurrentFace()))
         {
-            if (CurrentFace() == IslandPillFace.NowPlaying)
-            {
-                OpenHoverMusic();
-            }
-            else if (CurrentFace() == IslandPillFace.Idle)
-            {
-                OpenHoverClipboard();
-            }
+            _hoverOpenAt = nowMs + HoverOpenDelayMs;
         }
 
         Publish();
@@ -328,8 +563,9 @@ internal sealed class IslandPresence
 
     internal void PointerLeavePill(long nowMs)
     {
-        Expire(nowMs);
         _pointerOverPill = false;
+        _hoverOpenAt = null;
+        Expire(nowMs);
         ArmHoverClose(nowMs);
         Publish();
     }
@@ -522,12 +758,14 @@ internal sealed class IslandPresence
         _transientUntil = null;
     }
 
-    private void StartHud(IslandPillFace face, int percent, bool muted, long nowMs)
+    private void StartHud(IslandPillFace face, int percent, bool muted, long nowMs, string? title = null)
     {
         _hudFace = face;
         _meter = percent;
         _hudMuted = muted;
+        _hudTitle = title ?? string.Empty;
         _hudUntil = nowMs + HudHoldMs;
+        _hoverOpenAt = null;
     }
 
     private void ClearHud()
@@ -549,9 +787,11 @@ internal sealed class IslandPresence
 
     private void Expire(long nowMs)
     {
+        bool hudJustExpired = false;
         if (_hudUntil is long hud && nowMs >= hud)
         {
             ClearHud();
+            hudJustExpired = true;
         }
 
         if (_hoverCloseAt is long hover && nowMs >= hover)
@@ -563,7 +803,7 @@ internal sealed class IslandPresence
             }
         }
 
-        if (_transientUntil is long transient && nowMs >= transient)
+        if (_transientUntil is long transientAt && nowMs >= transientAt)
         {
             _transientUntil = null;
             if (!_pinned && _panel == IslandPanelBody.Music)
@@ -571,6 +811,41 @@ internal sealed class IslandPresence
                 ClosePanel();
             }
         }
+
+        if (hudJustExpired && CanHoverOpen())
+        {
+            _hoverOpenAt = nowMs + HoverOpenDelayMs;
+            return;
+        }
+
+        if (_hoverOpenAt is long openAt && nowMs >= openAt)
+        {
+            _hoverOpenAt = null;
+            if (CanHoverOpen())
+            {
+                if (CurrentFace() == IslandPillFace.NowPlaying)
+                {
+                    OpenHoverMusic();
+                }
+                else
+                {
+                    OpenHoverClipboard();
+                }
+            }
+        }
+    }
+
+    private bool CanHoverOpen()
+        => _pointerOverPill && _panel == IslandPanelBody.None && IsHoverFace(CurrentFace());
+
+    private bool IsHoverFace(IslandPillFace face)
+    {
+        if (face == IslandPillFace.NowPlaying)
+        {
+            return true;
+        }
+
+        return face == IslandPillFace.Idle && _clipboardSurface;
     }
 
     private IslandPillFace CurrentFace()
@@ -578,6 +853,11 @@ internal sealed class IslandPresence
         if (_hudUntil is not null)
         {
             return _hudFace;
+        }
+
+        if (_cameraOn)
+        {
+            return IslandPillFace.Camera;
         }
 
         if (_mode == IslandMusicMode.Persistent && _hasSession)
@@ -588,18 +868,100 @@ internal sealed class IslandPresence
         return IslandPillFace.Idle;
     }
 
+    private string ResolveTitle(IslandPillFace face)
+    {
+        if (face == IslandPillFace.NowPlaying)
+        {
+            return _pillTitle;
+        }
+
+        if (face is IslandPillFace.Clip or IslandPillFace.Drop or IslandPillFace.Bluetooth)
+        {
+            return _hudTitle;
+        }
+
+        if (face == IslandPillFace.Camera)
+        {
+            return _cameraTitle;
+        }
+
+        if (face == IslandPillFace.Idle
+            && _idleLabel == IslandIdleLabel.LastClip
+            && _idlePreview.Length > 0)
+        {
+            return _idlePreview;
+        }
+
+        return string.Empty;
+    }
+
+    /// <summary>
+    /// Now-playing keeps a clipboard satellite only. A HUD can show persistent music
+    /// and, on the primary bar, clipboard beside it. Transient music is not a satellite.
+    /// Idle is empty. The two slots are never the same kind.
+    /// </summary>
+    private void ResolveSatellites(IslandPillFace face, out IslandSatellite first, out IslandSatellite second)
+    {
+        first = IslandSatellite.None;
+        second = IslandSatellite.None;
+        bool music = _mode == IslandMusicMode.Persistent && _hasSession;
+        bool clipboard = _clipboardSurface;
+
+        if (face == IslandPillFace.NowPlaying)
+        {
+            if (clipboard)
+            {
+                first = IslandSatellite.Clipboard;
+            }
+
+            return;
+        }
+
+        if (face is not (
+            IslandPillFace.Volume
+            or IslandPillFace.Brightness
+            or IslandPillFace.Clip
+            or IslandPillFace.Battery
+            or IslandPillFace.Drop
+            or IslandPillFace.Bluetooth
+            or IslandPillFace.Camera))
+        {
+            return;
+        }
+
+        if (music)
+        {
+            first = IslandSatellite.Music;
+        }
+
+        if (clipboard && first != IslandSatellite.Clipboard)
+        {
+            if (first == IslandSatellite.None)
+            {
+                first = IslandSatellite.Clipboard;
+            }
+            else
+            {
+                second = IslandSatellite.Clipboard;
+            }
+        }
+    }
+
     private void Publish()
     {
         IslandPillFace face = CurrentFace();
-        bool meter = face is IslandPillFace.Volume or IslandPillFace.Brightness;
+        bool meter = face is IslandPillFace.Volume or IslandPillFace.Brightness or IslandPillFace.Battery;
+        ResolveSatellites(face, out IslandSatellite first, out IslandSatellite second);
         View = new IslandPresenceView(
             face,
-            face == IslandPillFace.NowPlaying ? _pillTitle : string.Empty,
+            ResolveTitle(face),
             meter ? _meter : 0,
             face == IslandPillFace.Volume && _hudMuted,
             _panel,
             _pinned && _panel != IslandPanelBody.None,
-            _panel == IslandPanelBody.Clipboard && _clipboardFromMusic && _hasSession);
+            _panel == IslandPanelBody.Clipboard && _clipboardFromMusic && _hasSession,
+            first,
+            second);
         NextDeadlineMs = ComputeDeadline();
     }
 
@@ -607,6 +969,7 @@ internal sealed class IslandPresence
     {
         long? next = null;
         Consider(ref next, _hudUntil);
+        Consider(ref next, _hoverOpenAt);
         Consider(ref next, _hoverCloseAt);
         Consider(ref next, _transientUntil);
         return next;

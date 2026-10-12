@@ -88,6 +88,73 @@
                 </Grid>
             </Border>
 
+            <!-- Boşta yazı -->
+            <TextBlock Text="Boşta" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Document24" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Boşta yazı" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Pano: hap sabit yazar. Son kayıt: hap son kopyalanan metnin kısa önizlemesini gösterir. O önizleme ekrandayken üst bar ekran görüntüsünden düşer."
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ComboBox x:Name="IdleLabelCombo" Grid.Column="2" Width="220"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Pano" />
+                        <ComboBoxItem Content="Son kayıt" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <!-- Pil -->
+            <TextBlock Text="Pil" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Battery1020" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Düşük pil eşiği" FontSize="14" FontWeight="Medium" />
+                        <TextBlock x:Name="LowBatteryValueText"
+                                   Text="20"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   Margin="0,2,0,0" />
+                        <TextBlock Text="5–50. Kayıtlı değer bu aralığın dışındaysa 20 olur; kutuya yazılan sayı 5–50 aralığına çekilir. Eşik değişince bir sonraki düşüş bir kez gösterilir."
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                        <TextBlock x:Name="LowBatteryErrorText" FontSize="12" Foreground="#E57373"
+                                   Margin="0,6,0,0" Visibility="Collapsed" />
+                    </StackPanel>
+
+                    <TextBox x:Name="LowBatteryBox" Grid.Column="2" Width="110"
+                             VerticalContentAlignment="Center" TextAlignment="Right"
+                             FontFamily="Consolas" />
+                </Grid>
+            </Border>
+
             <!-- Geçmiş -->
             <TextBlock Text="Geçmiş" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />

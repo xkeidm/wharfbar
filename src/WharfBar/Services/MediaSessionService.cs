@@ -85,6 +85,57 @@ internal sealed class MediaSessionService : IDisposable
 
     internal void Previous() => SendCommand(static s => s.TrySkipPreviousAsync());
 
+    /// <summary>Active session reports <c>IsPlaybackPositionEnabled</c>.</summary>
+    internal bool CanSeek => _snapshot.CanSeek;
+
+    /// <summary>
+    /// Seeks when the active session allows position changes. Otherwise a no-op.
+    /// <paramref name="position"/> is the offset shown on the island timeline.
+    /// </summary>
+    internal void TrySeek(TimeSpan position)
+    {
+        if (_disposed || !_snapshot.CanSeek)
+        {
+            return;
+        }
+
+        if (!_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(() => TrySeek(position));
+            return;
+        }
+
+        string? id = _selector.Current;
+        if (id is null || !_sessions.TryGetValue(id, out GlobalSystemMediaTransportControlsSession? session))
+        {
+            return;
+        }
+
+        if (position < TimeSpan.Zero)
+        {
+            position = TimeSpan.Zero;
+        }
+
+        if (_snapshot.Duration is TimeSpan duration && duration > TimeSpan.Zero && position > duration)
+        {
+            position = duration;
+        }
+
+        _ = SeekAsync(session, position.Ticks);
+    }
+
+    private static async Task SeekAsync(GlobalSystemMediaTransportControlsSession session, long ticks)
+    {
+        try
+        {
+            await session.TryChangePlaybackPositionAsync(ticks);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[media] arama başarısız: {ex.Message}");
+        }
+    }
+
     internal void SelectNext() => SelectRelative(1);
 
     internal void SelectPrevious() => SelectRelative(-1);
@@ -340,8 +391,87 @@ internal sealed class MediaSessionService : IDisposable
             Debug.WriteLine($"[media] playback bilgisi alınamadı: {ex.Message}");
         }
 
-        _snapshot = new MediaSnapshot(id, appName, title, artist, isPlaying, thumb);
+        (TimeSpan? position, TimeSpan? duration) = ReadTimeline(session);
+        bool canSeek = ReadCanSeek(session);
+        _snapshot = new MediaSnapshot(id, appName, title, artist, isPlaying, thumb, position, duration, canSeek);
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Müzik paneli açıkken konum/süreyi yeniden okur. Kapak ve başlık yenilenmez.
+    /// Değer değişmediyse <see cref="Changed"/> yükselmez.
+    /// </summary>
+    internal void RefreshTimeline()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (!_dispatcher.CheckAccess())
+        {
+            _ = _dispatcher.BeginInvoke(RefreshTimeline);
+            return;
+        }
+
+        string? id = _selector.Current;
+        if (id is null || !_sessions.TryGetValue(id, out var session))
+        {
+            return;
+        }
+
+        if (!string.Equals(_snapshot.SessionId, id, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        (TimeSpan? position, TimeSpan? duration) = ReadTimeline(session);
+        bool canSeek = ReadCanSeek(session);
+        if (_snapshot.Position == position && _snapshot.Duration == duration && _snapshot.CanSeek == canSeek)
+        {
+            return;
+        }
+
+        _snapshot = _snapshot with { Position = position, Duration = duration, CanSeek = canSeek };
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// SMTC zaman çizelgesi. Süre yoksa, 0 veya daha küçükse, ya da okuma patlarsa ikisi de null.
+    /// </summary>
+    private static (TimeSpan? Position, TimeSpan? Duration) ReadTimeline(
+        GlobalSystemMediaTransportControlsSession session)
+    {
+        try
+        {
+            GlobalSystemMediaTransportControlsSessionTimelineProperties timeline = session.GetTimelineProperties();
+            TimeSpan duration = timeline.EndTime - timeline.StartTime;
+            if (duration <= TimeSpan.Zero || timeline.Position < TimeSpan.Zero)
+            {
+                return (null, null);
+            }
+
+            return (timeline.Position, duration);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[media] zaman çizelgesi alınamadı: {ex.Message}");
+            return (null, null);
+        }
+    }
+
+    /// <summary>SMTC <c>IsPlaybackPositionEnabled</c>. A failed read is not seekable.</summary>
+    private static bool ReadCanSeek(GlobalSystemMediaTransportControlsSession session)
+    {
+        try
+        {
+            return session.GetPlaybackInfo().Controls.IsPlaybackPositionEnabled;
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"[media] arama desteği okunamadı: {ex.Message}");
+            return false;
+        }
     }
 
     private static async Task<ImageSource?> TryDecodeThumbnailAsync(IRandomAccessStreamReference reference)
