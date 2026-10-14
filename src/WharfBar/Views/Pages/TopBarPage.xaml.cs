@@ -47,14 +47,30 @@ public partial class TopBarPage : Page
             AddCard(id, isChecked: true);
         }
 
-        // Unchecked items
+        bool anyHidden = false;
         foreach (string id in TopBarStatusItemIds.CatalogOrder)
         {
-            if (!visibleSet.Contains(id))
+            if (visibleSet.Contains(id))
             {
-                AddCard(id, isChecked: false);
+                continue;
             }
+
+            if (!anyHidden)
+            {
+                anyHidden = true;
+                StatusItemsPanel.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text = "Kapalı — açınca üst çubuğa döner",
+                    FontSize = 12,
+                    Margin = new Thickness(0, 4, 0, 8),
+                    Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
+                });
+            }
+
+            AddCard(id, isChecked: false);
         }
+
+        ShowAllButton.IsEnabled = anyHidden;
     }
 
     private void AddCard(string id, bool isChecked)
@@ -315,6 +331,17 @@ public partial class TopBarPage : Page
     private void OnResetClick(object sender, RoutedEventArgs e)
     {
         PersistAndRebuild(TopBarStatusItemIds.DefaultOrder.ToList());
+    }
+
+    private void OnShowAllClick(object sender, RoutedEventArgs e)
+    {
+        List<string> items = TopBarStatusItemIds.ShowAll(Cfg.TopBar.StatusItems);
+        if (items.SequenceEqual(TopBarStatusItemIds.Normalize(Cfg.TopBar.StatusItems)))
+        {
+            return;
+        }
+
+        PersistAndRebuild(items);
     }
 
     private void PersistAndRebuild(List<string> items)

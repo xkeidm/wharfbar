@@ -76,6 +76,25 @@ internal static class SendInputMouse
     }
 
     /// <summary>
+    /// Right-clicks at physical pixel (<paramref name="x"/>, <paramref name="y"/>) and leaves
+    /// the cursor there until the returned lease is disposed. Tray owners read
+    /// <c>GetCursorPos</c> while building the menu; restoring before that makes the click
+    /// look like it landed on the top bar and the menu never opens.
+    /// </summary>
+    internal static IDisposable RightClickHoldingCursor(int x, int y)
+    {
+        _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+        if (!GetCursorPos(out POINT previous))
+        {
+            previous = default;
+        }
+
+        _ = SetCursorPos(x, y);
+        SendAbsoluteClick(x, y);
+        return new CursorLease(previous.X, previous.Y);
+    }
+
+    /// <summary>
     /// Replays <paramref name="kind"/> at physical screen pixel (<paramref name="x"/>,
     /// <paramref name="y"/>), then restores the cursor. A right-click is an absolute
     /// <c>SendInput</c> packet and the cursor stays on that pixel until the owner has read
@@ -152,6 +171,30 @@ internal static class SendInputMouse
         }
 
         return inputs;
+    }
+
+    private sealed class CursorLease : IDisposable
+    {
+        private readonly int _x;
+        private readonly int _y;
+        private bool _disposed;
+
+        internal CursorLease(int x, int y)
+        {
+            _x = x;
+            _y = y;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _ = SetCursorPos(_x, _y);
+        }
     }
 
     private static INPUT Mouse(uint flags, int absoluteX, int absoluteY) => new()

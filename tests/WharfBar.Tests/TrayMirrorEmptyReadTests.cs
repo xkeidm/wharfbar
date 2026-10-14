@@ -15,7 +15,7 @@ public class TrayMirrorEmptyReadTests
 {
     /// <summary>Bir blip aralığına düşen okuma sayısı — grace'ın aşması gereken asgari pencere.</summary>
     private static int PollsPerBlipInterval =>
-        (int)Math.Ceiling(TrayMirrorService.BlipMinInterval.TotalMilliseconds / TrayMirrorService.PollInterval.TotalMilliseconds);
+        (int)Math.Ceiling(TrayMirrorService.StateBlipMinInterval.TotalMilliseconds / TrayMirrorService.PollInterval.TotalMilliseconds);
 
     /// <summary>
     /// Regresyonun asıl kilidi: grace penceresi bir blip aralığından <b>uzun</b> olmalı
@@ -29,10 +29,10 @@ public class TrayMirrorEmptyReadTests
         TimeSpan grace = TrayMirrorService.PollInterval * TrayMirrorService.EmptyReadGraceReads;
 
         Assert.True(
-            grace > TrayMirrorService.BlipMinInterval,
-            $"grace {grace.TotalSeconds}s, bir blip aralığı ({TrayMirrorService.BlipMinInterval.TotalSeconds}s) boyunca sürmüyor — ayna her throttle boşluğunun ortasında temizlenir");
+            grace > TrayMirrorService.StateBlipMinInterval,
+            $"grace {grace.TotalSeconds}s, bir state-blip aralığı ({TrayMirrorService.StateBlipMinInterval.TotalSeconds}s) boyunca sürmüyor — ayna her throttle boşluğunun ortasında temizlenir");
         Assert.True(
-            grace <= TrayMirrorService.BlipMinInterval + (2 * TrayMirrorService.PollInterval),
+            grace <= TrayMirrorService.StateBlipMinInterval + (2 * TrayMirrorService.PollInterval),
             $"grace {grace.TotalSeconds}s, iki okumalık toleransı aşıyor — sınırsız donma yönünde kayıyor");
     }
 
@@ -137,5 +137,22 @@ public class TrayMirrorEmptyReadTests
     {
         Assert.NotEqual(TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty, TrayMirrorService.TrayBlipOutcome.Skipped);
         Assert.NotEqual(TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty, TrayMirrorService.TrayBlipOutcome.Inconclusive);
+    }
+
+    [Fact]
+    public void ShowOnly_IsTriedUntilAProbeFails()
+    {
+        Assert.True(TrayMirrorService.ShouldTryShowOnly(null));
+        Assert.True(TrayMirrorService.ShouldTryShowOnly(true));
+        Assert.False(TrayMirrorService.ShouldTryShowOnly(false));
+    }
+
+    [Fact]
+    public void ShowOnly_SuccessSticks_AndAMissBeforeSuccessLatchesTheStateBlip()
+    {
+        Assert.True(TrayMirrorService.LatchShowOnly(null, foundIcons: true));
+        Assert.True(TrayMirrorService.LatchShowOnly(true, foundIcons: false));
+        Assert.False(TrayMirrorService.LatchShowOnly(null, foundIcons: false));
+        Assert.False(TrayMirrorService.LatchShowOnly(false, foundIcons: true));
     }
 }

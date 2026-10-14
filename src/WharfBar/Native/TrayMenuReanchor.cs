@@ -36,6 +36,13 @@ internal static class TrayMenuReanchor
     private const int WatchPollMs = 40;
 
     /// <summary>
+    /// A popup owned by <c>Shell_TrayWnd</c> is destroyed when the tray is hidden at the end of
+    /// a click. Detach only that owner — app-owned flyouts already survive the hide.
+    /// </summary>
+    internal static bool ShouldDetachPopupFromTray(IntPtr owner, IntPtr tray) =>
+        tray != IntPtr.Zero && owner == tray;
+
+    /// <summary>
     /// The screen region a click-triggered popup can plausibly appear in: the clicked button's
     /// real rect expanded sideways and upward from the monitor's bottom edge.
     /// </summary>
@@ -133,36 +140,41 @@ internal static class TrayMenuReanchor
     /// Pass a pre-click <see cref="CaptureVisibleWindows"/> snapshot so a menu created by the
     /// click is not treated as already open.
     /// </summary>
-    internal static void TryReanchor(RECT buttonRect, RECT anchor) =>
-        TryReanchor(buttonRect, anchor, CaptureVisibleWindows());
+    internal static bool TryReanchor(RECT buttonRect, RECT anchor) =>
+        TryReanchor(buttonRect, anchor, CaptureVisibleWindows(), WatchTimeoutMs);
 
-    internal static void TryReanchor(RECT buttonRect, RECT anchor, HashSet<IntPtr> existing)
+    internal static bool TryReanchor(RECT buttonRect, RECT anchor, HashSet<IntPtr> existing) =>
+        TryReanchor(buttonRect, anchor, existing, WatchTimeoutMs);
+
+    internal static bool TryReanchor(RECT buttonRect, RECT anchor, HashSet<IntPtr> existing, int timeoutMs)
     {
         if (buttonRect.Width <= 0 || anchor.Width <= 0 || existing is null)
         {
-            return;
+            return false;
         }
 
         if (!TryGetPrimaryFrame(out RECT monitorBounds, out RECT workArea))
         {
-            return;
+            return false;
         }
 
         RECT clickZone = ComputeClickZone(buttonRect, monitorBounds);
         uint ownPid = (uint)Environment.ProcessId;
+        int waitMs = timeoutMs > 0 ? timeoutMs : WatchTimeoutMs;
 
-        var deadline = DateTime.UtcNow.AddMilliseconds(WatchTimeoutMs);
+        var deadline = DateTime.UtcNow.AddMilliseconds(waitMs);
         while (DateTime.UtcNow < deadline)
         {
             if (TryFindAndMoveNewPopup(ownPid, existing, clickZone, monitorBounds, workArea, anchor))
             {
-                return;
+                return true;
             }
 
             Thread.Sleep(WatchPollMs);
         }
 
         TrayPeekDiagnostics.LogNote("reanchor timeout (no candidate)");
+        return false;
     }
 
     private static bool TryFindAndMoveNewPopup(
@@ -218,6 +230,26 @@ internal static class TrayMenuReanchor
         }
 
         POINT pos = ComputeAnchoredPosition(foundRect, anchor, workArea);
+        IntPtr tray = TaskbarNative.FindTrayHwnd();
+        IntPtr owner = NativeMethods.GetWindow(found, NativeMethods.GW_OWNER);
+        uint flags = NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE;
+        if (ShouldDetachPopupFromTray(owner, tray))
+        {
+            // Owned popups hide with their owner. Drop the tray owner before the peek ends
+            // or the menu vanishes with Shell_TrayWnd. App-owned flyouts are left alone.
+            // HWND_TOP (no SWP_NOZORDER) keeps the detached menu above the top bar.
+            IntPtr previous = NativeMethods.SetWindowLongPtr(found, NativeMethods.GWLP_HWNDPARENT, IntPtr.Zero);
+            if (previous == IntPtr.Zero && System.Runtime.InteropServices.Marshal.GetLastWin32Error() != 0)
+            {
+                TrayPeekDiagnostics.LogNote(
+                    $"reanchor detach failed hwnd={found} err={System.Runtime.InteropServices.Marshal.GetLastWin32Error()}");
+            }
+        }
+        else
+        {
+            flags |= NativeMethods.SWP_NOZORDER;
+        }
+
         _ = NativeMethods.SetWindowPos(
             found,
             IntPtr.Zero,
@@ -225,7 +257,7 @@ internal static class TrayMenuReanchor
             pos.Y,
             0,
             0,
-            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            flags);
         TrayPeekDiagnostics.LogNote($"reanchor moved hwnd={found} rect={foundRect.Left},{foundRect.Top},{foundRect.Right},{foundRect.Bottom} to {pos.X},{pos.Y}");
         return true;
     }

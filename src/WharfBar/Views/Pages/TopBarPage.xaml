@@ -92,7 +92,7 @@
 
             <!-- Durum Öğeleri Section -->
             <TextBlock Text="Durum Öğeleri" Style="{StaticResource SectionHeader}" />
-            <TextBlock Text="Üst çubuğun sağ tarafında gösterilecek simgeleri seçin; ⋮⋮ tutamacından sürükleyerek sırasını belirleyin"
+            <TextBlock Text="Katalogdaki her simge burada. Kapalı olanlar altta durur; açınca geri gelir. Sırayı üst çubukta sürükleyerek veya ⋮⋮ tutamacından değiştirin"
                        Style="{StaticResource SectionDescription}" />
 
             <!-- Transparent background is the drop target, including the gaps between cards.
@@ -103,11 +103,17 @@
                         DragOver="OnListDragOver"
                         Drop="OnListDrop" />
 
-            <ui:Button x:Name="ResetButton" Content="Varsayılana Sıfırla"
-                       Icon="{ui:SymbolIcon ArrowReset24}"
-                       HorizontalAlignment="Left" Margin="0,8,0,0"
-                       Padding="16,8"
-                       Click="OnResetClick" />
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <ui:Button x:Name="ShowAllButton" Content="Tümünü göster"
+                           Icon="{ui:SymbolIcon Eye24}"
+                           Padding="16,8"
+                           Margin="0,0,8,0"
+                           Click="OnShowAllClick" />
+                <ui:Button x:Name="ResetButton" Content="Varsayılana Sıfırla"
+                           Icon="{ui:SymbolIcon ArrowReset24}"
+                           Padding="16,8"
+                           Click="OnResetClick" />
+            </StackPanel>
 
         </StackPanel>
     </ScrollViewer>

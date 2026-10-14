@@ -33,6 +33,7 @@ internal sealed class NotifyIconHost : IDisposable
     private readonly IntPtr _hwnd;
     private IntPtr _icon;
     private readonly bool _ownsIcon;
+    private readonly string _tip;
     private bool _added;
     private bool _disposed;
 
@@ -41,11 +42,28 @@ internal sealed class NotifyIconHost : IDisposable
         _hwnd = hwnd;
         _icon = icon;
         _ownsIcon = ownsIcon;
-        AddOrModify(NimAdd, tip);
+        _tip = tip.Length <= 127 ? tip : tip[..127];
+        AddOrModify(NimAdd);
         _added = true;
     }
 
     internal void UpdateTip(string tip) => AddOrModify(NimModify, tip);
+
+    /// <summary>NIM_ADD again after explorer restarts and drops the icon.</summary>
+    internal void Readd()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (!AddOrModify(NimAdd))
+        {
+            AddOrModify(NimModify);
+        }
+
+        _added = true;
+    }
 
     public void Dispose()
     {
@@ -75,8 +93,9 @@ internal sealed class NotifyIconHost : IDisposable
         }
     }
 
-    private void AddOrModify(uint message, string tip)
+    private bool AddOrModify(uint message, string? tip = null)
     {
+        string shown = tip ?? _tip;
         var data = new NOTIFYICONDATA
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
@@ -85,12 +104,15 @@ internal sealed class NotifyIconHost : IDisposable
             uFlags = NifMessage | NifIcon | NifTip,
             uCallbackMessage = TrayCallbackMessage,
             hIcon = _icon,
-            szTip = tip.Length <= 127 ? tip : tip[..127],
+            szTip = shown.Length <= 127 ? shown : shown[..127],
         };
 
-        if (!NativeMethods.Shell_NotifyIcon(message, ref data) && message == NimAdd)
+        bool ok = NativeMethods.Shell_NotifyIcon(message, ref data);
+        if (!ok && message == NimAdd)
         {
-            // Explorer may not be ready yet; caller can retry via TaskbarCreated if needed.
+            // Explorer may not be ready yet; TaskbarCreated calls Readd.
         }
+
+        return ok;
     }
 }

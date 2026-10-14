@@ -1,0 +1,88 @@
+<UserControl x:Class="WharfBar.Views.TrayOverflowFlyout"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+
+    <UserControl.Resources>
+        <Style x:Key="TrayOverflowIcon" TargetType="Border">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="ToolTipService.InitialShowDelay" Value="400" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="TrayOverflowChevron" TargetType="Button">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Margin" Value="1" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Plate"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Plate"
+                                        Property="Background"
+                                        Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- Horizontal capsule. Eight icons wrap to the next row; names stay on the tooltip. -->
+    <Border x:Name="FlyoutRoot"
+            Background="{DynamicResource ApplicationBackgroundBrush}"
+            CornerRadius="18"
+            Padding="4"
+            Margin="0,0,12,0"
+            SnapsToDevicePixels="True">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBlock x:Name="EmptyState"
+                       Margin="10,0,6,0"
+                       VerticalAlignment="Center"
+                       FontSize="12"
+                       Opacity="0.65"
+                       Text="simge yok" />
+            <WrapPanel x:Name="Icons"
+                       MaxWidth="240"
+                       Orientation="Horizontal"
+                       VerticalAlignment="Center"
+                       Visibility="Collapsed" />
+            <Border Width="1"
+                    Margin="3,6"
+                    VerticalAlignment="Stretch"
+                    Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    Opacity="0.7" />
+            <Button x:Name="NativeOverflowButton"
+                    Style="{StaticResource TrayOverflowChevron}"
+                    ToolTip="Windows gizli simgelerini aç"
+                    Click="OnNativeOverflowClick">
+                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                           FontSize="12"
+                           Text="&#xE70E;"
+                           Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                           IsHitTestVisible="False" />
+            </Button>
+        </StackPanel>
+    </Border>
+</UserControl>

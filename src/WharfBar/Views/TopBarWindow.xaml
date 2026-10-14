@@ -93,7 +93,7 @@
     </Window.Resources>
 
     <Border x:Name="Surface" Background="Transparent">
-        <Grid Margin="10,0">
+        <Grid x:Name="BarGrid" Margin="10,0">
             <!-- Left cluster: Windows logo + System Stats monitor -->
             <StackPanel x:Name="LeftCluster"
                         Orientation="Horizontal"
@@ -273,7 +273,11 @@
 
             <!-- Right cluster (runtime order from config; default LTR):
                  trayMirror · overflow · dateTime · notifications · controlCenter · network · battery.
-                 volume / brightness / media stay in the catalog but are off by default. -->
+                 volume / brightness / media stay in the catalog but are off by default.
+                 A short drag reorders visible items; a click under the threshold still opens the flyout.
+                 Tray icons are not strip slots: a short click forwards, a longer drag parks them
+                 in the overflow capsule (TrayOverflowPopup). StatusDropCue is the insertion line
+                 (not a strip child, so it does not shift slots). -->
             <StackPanel x:Name="StatusStrip"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right"
@@ -375,6 +379,7 @@
 
                 <StackPanel x:Name="BatteryGroup"
                             Orientation="Horizontal"
+                            Background="Transparent"
                             Margin="0,0,4,0"
                             VerticalAlignment="Center">
                     <TextBlock x:Name="BatteryGlyph"
@@ -386,6 +391,18 @@
                                Text="" />
                 </StackPanel>
             </StackPanel>
+
+            <!-- Insertion caret for a status-strip drag. Overlay, so the slot measure stays put. -->
+            <Border x:Name="StatusDropCue"
+                    Width="2"
+                    Height="18"
+                    Margin="0"
+                    CornerRadius="1"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    IsHitTestVisible="False"
+                    Visibility="Collapsed"
+                    Background="{DynamicResource AccentFillColorDefaultBrush}" />
 
             <!-- Quick Settings (Win11-style): shared by controlCenter / volume / network.
                  PopupAnimation=None: the flyout plays its own slide+fade (AnimateFlyoutOpen /
@@ -440,6 +457,18 @@
                    VerticalOffset="10"
                    Opened="OnMediaPopupOpened">
                 <local:MediaFlyout x:Name="MediaHost" />
+            </Popup>
+
+            <!-- Parked mirror icons. Same layered popup as the other flyouts; the bar stays Mica. -->
+            <Popup x:Name="TrayOverflowPopup"
+                   Placement="Bottom"
+                   PlacementTarget="{Binding ElementName=TrayOverflowButton}"
+                   StaysOpen="True"
+                   AllowsTransparency="True"
+                   PopupAnimation="None"
+                   VerticalOffset="10"
+                   Opened="OnTrayOverflowPopupOpened">
+                <local:TrayOverflowFlyout x:Name="TrayOverflowHost" />
             </Popup>
 
             <!-- Island paneli: aynı Popup kalıbı (StaysOpen=True, PopupAnimation=None —

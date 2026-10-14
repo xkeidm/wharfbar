@@ -27,6 +27,8 @@ internal sealed class TaskbarVisibilityService
     private readonly TrayPeekTracker _peekTracker = new(AppBarPlacement.TrayPeekMaxDuration);
     private readonly TaskbarWatchdogStateStore _watchdogStore = new(TaskbarWatchdog.DefaultDirectory());
     private bool _stealthPeek;
+    private bool _haveGapAtPeekStart;
+    private int _gapAtPeekStart;
     private int _expandingWorkArea;
     private int _pendingBroadcastExpand;
     private int _watchBusy;
@@ -255,6 +257,7 @@ internal sealed class TaskbarVisibilityService
 
         try
         {
+            _haveGapAtPeekStart = TaskbarNative.TryGetPrimaryWorkAreaGapPx(out _gapAtPeekStart);
             if (stealth)
             {
                 // Cloak refused → a parked+shown tray could flash when explorer re-asserts
@@ -303,6 +306,9 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
+        bool wasStealth = _stealthPeek;
+        bool hadGap = _haveGapAtPeekStart;
+        int gapAtStart = _gapAtPeekStart;
         _stealthPeek = false;
 
         if (Volatile.Read(ref _restored) != 0 || Volatile.Read(ref _captured) == 0)
@@ -310,7 +316,18 @@ internal sealed class TaskbarVisibilityService
             return;
         }
 
-        ApplyHide();
+        // A stealth read that did not change the work-area gap must not snap the dock.
+        // Notifying here on every 60 s icon refresh looked like the desktop jumping.
+        bool notify = true;
+        if (wasStealth
+            && hadGap
+            && TaskbarNative.TryGetPrimaryWorkAreaGapPx(out int gapNow)
+            && gapNow == gapAtStart)
+        {
+            notify = false;
+        }
+
+        ApplyHide(notifyWorkArea: notify);
     }
 
     internal void Restore()
@@ -448,7 +465,7 @@ internal sealed class TaskbarVisibilityService
         }
     }
 
-    private void ApplyHide(bool broadcast = false)
+    private void ApplyHide(bool broadcast = false, bool notifyWorkArea = true)
     {        if (Volatile.Read(ref _restored) != 0)
         {
             return;
@@ -491,7 +508,7 @@ internal sealed class TaskbarVisibilityService
 
             // Re-notifying on every no-op hide cancels dock auto-hide animation
             // (WorkAreaChanged → ApplyPlacement snaps Y back to Hidden).
-            if (trayWasVisible)
+            if (notifyWorkArea && trayWasVisible)
             {
                 WorkAreaChanged.Notify();
             }

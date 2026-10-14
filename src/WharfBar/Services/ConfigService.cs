@@ -316,6 +316,8 @@ internal sealed class ConfigService
         }
 
         config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
+        config.TopBar.TrayOverflowIcons =
+            TrayOverflowMembership.Normalize(config.TopBar.TrayOverflowIcons).ToList();
 
         // Soft migrations: oversized early defaults (48/72) and the previous 28 DIP default → 24.
         // Other values inside Min–Max are preserved.

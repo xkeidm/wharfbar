@@ -140,6 +140,9 @@ internal static class NativeMethods
     internal const int SW_RESTORE = 9;
 
     internal const uint GW_OWNER = 4;
+
+    /// <summary>Owner of a top-level popup. <c>SetWindowLongPtr</c> index, not <c>GWL_HWNDPARENT</c> (-8 is the same value).</summary>
+    internal const int GWLP_HWNDPARENT = -8;
     internal const int GWL_EXSTYLE = -20;
     internal const int WS_EX_LAYERED = 0x00080000;
     internal const uint LWA_ALPHA = 0x2;
@@ -493,6 +496,15 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     internal static extern IntPtr GetDesktopWindow();
 
+    /// <summary>
+    /// Freezes painting of one window until called with <see cref="IntPtr.Zero"/>. Used around
+    /// an app-bar state blip so the desktop icon host does not paint the intermediate work-area
+    /// size. DWM may ignore it for composited application windows.
+    /// </summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool LockWindowUpdate(IntPtr hWndLock);
+
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
 
@@ -546,6 +558,9 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern int SetWindowLong(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    internal static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

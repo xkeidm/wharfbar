@@ -44,9 +44,11 @@ internal sealed class TrayOverflowInvoker
     private void OpenCore()
     {
         bool peeked = false;
+        bool refreshHeld = false;
+        _taskbar.BeginIconRefresh();
         try
         {
-            // Shell ignores Win+B / chevron activation while the tray HWND is SW_HIDE.
+            // Shell ignores Win+B / chevron activation while the tray is parked by ABS_AUTOHIDE.
             peeked = _taskbar.BeginTrayPeek(stealth: false);
             if (peeked)
             {
@@ -67,6 +69,7 @@ internal sealed class TrayOverflowInvoker
 
             if (peeked)
             {
+                refreshHeld = true;
                 _dispatcher.BeginInvoke(ScheduleRehideAfterOverflow);
             }
         }
@@ -80,6 +83,11 @@ internal sealed class TrayOverflowInvoker
         }
         finally
         {
+            if (!refreshHeld)
+            {
+                _taskbar.EndIconRefresh();
+            }
+
             Interlocked.Exchange(ref _busy, 0);
         }
     }
@@ -117,5 +125,6 @@ internal sealed class TrayOverflowInvoker
         _rehideTimer?.Stop();
         _rehideTimer = null;
         _taskbar.EndTrayPeek();
+        _taskbar.EndIconRefresh();
     }
 }

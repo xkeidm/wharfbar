@@ -93,6 +93,11 @@ public partial class TopBarWindow : Window
         };
         ApplyStatusItemLayout();
         StatusStrip.MouseRightButtonUp += OnStatusStripRightClick;
+        StatusStrip.PreviewMouseLeftButtonDown += OnStatusStripDragDown;
+        StatusStrip.PreviewMouseMove += OnStatusStripDragMove;
+        StatusStrip.PreviewMouseLeftButtonUp += OnStatusStripDragUp;
+        StatusStrip.PreviewMouseRightButtonDown += OnStatusStripDragCancelRight;
+        StatusStrip.LostMouseCapture += OnStatusStripDragLostCapture;
         _statsHover = new StatsHoverCard();
         SystemStatsText.ToolTip = new ToolTip { Content = _statsHover };
     }
@@ -164,6 +169,7 @@ public partial class TopBarWindow : Window
         {
             _engine.TrayMirror.Changed += OnTrayMirrorChanged;
             ApplyTrayMirror(_engine.TrayMirror.Items);
+            AttachTrayOverflowBox();
         }
 
         // The shell binds an AppBar to the monitor the window occupies at ABM_NEW time.
@@ -213,7 +219,7 @@ public partial class TopBarWindow : Window
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (!QuickSettingsPopup.IsOpen && !BrightnessPopup.IsOpen && !MediaPopup.IsOpen
-            && !IslandPopup.IsOpen && !ClockPopup.IsOpen)
+            && !IslandPopup.IsOpen && !ClockPopup.IsOpen && !TrayOverflowPopup.IsOpen)
         {
             return;
         }
@@ -224,7 +230,8 @@ public partial class TopBarWindow : Window
                 || IsWithin(hit, BrightnessHost)
                 || IsWithin(hit, MediaHost)
                 || IsWithin(hit, IslandHost)
-                || IsWithin(hit, ClockPanelHost))
+                || IsWithin(hit, ClockPanelHost)
+                || IsWithin(hit, TrayOverflowHost))
             {
                 return;
             }
@@ -235,7 +242,8 @@ public partial class TopBarWindow : Window
                 || IsWithin(hit, BrightnessButton)
                 || IsWithin(hit, MediaButton)
                 || IsWithin(hit, IslandPill)
-                || IsWithin(hit, DateTimeButton))
+                || IsWithin(hit, DateTimeButton)
+                || IsWithin(hit, TrayOverflowButton))
             {
                 return;
             }
@@ -267,6 +275,12 @@ public partial class TopBarWindow : Window
         }
 
         e.Handled = true;
+        if (_statusDragActive)
+        {
+            EndStatusDragVisuals();
+            return;
+        }
+
         CloseFlyouts();
     }
 
@@ -349,10 +363,16 @@ public partial class TopBarWindow : Window
     private void OnTrayOverflowClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        CloseFlyouts();
-        _ = Dispatcher.BeginInvoke(
-            DispatcherPriority.Input,
-            new Action(() => _engine.TrayOverflow.TryOpen()));
+        if (!Monitor.IsPrimary)
+        {
+            CloseFlyouts();
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Input,
+                new Action(() => _engine.TrayOverflow.TryOpen()));
+            return;
+        }
+
+        ToggleTrayOverflowBox();
     }
 
     private void OnVolumeClick(object sender, MouseButtonEventArgs e)
@@ -383,6 +403,10 @@ public partial class TopBarWindow : Window
             return;
         }
 
+        CloseIsland();
+        CloseBrightness();
+        CloseMedia();
+        CloseClockPanel();
         CancelPendingClose(QuickSettingsHost, ref _qsClosePending);
         _pendingQuickPage = page;
         QuickSettingsPopup.PlacementTarget = anchor;
@@ -830,6 +854,7 @@ public partial class TopBarWindow : Window
         CloseBrightness(animate);
         CloseMedia(animate);
         CloseClockPanel(animate);
+        CloseTrayOverflowBox(animate);
     }
 
     protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
@@ -979,8 +1004,7 @@ public partial class TopBarWindow : Window
             string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
             SetPlainToolTip(VolumeButton, tip);
         }
-        else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton)
-            || ReferenceEquals(QuickSettingsPopup.PlacementTarget, ControlCenterButton))
+        else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton))
         {
             CloseQuickSettings(animate: false);
         }
@@ -1004,9 +1028,9 @@ public partial class TopBarWindow : Window
 
     private void ApplySystemStatsVisibility()
     {
-        SystemStatsText.Visibility = _config.Current.TopBar?.ShowSystemStats != false
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        bool show = _config.Current.TopBar?.ShowSystemStats != false;
+        SystemStatsText.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        _engine.SystemStats.SetSampling(show);
     }
 
     private void OnVolumeChanged(object? sender, EventArgs e)
@@ -1061,12 +1085,17 @@ public partial class TopBarWindow : Window
         IReadOnlyList<string> order = TopBarStatusItemIds.Normalize(
             _config.Current.TopBar?.StatusItems);
 
-        StatusStrip.Children.Clear();
-        foreach (string id in order)
+        // A tray poll hits this often. Rebuilding the strip mid-drag would throw away the
+        // frozen slot measure the insertion line is anchored to.
+        if (!StatusStripMatches(order))
         {
-            if (_statusElements.TryGetValue(id, out FrameworkElement? el))
+            StatusStrip.Children.Clear();
+            foreach (string id in order)
             {
-                StatusStrip.Children.Add(el);
+                if (_statusElements.TryGetValue(id, out FrameworkElement? el))
+                {
+                    StatusStrip.Children.Add(el);
+                }
             }
         }
 
@@ -1088,6 +1117,34 @@ public partial class TopBarWindow : Window
         {
             ApplyIslandFace(_presence.View);
         }
+
+        if (_statusDragActive
+            && _statusDragId is string dragging
+            && _statusElements.TryGetValue(dragging, out FrameworkElement? dragged)
+            && dragged.Visibility != Visibility.Visible)
+        {
+            EndStatusDragVisuals();
+        }
+    }
+
+    private bool StatusStripMatches(IReadOnlyList<string> order)
+    {
+        if (StatusStrip.Children.Count != order.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < order.Count; i++)
+        {
+            if (StatusStrip.Children[i] is not FrameworkElement element
+                || !TryGetIdForElement(element, out string id)
+                || !string.Equals(id, order[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private void OnStatusStripRightClick(object sender, MouseButtonEventArgs e)
@@ -1227,6 +1284,24 @@ public partial class TopBarWindow : Window
             menu.Items.Add(new Separator());
         }
 
+        bool missing = false;
+        foreach (string id in TopBarStatusItemIds.CatalogOrder)
+        {
+            if (!visible.Contains(id))
+            {
+                missing = true;
+                break;
+            }
+        }
+
+        var showAll = new System.Windows.Controls.MenuItem
+        {
+            Header = "Tümünü göster",
+            IsEnabled = missing,
+        };
+        showAll.Click += OnShowAllStatusItems;
+        menu.Items.Add(showAll);
+
         var reset = new System.Windows.Controls.MenuItem { Header = "Varsayılana sıfırla" };
         reset.Click += OnResetStatusItems;
         menu.Items.Add(reset);
@@ -1362,13 +1437,31 @@ public partial class TopBarWindow : Window
         PersistStatusItems(TopBarStatusItemIds.DefaultOrder.ToList());
     }
 
+    private void OnShowAllStatusItems(object sender, RoutedEventArgs e)
+    {
+        PersistStatusItems(TopBarStatusItemIds.ShowAll(_config.Current.TopBar.StatusItems));
+    }
+
     private void PersistStatusItems(List<string> items)
     {
         AppConfig cfg = _config.Current;
         cfg.TopBar ??= new TopBarConfig();
-        cfg.TopBar.StatusItems = TopBarStatusItemIds.Normalize(items);
+        List<string> normalized = TopBarStatusItemIds.Normalize(items);
+        if (cfg.TopBar.StatusItems is { } existing && existing.SequenceEqual(normalized))
+        {
+            return;
+        }
+
+        cfg.TopBar.StatusItems = normalized;
         _config.Save(cfg);
-        ApplyStatusItemLayout();
+        if (Application.Current is App app)
+        {
+            app.ApplyTopBarChanges();
+        }
+        else
+        {
+            ApplyStatusItemLayout();
+        }
     }
 
     private void ApplyBackgroundAppearance()
@@ -1408,6 +1501,7 @@ public partial class TopBarWindow : Window
         // görünürlüğü servisin Enabled alanına, canlı liste de Changed aboneliğine bağlı;
         // ikisi de ayar kaydından sonra bayat kalır. Bu satır yalnız görünürlüğü tazeler.
         UpdateIslandPill();
+        SyncBluetoothWatch();
     }
 
     private void PersistBackground(string mode, int? opacity = null)
@@ -1688,7 +1782,11 @@ public partial class TopBarWindow : Window
             WorkAreaExpandPolicy.Shared.Reset();
             QueueApplyPlacement(reRegister: true);
             _engine.TrayMirror.Reenumerate();
-            ((App)Application.Current).Monitors?.Refresh();
+            if (Application.Current is App app)
+            {
+                app.ReaddTrayIcon();
+                app.Monitors?.Refresh();
+            }
             return IntPtr.Zero;
         }
 
@@ -1885,9 +1983,29 @@ public partial class TopBarWindow : Window
 
     private void ApplyTrayMirror(IReadOnlyList<TrayMirrorItem> items)
     {
-        _trayMirrorActive = items.Count > 0;
+        _haveTraySnapshot = true;
+        _trayMirrorSnapshot = items;
+        if (_trayOverflowDragActive)
+        {
+            _trayOverflowUiStale = true;
+            return;
+        }
 
-        var nextKeys = new HashSet<string>(items.Select(static i => i.Key), StringComparer.Ordinal);
+        _trayOverflowUiStale = false;
+
+        IReadOnlyList<string>? box = _config.Current.TopBar?.TrayOverflowIcons;
+        var visible = new List<TrayMirrorItem>(items.Count);
+        foreach (TrayMirrorItem candidate in items)
+        {
+            if (!TrayOverflowMembership.IsInBox(box, candidate.Key))
+            {
+                visible.Add(candidate);
+            }
+        }
+
+        _trayMirrorActive = visible.Count > 0;
+
+        var nextKeys = new HashSet<string>(visible.Select(static i => i.Key), StringComparer.Ordinal);
         var stale = _trayMirrorImages.Keys.Where(k => !nextKeys.Contains(k)).ToList();
         foreach (string key in stale)
         {
@@ -1895,7 +2013,7 @@ public partial class TopBarWindow : Window
             _trayMirrorImages.Remove(key);
         }
 
-        foreach (TrayMirrorItem item in items)
+        foreach (TrayMirrorItem item in visible)
         {
             if (_trayMirrorImages.TryGetValue(item.Key, out Border? existing))
             {
@@ -1941,6 +2059,8 @@ public partial class TopBarWindow : Window
                 host.MouseEnter += (_, _) => host.Background = hoverBrush;
                 host.MouseLeave += (_, _) => host.Background = Brushes.Transparent;
                 host.MouseDown += OnTrayMirrorItemMouseDown;
+                host.MouseMove += OnTrayMirrorItemMouseMove;
+                host.MouseLeftButtonUp += OnTrayMirrorItemMouseLeftButtonUp;
                 // Tunnel marks the release handled before StatusStrip's bubble opens WharfBar's
                 // own menu. The bubble handler is the same method and only swallows.
                 host.PreviewMouseRightButtonUp += OnTrayMirrorItemRightUp;
@@ -1951,31 +2071,23 @@ public partial class TopBarWindow : Window
             }
         }
 
+        for (int i = 0; i < visible.Count; i++)
+        {
+            if (!_trayMirrorImages.TryGetValue(visible[i].Key, out Border? host))
+            {
+                continue;
+            }
+
+            int current = TrayMirrorItems.Items.IndexOf(host);
+            if (current >= 0 && current != i)
+            {
+                TrayMirrorItems.Items.RemoveAt(current);
+                TrayMirrorItems.Items.Insert(i, host);
+            }
+        }
+
+        TrayOverflowHost.SetItems(ParkedTrayIcons(items, box));
         ApplyStatusItemLayout();
-    }
-
-    private void OnTrayMirrorItemMouseDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not Border { Tag: TrayMirrorItem item } host)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        // Çift tık: ikinci fiziksel tıklamada ClickCount==2 (MouseLeftButtonDown UIElement'te
-        // yok; MouseDown üzerinden ClickCount ile ayrıştırılır). Sıra: down/up, down/up, dblclk/up.
-        // Sağ tık burada iletilmez: düğme hâlâ basılıyken üst bar capture'dadır, enjekte edilen
-        // sağ tık tepsi düğmesine değil bu pencereye gider. İletim bırakmada (RightUp).
-        if (!TrayGestureMap.TryForward(
-                e.ChangedButton == MouseButton.Right,
-                e.ClickCount,
-                isRelease: false,
-                out TrayClick kind))
-        {
-            return;
-        }
-
-        ForwardTrayClick(item, kind, host);
     }
 
     private void OnTrayMirrorItemRightUp(object sender, MouseButtonEventArgs e)

@@ -63,6 +63,8 @@ internal static class TrayToolbar
         public IntPtr iString;
     }
 
+    internal static int ButtonBytes => Marshal.SizeOf<TBBUTTON>();
+
     internal static IntPtr FindToolbarHwnd()
     {
         IntPtr tray = TaskbarNative.FindTrayHwnd();

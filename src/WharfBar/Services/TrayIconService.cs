@@ -38,6 +38,8 @@ internal sealed class TrayIconService : IDisposable
         _notifyIcon = new NotifyIconHost(_source.Handle, icon, "WharfBar", ownsIcon);
     }
 
+    internal void Readd() => _notifyIcon?.Readd();
+
     public void Dispose()
     {
         if (_disposed)

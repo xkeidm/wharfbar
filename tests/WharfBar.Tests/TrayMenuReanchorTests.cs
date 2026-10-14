@@ -148,4 +148,14 @@ public class TrayMenuReanchorTests
         Assert.Equal(34, pos.Y);
         Assert.Equal(666, pos.X);
     }
+
+    [Fact]
+    public void ShouldDetachPopupFromTray_OnlyWhenTheTrayOwnsIt()
+    {
+        var tray = new IntPtr(100);
+        Assert.True(TrayMenuReanchor.ShouldDetachPopupFromTray(tray, tray));
+        Assert.False(TrayMenuReanchor.ShouldDetachPopupFromTray(new IntPtr(200), tray));
+        Assert.False(TrayMenuReanchor.ShouldDetachPopupFromTray(IntPtr.Zero, tray));
+        Assert.False(TrayMenuReanchor.ShouldDetachPopupFromTray(tray, IntPtr.Zero));
+    }
 }

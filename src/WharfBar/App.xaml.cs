@@ -40,6 +40,9 @@ public partial class App : Application
     /// <summary>The primary top bar (MainWindow when a bar exists).</summary>
     internal TopBarWindow? TopBar => _monitors?.PrimaryTopBar;
 
+    /// <summary>Explorer restart drops Shell_NotifyIcon registrations. Put ours back.</summary>
+    internal void ReaddTrayIcon() => _tray?.Readd();
+
     /// <summary>Applies top-bar settings to every per-monitor bar.</summary>
     internal void ApplyTopBarChanges()
     {

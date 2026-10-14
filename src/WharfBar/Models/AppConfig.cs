@@ -195,6 +195,13 @@ internal sealed class TopBarConfig
     /// </summary>
     public List<string> StatusItems { get; set; } = TopBarStatusItemIds.DefaultOrder.ToList();
 
+    /// <summary>
+    /// Mirrored tray keys parked in the overflow box (<c>topBar.trayOverflowIcons</c>).
+    /// Keys missing from this list stay on the bar. Soft field: <see cref="AppConfig.SchemaVersion"/>
+    /// stays <see cref="AppConfig.CurrentSchemaVersion"/> and <see cref="StatusItems"/> is not rewritten.
+    /// </summary>
+    public List<string> TrayOverflowIcons { get; set; } = [];
+
     /// <summary><c>mica</c>, <c>transparent</c>, or <c>tint</c>.</summary>
     public string BackgroundMode { get; set; } = TopBarBackgroundModes.Mica;
 
