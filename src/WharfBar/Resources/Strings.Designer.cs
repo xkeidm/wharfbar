@@ -80,6 +80,24 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Network_RateBytes {
+            get {
+                return ResourceManager.GetString("Network_RateBytes", resourceCulture);
+            }
+        }
+
+        public static string Network_RateKilobytes {
+            get {
+                return ResourceManager.GetString("Network_RateKilobytes", resourceCulture);
+            }
+        }
+
+        public static string Network_RateMegabytes {
+            get {
+                return ResourceManager.GetString("Network_RateMegabytes", resourceCulture);
+            }
+        }
+
         public static string General_LanguageTurkish {
             get {
                 return ResourceManager.GetString("General_LanguageTurkish", resourceCulture);

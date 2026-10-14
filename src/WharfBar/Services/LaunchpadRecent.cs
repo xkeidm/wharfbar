@@ -88,6 +88,6 @@ internal static class LaunchpadRecent
             return $"Dün saat {local:HH:mm}";
         }
 
-        return local.ToString("d MMM HH:mm", CultureInfo.GetCultureInfo("tr-TR"));
+        return local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
     }
 }

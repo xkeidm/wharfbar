@@ -786,4 +786,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Calendar</value></data>
   <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>This month&apos;s grid. It does not go in the island pill.</value></data>
   <data name="Island_Camera" xml:space="preserve"><value>Camera</value></data>
+  <data name="Network_RateBytes" xml:space="preserve"><value>{0} B/s</value></data>
+  <data name="Network_RateKilobytes" xml:space="preserve"><value>{0} KB/s</value></data>
+  <data name="Network_RateMegabytes" xml:space="preserve"><value>{0} MB/s</value></data>
 </root>

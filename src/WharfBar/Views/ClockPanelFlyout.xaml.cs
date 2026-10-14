@@ -16,7 +16,7 @@ namespace WharfBar.Views;
 /// </summary>
 public partial class ClockPanelFlyout : UserControl
 {
-    private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
+    private static CultureInfo Culture => CultureInfo.CurrentCulture;
 
     private DateTime _today = DateTime.Now;
     private DateTime _month;
@@ -50,11 +50,11 @@ public partial class ClockPanelFlyout : UserControl
     private void ShowMonth(DateTime month)
     {
         _month = new DateTime(month.Year, month.Month, 1);
-        MonthTitle.Text = _month.ToString("MMMM yyyy", Turkish);
+        MonthTitle.Text = _month.ToString("MMMM yyyy", Culture);
         CalendarDays.Children.Clear();
 
-        string[] names = Turkish.DateTimeFormat.AbbreviatedDayNames;
-        DayOfWeek first = Turkish.DateTimeFormat.FirstDayOfWeek;
+        string[] names = Culture.DateTimeFormat.AbbreviatedDayNames;
+        DayOfWeek first = Culture.DateTimeFormat.FirstDayOfWeek;
         for (int i = 0; i < 7; i++)
         {
             int index = ((int)first + i) % 7;
@@ -92,7 +92,7 @@ public partial class ClockPanelFlyout : UserControl
     {
         var label = new TextBlock
         {
-            Text = day.ToString(Turkish),
+            Text = day.ToString(Culture),
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,

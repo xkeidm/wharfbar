@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using WharfBar.Native;
@@ -380,13 +381,32 @@ public class SystemStatsTests
     }
 
     [Fact]
-    public void FormatBytesPerSecond_UsesTurkishUnits()
+    public void FormatBytesPerSecond_UsesUiCultureUnits()
     {
         Assert.Equal("—", NetworkRate.FormatBytesPerSecond(null));
         Assert.Equal("—", NetworkRate.FormatBytesPerSecond(-1));
-        Assert.Equal("512 B/sn", NetworkRate.FormatBytesPerSecond(512));
-        Assert.Equal("1,5 KB/sn", NetworkRate.FormatBytesPerSecond(1536));
-        Assert.Equal("1,0 MB/sn", NetworkRate.FormatBytesPerSecond(1024d * 1024d));
+
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        CultureInfo previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("tr-TR");
+            CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
+            Assert.Equal("512 B/sn", NetworkRate.FormatBytesPerSecond(512));
+            Assert.Equal("1,5 KB/sn", NetworkRate.FormatBytesPerSecond(1536));
+            Assert.Equal("1,0 MB/sn", NetworkRate.FormatBytesPerSecond(1024d * 1024d));
+
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en-US");
+            CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
+            Assert.Equal("512 B/s", NetworkRate.FormatBytesPerSecond(512));
+            Assert.Equal("1.5 KB/s", NetworkRate.FormatBytesPerSecond(1536));
+            Assert.Equal("1.0 MB/s", NetworkRate.FormatBytesPerSecond(1024d * 1024d));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 
     [Fact]

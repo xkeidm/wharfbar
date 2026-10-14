@@ -789,4 +789,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Takvim</value></data>
   <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>Bu ayın ızgarası. Ada hapına girmez.</value></data>
   <data name="Island_Camera" xml:space="preserve"><value>Kamera</value></data>
+  <data name="Network_RateBytes" xml:space="preserve"><value>{0} B/sn</value></data>
+  <data name="Network_RateKilobytes" xml:space="preserve"><value>{0} KB/sn</value></data>
+  <data name="Network_RateMegabytes" xml:space="preserve"><value>{0} MB/sn</value></data>
 </root>

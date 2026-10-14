@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net.NetworkInformation;
+using WharfBar.Resources;
 
 namespace WharfBar.Services;
 
@@ -9,8 +10,6 @@ namespace WharfBar.Services;
 /// </summary>
 internal static class NetworkRate
 {
-    private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
-
     /// <summary>Bytes per second between two counter samples. A reset or a non-positive interval is null.</summary>
     internal static double? BytesPerSecond(long previous, long current, double elapsedSeconds)
     {
@@ -24,7 +23,7 @@ internal static class NetworkRate
 
     /// <summary>
     /// Compact rate. Null, NaN, infinity, and negatives become an em dash.
-    /// Uses tr-TR so the decimal comma matches the rest of the bar.
+    /// Numbers use CurrentCulture; unit templates come from Strings.Network_Rate*.
     /// </summary>
     internal static string FormatBytesPerSecond(double? bytesPerSecond)
     {
@@ -36,18 +35,19 @@ internal static class NetworkRate
             return "—";
         }
 
+        CultureInfo culture = CultureInfo.CurrentCulture;
         const double kilo = 1024d;
         if (value < kilo)
         {
-            return string.Create(Turkish, $"{value:0} B/sn");
+            return string.Format(culture, Strings.Network_RateBytes, value.ToString("0", culture));
         }
 
         if (value < kilo * kilo)
         {
-            return string.Create(Turkish, $"{value / kilo:0.0} KB/sn");
+            return string.Format(culture, Strings.Network_RateKilobytes, (value / kilo).ToString("0.0", culture));
         }
 
-        return string.Create(Turkish, $"{value / (kilo * kilo):0.0} MB/sn");
+        return string.Format(culture, Strings.Network_RateMegabytes, (value / (kilo * kilo)).ToString("0.0", culture));
     }
 
     /// <summary>Sum of up, non-loopback interface counters. A failed adapter is skipped.</summary>

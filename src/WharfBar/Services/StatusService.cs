@@ -164,20 +164,18 @@ internal sealed class StatusService : IDisposable
             batteryTip);
     }
 
-    private static readonly CultureInfo ClockCulture = CultureInfo.GetCultureInfo("tr-TR");
-
     private static (string Text, string Tooltip) FormatClock(DateTime now)
     {
-        // Single-line strip: "9 Ağu Paz 21:57" (Turkish abbreviated month + weekday + time).
-        string text = now.ToString("d MMM ddd HH:mm", ClockCulture);
-        string tip = now.ToString("f", ClockCulture);
+        // Single-line strip: "9 Ağu Paz 21:57" (localized abbreviated month + weekday + time).
+        string text = now.ToString("d MMM ddd HH:mm", CultureInfo.CurrentCulture);
+        string tip = now.ToString("f", CultureInfo.CurrentCulture);
         return (text, tip);
     }
 
     private static (string Text, string Tooltip) FormatDate(DateTime now)
     {
         // Combined into ClockText; fields kept for StatusSnapshot shape.
-        return (string.Empty, now.ToString("D", ClockCulture));
+        return (string.Empty, now.ToString("D", CultureInfo.CurrentCulture));
     }
 
     private static (bool Online, NetworkKind Kind, string Tooltip) ReadNetwork()
