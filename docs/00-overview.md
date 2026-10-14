@@ -1,81 +1,80 @@
-# 00 — Genel Bakış
+# 00 — Overview
 
-## Amaç
+## Purpose
 
-WharfBar, Windows masaüstüne macOS’a benzer bir **üst bar** ve **dock** ekler:
+WharfBar is a Windows desktop shell inspired by Windows, macOS, and Linux desktops. It adds a **top bar** and a **dock**:
 
-- **Top bar:** Saat ve durum göstergeleri; ekran alanını AppBar ile rezerve eder.
-- **Dock:** Kendi listesindeki uygulamalar; tıklanınca süreç başlatır veya pencereyi odaklar;
-  ortalanmış levha (Mica / saydam / renkli).
+- **Top bar:** Clock and status indicators; it reserves screen space with an AppBar.
+- **Dock:** Applications on its own list; a click starts the process or focuses the window;
+  a centered plate (Mica / transparent / tinted).
 
-Görsel dil **Windows Fluent** (Mica, sistem teması) olmalıdır; macOS ikon dili / blur / marka öğeleri
-kullanılmaz — yalnızca düzen kavramı (üst bar + dock) ilham alınır.
+The visual language must be **Windows Fluent** (Mica, the system theme). Apple branding and macOS icon language are not used.
 
-## Öncelik sırası (çakışmada)
+## Priority order (when they conflict)
 
-1. **Düşük kaynak tüketimi** — RAM/CPU ayak izini büyüten kararlar sessizce kabul edilmez.
-   Boşta WharfBar masaüstünün önüne geçmez: pencere sayımı tüm dock’larda tek geçiş (3 sn),
-   istatistik 4 sn ve UI iş parçacığının dışında (görünen metin değişmediyse bar yenilenmez;
-   istatistik kapalıysa örnekleme durur), tepsi aynası 4 sn (ikon pikseli her turda çekilmez),
-   gizli dock imleci 200 ms, ilerleme taraması tepsi düğmesi yokken 20 sn, Bluetooth bağlantı
-   bildirimi 10 sn. Ayrıntı: [`01-architecture.md`](01-architecture.md) boşta yük bölümü.
-2. **Windows’a native görünüm** — Fluent Design; “macOS klonu” değil
-3. **Basitlik** — kişisel proje; önce çalışan iskelet, sonra cila
+1. **Low resource use** — decisions that grow the RAM/CPU footprint are not accepted silently.
+   When idle, WharfBar does not step in front of the desktop: window census is a single pass across all docks (3 s),
+   stats are 4 s and off the UI thread (the bar is not refreshed if the visible text has not changed;
+   sampling stops if stats are off), the tray mirror is 4 s (icon pixels are not pulled every round),
+   the hidden-dock cursor is 200 ms, progress scanning is 20 s when there is no tray button, and the Bluetooth connection
+   notification is 10 s. Detail: the idle-load section of [`01-architecture.md`](01-architecture.md).
+2. **A native look on Windows** — Fluent Design; not a “macOS clone”
+3. **Simplicity** — a personal project; a working skeleton first, polish later
 
-Kişisel kullanım için başladı; olgunlaştıkça private → public açılması planlanıyor (MIT).
+It started for personal use; as it matures, opening it from private → public is planned (MIT).
 
-## Hedefler (v1)
+## Goals (v1)
 
-| Hedef | Not |
+| Goal | Note |
 |-------|-----|
-| Üst AppBar | `ABE_TOP`, work area rezervasyonu |
-| Çoklu monitör | Monitör bazında top bar / dock aç-kapat; her bar kendi monitöründe AppBar |
-| Dock overlay | Topmost; AppBar şart değil (ADR-001) |
-| Pinned / running apps | Sol: `User Pinned\TaskBar` **salt okunur** (kapalı pinler dahil) + `dock.items`; sağ: sabitlenmemiş çalışanlar (`EnumWindows`/AUMID); `SHGetFileInfo`. Görev çubuğu pin klasörüne **yazılmaz** (ADR-005, 2026-10-07). Gizleme/restore ayrı disiplindir |
-| Tepsi hibrit + ayna | Durum simülasyonu + native overflow düğmesi; üçüncü taraf ikon aynası belgelenmiş comctl32 `TB_*` mesajlarıyla (ADR-009); gizli ikonlar native overflow'da |
-| Görev çubuğu | WharfBar çalışırken gizle/auto-hide; çıkışta önceki duruma geri yükle (ADR-005) |
+| Top AppBar | `ABE_TOP`, work-area reservation |
+| Multiple monitors | Per-monitor top bar / dock on and off; each bar is an AppBar on its own monitor |
+| Dock overlay | Topmost; an AppBar is not required (ADR-001) |
+| Pinned / running apps | Left: `User Pinned\TaskBar` **read-only** (including closed pins) + `dock.items`; right: unpinned running apps (`EnumWindows`/AUMID); `SHGetFileInfo`. **Nothing is written** to the taskbar pin folder (ADR-005, 2026-10-07). Hide/restore is a separate discipline |
+| Tray hybrid + mirror | Status simulation + the native overflow button; a third-party icon mirror via documented comctl32 `TB_*` messages (ADR-009); hidden icons stay in the native overflow |
+| Taskbar | Hide/auto-hide while WharfBar is running; restore the previous state on exit (ADR-005) |
 | Config | JSON, `%AppData%/WharfBar/config.json` |
-| Autostart | Startup klasörü kısayolu |
+| Autostart | Startup-folder shortcut |
 | DPI | Per-Monitor V2 (`app.manifest`) |
 | Single-instance | Named Mutex |
-| Fullscreen | Tam ekran uygulamada bar/dock gizleme (hit-test / durum) |
-| Dayanıklılık | Çıkışta `ABM_REMOVE` + görev çubuğu restore; explorer yeniden başlayınca yeniden kayıt / gizleme |
+| Fullscreen | Hide the bar/dock in a fullscreen application (hit-test / state) |
+| Resilience | `ABM_REMOVE` on exit + taskbar restore; re-register / hide when explorer restarts |
 
 ## Non-goals (v1)
 
-- UWP / Store paket ikonları (AppxManifest yolu)
-- Sistem / üçüncü taraf tepsi ikonlarını `ReadProcessMemory` / enjeksiyon / belgelenmemiş
-  NotifyIcon enumeration ile okuma. (ADR-009: belgelenmiş comctl32 `TB_*` mesajlarıyla
-  salt-okunur ayna + tıklama forward üst barda **hedeftir**; gizli/overflow ikonlar kapsam dışı.)
-- Görev çubuğunu **kalıcı** bozmak (WharfBar kapalıyken de gizli / bozuk bırakmak).
-  Çalışma anında gizleme/auto-hide + restore **hedeftir** (ADR-005); blanket yasak değildir.
-- macOS tarzı **global uygulama menüsü** (File/Edit/View) — Windows’ta her pencere kendi menüsünü taşır; top bar yalnızca saat / durum / kontroller
-- Apple / macOS marka öğeleri (isim, logo, ikon dili)
-- Tema mağazası ve bulut senkronizasyonu
-- Uzak eklenti indirmek veya derleme yüklemek. Yerel `manifest.json` kataloğu
-  (aç/kapa, yuva kaydı) v1 kapsamındadır ([ADR-017](decisions/017-plugin-catalog.md));
-  üst çubuk ve dock yuvaları çizilmez
-- Electron / Flutter gibi gömülü render motorları (kaynak önceliği; bkz. mimari)
+- UWP / Store package icons (the AppxManifest path)
+- Reading system / third-party tray icons with `ReadProcessMemory` / injection / undocumented
+  NotifyIcon enumeration. (ADR-009: a read-only mirror + click forward on the top bar via documented comctl32 `TB_*` messages
+  **is a goal**; hidden/overflow icons are out of scope.)
+- **Permanently** breaking the taskbar (leaving it hidden / broken even while WharfBar is closed).
+  Hide/auto-hide at runtime + restore **is a goal** (ADR-005); it is not a blanket ban.
+- A macOS-style **global application menu** (File/Edit/View) — on Windows each window carries its own menu; the top bar is only clock / status / controls
+- Apple / macOS brand elements (name, logo, icon language)
+- A theme store and cloud sync
+- Downloading a remote plugin or loading an assembly. A local `manifest.json` catalog
+  (on/off, slot registration) is in v1 scope (ADR-017);
+  top-bar and dock slots are not drawn
+- Embedded render engines such as Electron / Flutter (resource priority; see architecture)
 
-## Başarı kriterleri (v1)
+## Success criteria (v1)
 
-- Maximize edilmiş pencereler top bar altına girmiyor (etkin her monitör).
-- Uygulama temiz kapanınca rezerve alan geri geliyor; görev çubuğu önceki durumuna dönüyor (ADR-005).
-- Dock, kendi listesini ve çalışan uygulamaları gösteriyor; liste sırası config sırasıdır ve
-  görev çubuğundan bağımsızdır.
-- Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward). Seçilenler yatay
-  hapta yalnız simge olarak durur; hapın sonundaki chevron `Win+B` ile Windows'un gizli
-  alanını açar.
-- İkinci örnek başlatılmıyor (Mutex).
-- DPI / ekran değişiminde üst bar pozisyonu bozulmuyor (temel handler’lar).
+- Maximized windows do not go under the top bar (every active monitor).
+- When the application closes cleanly, the reserved area comes back; the taskbar returns to its previous state (ADR-005).
+- The dock shows its own list and running applications; list order is the config order and
+  is independent of the taskbar.
+- Top bar: third-party tray icons are mirrored (click forward). Chosen ones sit in a horizontal
+  pill as the icon alone; the chevron at the end of the pill opens Windows' hidden
+  area with `Win+B`.
+- A second instance does not start (Mutex).
+- On a DPI / display change the top bar position does not break (the basic handlers).
 
-## Lisans
+## License
 
-MIT (WPF-UI de MIT; uyumluluk sorunu yok).
+MIT (WPF-UI is MIT as well; there is no compatibility issue).
 
-## Kaynak not
+## Source note
 
-İlk teknik notlar (Downloads / proje notu) yapılandırılmış `docs/` + `.agent/` dosyalarına taşındı.
-Dış notlar kaynak değildir; güncel gerçek bu ağaçtır. Erken notlarda dock’un da AppBar olduğu,
-`/Windows` klasörü ve `AllowUnsafeBlocks=true` varsayımları vardı — bunlar ADR-001 / ADR-002 /
-`Views/` kararıyla **geçersiz** sayılır.
+The first technical notes (Downloads / the project note) were moved into the structured `docs/` + `.agent/` files.
+External notes are not the source; the current truth is this tree. Early notes assumed the dock was also an AppBar,
+a `/Windows` folder, and `AllowUnsafeBlocks=true` — those are treated as **invalid** by the ADR-001 / ADR-002 /
+`Views/` decision.

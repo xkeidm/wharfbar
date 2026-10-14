@@ -1,67 +1,67 @@
-# Ekran: Ayarlar penceresi
+# Screen: Settings window
 
 `src/WharfBar/Views/SettingsWindow.xaml` + `Views/Pages/*`.
 
-Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü). WPF-UI
-`NavigationView`, Mica, sol gezinme: **Genel · Görünüm · Dock · Ekranlar · Üst Çubuk ·
-Kaplama · Ada · Eklentiler** + alt **Hakkında**.
+Opens from: top bar Windows logo → `WharfBar Ayarları` (WharfBar Settings) (or the tray menu). WPF-UI
+`NavigationView`, Mica, left navigation: **`Genel` (General) · `Görünüm` (Appearance) · `Dock` · `Ekranlar` (Displays) · `Üst Çubuk` (Top bar) ·
+`Kaplama` (Overlay) · `Ada` (Island) · `Eklentiler` (Plugins)** + **`Hakkında` (About)** at the bottom.
 
-## Genel (`GeneralPage`)
+## General (`GeneralPage`)
 
-- **Windows ile Başlat** — Startup klasörü `WharfBar.lnk` (Registry Run değil;
+- **`Windows ile Başlat` (Start with Windows)** — Startup folder `WharfBar.lnk` (not Registry Run;
   `AutostartService`, config `autostart`)
 
-## Görünüm (`AppearancePage`)
+## Appearance (`AppearancePage`)
 
-- **Vurgu Rengi Stili** — Sistem Vurgu Rengi / Sabit Tema Modu (config `useSystemAccentColor`)
-- **Uygulama Teması** — Sistem varsayılanı / Açık / Koyu (config `theme`)
-- **Üst Çubuk Arka Planı** — Mica (Bulanık) / Saydam (Transparent) / Renkli (Tint)
-  (config `backgroundMode`) + **Opaklık** slider'ı 0–100 (yalnızca Tint'te etkin, config `tintOpacity`)
+- **`Vurgu Rengi Stili` (Accent color style)** — `Sistem Vurgu Rengi` (System accent color) / `Sabit Tema Modu` (Fixed theme mode) (config `useSystemAccentColor`)
+- **`Uygulama Teması` (Application theme)** — `Sistem varsayılanı` (System default) / `Açık` (Light) / `Koyu` (Dark) (config `theme`)
+- **`Üst Çubuk Arka Planı` (Top bar background)** — `Mica (Bulanık)` (Mica (Blur)) / `Saydam (Transparent)` / `Renkli (Tint)`
+  (config `backgroundMode`) + **`Opaklık` (Opacity)** slider 0–100 (enabled only for Tint, config `tintOpacity`)
 
 ## Dock (`DockPage`)
 
-- **İçerik listesi** — `dock.items` satırları (etiket + yol); `Ekle` (dosya seçici), `×` ile kaldır,
-  `⋮⋮` tutamacından sürükleyerek sırala
-- **Otomatik Gizle** toggle (config `dock.autoHide`)
-- **Simge Boyutu** slider'ı 16–36 DIP (config `dock.iconSize`; varsayılan 24). Eski 28 varsayılanı yüklemede 24'e çekilir.
-- **Arka Plan** ComboBox'u (config `dock.backgroundMode`: `mica` / `transparent` / `tint`; üst çubuktan bağımsız) + **Opaklık** 0–100 (yalnız `tint`, config `dock.tintOpacity`, varsayılan 40). Mica ↔ saydam/renkli geçişi dock penceresini yeniden kurar. Eski `dock.surface` (`mica`/`acrylic`) yüklemede `mica` olur.
-- **Konum** ComboBox'u (config `dock.position`: Sol / Orta / Sağ; yalnız alt kenar)
-- **Çalışan Uygulamaları Göster** toggle (config `dock.showRunningApps`; `false` iken sağdaki
-  sabitlenmemiş çalışanlar hiç üretilmez)
+- **Content list** — `dock.items` rows (label + path); `Ekle` (Add) (file picker), remove with `×`,
+  drag the `⋮⋮` grip to reorder
+- **`Otomatik Gizle` (Auto-hide)** toggle (config `dock.autoHide`)
+- **`Simge Boyutu` (Icon size)** slider 16–36 DIP (config `dock.iconSize`; default 24). The old default of 28 is pulled to 24 on load.
+- **`Arka Plan` (Background)** ComboBox (config `dock.backgroundMode`: `mica` / `transparent` / `tint`; independent of the top bar) + **`Opaklık` (Opacity)** 0–100 (only `tint`, config `dock.tintOpacity`, default 40). A Mica ↔ transparent/tint transition recreates the dock window. The old `dock.surface` (`mica`/`acrylic`) becomes `mica` on load.
+- **`Konum` (Position)** ComboBox (config `dock.position`: `Sol` (Left) / `Orta` (Center) / `Sağ` (Right); bottom edge only)
+- **`Çalışan Uygulamaları Göster` (Show running apps)** toggle (config `dock.showRunningApps`; while `false` the unpinned
+  running apps on the right are not produced at all)
 
-## Üst Çubuk (`TopBarPage`)
+## Top bar (`TopBarPage`)
 
-- **Durum öğeleri kartları** — katalogdaki her öğe (kapalı olanlar altta, "Kapalı" başlığıyla).
-  Onay kutusu göster/gizle; görünürlerde `⋮⋮` tutamacıyla sürükleyerek sırala.
-  **Tümünü göster** eksikleri açar (kayıtlı sırayı bozmaz). **Varsayılana Sıfırla**
-  `DefaultOrder`'a döner (config `topBar.statusItems`)
+- **Status item cards** — every item in the catalog (closed ones at the bottom, under the `Kapalı` (Off) heading).
+  A checkbox shows/hides; visible ones are reordered by dragging the `⋮⋮` grip.
+  **`Tümünü göster` (Show all)** turns on the missing ones (it does not disturb the saved order). **`Varsayılana Sıfırla` (Reset to default)**
+  returns to `DefaultOrder` (config `topBar.statusItems`)
 
-## Eklentiler (`PluginsPage`)
+## Plugins (`PluginsPage`)
 
-Launchpad'deki Widget ve Eklenti araçları aynı kataloğu ayrı pencerede açar (`GalleryWindow`).
+The Widget and Plugin tools in Launchpad open the same catalog in a separate window (`GalleryWindow`).
 
-- **Yuvalar** — Üst çubuk (`topBar`), Dock (`dock`), Masaüstü (`desktop`), Ada (`island`).
-  Üst çubuk ve dock v1'de yalnız kayıttır; çizilmez.
-- **Yerleşik** — görselleştirici, Bluetooth bildirimi, kamera aynası (ada); saat ve takvim
-  (masaüstü penceresi). Anahtar `island.visualizer`, `island.bluetoothNotice`,
+- **`Yuvalar` (Slots)** — Top bar (`topBar`), Dock (`dock`), Desktop (`desktop`), Island (`island`).
+  Top bar and dock are a record only in v1; they are not drawn.
+- **`Yerleşik` (Built-in)** — visualizer, Bluetooth notice, camera mirror (island); clock and calendar
+  (desktop window). Switches: `island.visualizer`, `island.bluetoothNotice`,
   `island.cameraMirror`, `island.openWidgets`.
-- **Yerel** — `%AppData%/WharfBar/plugins/<klasör>/manifest.json`. Boşken örnek manifest
-  ve **Klasörü aç** görünür. Açık id `plugins.enabled` içine yazılır. Derleme yüklenmez.
+- **`Yerel` (Local)** — `%AppData%/WharfBar/plugins/<folder>/manifest.json`. When empty, a sample manifest
+  and **`Klasörü aç` (Open folder)** are shown. An enabled id is written into `plugins.enabled`. An assembly is not loaded.
 
-## Hakkında (`AboutPage`)
+## About (`AboutPage`)
 
-- Sürüm / künye (`AboutWindow` ile eşdeğer içerik).
+- Version / credits (content equivalent to `AboutWindow`).
 
-## Notlar
+## Notes
 
-- Değişiklikler anında config'e yazılır (`ConfigService.Save`) ve top bar'a
-  `ApplyConfigChanges` ile canlı uygulanır.
-- Uzun sayfalar kendi `ScrollViewer`'ında kayar. Her `Page` kökünde
-  `ScrollViewer.CanContentScroll="False"` zorunlu — aksi halde `NavigationView`
-  sayfayı sonsuz yükseklikte ölçer ve tekerlek hiçbir şeyi kaydırmaz
+- Changes are written to config immediately (`ConfigService.Save`) and applied live to the top bar
+  with `ApplyConfigChanges`.
+- Long pages scroll in their own `ScrollViewer`. On every `Page` root,
+  `ScrollViewer.CanContentScroll="False"` is required — otherwise `NavigationView`
+  measures the page at infinite height and the wheel scrolls nothing
   (`docs/04-gotchas.md`).
-- Sayfalar `PowerToysCard` stilinde kartlar kullanır (Fluent `CardBackgroundFillColorDefaultBrush`).
-- Kart başlık ikonları / Windows logosu accent renginde: `AccentFillColorDefaultBrush`
-  (WPF-UI 4.3.0'un `SystemAccentColorPrimaryBrush`'ı sabit mavidir ve accent uygulanınca güncellenmez —
-  accent rengi ikonlar için kullanmayın; detay: `docs/04-gotchas.md`).
-- Durum öğesi listesi boşaltılamaz: son öğe gizlenirse `dateTime` otomatik eklenir.
+- Pages use cards in the `PowerToysCard` style (Fluent `CardBackgroundFillColorDefaultBrush`).
+- Card header icons / the Windows logo use the accent color: `AccentFillColorDefaultBrush`
+  (WPF-UI 4.3.0's `SystemAccentColorPrimaryBrush` is a fixed blue and does not update when the accent is applied —
+  do not use that accent color for icons; detail: `docs/04-gotchas.md`).
+- The status item list cannot be emptied: if the last item is hidden, `dateTime` is added automatically.

@@ -1,132 +1,132 @@
-# Boundaries — Yap / Önce Sor / Asla
+# Boundaries — Do / Ask First / Never
 
-## Yap (serbest)
+## Do (allowed)
 
-- Doküman ve `.agent/` güncellemesi (bu iskelet kapsamında)
-- Top bar AppBar akışı (NEW / QUERYPOS / SETPOS / REMOVE)
-- Dock overlay (Topmost, auto-hide, animasyon)
-- JSON config + şema versiyonu
+- Documentation and `.agent/` updates (within this skeleton's scope)
+- Top bar AppBar flow (NEW / QUERYPOS / SETPOS / REMOVE)
+- Dock overlay (Topmost, auto-hide, animation)
+- JSON config + schema version
 - Mutex single-instance
-- Startup klasörü autostart
-- `SHGetFileInfo` ile klasik `.exe`/`.lnk` ikonları
-- Durum göstergelerini .NET API ile okuma (hızlı ayarlar gerçek API'lerle: wlanapi + WinRT Radio/Bluetooth + SetDisplayConfig; ayrıntı docs/02)
-- WPF-UI backdrop / tema
-- DPI / display change / AppBar callback handler’ları
-- Fullscreen gizleme (bar/dock)
-- Explorer restart sonrası AppBar yeniden kayıt
-- **Windows görev çubuğunu WharfBar çalışırken gizleme / auto-hide** — başlatmada durumu
-  yakala; çıkış ve crash yollarında **önceki duruma geri yükle** (ADR-005; `ABM_REMOVE`
-  ile aynı disiplin). Kalıcı (WharfBar kapalıyken) bozma yok.
-- **Çoklu monitör** AppBar: monitör bazında top bar / dock (`monitors` config; per-monitor
-  aç-kapat), her bar kendi monitöründe AppBar. **`SPI_SETWORKAREA` yedeği 25H2+’ta ölü**
-  (API `ERROR_INVALID_PARAMETER` döndürür — `WorkAreaExpandPolicy` devre kesicisi atlar);
-  work-area override’ı destekleyen shell çıkana dek AppBar olmayan kenar rezervasyonu yok.
-- **Gizli görev çubuğu + maximize kaplaması (ADR-005 notu 5, 2026-09-30'da tekrar doğrulandı):**
-  gizleme akışı `ABM_SETSTATE(ABS_AUTOHIDE)` verir ve çalışırken o state'te kalır —
-  explorer çubuğu ~2px kıskaca park eder, alt rezervasyon work-area'dan çıkar, maximize
-  pencereler tam ekran kaplar. WharfBar çalışırken ölçüldü: `ABM_GETSTATE=1`, görev çubuğu
-  görünmez, `SPI_GETWORKAREA.Bottom`=1080 → **alt boşluk 0**; uygulama kapalıyken 1032/48.
-  `SW_HIDE` tek başına yetmez (~48px hayalet bırakır). Maximize pencerelere harici `SetWindowPos`
-  müdahalesi YASAK (Firefox/WinForms pencere yöneticisiyle 7 ms'lik savaş üretir — denendi,
-  söküldü).
-- **Ölçüm tuzağı:** `ABM_SETSTATE`/`ABM_SETPOS` **yalnızca kayıtlı bir AppBar** çağırdığında
-  etkilidir; dışarıdan prob etmek `TRUE` dönüp hiçbir şey yapmaz ve "API ölü" yanlış sonucunu
-  üretir (2026-09-30'da bu hataya düşüldü). `SPI_SETWORKAREA` ise gerçekten sessiz bir no-op'tur;
-  devre kesicisi (`WorkAreaExpandPolicy`) bu yüzden dönüş değerine değil **etkiye** bakar.
-- **Tepsi ikonu yakalama PEEK'in içinde olmak zorunda:** `PrintWindow(PW_RENDERFULLCONTENT)`
-  tray `IsWindowVisible=False` iken DIB'e piksel yazmadan `TRUE` döner → siyah bitmap. alpha 0
-  engel **değildir**; belirleyici peek'in açık olması. `TryRefreshViaBlip` ikonları
-  `EndTrayPeek`'ten önce yakalar. `TrayCapture.IsBlankCapture` boş kırpımayı reddeder →
-  harf glifi fallback. Yakalama peek dışına taşınırsa siyah kare geri gelir.
-  Tray aynası parklı tray'de UIA ile okunamaz:
-  okumalar desktop-root'tan özel STA dispatcher thread'inde. Tazeleme önce state'siz
-  stealth peek; ikon gelirse `ABM_SETSTATE` çevrilmez (work area zıplaması). Boşsa
-  maximize-yokken state blip, aralık 3 dk. Boş okuma aynayı temizlemez (son iyi
-  snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
-  geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
-- Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını okur** (kapalı pinler
-  dahil, görev çubuğu sırası) + `dock.items` içinde olup görev çubuğunda olmayanlar + `EnumWindows`
-  / AUMID. “Dock’a sabitle / Dock’tan kaldır” `dock.items` listesini değiştirir ve hedef
-  dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar (ADR-005). Aynı uygulama (kanonik exe yolu, AppUserModelId veya
-  süreç kimliği; geçişli) **tek kutudur** — arka plandaki ikinci pencere veya aynı exe'nin
-  ikinci süreci sağda yeni ikon açmaz; sayı o kutunun rozetindedir
-- **Görev çubuğu pin klasörü** (ADR-005, 2026-10-11): “Dock'a sabitle / kaldır” hedef dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar veya eşleşen kısayolu siler. Yol o klasörün dışına çıkamaz. `Taskband` yazılmaz. `TaskbarPinnedAppsSource` okumaya devam eder
-- Dock plakası ikonla birlikte büyümez. `DockMagnification` / `DockStripLayout` saf ve testli
-  durur; canlı şerit ölçeği 1'dir, pencere plaka boyutundadır, hover'da `SetWindowPos` çağrılmaz
+- Startup folder autostart
+- Classic `.exe`/`.lnk` icons via `SHGetFileInfo`
+- Reading status indicators with .NET APIs (quick settings through real APIs: wlanapi + WinRT Radio/Bluetooth + SetDisplayConfig; detail in docs/02)
+- WPF-UI backdrop / theme
+- DPI / display change / AppBar callback handlers
+- Fullscreen hiding (bar/dock)
+- AppBar re-registration after an Explorer restart
+- **Hiding / auto-hiding the Windows taskbar while WharfBar is running** — capture the state
+  at startup; on the exit and crash paths **restore the previous state** (ADR-005; the same discipline
+  as `ABM_REMOVE`). No permanent damage (while WharfBar is closed).
+- **Multi-monitor** AppBar: per-monitor top bar / dock (`monitors` config; per-monitor
+  on/off), each bar is an AppBar on its own monitor. **The `SPI_SETWORKAREA` fallback is dead on 25H2+**
+  (the API returns `ERROR_INVALID_PARAMETER` — the `WorkAreaExpandPolicy` circuit breaker skips it);
+  there is no non-AppBar edge reservation until a shell that supports a work-area override ships.
+- **Hidden taskbar + maximize coverage (ADR-005 note 5, confirmed again on 2026-09-30):**
+  the hide flow issues `ABM_SETSTATE(ABS_AUTOHIDE)` and stays in that state while running —
+  Explorer parks the bar in a ~2 px clamp, the bottom reservation leaves the work area, and maximized
+  windows cover the full screen. Measured while WharfBar was running: `ABM_GETSTATE=1`, the taskbar
+  is invisible, `SPI_GETWORKAREA.Bottom`=1080 → **bottom gap 0**; with the app closed, 1032/48.
+  `SW_HIDE` alone is not enough (it leaves a ~48 px ghost). External `SetWindowPos`
+  interference with maximized windows is FORBIDDEN (it produces a 7 ms fight with Firefox/WinForms window managers — tried,
+  removed).
+- **Measurement trap:** `ABM_SETSTATE`/`ABM_SETPOS` take effect **only when a registered AppBar** calls them;
+  probing from outside returns `TRUE` and does nothing, which produces a false "the API is dead" result
+  (this mistake was made on 2026-09-30). `SPI_SETWORKAREA` really is a silent no-op;
+  its circuit breaker (`WorkAreaExpandPolicy`) therefore looks at the **effect**, not the return value.
+- **Tray icon capture has to happen inside the PEEK:** while the tray `IsWindowVisible=False`, `PrintWindow(PW_RENDERFULLCONTENT)`
+  returns `TRUE` without writing pixels into the DIB → a black bitmap. Alpha 0 is **not**
+  the blocker; what decides it is that the peek is open. `TryRefreshViaBlip` captures the icons
+  before `EndTrayPeek`. `TrayCapture.IsBlankCapture` rejects an empty crop →
+  letter-glyph fallback. If capture is moved outside the peek, the black square comes back.
+  The tray mirror cannot be read with UIA on a parked tray:
+  reads run from the desktop root on a dedicated STA dispatcher thread. Refresh tries a stateless
+  stealth peek first; if icons arrive, `ABM_SETSTATE` is not toggled (work-area jump). If empty,
+  a state blip while nothing is maximized, interval 3 min. An empty read does not clear the mirror (the last good
+  snapshot stays frozen). After a force kill, a stale watchdog file restores the baseline state
+  (poisoned baseline chain — happened live on 2026-08-30).
+- Live dock: the left group **reads the taskbar `User Pinned` shortcuts** (including closed pins,
+  in taskbar order) + entries that are in `dock.items` but not on the taskbar + `EnumWindows`
+  / AUMID. `Dock’a sabitle / Dock’tan kaldır` (Pin to Dock / Unpin from Dock) changes the `dock.items` list and, when the target
+  is a file or folder, writes a `.lnk` into `User Pinned\TaskBar` (ADR-005). The same application (canonical exe path, AppUserModelId, or
+  process id; transitive) **is one box** — a second window in the background, or a second process of the same exe,
+  does not open a new icon on the right; the count is on that box's badge
+- **Taskbar pin folder** (ADR-005, 2026-10-11): if the `Dock'a sabitle / kaldır` (Pin to Dock / Unpin) target is a file or folder, it writes a `.lnk` into `User Pinned\TaskBar` or deletes the matching shortcut. The path cannot leave that folder. `Taskband` is not written. `TaskbarPinnedAppsSource` keeps reading
+- The dock plate does not grow with the icon. `DockMagnification` / `DockStripLayout` stay pure and tested;
+  the live strip scale is 1, the window is the plate size, and `SetWindowPos` is not called on hover
   (docs/04-gotchas.md)
-- Üst barda tek “tray overflow” düğmesi (`Win+B` / chevron) + **tray aynası (ADR-009):** üçüncü
-  taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
+- A single "tray overflow" button on the top bar (`Win+B` / chevron) + **tray mirror (ADR-009):** read third-party
+  tray icons **read-only with documented comctl32 toolbar messages** (`TB_BUTTONCOUNT`,
   `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
-  `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) salt-okunur okuyup üst
-  barda çizmek + `SendMessage` ile tıklama forward. Aynadaki simgeler sürüklenerek WharfBar
-  hapına alınır (`topBar.trayOverflowIcons`); hap yataydır ve yalnız simge çizer, ad
-  tooltip'tedir. Listede olmayan simge çubukta kalır. Geri alma, hapın içinden sağ şeride
-  bırakmaktır. Windows'un enumeration dışı gizli alanı hapın sonundaki chevron ile `Win+B`
-  açılır. **Ayna yalnızca birincil monitörün üst barında
-  görünür** (ikincil barlarda `trayMirror` bölümü hiç oluşmaz). **25H2+ UIA fallback:** klasik
+  `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) and draw them on the top
+  bar + click-forward with `SendMessage`. Icons in the mirror are dragged into the WharfBar
+  pill (`topBar.trayOverflowIcons`); the pill is horizontal and draws icons only, the name
+  is in the tooltip. An icon that is not in the list stays on the bar. Undo is a drop from inside the pill back onto the right strip.
+  Windows' hidden area, which is outside enumeration, opens with the chevron at the end of the pill via `Win+B`.
+  **The mirror is visible only on the primary monitor's top bar**
+  (the `trayMirror` section is never created on secondary bars). **25H2+ UIA fallback:** when the classic
   `ToolbarWindow32`
-  kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
-  `PrintWindow(PW_RENDERFULLCONTENT)` ile park+cloak'lı taskbar'dan yakalanıp buton rect'inden
-   kırpılır (flash yok); yakalama başarısızsa harf glifi fallback; sol tık `InvokePattern`, sağ/çift
-   tık görünür peek + fiziksel tıklama — UIA sağ/çift tık ifade edemez. Sağ tık ayna ikonunda **düğme bırakılınca** iletilir (basılıyken üst bar capture'ı tıklamayı yutar); fiziksel tıklamadan hemen önce `AllowSetForegroundWindow(ASFW_ANY)`. Menü içeriği sahibin HMENU / flyout'udur — WharfBar çizmez. Stealth peek'te DWM cloak
-   reddedilirse **WS_EX_LAYERED + alpha 0** yedeği kullanılır (UIA görünürlüğü korunur, flash yok);
-   o da başarısızsa peek açılmaz. **Popup re-anchor:** fiziksel tık sonrası tıklanan butonun
-   çevresinde yeni beliren popup penceresi (`TrayMenuReanchor`) ayna ikonunun altına taşınır —
-   belgelenmiş `SetWindowPos` yalnız; bellek okuma/enjeksiyon yok. Eşleşme **geometrik** (tık
-   bölgesi + boyut + `#32768` menü sınıfı; tam ekran overlay'ler hariç): 25H2 XAML tray
-   butonlarının hepsi explorer pid'i raporlar, pid ile eşleşme ayırt edemez.
-- **Island / clipboard geçmişi (ADR-010):** belgelenmiş pano P/Invoke'ları
+  is removed, the mirror falls back to UI Automation (`SystemTray.NormalButton` filter); real icons
+  are captured from the parked+cloaked taskbar with `PrintWindow(PW_RENDERFULLCONTENT)` and cropped from the button rect
+  (no flash); letter-glyph fallback if capture fails; left click is `InvokePattern`, right/double
+  click is a visible peek + a physical click — UIA cannot express right/double click. A right click on a mirror icon is delivered **on button release** (while it is held, the top bar capture swallows the click); `AllowSetForegroundWindow(ASFW_ANY)` immediately before the physical click. Menu contents are the owner's HMENU / flyout — WharfBar does not draw them. If the stealth peek's DWM cloak
+  is refused, the **WS_EX_LAYERED + alpha 0** fallback is used (UIA visibility is preserved, no flash);
+  if that fails too, the peek does not open. **Popup re-anchor:** after the physical click, a popup window that newly appears around the clicked button
+  (`TrayMenuReanchor`) is moved under the mirror icon —
+  documented `SetWindowPos` only; no memory read/injection. The match is **geometric** (click
+  region + size + `#32768` menu class; fullscreen overlays excluded): every 25H2 XAML tray
+  button reports the explorer pid, so matching by pid cannot tell them apart.
+- **Island / clipboard history (ADR-010):** documented clipboard P/Invokes
   (`OpenClipboard`/`GetClipboardData`/`SetClipboardData`/`EmptyClipboard`/
-  `AddClipboardFormatListener`/`RegisterClipboardFormatW`/`GlobalAlloc`) + **mesaj-only**
-  `HwndSource` dinleyicisi (mevcut `MonitorMessageWindow` kalıbı) + ayrı **atomik store**
-  (`island.json` + `Drop\` klasörü — `config.json`'a pano geçmişi yazılmaz, `ConfigService.Save`
-  dosyayı UI thread'inde baştan yazar) + mevcut flyout kalıbı (`Popup` +
-  `AnimateFlyoutOpen/Close`, **iç içe `Popup` yok**).
-  - **`CanIncludeInClipboardHistory` opt-out'una saygı:** format DWORD'u 0 ise kayıt alınmaz;
-     format id'i **alınamıyorsa da** kayıt alınmaz (fail-closed). "Panoya geri koy" yazması da
-     aynı işareti yazar, yoksa island kendi kopyasını geri yakalar.
-  - `System.Windows.Clipboard` **kullanılmaz** — pano okuması ayrı STA thread'indedir
-     (`OpenClipboard` bloklar), dosya kopyalama/silme de STA'dadır.
-  - `Clear()` bırakılan dosya kopyalarını **silmez** (bilinçli); yalnız `DeleteDroppedFiles()`
-     siler ve `Drop` klasörünü tarayarak yetimleri de kapsar. Silme yolları `Drop` önekiyle
-     doğrulanır (elle düzenlenmiş `island.json` kullanıcının dosyasını silemez).
-  - Pano geçmişi yalnız **birincil** monitörün barında görünür (servis tek örnek). İkincil hap müzik ve sayaçtır: pano listesi, dosya bırakma ve pano uydusu yok.
-  - Raf (`CanOpenShelfFile`) yol saklar ve varsayılan uygulamayla açabilir. `Drop` klasörünün dışındaki bir dosyayı silmek yasaktır; silme yolu `Drop` önekini doğrular.
-  - **Kompakt ada 30 DIP barın içinde kalır** (ADR-011, ADR-012, ADR-013): boşta / şimdi çalıyor / ses-parlaklık-pil sayacı / en fazla iki uydu hapı AppBar'ı büyütmez, ikinci bir `Topmost` pencere açmaz, iç içe `Popup` kurmaz. HUD sırasında kalıcı müzik ve pano uydusu birlikte durabilir. Hap odaklıyken Sol/Sağ uydu seçer. Düşük pil eşiği `lowBatteryPercent` (varsayılan 20, 5–50). Çok satırlı panel bugünkü tek `IslandPopup`'tır. Saat paneli (bildirim metni + ay) ve istatistik kıvılcımı ada hapında değildir; kıvılcım metnin üzerine gelince açılır, bar 30 DIP kalır. Enerji tasarrufu karosu API veya sistem bayrağı açıksa yanar; tıklama “Her zaman enerji tasarrufu kullan” anahtarını UI Automation ile çevirir, pencere ekranda kalmaz, belgelenmemiş COM/WNF yok (ADR-013).
-  - **Yeni paket yok.**
-- **Yerel eklenti kataloğu (ADR-017):** `%AppData%/WharfBar/plugins/<klasör>/manifest.json`
-  okunur. `plugins.enabled` bir aç/kapa kaydıdır. Yerleşik ada anahtarları (görselleştirici,
-  Bluetooth bildirimi, kamera aynası) ve masaüstü saat/takvim çalışır. Üst çubuk ve dock
-  yuvaları v1'de çizilmez. Derleme yüklenmez, internetten kod inmez.
+  `AddClipboardFormatListener`/`RegisterClipboardFormatW`/`GlobalAlloc`) + a **message-only**
+  `HwndSource` listener (the existing `MonitorMessageWindow` pattern) + a separate **atomic store**
+  (`island.json` + `Drop\` folder — clipboard history is not written into `config.json`, `ConfigService.Save`
+  rewrites the file from scratch on the UI thread) + the existing flyout pattern (`Popup` +
+  `AnimateFlyoutOpen/Close`, **no nested `Popup`**).
+  - **Respect the `CanIncludeInClipboardHistory` opt-out:** if the format DWORD is 0, no record is taken;
+     if the format id **cannot be obtained either**, no record is taken (fail-closed). The `Panoya geri koy` (Put back on the clipboard) write
+     writes the same flag, otherwise the island captures its own copy back.
+  - `System.Windows.Clipboard` is **not used** — clipboard reads are on a separate STA thread
+     (`OpenClipboard` blocks), and file copy/delete is on the STA too.
+  - `Clear` does **not delete** dropped file copies (deliberate); only `DeleteDroppedFiles`
+     deletes, and it also covers orphans by scanning the `Drop` folder. Delete paths are
+     checked against the `Drop` prefix (a hand-edited `island.json` cannot delete the user's file).
+  - Clipboard history is visible only on the **primary** monitor's bar (the service is a single instance). The secondary pill is music and meters: no clipboard list, no file drop, and no clipboard satellite.
+  - The shelf (`CanOpenShelfFile`) stores a path and can open it with the default app. Deleting a file outside the `Drop` folder is forbidden; the delete path checks the `Drop` prefix.
+  - **The compact island stays inside the 30 DIP bar** (ADR-011, ADR-012, ADR-013): idle / now playing / volume-brightness-battery meter / at most two satellite pills do not grow the AppBar, do not open a second `Topmost` window, and do not build a nested `Popup`. During HUD, persistent music and the clipboard satellite can stand together. While the pill is focused, Left/Right selects a satellite. Low-battery threshold `lowBatteryPercent` (default 20, 5–50). The multi-line panel is today's single `IslandPopup`. The clock panel (notification text + month) and the stats sparkline are not on the island pill; the sparkline opens on hover over the text, and the bar stays 30 DIP. The energy-saver tile lights when the API or the system flag is on; a click flips the `Her zaman enerji tasarrufu kullan` (Always use energy saver) switch through UI Automation, the window does not stay on screen, and there is no undocumented COM/WNF (ADR-013).
+  - **No new package.**
+- **Local plugin catalog (ADR-017):** `%AppData%/WharfBar/plugins/<folder>/manifest.json`
+  is read. `plugins.enabled` is an on/off record. Built-in island switches (visualizer,
+  Bluetooth notice, camera mirror) and the desktop clock/calendar work. Top bar and dock
+  slots are not drawn in v1. An assembly is not loaded, and no code comes in from the internet.
 
 
-## Önce sor (kullanıcı onayı)
+## Ask first (user approval)
 
-- **UWP/Store** ikon desteği (tam AppxManifest yolu)
-- Registry `Run` ile autostart (tercih Startup klasörü)
-- `AllowUnsafeBlocks` açmak
-- Ham DWM Mica’yı WPF-UI backdrop yerine birincil yapmak
-- Dock plakasını AppBar yapmak (ADR-001; görünür dock’un şeridini ayıran kardeş
-  `ABE_BOTTOM` penceresi serbesttir — `DockWorkAreaReservation`, 2026-10-10)
-- Dış bağımlılık ekleme (WPF-UI dışı yeni paketler)
-- `global.json` eklemek / SDK sürümü sabitlemek (makinede yalnızca .NET 9 SDK var; 8.x’e
-  sabitleme derlemeyi kırar)
-- Breaking config şema değişikliği (migrasyon planı olmadan)
-- Görev çubuğu gizleme stratejisini kalıcı varsayılan dışı yapmak veya restore’suz denemek
+- **UWP/Store** icon support (the full AppxManifest path)
+- Autostart via Registry `Run` (the Startup folder is preferred)
+- Turning on `AllowUnsafeBlocks`
+- Making raw DWM Mica primary instead of the WPF-UI backdrop
+- Making the dock plate an AppBar (ADR-001; a sibling
+  `ABE_BOTTOM` window that reserves the visible dock's strip is allowed — `DockWorkAreaReservation`, 2026-10-10)
+- Adding an external dependency (new packages other than WPF-UI)
+- Adding `global.json` / pinning the SDK version (the machine has only the .NET 9 SDK; pinning
+  to 8.x breaks the build)
+- A breaking config schema change (without a migration plan)
+- Making the taskbar-hide strategy permanently other than the default, or trying it without restore
 
-## Asla
+## Never
 
-- Çıkış yollarında **`ABM_REMOVE` atlamak** (kayıtlı AppBar bırakmak)
-- Çıkış / crash yollarında **görev çubuğu durumunu geri yüklememek** (gizlenmiş / auto-hide
-  bırakmak) — ADR-005
-- **`AllowsTransparency=true` ile Mica/DWM backdrop** birlikte
-- Sistem / üçüncü taraf tepsi ikonlarını **`ReadProcessMemory`, enjeksiyon/subclass veya
-  belgelenmemiş API ile** “çözmek” — `Shell_NotifyIcon` yalnızca WharfBar’ın kendi ikonu için.
-  (Belgelenmiş comctl32 `TB_*` mesajlarıyla salt-okunur ayna ADR-009 ile serbesttir.)
-- Kullanıcıya sormadan görev çubuğunu **kalıcı** bozmak (WharfBar kapalıyken de)
-- v1’de UWP ikon yolunu “yarım” bırakıp kırık deneyim sunmak
-- Cursor kurallarına Win32 rehberinin tamamını yapıştırmak (kanonik kaynak `.agent/` + `docs/`)
-- Gizli anahtar / kişisel config commit etmek
-- Dokümantasyonu güncellemeden mimari kararı sessizce tersine çevirmek
-- `Taskband` değerini yazmak. `User Pinned\TaskBar` dışına `.lnk` yazmak veya o klasörün dışındaki bir dosyayı pin kaldırma diye silmek (ADR-005)
-- Eklenti manifestinden derleme yüklemek, kod indirmek veya o kayıttan süreç başlatmak (ADR-017)
+- **Skipping `ABM_REMOVE`** on exit paths (leaving a registered AppBar)
+- **Not restoring the taskbar state** on exit / crash paths (leaving it hidden / auto-hide)
+  — ADR-005
+- **Mica/DWM backdrop together with `AllowsTransparency=true`**
+- "Solving" system / third-party tray icons **with `ReadProcessMemory`, injection/subclass, or
+  an undocumented API** — `Shell_NotifyIcon` is only for WharfBar's own icon.
+  (A read-only mirror with documented comctl32 `TB_*` messages is allowed by ADR-009.)
+- Permanently breaking the taskbar without asking the user (including while WharfBar is closed)
+- In v1, leaving the UWP icon path "half" done and shipping a broken experience
+- Pasting the whole Win32 guide into Cursor rules (the canonical source is `.agent/` + `docs/`)
+- Committing secret keys / personal config
+- Silently reversing an architecture decision without updating the documentation
+- Writing the `Taskband` value. Writing a `.lnk` outside `User Pinned\TaskBar`, or deleting a file outside that folder in the name of unpinning (ADR-005)
+- Loading an assembly from a plugin manifest, downloading code, or starting a process from that record (ADR-017)

@@ -1,260 +1,259 @@
-# Ekran: Top bar
+# Screen: Top bar
 
 `src/WharfBar/Views/TopBarWindow.xaml` (+ `.xaml.cs`).
 
-Yükseklik 30 DIP, **AppBar** (work area rezerve), her zaman üstte. Her etkin monitör için
-ayrı bar kurulur (per-monitor; her bar kendi monitöründe AppBar, bar önce o monitöre taşınıp
-kaydedilir). Görünürlük `monitors` config ile monitör bazında açılır/kapanır.
-Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
-`transparent` / `tint` (`AllowsTransparency=true` — Mica ile asla birlikte değil).
+Height 30 DIP, an **AppBar** (work area reserved), always on top. A separate bar is built
+for each enabled monitor (per-monitor; each bar is an AppBar on its own monitor, and the bar is moved onto that monitor
+before it is registered). Visibility is turned on or off per monitor through the `monitors` config.
+Background mode comes from config: `mica` (default, `AllowsTransparency=false`),
+`transparent` / `tint` (`AllowsTransparency=true` — never together with Mica).
 
-## Sol küme
+## Left cluster
 
-- **Windows logosu** (geometri çizimi, font glifi değil — Mica'da kaybolmaz) → **sol ve sağ tık** menüyü açar. Launchpad bu ikondan açılmaz; dock karosundadır (ADR-016). Menü ikonun sol kenarına yapışık açılır; `OnAppMenuLoaded` WPF-UI'nin 30px'lik effect margin'inden
-  sol marjı sıfırlar — popup penceresi ekran kenarına clamp edilip menüyü sağa kaydırmasın:
-  - **Ayarlar (PC)** → `ms-settings:` · **Profil** → `ms-settings:yourinfo` · **Bilgisayar hakkında** → `ms-settings:about`
-  - **Bilgisayarı kilitle** / **Uyku** → `PowerActions` (LockWorkStation / SetSuspendState)
-  - **Kapat** / **Yeniden başlat** → `PowerActions` (shutdown.exe `/s|/r /t 0`)
-  - **WharfBar Ayarları** → [`settings.md`](settings.md)
-  - **WharfBar hakkında** → `AboutWindow`
-  - **WharfBar'ı kapat** → düzgün çıkış (görev çubuğu restore + `ABM_REMOVE`)
+- **Windows logo** (geometry drawing, not a font glyph — it does not disappear on Mica) → **left and right click** open the menu. Launchpad does not open from this icon; it is on the dock tile (ADR-016). The menu opens flush to the icon's left edge; `OnAppMenuLoaded` zeros the left margin of WPF-UI's 30 px effect margin — so the popup window is not clamped to the screen edge and does not shift the menu to the right:
+  - **`Ayarlar (PC)` (Settings (PC))** → `ms-settings:` · **`Profil` (Profile)** → `ms-settings:yourinfo` · **`Bilgisayar hakkında` (About this PC)** → `ms-settings:about`
+  - **`Bilgisayarı kilitle` (Lock)** / **`Uyku` (Sleep)** → `PowerActions` (LockWorkStation / SetSuspendState)
+  - **`Kapat` (Shut down)** / **`Yeniden başlat` (Restart)** → `PowerActions` (shutdown.exe `/s|/r /t 0`)
+  - **`WharfBar Ayarları` (WharfBar Settings)** → [`settings.md`](settings.md)
+  - **`WharfBar hakkında` (About WharfBar)** → `AboutWindow`
+  - **`WharfBar'ı kapat` (Quit WharfBar)** → a clean exit (taskbar restore + `ABM_REMOVE`)
 
-Sistem istatistikleri (`CPU · GPU · RAM`) aynı sol kümede, tek satırdır. Son örneklerin kıvılcımı ve ağ hızı (↓/↑ bayt/sn) metnin üzerine gelince açılan karttadır; çizgi metnin altına konursa 30 DIP bar büyür. GPU sayacı yoksa karttaki GPU satırı gizlenir. Sıcaklık yok. Ağ hızı `SystemStatsService` ile aynı 4 sn aralıktadır; örnek UI dışında alınır ve metin değişmediyse bar yenilenmez. İstatistik kapalıysa örnekleme durur. Müzik görselleştiricisi yalnız şimdi çalıyor yüzündeyken çalışır. Bluetooth bağlantı bildirimi 10 sn'de bir bakar; liste aynıysa hap yenilenmez.
+System stats (`CPU · GPU · RAM`) are in the same left cluster, on a single line. The sparkline of recent samples and the network speed (↓/↑ bytes/s) are on a card that opens when the pointer is over the text; if the line were placed under the text the 30 DIP bar would grow. If there is no GPU counter the GPU row on the card is hidden. There is no temperature. Network speed uses the same 4 s interval as `SystemStatsService`; the sample is taken off the UI and the bar is not refreshed when the text did not change. If stats are off, sampling stops. The music visualizer runs only while the now-playing face is up. The Bluetooth connection notice looks every 10 s; if the list is the same the pill is not refreshed.
 
-## Orta — ada hapı (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
+## Center — island pill (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
 
-Müzik çalarken ve eklenti galerisinde görselleştirici açıksa hapta beş çubuk, varsayılan
-ses aygıtının tepe değerini gösterir. Tepe okunamazsa çubuklar düz kalır. Eşleşmiş bir
-Bluetooth cihazı bağlanınca adı hapta kısa süre durur; hızlı ayarlardaki Bluetooth karosu
-ayrı kalır. Kamera aynası galeriden açılır: kare hapın içindedir, izin veya meşgul kamera
-yazı bırakır, sahte kare yoktur. Widget’lar (saat, takvim) masaüstündedir, hapta değildir.
+While music is playing and the visualizer is on in the plugin gallery, the pill shows five bars of the
+default audio device's peak. If the peak cannot be read the bars stay flat. When a paired
+Bluetooth device connects, its name stays on the pill for a short time; the Bluetooth tile in quick settings
+stays separate. The camera mirror opens from the gallery: the frame is inside the pill, a denied or busy camera
+leaves text, and there is no fake frame. Widgets (clock, calendar) are on the desktop, not on the pill.
 
-Ada ayarı kapalıyken hap her barda çöker. **Birincil** barda ayar açıkken hap durur
-(boşta "Pano" veya son kayıt). **İkincil** barda hap yalnız yüz boşta değilken ya da panel
-açıkken görünür: müzik ve ses/parlaklık/pil sayaçları. Pano listesi, dosya bırakma ve pano
-uydusu ikincilde yoktur; ikinci `IslandService` yok. AppBar **30 DIP**
-kalır; çok satırlı haller aynı `IslandPopup`'ın altında, hapın **ortasına** hizalı açılır
-(ikinci pencere yok, iç içe `Popup` yok). `Placement=Bottom` solu hizaladığı için
-`IslandPopupAlign.HorizontalOffset` panel merkezi ile hap merkezini eşitler. Offset
-yalnız **ölçülmüş** genişlikle yazılır (XAML `Width` yedek değildir); genişlik 0 iken
-panel `Opacity=0` kalır, sonra ortalanıp belirir. Hap veya panel sonradan değişince
-(DPI, gövde, hover) yeniden hesaplanır ve çalışma alanına clamp edilir. Panel üst kenarı hapın altına ~2 DIP biner. Açıkken hapın alt
-köşeleri düzleşir, dolgu panelinkiyle aynıdır (`FlyoutSurface`); kapanınca yine kapsüldür.
+While the island setting is off the pill collapses on every bar. On the **primary** bar, while the setting is on, the pill stays
+(idle `Pano` (Clipboard) or the last clip). On a **secondary** bar the pill is visible only while the face is not idle or while the panel
+is open: music and the volume/brightness/battery meters. There is no clipboard list, no file drop, and no clipboard
+satellite on the secondary; there is no second `IslandService`. The AppBar stays **30 DIP**;
+multi-line states open under the same `IslandPopup`, aligned to the pill's **center**
+(no second window, no nested `Popup`). Because `Placement=Bottom` aligns the left,
+`IslandPopupAlign.HorizontalOffset` equates the panel center with the pill center. The offset
+is written only from the **measured** width (XAML `Width` is not a fallback); while the width is 0
+the panel stays at `Opacity=0`, then it is centered and appears. If the pill or the panel changes later
+(DPI, body, hover) it is recalculated and clamped to the work area. The panel's top edge overlaps the pill's bottom by ~2 DIP. While open, the pill's bottom
+corners go flat and the fill matches the panel (`FlyoutSurface`); on close it is a capsule again.
 
-Hap, barın içinde dikey ortalanmış bir kapsüldür (`Height=24`, `CornerRadius=12`,
-boşta yaklaşık **108 DIP** — `IslandIdleDip`; görünen uydu bunu biraz büyütür). Dolgu ve 1 px kontur tema fırçalarıdır
-(`ControlFillColorDefaultBrush`, `ControlStrokeColorDefaultBrush`); hover
-`ControlFillColorSecondaryBrush` ve hap ~4 DIP genişler. Klavye odağı konturu vurgu fırçasına çevirir.
-Açık ve koyu temada aynı kaynaklar çözülür. Glifler Segoe MDL2 / Fluent (`AppIconFontFamily`).
-Genişlik değişimi ~200 ms `CubicEase`. `SystemParameters.ClientAreaAnimation` kapalıyken
-genişlik, hover ölçeği ve çapraz solma süresi 0'dır. Boşta genişlik tabandır; parça adı,
-sayaç ve uydular bunun üstüne büyür. Parça adı tavanı uydu kromunu da sayar
+The pill is a capsule vertically centered inside the bar (`Height=24`, `CornerRadius=12`,
+about **108 DIP** when idle — `IslandIdleDip`; a visible satellite grows it a little). Fill and the 1 px stroke are theme brushes
+(`ControlFillColorDefaultBrush`, `ControlStrokeColorDefaultBrush`); hover is
+`ControlFillColorSecondaryBrush` and the pill grows by ~4 DIP. Keyboard focus turns the stroke into the accent brush.
+The same resources resolve in light and dark theme. Glyphs are Segoe MDL2 / Fluent (`AppIconFontFamily`).
+Width changes take ~200 ms `CubicEase`. While `SystemParameters.ClientAreaAnimation` is off,
+width, hover scale, and crossfade duration are 0. Idle width is the base; the track name,
+the meter, and the satellites grow on top of it. The track-name ceiling also counts the satellite chrome
 (`IslandPresence.TitleMaxWidth`).
 
-- **Boşta:** pano glifi (`E8C8`) + `island.idleLabel`. Varsayılan `clipboard` → **Pano**.
-  `lastClip` → son metin kaydının 40 karakterlik önizlemesi (boşsa yine "Pano"). Üzerine
-  gelince 150 ms sonra aynı `IslandPopup` pano gövdesiyle açılır (kayıt yoksa kısa boş durum).
-  İmleç ayrılınca ~300 ms. Tıklama sabitler. **Sürükle-bırak** yalnız birincil hapta (`AllowDrop`).
-- **Şimdi çalıyor** (`island.musicPresence`, varsayılan `persistent`): hap nota (`E90C`)
-  + tek satır parça adı olarak genişler. Ad `IslandPresence.TitleMaxWidth` ile sol istatistik
-  ve sağ şeride değmeyecek şekilde kesilir. Üzerine gelince 150 ms sonra müzik paneli açılır;
-  imleç ayrılınca ~300 ms. Tıklama paneli sabitler. Oturum bitince hap boşta. Çip ipucu, SMTC
-  konum ve süre verdiyse paneldeki aynı `m:ss / m:ss` metnini ekler; yüzde yazılmaz.
-- **Kısa süre** (`transient`): hap boşta kalır. Çalma, parça değişimi veya oynat/duraklat
-  aynı paneli ~2,5 sn açar. O sırada tıklama sabitler.
-- **Ses / parlaklık / pil:** karıştırıcı veya parlaklık paneli açık değilken gelen değişiklik
-  hapı ~1,6 sn ikon + sayaca çevirir (`AccentFillColorDefaultBrush`), sonra önceki hapa döner.
-  Ses tıklaması karıştırıcıyı, parlaklık tıklaması parlaklık flyout'unu açar. Pilin paneli yoktur;
-  ipucu yüzdeyi içerir. Pil, takılınca ve yüzde bir kez eşiğin altına inince görünür.
-  Eşik `island.lowBatteryPercent` (varsayılan 20, kabul 5–50). Ada ayarında "Düşük pil eşiği".
-  Eşik değişince bir sonraki düşüş yeniden bir kez ateşlenebilir.
-- **Yeni kopya / dosya bırakma:** kısa süre metin yüzü. Her kopyada nabız yok; bırakma nabzı durur.
-- **Uydular:** en fazla iki, `FirstSatellite` / `SecondSatellite`. Müzik `E90C`, pano `E8C8`.
-  Şimdi çalıyor + pano yüzeyi yalnız pano uydusu. HUD + kalıcı müzik + pano yüzeyi ikisini birden gösterir (müzik, sonra pano). İkincil barda pano uydusu yok. `transient` müzik uydu değildir. Aynı tür tekrarlanmaz.
-  Tıklama `ClickSatellite` çağırır ve hap tıklamasına düşmez. Hap odaklıyken Sol/Sağ görünür uydular arasında seçim yürür; seçili uyduda vurgu konturu. Enter seçili uyduyu açar. Seçim yoksa Enter ve Space hapın kendi tıklamasıdır.
+- **Idle:** clipboard glyph (`E8C8`) + `island.idleLabel`. Default `clipboard` → **`Pano` (Clipboard)**.
+  `lastClip` → a 40-character preview of the last text record (if empty, `Pano` (Clipboard) again). After
+  150 ms of hover the same `IslandPopup` opens with the clipboard body (a short empty state if there is no record).
+  About 300 ms after the pointer leaves. A click pins it. **Drag-and-drop** is only on the primary pill (`AllowDrop`).
+- **Now playing** (`island.musicPresence`, default `persistent`): the pill widens into a note (`E90C`)
+  + a single-line track name. The name is clipped with `IslandPresence.TitleMaxWidth` so it does not touch the left stats
+  or the right strip. After 150 ms of hover the music panel opens;
+  about 300 ms after the pointer leaves. A click pins the panel. When the session ends the pill is idle. The chip tooltip, if SMTC
+  provided position and duration, appends the same `m:ss / m:ss` text that is on the panel; a percent is not written.
+- **Short duration** (`transient`): the pill stays idle. Playback, a track change, or play/pause
+  opens the same panel for ~2.5 s. A click during that time pins it.
+- **Volume / brightness / battery:** while the mixer or brightness panel is not open, an incoming change
+  turns the pill into an icon + meter for ~1.6 s (`AccentFillColorDefaultBrush`), then it returns to the previous pill.
+  A volume click opens the mixer, a brightness click opens the brightness flyout. The battery has no panel;
+  the tooltip includes the percent. The battery appears when it is plugged in and once the percent drops below the threshold.
+  The threshold is `island.lowBatteryPercent` (default 20, accepted 5–50). In island settings, `Düşük pil eşiği` (Low battery threshold).
+  When the threshold changes, the next drop can fire once again.
+- **New copy / file drop:** a text face for a short time. There is no pulse on every copy; the drop pulse stops.
+- **Satellites:** at most two, `FirstSatellite` / `SecondSatellite`. Music is `E90C`, clipboard is `E8C8`.
+  Now playing + the clipboard surface is the clipboard satellite only. HUD + persistent music + the clipboard surface shows both (music, then clipboard). There is no clipboard satellite on the secondary bar. `transient` music is not a satellite. The same kind is not repeated.
+  A click calls `ClickSatellite` and does not fall through to the pill click. While the pill is focused, Left/Right walks the selection among the visible satellites; the selected satellite has an accent stroke. Enter opens the selected satellite. If nothing is selected, Enter and Space are the pill's own click.
 
-`lastClip` boşta gerçek bir önizleme gösterirken hap kendi penceresine alınır ve yalnız o
-pencere `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)` ile kareden düşer. Üst çubuğun
-geri kalanı yakalamada kalır. "Pano", müzik ve sayaçta hap çubuğa döner.
+While `lastClip` is showing a real preview at idle, the pill is taken into its own window and only that
+window is dropped from the frame with `SetWindowDisplayAffinity(WDA_EXCLUDEFROMCAPTURE)`. The rest of the top bar
+stays in the capture. On `Pano` (Clipboard), music, and the meter, the pill returns to the bar.
 
-Sabit panel dış tıklama, Esc, hapa tekrar tıklama ve `CloseFlyouts` ile kapanır. Hap
-`Focusable`. Seçili uydu yoksa Enter ve Space tıklama ile aynı yolu açar. Müzik gövdesinde Sol önceki, Sağ sonraki
-parçadır. Pano arama kutusu odaktayken oklar ona kalır.
-Panel açılışı hapın genişliğinden gövdeye doğru büyür (üst orta, solma, ~200 ms); aralık
-açılmaz. Ölçek popup çocuğunda değil, iç yüzeydedir (`PanelSurface`): WPF yerleşimi
-çocuğun dönüşmüş köşesini kullanır, ölçek çocukta kalırsa panel hapın solunda açılır ve
-ölçek 1'e dönünce de orada kalır. Kapanış tersi ve biraz daha hızlıdır. Müzik ile pano
-aynı popup içinde ~150 ms çapraz solar. Müzik panelindeki pano düğmesi (yalnız birincil)
-gövdeyi listeye çevirir; geri müzik. Müzik paneli açıkken SMTC zaman çizelgesi ~1 sn'de bir
-yeniden okunur; konum ve süre birlikte varsa çubuk görünür. Oturum `IsPlaybackPositionEnabled`
-ise çubuğun yerinde kaydırıcı vardır ve sürükleme arar. Kapalıyken bu okuma yok. Süre yoksa yüzde yazılmaz.
-Ses/parlaklık/pil sayacının dolgusu seviye değişince akar.
+A pinned panel closes on an outside click, Esc, a second click on the pill, and `CloseFlyouts`. The pill
+is `Focusable`. If no satellite is selected, Enter and Space open the same path as a click. In the music body, Left is the previous track and Right is the next
+track. While the clipboard search box is focused, the arrows stay on it.
+The panel opens by growing from the pill's width toward the body (top center, fade, ~200 ms); a gap
+does not open. The scale is on the inner surface, not on the popup child (`PanelSurface`): WPF layout
+uses the child's transformed corner, and if the scale stayed on the child the panel would open to the left of the pill and
+stay there even after the scale returns to 1. Close is the reverse and a bit faster. Music and clipboard
+crossfade inside the same popup in ~150 ms. The clipboard button on the music panel (primary only)
+turns the body into the list; back is music. While the music panel is open the SMTC timeline is re-read about once a second;
+the bar is visible when position and duration are both present. If the session `IsPlaybackPositionEnabled`
+is set, a slider sits in the bar's place and dragging seeks. While it is closed that read does not happen. If there is no duration, a percent is not written.
+The volume/brightness/battery meter's fill flows when the level changes.
 
-Kurallar `IslandPresence` (süre, yüz, HUD önceliği, 150 ms hover). Pencere tek atımlık zamanlayıcı kullanır; süre `NextDeadlineMs` ile kurulur.
+The rules are `IslandPresence` (duration, face, HUD priority, 150 ms hover). The window uses a one-shot timer; the duration is set with `NextDeadlineMs`.
 
-## Sağ küme — durum şeridi (`StatusStrip`)
+## Right cluster — status strip (`StatusStrip`)
 
-Varsayılan soldan sağa sıra `volume`, `brightness` ve `media` **içermez** (ada HUD ve
-şimdi çalanı taşır). Katalogdaki her öğe (tepsi aynası, gizli simgeler, saat, bildirim,
-hızlı ayarlar, ses, parlaklık, medya, ağ, pil) sağ tık menüsünde ve Üst Çubuk ayarında
-listelenir; kapalı olan açılabilir. Kullanıcının kayıtlı `statusItems` sırası soyulmaz
-ve gizli öğe kendiliğinden geri açılmaz. **Tümünü göster** yalnız seçilince eksikleri
-katalog komşusunun yanına ekler.
+The default left-to-right order does **not** include `volume`, `brightness`, and `media` (the island HUD and
+now playing carry them). Every catalog item (tray mirror, hidden icons, clock, notifications,
+quick settings, volume, brightness, media, network, battery) is listed in the right-click menu and in Top bar settings;
+a closed one can be turned on. The user's saved `statusItems` order is not stripped
+and a hidden item is not turned back on by itself. **`Tümünü göster` (Show all)** adds the missing ones beside their
+catalog neighbor only when it is chosen.
 
-Görünür öğe, eşik (`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`)
-aşılınca barda sürüklenir: öğe solar, vurgu renginde bir çizgi bırakılacak aralığı
-gösterir, bırakınca `topBar.statusItems` yazılır ve bütün monitör barlarına uygulanır.
-Eşik altındaki tıklama flyout'u açar. Tepsi simgesinin kendi sürüklemesi durum şeridini sıralamaz.
-Çizgi şeridin çocuğu değildir; ölçüyü kaydırmaz. Sıralama OLE `DoDragDrop` kullanmaz
-(saydam/tint bar katmanlıdır).
+A visible item, once the threshold (`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`)
+is crossed, is dragged on the bar: the item fades, a line in the accent color shows the gap it will be
+dropped into, and on drop `topBar.statusItems` is written and applied to every monitor's bar.
+A click under the threshold opens the flyout. The tray icon's own drag does not reorder the status strip.
+The line is not a child of the strip; it does not shift the measure. Ordering does not use OLE `DoDragDrop`
+(a transparent/tint bar is layered).
 
-| id | Arayüz | Tıklama davranışı |
-|----|--------|-------------------|
-| `trayOverflow` | "Gizli simgeler" (glif `E70E`) | WharfBar hapı (yalnız simge); içinden Windows taşması (Win+B) |
-| `dateTime` | saat+tarih tek satır, `tr-TR` kısaltmaları | `ClockPanelFlyout`: bildirim metni + ay takvimi |
-| `notifications` | zil glifi `EA8F` | Win+N (bildirim merkezi) |
-| `controlCenter` | hızlı ayarlar glifi `E9CE` | `QuickSettingsFlyout` → **Main** sekmesi |
-| `volume` | ses glifi `E767` | `QuickSettingsFlyout` → **Mixer** sekmesi |
-| `brightness` | güneş glifi `E706` | `BrightnessFlyout` (monitör kartları, DDC/CI + WMI) |
-| `media` | müzik notası glifi `E90B` | `MediaFlyout` (kapak + başlık/sanatçı + kontroller + oturum seçici); oturum yokken gizli |
-| `network` | ağ glifi `E701` | `QuickSettingsFlyout` → **Network** sekmesi |
-| `battery` | pil glifi + yüzde metni | yok (gösterim) |
+| id | Surface | Click behavior |
+|----|---------|----------------|
+| `trayOverflow` | `Gizli simgeler` (Hidden icons) (glyph `E70E`) | WharfBar pill (icon only); Windows overflow from inside it (Win+B) |
+| `dateTime` | clock+date on one line, `tr-TR` abbreviations | `ClockPanelFlyout`: notification text + month calendar |
+| `notifications` | bell glyph `EA8F` | Win+N (notification center) |
+| `controlCenter` | quick settings glyph `E9CE` | `QuickSettingsFlyout` → **Main** tab |
+| `volume` | volume glyph `E767` | `QuickSettingsFlyout` → **Mixer** tab |
+| `brightness` | sun glyph `E706` | `BrightnessFlyout` (monitor cards, DDC/CI + WMI) |
+| `media` | music-note glyph `E90B` | `MediaFlyout` (art + title/artist + controls + session picker); hidden when there is no session |
+| `network` | network glyph `E701` | `QuickSettingsFlyout` → **Network** tab |
+| `battery` | battery glyph + percent text | none (display only) |
 
-## Tepsi hapı
+## Tray pill
 
-Birincil barda chevron (`trayOverflow`) WharfBar'ın kendi hapını açar. Hap, ada
-göstergesi gibi yatay bir kapsüldür (`FlyoutSurface`, köşe yarıçapı 18, dolgu 4).
-İçinde yalnız simgeler durur; uygulama adı yazılmaz, ad tooltip'tedir. Sekiz simgeden
-sonra alta sarılır, köşeler yuvarlak kalır. Aynadaki simgeler çubukta kalır. Bir simgeyi
-kısa tıklamak o tepsi ikonuna iletilir. İmleç
-`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance` eşiğini aşınca sürükleme
-başlar: simgeyi chevron'un veya açık hapın üzerine bırakmak onu çubuktan alır
-(fare yakalama; katmanlı barda OLE kullanılmaz). Hapın içinden sağ şeride geri bırakmak
-simgeyi yeniden çubuğa koyar. Boşken hap **simge yok** der. Sondaki chevron (`E70E`,
-tooltip **Windows gizli simgelerini aç**) Windows'un sayılamayan gizli alanını `Win+B`
-ile açar. Anahtarlar `topBar.trayOverflowIcons` listesindedir. Listede olmayan (yeni)
-simge görünür kalır. Kayıt `statusItems` sırasını değiştirmez.
-İkincil barda ayna yoktur; chevron orada doğrudan `Win+B` açar.
+On the primary bar the chevron (`trayOverflow`) opens WharfBar's own pill. The pill, like the island
+indicator, is a horizontal capsule (`FlyoutSurface`, corner radius 18, padding 4).
+Only icons sit inside it; the application name is not written, the name is in the tooltip. After eight icons
+it wraps downward, and the corners stay rounded. Icons in the mirror stay on the bar. A short click on an icon
+is forwarded to that tray icon. Once the pointer
+crosses the `MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance` threshold, a drag
+starts: dropping the icon on the chevron or on the open pill takes it off the bar
+(mouse capture; OLE is not used on a layered bar). Dropping it from inside the pill back onto the right strip
+puts the icon on the bar again. When empty the pill says **`simge yok` (no icon)**. The chevron at the end (`E70E`,
+tooltip **`Windows gizli simgelerini aç` (Open Windows hidden icons)**) opens Windows' hidden area, which cannot be enumerated, with `Win+B`.
+The keys are in the `topBar.trayOverflowIcons` list. An icon that is not in the list (a new one)
+stays visible. The record does not change the `statusItems` order.
+There is no mirror on the secondary bar; the chevron there opens `Win+B` directly.
 
-## Durum şeridi sağ tık menüsü
+## Status strip right-click menu
 
 `TopBarWindow.BuildStatusItemsMenu`:
-- **Öğe göster/gizle** — tüm katalog onay kutuları (kapalı olanlar da listede)
-- **Arka plan** (alt menü): Mica / Transparent / Tint radio'ları + **Opaklık slider'ı**
-  (yalnızca Tint'te etkin, 0–100, debounced kaydetme)
-- Tıklanan öğe varsa: **Sola taşı / Sağa taşı**
-- **Tümünü göster** — eksik katalog öğelerini açar; hepsi açıksa soluk
-- **Varsayılana sıfırla** — `TopBarStatusItemIds.DefaultOrder`
+- **Show/hide items** — checkboxes for the whole catalog (closed ones are in the list too)
+- **`Arka plan` (Background)** (submenu): Mica / Transparent / Tint radios + **`Opaklık` (Opacity) slider**
+  (enabled only for Tint, 0–100, debounced save)
+- If an item was clicked: **`Sola taşı` (Move left) / `Sağa taşı` (Move right)**
+- **`Tümünü göster` (Show all)** — turns on missing catalog items; dimmed if all of them are on
+- **`Varsayılana sıfırla` (Reset to default)** — `TopBarStatusItemIds.DefaultOrder`
 
-## Hızlı ayarlar flyout
+## Quick settings flyout
 
-`QuickSettingsFlyout` — tek Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; ana pencerenin
-Mica'sıyla ilgisi yok); Main / Mixer /
-Network sekmeleri paylaşılır (ADR-006). Mixer: varsayılan aygıt + dropdown + uygulama
-oturumları. Network: bağlantı kartı + canlı ↓/↑ trafik satırı + "Özellikler" bölümü
-(adaptör, tür, IPv4/IPv6, ağ geçidi, DNS, MAC, bağlantı hızı — `NetworkDetailsService`,
-sayfa açıkken 2 sn poll; Windows ağ özellikleri düzeni). Açılış noktası tıklanan ikona göre sekme seçer. Popup `VerticalOffset=10` ile
-barın altında hafif boşluk bırakır; sağ kenarda da 12px boşluk (kök Border `Margin="0,0,12,0"`,
-ekran sağ kenarına clamp'li açılır). Yüzey border'sız, yuvarlatılmış köşeler + yarı saydam
-(`FlyoutSurface`: tema `ApplicationBackgroundBrush` rengi, %85 alfa — arkadaki içerik hafifçe
-seçilir; her açılışta tazelenir). Açılışta Win11 tarzı
-**yukarıdan aşağı** slide+fade animasyonu (`AnimateFlyoutOpen`: barın altından ~10px
-kayarak iner, 170ms CubicEase EaseOut); kapanışta açılışın **tam tersi** animasyon
-(`AnimateFlyoutClose`: içerik yukarı/barın altına doğru kayar + solar, 110ms — bir tık
-daha hızlı, sonra `IsOpen=false`). Kapanış yolları (`CloseFlyouts` /
-`CloseQuickSettings` / `CloseBrightness`): dış tıklama → `WM_ACTIVATEAPP` (topbar WndProc),
-topbar'a tıklama (çapa butonları hariç — onlar toggle/re-target yapar), ESC
-(`OnTopBarPreviewKeyDown`), toggle, AppMenu/tray/notification butonları. Popup yeniden
-açılırsa bekleyen kapanış animasyonu `CancelPendingClose` ile iptal edilir (yeniden açılan
-popup kapanmaz). Parlaklık flyout'u aynı açılış/kapanış animasyonlarını kullanır.
+`QuickSettingsFlyout` — a single Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; unrelated to the main window's
+Mica); the Main / Mixer /
+Network tabs are shared (ADR-006). Mixer: default device + dropdown + application
+sessions. Network: connection card + live ↓/↑ traffic row + `Özellikler` (Properties) section
+(adapter, kind, IPv4/IPv6, gateway, DNS, MAC, link speed — `NetworkDetailsService`,
+2 s poll while the page is open; Windows network-properties layout). The open point picks the tab from the icon that was clicked. The popup leaves a slight gap
+under the bar with `VerticalOffset=10`; a 12 px gap on the right edge too (root Border `Margin="0,0,12,0"`,
+it opens clamped to the right edge of the screen). The surface has no border, rounded corners + semi-transparent
+(`FlyoutSurface`: theme `ApplicationBackgroundBrush` color, 85% alpha — the content behind is slightly
+visible; refreshed on every open). On open, a Win11-style
+**top-to-bottom** slide+fade animation (`AnimateFlyoutOpen`: it slides down ~10 px from under the bar,
+170 ms CubicEase EaseOut); on close, the **exact reverse** of the open animation
+(`AnimateFlyoutClose`: the content slides up/toward under the bar + fades, 110 ms — a touch
+faster, then `IsOpen=false`). Close paths (`CloseFlyouts` /
+`CloseQuickSettings` / `CloseBrightness`): outside click → `WM_ACTIVATEAPP` (topbar WndProc),
+a click on the top bar (except the anchor buttons — those toggle/re-target), ESC
+(`OnTopBarPreviewKeyDown`), toggle, AppMenu/tray/notification buttons. If the popup opens
+again, a pending close animation is cancelled with `CancelPendingClose` (a reopened
+popup does not close). The brightness flyout uses the same open/close animations.
 
-Panel açıkken sayfa değişimi (`ShowPage`, `QuickSettingsPageMotion`) 220 ms `CubicEase`
-EaseOut ile kayar ve solar. İleri (Main → Mixer / Network / Wi-Fi / Bluetooth / Yansıt)
-giden sayfayı sola, yenisini sağdan 20 DIP içeri alır; geri tam tersidir. Aynı derinlikteki
-sayfalar (Mixer ↔ Network gibi) yalnızca çapraz solar. `PageHost` `ClipToBounds` ile taşmayı
-kırpar; giden sayfa tıklama almaz. Geçiş bitmeden yeni bir sayfa seçilirse önceki çift
-bırakılır ve animasyon yeniden başlar. Flyout ilk açılışında bu kayma yoktur — açılış
-animasyonu paneli zaten gösterir.
+While the panel is open, a page change (`ShowPage`, `QuickSettingsPageMotion`) slides and fades in 220 ms `CubicEase`
+EaseOut. Forward (Main → Mixer / Network / Wi-Fi / Bluetooth / `Yansıt` (Project))
+takes the outgoing page to the left and brings the new one in 20 DIP from the right; back is the exact reverse. Pages at the same depth
+(such as Mixer ↔ Network) only crossfade. `PageHost` clips overflow with `ClipToBounds`;
+the outgoing page does not receive clicks. If a new page is chosen before the transition finishes, the previous pair
+is dropped and the animation starts over. This slide is absent on the flyout's first open — the open
+animation already shows the panel.
 
-### Wi-Fi sayfası (ağ listesi + şifre paneli)
+### Wi-Fi page (network list + password panel)
 
-`WifiService` (wlanapi.dll) canlı ağ listesi: SSID, sinyal çubukları (`WifiService.SignalBars`),
-güvenlik, bağlı / kayıtlı profilli işaretleme (2 sn poll; yalnızca sayfa açıkken). Aynı SSID
-tek satırda birleşir. Radyo kapalıyken liste boştur ve özet “Wi-Fi kapalı” der.
-Korumalı ağa tık → aynı sayfada şifre paneli (SSID, şifre kutusu, Bağlan / İptal, hata metni);
-parola profili düz metindir (`protected=false`). `WlanConnect` kabulünden sonra SSID
-gerçekten bağlanana kadar (en fazla 8 sn) beklenir; olmazsa panel kapanmaz. Bağlı satıra
-tık `WlanDisconnect` çağırır.
-Hata metni şifre paneli kapalıyken de özetin altında durur. Gizli ve kurumsal ağlar buradan
-bağlanmaz. "Wi-Fi ayarlarını aç" → Windows Settings.
+`WifiService` (wlanapi.dll) live network list: SSID, signal bars (`WifiService.SignalBars`),
+security, connected / saved-profile marking (2 s poll; only while the page is open). The same SSID
+merges into one row. While the radio is off the list is empty and the summary says `Wi-Fi kapalı` (Wi-Fi is off).
+A click on a protected network → a password panel on the same page (SSID, password box, `Bağlan` (Connect) / `İptal` (Cancel), error text);
+the password profile is plaintext (`protected=false`). After `WlanConnect` is accepted, it waits until the SSID
+actually connects (at most 8 s); if it does not, the panel does not close. A click on the connected row
+calls `WlanDisconnect`.
+The error text also stays under the summary while the password panel is closed. Hidden and enterprise networks are not
+connected from here. `Wi-Fi ayarlarını aç` (Open Wi-Fi settings) → Windows Settings.
 
-### Bluetooth sayfası (cihaz listesi)
+### Bluetooth page (device list)
 
-`BluetoothService` eşleşmiş klasik ve LE cihazları listeler (`BluetoothDevice` +
-`BluetoothLEDevice` seçicileri; aynı adres tek satır). Sayfa açılınca mevcut liste hemen
-çizilir. Bağlı olanlar `Aep.IsConnected` veya `ConnectionStatus` ile işaretlenir. Satır
-tıklaması bağlanmaz; "Bluetooth ayarlarını aç" → Windows Settings. Radyo açık/kapalı özet
-sayfa açıkken karo değişince de güncellenir.
+`BluetoothService` lists paired classic and LE devices (`BluetoothDevice` +
+`BluetoothLEDevice` selectors; the same address is one row). When the page opens the current list is drawn immediately.
+Connected ones are marked with `Aep.IsConnected` or `ConnectionStatus`. A row
+click does not connect; `Bluetooth ayarlarını aç` (Open Bluetooth settings) → Windows Settings. The radio on/off summary
+is also updated while the page is open, when the tile changes.
 
-### Yansıt sayfası (4 mod)
+### Project page (4 modes)
 
-`ProjectionService` + `QueryDisplayConfig` (`QDC_DATABASE_CURRENT` = 0x4, `ref` sayım işaretçileri) ile mevcut topoloji
-seçili gösterilir; tıklama `SetDisplayConfig` ile uygular: **Yalnızca PC ekranı / Çoğalt /
-Genişlet / Yalnızca 2. ekran**. Tek ekranda diğer modlar soluktur ve “İkinci ekran yok” der;
-uygulama başarısızsa “Bu mod uygulanamadı”.
+`ProjectionService` + `QueryDisplayConfig` (`QDC_DATABASE_CURRENT` = 0x4, `ref` count pointers) shows the current topology
+as selected; a click applies it with `SetDisplayConfig`: **`Yalnızca PC ekranı` (PC screen only) / `Çoğalt` (Duplicate) /
+`Genişlet` (Extend) / `Yalnızca 2. ekran` (Second screen only)**. On a single display the other modes are dimmed and it says `İkinci ekran yok` (No second display);
+if apply fails, `Bu mod uygulanamadı` (This mode could not be applied).
 
-### Enerji tasarrufu karosu
+### Energy saver tile
 
-`batterysaver` karosu API, `SystemStatusFlag` veya “Her zaman enerji tasarrufu kullan” anahtarının geri okuması açıkken yanar. Tıklama o anahtarı UI Automation ile çevirir; Ayarlar penceresi ekranda kalmaz. Yazma tutmazsa karo yanmaz.
+The `batterysaver` tile lights while the API, `SystemStatusFlag`, or a read-back of the `Her zaman enerji tasarrufu kullan` (Always use energy saver) switch is on. A click flips that switch through UI Automation; the Settings window does not stay on screen. If the write does not stick, the tile does not light.
 
-### Gece ışığı tile (gerçek durum)
+### Night light tile (real state)
 
-`NightLightService` (CloudStore best-effort) gerçek durumu okur; tile aktiflik rengini ona
-göre çizer. Tıklama blob yazılabilirse toggle yapar. Blob tanınmazsa karo yalan söylemez ve
-`ms-settings:nightlight` açılır.
+`NightLightService` (CloudStore best-effort) reads the real state; the tile paints its active color from that.
+A click toggles if the blob can be written. If the blob is not recognized the tile does not lie and
+`ms-settings:nightlight` opens.
 
-### Tile animasyonları
+### Tile animations
 
-Tile aktiflik değişiminde **in-place** animasyon: ikon 90 ms "pop" (aktif 1.15× / pasif 0.9×,
-AutoReverse + CubicEase) + 250 ms renk geçişi (`ColorAnimation`, QuadraticEase) — arka plan
-accent/base arasında yumuşatılır. Devre dışı tile'lar `QsTileDisabled` ile 0.45 opaklıkta.
+On a tile active-state change, an **in-place** animation: the icon "pops" for 90 ms (active 1.15× / inactive 0.9×,
+AutoReverse + CubicEase) + a 250 ms color transition (`ColorAnimation`, QuadraticEase) — the background
+is eased between accent and base. Disabled tiles are at 0.45 opacity via `QsTileDisabled`.
 
-## Parlaklık flyout
+## Brightness flyout
 
-`BrightnessFlyout` — Monitorian tarzı: master "Tüm Ekranlar" slider'ı + bağımsız monitör
-kartları; 50ms debounced arka plan kuyruğu. `MonitorBrightnessService` + `MonitorNative`
-(DDC/CI + WMI hibrit).
+`BrightnessFlyout` — Monitorian style: master `Tüm Ekranlar` (All displays) slider + independent monitor
+cards; a 50 ms debounced background queue. `MonitorBrightnessService` + `MonitorNative`
+(DDC/CI + WMI hybrid).
 
-## Medya flyout
+## Media flyout
 
-`MediaFlyout` — Windows SMTC (`MediaSessionService`, ADR-008) üzerinden şu an çalan medya:
-yuvarlatılmış kapak (kapsızsa müzik glifi `E90C` yer tutucu) + başlık (kalın, tek satır,
-metadata alınamadıysa uygulama adı fallback) + sanatçı; altında `E892` Önceki /
-`E768`–`E769` Oynat-Duraklat (duruma göre glif canlı değişir) / `E893` Sonraki.
-Flyout sabit **340px** genişliktedir (`MinWidth=MaxWidth=340`) — içerik değişince
-(ör. oturum adı) genişlik sıçramaz.
-Birden çok oturum aktifse üstte seçici satırı belirir: `E76B` ‹ uygulama adı › `E76C`
-chevron'lar seçili oturumu halkada ilerletir; kontroller seçili uygulamaya gider.
-Uygulama adı AUMID'den çözülür (`MediaAppNameResolver`, katmanlı):
-Start Menü kısayolu AUMID eşleşmesi Windows'un gösterdiği adı verir (örn. Zen'in
-`F0DC299D809B9700` → "Zen", YouTube Music Desktop'ın `com.github.th-ch.youtube-music` →
-"YouTube Music"); eşleşme yoksa çalışan sürecin `FileDescription`'ı (örn. `chrome.exe` →
-"Google Chrome"); o da yoksa basitleştirilmiş exe adı (örn. "Microsoft.ZuneMusic").
-Seçim politikası **en son aktif** oturumdur (`MediaSessionSelector`).
+`MediaFlyout` — now-playing media through Windows SMTC (`MediaSessionService`, ADR-008):
+rounded art (if there is no art, the music glyph `E90C` is the placeholder) + title (bold, one line,
+application-name fallback if metadata could not be read) + artist; under that, `E892` `Önceki` (Previous) /
+`E768`–`E769` `Oynat`-`Duraklat` (Play-Pause) (the glyph changes live with the state) / `E893` `Sonraki` (Next).
+The flyout is a fixed **340 px** wide (`MinWidth=MaxWidth=340`) — the width does not jump when the content changes
+(for example the session name).
+If more than one session is active a picker row appears at the top: `E76B` ‹ application name › `E76C`
+chevrons advance the selected session around the ring; controls go to the selected application.
+The application name is resolved from the AUMID (`MediaAppNameResolver`, layered):
+a Start Menu shortcut AUMID match yields the name Windows shows (for example Zen's
+`F0DC299D809B9700` → "Zen", YouTube Music Desktop's `com.github.th-ch.youtube-music` →
+"YouTube Music"); if there is no match, the running process's `FileDescription` (for example `chrome.exe` →
+"Google Chrome"); if that is missing too, a simplified exe name (for example "Microsoft.ZuneMusic").
+The selection policy is the **most recently active** session (`MediaSessionSelector`).
 
-- Üst bar öğesi `media` yalnızca oturum varken görünür (`_mediaActive`; Battery/Volume
-  deseni) — oturum bitince kaybolur; sağ tık menüsünden kalıcı göster/gizle + sıralama.
-- Tooltip: "Başlık – Sanatçı" (metadata yoksa uygulama adı). SMTC konum ve süre verdiyse aynı `m:ss / m:ss` eklenir.
-- Flyout oturum bitince **kapanmaz**; "Çalan medya yok" metnine döner (kapatma yalnızca
-  kullanıcı: dış tıklama / ESC / tekrar tıklama — QS/Brightness ile aynı animasyonlu kapanış).
-- Açılışta `FlyoutSurface` yüzeyi tazelenir; QS ile aynı yukarıdan-aşağı slide+fade animasyonu.
-- Oturum (kaynak) değişince içerik yönlü kaydırma + fade ile gelir: chevron › sağdan, ‹
-  soldan, otomatik değişimde yönsüz fade (~150ms, CubicEase EaseOut); aynı oturumdaki
-  parça/oynat-durdur güncellemeleri animasyonsuzdur.
-- SMTC başlatılamazsa servis pasif kalır (öğe görünmez); 10 sn sonra yeniden dener.
+- The top bar `media` item is visible only while a session exists (`_mediaActive`; the Battery/Volume
+  pattern) — it disappears when the session ends; permanent show/hide + ordering from the right-click menu.
+- Tooltip: "Title – Artist" (application name if there is no metadata). If SMTC provided position and duration, the same `m:ss / m:ss` is appended.
+- The flyout does **not** close when the session ends; it returns to the `Çalan medya yok` (Nothing playing) text (closing is only
+  the user: outside click / ESC / click again — the same animated close as QS/Brightness).
+- On open the `FlyoutSurface` surface is refreshed; the same top-to-bottom slide+fade animation as QS.
+- When the session (source) changes, the content arrives with a directional slide + fade: chevron › from the right, ‹
+  from the left, a directionless fade on an automatic change (~150 ms, CubicEase EaseOut); track/play-stop updates
+  inside the same session are not animated.
+- If SMTC cannot be started the service stays passive (the item is not visible); it tries again after 10 s.
 
-## Tuzaklar
+## Gotchas
 
-- Arka plan modu değişikliği pencereyi yeniden oluşturabilir (sağ tık menüsü yeniden açılır).
-- `AllowsTransparency` ctor'da `BackgroundMode`'dan set edilir — XAML'e yazılmaz.
-- Tooltip fontları Segoe UI (`AppTextFontFamily`) — MDL2 tofu sorunu yok.
+- A background-mode change can recreate the window (the right-click menu opens again).
+- `AllowsTransparency` is set from `BackgroundMode` in the constructor — it is not written into XAML.
+- Tooltip fonts are Segoe UI (`AppTextFontFamily`) — there is no MDL2 tofu problem.

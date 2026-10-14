@@ -1,167 +1,154 @@
 # Roadmap
 
-## Şimdi (tamamlanan)
+## Now (completed)
 
-- Doküman + agent iskeleti (Approach B) ✓
-- **Faz 1 — İskelet pencere ✓** — `src/WharfBar/` scaffold, `WharfBar.sln`, WPF-UI,
-  PerMonitorV2 manifest, `TopBarWindow` (DPI-farkında fiziksel piksel yerleşimi), Mutex
-- **Faz 2 — AppBar ✓** — `Native/AppBar.cs`, NEW → QUERYPOS → SETPOS, idempotent `ABM_REMOVE`,
-  `ABN_*` callback’leri, `TaskbarCreated` sonrası yeniden kayıt, fullscreen z-order
-- **Faz 3 — Görsellik ✓** — WPF-UI Mica + sistem teması, `DWMWCP_DONOTROUND`,
-  `WindowAppearance` / `Native/Dwm.cs`, ADR-004
-- **Faz 4 — Dock ✓** — `DockWindow` overlay (Topmost, AppBar yok), pinler,
-  `ShellIcon` / `AppIconService`, `ProcessLauncherService`, `FullscreenState`,
-  `DockAutoHideController` / `DockHitTest` stub, Mica + yuvarlak köşeler
-- **Faz 5 — Config ✓** — `AppConfig` / `ConfigService`, `%AppData%/WharfBar/config.json`
-- **Faz 6 — Autostart ✓** — Startup klasörü `WharfBar.lnk` (`AppConfig.autostart`)
-- **Faz 7 — Saat / durum ✓** — `StatusService` (saat, ağ, pil); `TrayIconService` + Quit
-- Derleme temiz; work area betikle doğrulandı (aşağı bkz.)
-- **Tasarım onay ✓** — canlı dock + tepsi hibrit + görev çubuğu gizle/restore (ADR-005);
-  spec: [`../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md`](../../docs/superpowers/specs/2026-08-09-live-dock-and-tray-hybrid-design.md)
-- **Faz 9 — Shell yerine geçme (ADR-005) ✓ (kod)** — plan:
-  [`../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md`](../../docs/superpowers/plans/2026-08-09-live-dock-and-tray-hybrid.md)
-  - **9a** `TaskbarVisibilityService` — capture (`ABM_GETSTATE` + `Shell_TrayWnd` görünürlük) → hide → restore
-  - **9b** Canlı pin (`TaskbarPinnedAppsSource`) + running (`RunningAppsSource` / `EnumWindows` + AUMID); `DockAppsComposer` — **2026-10-04'te revize edildi:** pin kaynağı kaldırıldı, dock kendi `dock.items` listesini kullanıyor (yukarıdaki "Dock yeniden tasarımı" girdisi)
-  - **9c** Üst bar overflow düğmesi (`TrayOverflowInvoker` / `Win+B`)
-  - Kod çalışma ağacında; kullanıcı commit + 9a/9b/9c manuel UI doğrulaması bekliyor
-- **Faz 8 — Dock auto-hide / hit-test polish ✓ (kod)** — spec:
-  [`../../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md`](../../docs/superpowers/specs/2026-08-10-dock-auto-hide-design.md);
-  plan: [`../../docs/superpowers/plans/2026-08-10-dock-auto-hide.md`](../../docs/superpowers/plans/2026-08-10-dock-auto-hide.md)
-  - `DockAutoHideController` — kenar bandı poll, show/hide animasyon, fullscreen bridge
-  - `DockHitTest` — `ApplyInteractive` / `ApplyPassthrough` (`WS_EX_TRANSPARENT`)
-  - Kod çalışma ağacında; manuel doğrulama bekliyor
-- **Monitör Parlaklık Kontrolü (Monitorian Entegrasyonu) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hibrit), `BrightnessFlyout` (TopBar `brightness` simgesi, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu, katalog v2).
-- **Dock Sağ Tık Bağlam Menüsü ✓** — `DockWindow` sağ tık bağlam menüsü (Uygulama İkonu/Adı başlık
-  kartı, Dock'a Sabitle/Kaldır, Görevi Sonlandır `Process.Kill`, Pencereyi Kapat `WM_CLOSE`,
-  Yönetici Çalıştır, Dosya Konumunu Aç, Yeni Pencere) ve %100 ekran genişliği desteği.
-- **Dock yeniden tasarımı — macOS mantığı ✓ (kod; fare ile doğrulama bekliyor)** — ADR-005
-  revizyonu: yazma yolu `dock.items`. **2026-10-07:** sol grup `User Pinned` klasörünü salt okur
-  (`TaskbarPinnedAppsSource`); klasöre yazılmaz. Solda pinler (kapalılar dahil, çalışınca aynı ikon), sağda
-  sabitlenmemiş çalışanlar, uygulama başına bir kutu; büyütme yok, plaka düğme ritmi (ikon 24)
-  (`DockStrip` + saf `DockMagnification` / `DockStripLayout`), sabit pencere bütçesi
-  (hover'da `SetWindowPos` yok), sürükle-sırala,
-  Explorer'dan dosya bırakma, alt-sol/orta/sağ konum, `WM_DPICHANGED` ile canlı DPI,
-  "Pencereler" alt menüsü (`MinimizedWindowsSource` önbelleğinden), ayar sayfasında içerik listesi.
-  Spec: [`../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md`](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md);
-  plan: [`../../docs/superpowers/plans/2026-10-04-dock-macos-redesign.md`](../../docs/superpowers/plans/2026-10-04-dock-macos-redesign.md).
-  **Canlı uçtan uca doğrulama yapılmadı** — levha modları (Mica / saydam / renkli), OLE bırakma kabulü ve tıklama
-  bastırma elle denenmedi (aralık hesabıyla sınırlı; bkz. `docs/04-gotchas.md`).
-- **Renk kaplaması (veil) ✓ (kod; manuel doğrulama bekliyor)** — tam ekran katmanlı kaplama (`VeilWindow`, click-through + 280 ms fade), `VeilService` (durum + fade + `RegisterHotKey` host + config kalıcılığı), QS `veil` karosu + global kısayol (varsayılan Ctrl+F11, config'te değiştirilebilir), Kaplama ayarlar sayfası (`VeilPage`; renk/opaklık/kısayol). Karar: [ADR-007](../../docs/decisions/007-veil-overlay.md); spec: [`../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../../docs/superpowers/plans/2026-08-18-veil-overlay.md). Manuel doğrulama listesi spec'in "Doğrulama (manuel)" bölümünde.
-- **Medya paneli (SMTC) ✓ (kod; manuel doğrulama bekliyor)** — üst bar `media` öğesi (yalnızca oturum varken görünür; `brightness` sonrası, katalog **v4** migration) + medya flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron seçici). `MediaSessionService` (Windows SMTC izleme: snapshot + komutlar + `Changed`/`SessionsChanged` + 10 sn retry), `MediaSessionSelector` (en son aktif politikası + `MoveCurrent` halkası), `MediaSnapshot` modeli. Karar: [ADR-008](../../docs/decisions/008-media-panel.md); spec: [`../../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../../docs/superpowers/specs/2026-08-18-media-panel-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-media-panel.md`](../../docs/superpowers/plans/2026-08-18-media-panel.md). Manuel doğrulama listesi planın "Manuel doğrulama" bölümünde.
-- **Tray aynası (ADR-009) ✓** — üst bar `trayMirror` (belgelenmiş comctl32 `TB_*` mesajlarıyla
-  salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 4 sn poll; gizli
-  ikonlar `Win+B`'de kalır). **25H2+ UIA fallback ✓ (manuel doğrulandı):** klasik toolbar
-  kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + `TrayCapture` (PrintWindow
-  ile gerçek ikon yakalama) + UIA `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
-- **Sistem istatistikleri ✓ (kod; manuel doğrulama bekliyor)** — üst bar sol kümede Windows
-  logosunun yanında `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (4 sn, UI dışında;
-  `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
-  via `PdhAddEnglishCounterW`; GPU sayacı yoksa GPU bölümü gizlenir), saf hesap metotları
-  unit testli (`SystemStatsTests`, 26 test), `topBar.showSystemStats` toggle
-  (Ayarlar → Üst Çubuk). **GPU başına gösterim ✓ (kod):** motor örnekleri örnek adındaki
-  LUID'e göre fiziksel adaptöre gruplanır; `topBar.showGpuPerAdapter` açıkken çoklu GPU'da
-  `GPU0 x% · GPU1 y%` (LUID sırası; Görev Yöneticisi numaralandırmasından farklı olabilir).
-  Ayarlar → Üst Çubuk sayfası yenilendi: canlı önizleme şeridi, ToggleSwitch'ler,
-  durum öğelerinde ⋮⋮ sürükle-bırak sıralama (manuel doğrulama bekliyor).
-- **Görev çubuğu watchdog ✓ (kod + uçtan uca doğrulandı 2026-08-25)** — PDH `PtrToStringUni`
-  AV'si (`PDH_FMT_COUNTERVALUE` 8↔16 bayt ABI hatası; düzeltildi + ABI testi) yönetilen
-  handler'ları atladığı için `WharfBar.exe --taskbar-watchdog` alt süreci baseline'ı
-  (`%LOCALAPPDATA%/WharfBar/taskbar-watchdog.json`) izleyip restore'suz ölümde görev çubuğunu
-  geri getirir; açılışta stale dosya self-heal. AppBar rezervasyonu kapsam dışı (explorer restart).
-  Force-kill testi: ~0.5 sn'de tray görünür.
-- **Island — clipboard geçmişi + bırakılan dosyalar ✓ (kod)** — üst barın **ortasında** ada
-  (ayrı pencere değil: `TopBarWindow` XAML'inde ortalanmış `Border` + `Popup` panel; bağımsız
-  `Topmost` pencere z-order/focus/Mica riski nedeniyle reddedildi). `Native/ClipboardNative`
-  (belgelenmiş pano P/Invoke'ları + `CanIncludeInClipboardHistory` opt-out'u), mesaj-only
-  `ClipboardMessageWindow`, ayrı STA okuma thread'i, saf `IslandPruner` çekirdeği, atomik
-  `IslandStore` (`island.json` + `Drop\` klasörü; `config.json` kullanılmaz), `IslandService`
-  yaşam döngüsü (750 ms debounce), `IslandFlyout` paneli (arama + `ScrollViewer` liste, klavye
-  `↑↓`/`Enter`/`Delete`/`Esc`) ve `IslandPage` ayarları. Karar: [ADR-010](../../docs/decisions/010-island-clipboard-drop.md);
-  spec: [`../../docs/superpowers/specs/2026-10-01-island-clipboard-drop-design.md`](../../docs/superpowers/specs/2026-10-01-island-clipboard-drop-design.md);
-  plan: [`../../docs/superpowers/plans/2026-10-01-island-clipboard-drop.md`](../../docs/superpowers/plans/2026-10-01-island-clipboard-drop.md).
-  **Canlı uçtan uca doğrulama yapılmadı** — dar monitörde ada/sağ küme çakışması, ilk
-  `AllowDrop` (OLE hedefi) ve nabız animasyonunun bitiş değeri ölçülmedi (aralık hesabıyla
-  sınırlı; bkz. `task-8-report.md`).
-  Kompakt ada (ADR-011, 2026-10-07): hap AppBar'ın içinde kalır. Boşta pano; müzik
-  `island.musicPresence` (`persistent` varsayılan); ses/parlaklık kısa sayaç. Panel tek popup.
-- **Eklenti kataloğu (ADR-017) ✓ (kod)** — Launchpad Widget/Eklenti ve Ayarlar → Eklentiler.
-  Yerleşik ada anahtarları ve masaüstü saat/takvim çalışır. Yerel `manifest.json` yalnız
-  aç/kapa kaydıdır; derleme yüklenmez. Üst çubuk ve dock yuvaları çizilmez.
+- Documentation + agent skeleton (Approach B) ✓
+- **Phase 1 — Skeleton window ✓** — `src/WharfBar/` scaffold, `WharfBar.sln`, WPF-UI,
+ PerMonitorV2 manifest, `TopBarWindow` (DPI-aware physical-pixel layout), Mutex
+- **Phase 2 — AppBar ✓** — `Native/AppBar.cs`, NEW → QUERYPOS → SETPOS, idempotent `ABM_REMOVE`,
+ `ABN_*` callbacks, re-registration after `TaskbarCreated`, fullscreen z-order
+- **Phase 3 — Visuals ✓** — WPF-UI Mica + system theme, `DWMWCP_DONOTROUND`,
+ `WindowAppearance` / `Native/Dwm.cs`, ADR-004
+- **Phase 4 — Dock ✓** — `DockWindow` overlay (Topmost, no AppBar), pins,
+ `ShellIcon` / `AppIconService`, `ProcessLauncherService`, `FullscreenState`,
+ `DockAutoHideController` / `DockHitTest` stub, Mica + rounded corners
+- **Phase 5 — Config ✓** — `AppConfig` / `ConfigService`, `%AppData%/WharfBar/config.json`
+- **Phase 6 — Autostart ✓** — Startup folder `WharfBar.lnk` (`AppConfig.autostart`)
+- **Phase 7 — Clock / status ✓** — `StatusService` (clock, network, battery); `TrayIconService` + Quit
+- Build is clean; the work area was verified by script (see below)
+- **Design approval ✓** — live dock + tray hybrid + taskbar hide/restore (ADR-005).
+- **Phase 9 — Replacing the shell (ADR-005) ✓ (code)** —
+ - **9a** `TaskbarVisibilityService` — capture (`ABM_GETSTATE` + `Shell_TrayWnd` visibility) → hide → restore
+ - **9b** Live pins (`TaskbarPinnedAppsSource`) + running (`RunningAppsSource` / `EnumWindows` + AUMID); `DockAppsComposer` — **revised on 2026-10-04:** the pin source was removed, the dock uses its own `dock.items` list (the "Dock redesign" entry above)
+ - **9c** Top bar overflow button (`TrayOverflowInvoker` / `Win+B`)
+ - Code is in the working tree; waiting on the user to commit + manual UI verification of 9a/9b/9c
+- **Phase 8 — Dock auto-hide / hit-test polish ✓ (code)**
+ - `DockAutoHideController` — edge-band poll, show/hide animation, fullscreen bridge
+ - `DockHitTest` — `ApplyInteractive` / `ApplyPassthrough` (`WS_EX_TRANSPARENT`)
+ - Code is in the working tree; manual verification is pending
+- **Monitor brightness control (Monitorian integration) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hybrid), `BrightnessFlyout` (TopBar `brightness` glyph, master `Tüm Ekranlar` (All displays) slider, independent monitor cards, 50 ms debounced background queue, catalog v2).
+- **Dock right-click context menu ✓** — `DockWindow` right-click context menu (`Uygulama İkonu`/`Adı` (application icon/name) title
+ card, `Dock'a Sabitle`/`Kaldır` (Pin to Dock/Unpin), `Görevi Sonlandır` (End task) `Process.Kill`, `Pencereyi Kapat` (Close window) `WM_CLOSE`,
+ `Yönetici Çalıştır` (Run as administrator), `Dosya Konumunu Aç` (Open file location), `Yeni Pencere` (New window)) and 100% screen-width support.
+- **Dock redesign — macOS logic ✓ (code; mouse verification pending)** — ADR-005
+ revision: the write path is `dock.items`. **2026-10-07:** the left group reads the `User Pinned` folder read-only
+ (`TaskbarPinnedAppsSource`); the folder is not written. Pins on the left (including closed ones, the same icon once running), unpinned
+ running apps on the right, one box per application; no magnification, plate button rhythm (icon 24)
+ (`DockStrip` + pure `DockMagnification` / `DockStripLayout`), a fixed window budget
+ (no `SetWindowPos` on hover), drag-to-reorder,
+ file drop from Explorer, bottom-left/center/right position, live DPI via `WM_DPICHANGED`,
+ `Pencereler` (Windows) submenu (from the `MinimizedWindowsSource` cache), a content list on the settings page.
+ 
+ **Live end-to-end verification was not done** — plate modes (Mica / transparent / tint), OLE drop acceptance, and click
+ suppression were not tried by hand (limited to the interval calculation; see `docs/04-gotchas.md`).
+- **Color overlay (veil) ✓ (code; manual verification pending)** — fullscreen layered overlay (`VeilWindow`, click-through + 280 ms fade), `VeilService` (state + fade + `RegisterHotKey` host + config persistence), QS `veil` tile + global shortcut (default Ctrl+F11, changeable in config), `Kaplama` (Overlay) settings page (`VeilPage`; color/opacity/shortcut). Decision: ADR-007.
+- **Media panel (SMTC) ✓ (code; manual verification pending)** — top bar `media` item (visible only while a session exists; after `brightness`, catalog **v4** migration) + media flyout (art, title/artist, `Oynat`/`Duraklat` (Play/Pause) + `İleri`/`Geri` (Next/Previous), chevron picker when there are multiple sessions). `MediaSessionService` (Windows SMTC watch: snapshot + commands + `Changed`/`SessionsChanged` + 10 s retry), `MediaSessionSelector` (most-recently-active policy + `MoveCurrent` ring), `MediaSnapshot` model. Decision: ADR-008.
+- **Tray mirror (ADR-009) ✓** — top bar `trayMirror` (read-only mirror with documented comctl32 `TB_*` messages
+ + `SendMessage` click-forward; system-icon filter; 4 s poll; hidden
+ icons stay on `Win+B`). **25H2+ UIA fallback ✓ (manually verified):** because the classic toolbar
+ was removed, `TrayUiaReader` (`SystemTray.NormalButton` filter) + `TrayCapture` (real icon capture via PrintWindow)
+ + UIA `InvokePattern`/peek click.
+- **System stats ✓ (code; manual verification pending)** — beside the Windows
+ logo in the top bar's left cluster, `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (4 s, off the UI;
+ `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
+ via `PdhAddEnglishCounterW`; if there is no GPU counter the GPU section is hidden), pure calculation methods
+ unit-tested (`SystemStatsTests`, 26 tests), `topBar.showSystemStats` toggle
+ (Settings → `Üst Çubuk` (Top bar)). **Per-GPU display ✓ (code):** engine instances are grouped into a physical adapter by the LUID in the instance name;
+ with `topBar.showGpuPerAdapter` on, multiple GPUs show
+ `GPU0 x% · GPU1 y%` (LUID order; it can differ from Task Manager's numbering).
+ The Settings → `Üst Çubuk` (Top bar) page was refreshed: live preview strip, ToggleSwitches,
+ ⋮⋮ drag-and-drop ordering of status items (manual verification pending).
+- **Taskbar watchdog ✓ (code + end-to-end verified 2026-08-25)** — the PDH `PtrToStringUni`
+ access violation (`PDH_FMT_COUNTERVALUE` 8↔16 byte ABI bug; fixed + ABI test) skipped the managed
+ handlers, so the `WharfBar.exe --taskbar-watchdog` child process watches the baseline
+ (`%LOCALAPPDATA%/WharfBar/taskbar-watchdog.json`) and brings the taskbar back on a death without restore;
+ a stale file self-heals at startup. AppBar reservation is out of scope (explorer restart).
+ Force-kill test: the tray is visible in ~0.5 s.
+- **Island — clipboard history + dropped files ✓ (code)** — an island in the **center** of the top bar
+ (not a separate window: a centered `Border` + `Popup` panel in `TopBarWindow` XAML; a separate
+ `Topmost` window was rejected because of z-order/focus/Mica risk). `Native/ClipboardNative`
+ (documented clipboard P/Invokes + the `CanIncludeInClipboardHistory` opt-out), message-only
+ `ClipboardMessageWindow`, a separate STA read thread, a pure `IslandPruner` core, an atomic
+ `IslandStore` (`island.json` + `Drop\` folder; `config.json` is not used), `IslandService`
+ lifecycle (750 ms debounce), `IslandFlyout` panel (search + `ScrollViewer` list, keyboard
+ `↑↓`/`Enter`/`Delete`/`Esc`) and `IslandPage` settings. Decision: ADR-010;
+ 
+ **Live end-to-end verification was not done** — island/right-cluster overlap on a narrow monitor, the first
+ `AllowDrop` (OLE target), and the pulse animation's end value were not measured (limited to the interval
+ calculation; see `task-8-report.md`).
+ Compact island (ADR-011, 2026-10-07): the pill stays inside the AppBar. Idle is the clipboard; music
+ uses `island.musicPresence` (`persistent` default); volume/brightness is a short meter. The panel is a single popup.
+- **Plugin catalog (ADR-017) ✓ (code)** — Launchpad Widget/Plugin and Settings → `Eklentiler` (Plugins).
+ Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an
+ on/off record only; an assembly is not loaded. Top bar and dock slots are not drawn.
 
-## Yapılacaklar listesi (öncelikli)
+## To-do list (priority order)
 
-### P0 — Sıradaki uygulama
+### P0 — Next implementation
 
-1. **Faz 8 + Faz 9 manuel doğrulama** — commit sonrası UI checklist
-   - Faz 8: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Faz 8 (kenar hover, click-through, fullscreen)
-   - Faz 9: aynı dosya Faz 9; plan uçtan uca bölümü (9a/9b/9c)
+1. **Phase 8 + Phase 9 manual verification** — UI checklist after commit
+ - Phase 8: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Phase 8 (edge hover, click-through, fullscreen)
+ - Phase 9: the same file, Phase 9; the plan's end-to-end section (9a/9b/9c)
 
-### P1 — Manuel doğrulama (insan gözü; kod yazmadan)
+### P1 — Manual verification (human eye; without writing code)
 
-3. Bar / dock görsel görünüm, Mica dokusu, hiza
-4. Saat / ağ / pil şeridi + tepsi **Quit WharfBar**
-5. Sistem light/dark runtime geçişi
-6. DPI / ölçek değişimi ve monitör tak-çıkar
-7. Tam ekran uygulama ile `ABN_FULLSCREENAPP` z-order
-8. Bilinçli: `explorer.exe` restart → `TaskbarCreated`; zorla kill → asılı work area / görev çubuğu farkındalığı
+3. Bar / dock visual appearance, Mica texture, alignment
+4. Clock / network / battery strip + tray **Quit WharfBar**
+5. System light/dark runtime switch
+6. DPI / scale change and monitor plug/unplug
+7. `ABN_FULLSCREENAPP` z-order with a fullscreen app
+8. Intentional: `explorer.exe` restart → `TaskbarCreated`; force kill → awareness of a stuck work area / taskbar
 
-### P2 — v1 sonrası adaylar
+### P2 — Candidates after v1
 
-8b. **Üst bar durum öğesi özelleştirme** (göster/gizle + sıra; yerleşik katalog) —
-    QS + mixer stabilize olduktan sonra. Tasarım onaylı:
-    [`../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-shortcuts-customization-design.md);
-    plan:
-    [`../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-items-customization.md)
-    (kod landed; manuel UI checklist bekliyor; ayrı Control Center yok; tepsi aynası ADR-009'da; sağ tık menü)
-8c. **Üst bar durum şeridi sırası + `controlCenter` + tek satır saat** ✓ (kod) —
-    [`../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
-    plan: [`../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md)
-    (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manuel UI checklist)
-9. Hızlı ayarlar cila ✓ (kod) — canlı Wi-Fi listesi + bağlanma/kopma (`WifiService` / wlanapi.dll;
-   düz metin profil; QS Wifi sayfası + şifre paneli), BT klasik+LE listesi (`BluetoothService`), gerçek Gece ışığı
-   durum + toggle (`NightLightService` / CloudStore best-effort + oturum override), native
-   yansıtma paneli 4 mod (`ProjectionService` / `SetDisplayConfig`), tile animasyonları
-   (in-place pop + renk geçişi). Kalan: Enerji tasarrufu toggle; oturum ikonları. Spec:
-   [`../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
-   plan: [`../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md`](../../docs/superpowers/plans/2026-08-16-quick-settings-live-network-nightlight-project.md)
-   (kod çalışma ağacında; manuel UI doğrulaması bekliyor)
-10. UWP/Store ikonları (tam yol)
-11. İsteğe bağlı “dock reserves space” (alt AppBar — ayrı ADR)
-12. Bildirim merkezi benzeri içerik aynası (ADR-005 hâlâ reddediyor; ayrı onay gerekir)
+8b. **Top bar status-item customization** (show/hide + order; built-in catalog) —
+ after QS + mixer have stabilized. Design approved.
+ (code landed; manual UI checklist pending; no separate Control Center; tray mirror is in ADR-009; right-click menu)
+8c. **Top bar status-strip order + `controlCenter` + single-line clock** ✓ (code)
+ (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manual UI checklist)
+9. Quick settings polish ✓ (code) — live Wi-Fi list + connect/disconnect (`WifiService` / wlanapi.dll;
+ plaintext profile; QS Wifi page + password panel), classic+LE Bluetooth list (`BluetoothService`), real Night light
+ state + toggle (`NightLightService` / CloudStore best-effort + session override), native
+ project panel with 4 modes (`ProjectionService` / `SetDisplayConfig`), tile animations
+ (in-place pop + color transition). Remaining: energy-saver toggle; session icons.
+ (code is in the working tree; manual UI verification pending)
+10. UWP/Store icons (the full path)
+11. Optional "dock reserves space" (bottom AppBar — a separate ADR)
+12. A notification-center-like content mirror (ADR-005 still rejects it; separate approval is required)
 
-### Bilinçli ertelenenler / yasaklar
+### Consciously deferred / forbidden
 
-- Yabancı / sistem tepsi ikonlarını `ReadProcessMemory` / enjeksiyon / undocumented API ile
-  okuma, çizme, click-forward (ADR-009 ile yalnızca belgelenmiş `TB_*` mesaj aynası serbest;
-  gizli/overflow ikonlar hâlâ yasak — `Win+B` kullanılır)
-- `ReadProcessMemory` / belgelenmemiş NotifyIcon enumeration
-- Görev çubuğunu **kalıcı** bozmak (restore’suz)
-- Registry `Run` autostart (Startup klasörü tercih)
-- Global uygulama menüsü
-- Eklenti kodunu indirmek veya `Assembly.Load` ile çalıştırmak (ADR-017 yerel manifest
-  kaydını serbest bırakır; üst çubuk/dock çizimi bu sürümde yok)
+- Reading, drawing, or click-forwarding foreign / system tray icons with `ReadProcessMemory` / injection / an undocumented API
+ (ADR-009 allows only the documented `TB_*` message mirror;
+ hidden/overflow icons are still forbidden — `Win+B` is used)
+- `ReadProcessMemory` / undocumented NotifyIcon enumeration
+- Breaking the taskbar **permanently** (without restore)
+- Registry `Run` autostart (the Startup folder is preferred)
+- Global application menu
+- Downloading plugin code or running it with `Assembly.Load` (ADR-017 allows the local manifest
+ record; top bar/dock drawing is absent in this version)
 
-## Faz 1–3 doğrulama durumu
+## Phase 1–3 verification status
 
-Ölçüm ortamı: 1920×1080, **%100 ölçek (96 DPI)**, görev çubuğu altta (48 px).
+Measurement environment: 1920×1080, **100% scale (96 DPI)**, taskbar at the bottom (48 px).
 
-### Makineyle doğrulandı ✓
+### Verified on the machine ✓
 
-`SystemParametersInfo(SPI_GETWORKAREA)` ile ölçülerek, betikle:
+Measured with `SystemParametersInfo(SPI_GETWORKAREA)`, by script:
 
-| Kontrol | Sonuç |
-|---------|-------|
-| Work area rezervasyonu | Baseline `T=0` → çalışırken `T=30`; tam olarak beklenen 30 px |
-| Bar pencere rect’i | `L=0 T=0 R=1920 B=30` — rezerve şeritle birebir |
-| Tek örnek (Mutex) | İkinci süreç kendiliğinden çıktı (kod 0); work area değişmedi |
-| Zarif kapanış | `WM_CLOSE` → süreç kod 0 |
-| **Work area geri yükleme** | Baseline ile **birebir aynı** |
-| Maximize edilmiş pencere | Bar altında kalıyor (Faz 2’de doğrulandı) |
+| Check | Result |
+|-------|--------|
+| Work area reservation | Baseline `T=0` → `T=30` while running; exactly the expected 30 px |
+| Bar window rect | `L=0 T=0 R=1920 B=30` — identical to the reserved strip |
+| Single instance (Mutex) | The second process exited on its own (code 0); the work area did not change |
+| Graceful close | `WM_CLOSE` → process code 0 |
+| **Work area restore** | **Identical** to the baseline |
+| Maximized window | Stays under the bar (verified in Phase 2) |
 
-### Faz 3 görsel notları
+### Phase 3 visual notes
 
-- Mica / translucency ekran görüntüsünde güvenilir doğrulanamaz (DWM composition + wallpaper);
-  attribute okuması + opak-olmayan client ile desteklenir, insan gözü gerekir.
-- Light/dark runtime geçişi manuel tema değiştirerek doğrulanmalı.
+- Mica / translucency cannot be verified reliably from a screenshot (DWM composition + wallpaper);
+ it is supported by attribute reads + a non-opaque client, and a human eye is required.
+- The light/dark runtime switch must be verified by changing the theme by hand.
 
-Ayrıntılı checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md)
+Detailed checklist: [`../../docs/03-development-order.md`](../../docs/03-development-order.md)

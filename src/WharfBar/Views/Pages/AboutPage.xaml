@@ -54,7 +54,7 @@
 
             <Border Style="{StaticResource PowerToysCard}">
                 <TextBlock TextWrapping="Wrap" FontSize="13" LineHeight="20">
-                    Windows'ta macOS tarzı üst bar ve dock. Fluent / Mica görünüm;
+                    Windows, macOS ve Linux masaüstülerinden esinlenen üst çubuk ve dock. Fluent / Mica görünüm;
                     görev çubuğu yerine geçen hibrit tepsi.
                 </TextBlock>
             </Border>

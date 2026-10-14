@@ -1,168 +1,166 @@
-# Ekran: Dock
+# Screen: Dock
 
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-Görev çubuğu (Windows 11) tarzı şerit. Varsayılan alt kenar. Ayarlardaki **Sol kenar**
-(`dock.position` = `left`) plakayı sol kenarda dik dizer, `ABE_LEFT` ile o kalınlıkta
-çalışma alanı ayırır ve oto-gizlemeyi sola kaydırır. Alt konumlar (`bottom-left` /
-`bottom-center` / `bottom-right`) yatay kalır. Plaka AppBar **değil** (ADR-001); `Topmost` overlay,
-fiziksel piksel `SetWindowPos` ile yerleşir, WPF `Left/Top/Width` kullanılmaz. Auto-hide +
-hit-test (`DockAutoHideController` + `DockHitTest`); tam ekran uygulamada gizlenir
-(`ABN_FULLSCREENAPP`, oto-gizle kapalıyken de — şerit topmost olduğu için videonun üstünde kalırdı).
+A Windows 11 taskbar-style strip. The default is the bottom edge. **`Sol kenar` (Left edge)** in settings
+(`dock.position` = `left`) stacks the plate vertically on the left edge, reserves a work area of that thickness
+with `ABE_LEFT`, and shifts auto-hide to the left. Bottom positions (`bottom-left` /
+`bottom-center` / `bottom-right`) stay horizontal. The plate is **not** an AppBar (ADR-001); it is a `Topmost` overlay,
+placed with physical-pixel `SetWindowPos`, and WPF `Left/Top/Width` is not used. Auto-hide +
+hit-test (`DockAutoHideController` + `DockHitTest`); it hides in a fullscreen app
+(`ABN_FULLSCREENAPP`, even when auto-hide is off — the strip is topmost, so it would stay above the video).
 
-Auto-hide **kapalıyken** kardeş bir boyasız `ABE_BOTTOM` (`DockWorkAreaReservation`, ham
-pencere, alpha 0) plaka yüksekliğinde tam genişlik ayırır. Duvar kâğıdı durur. Büyütülmüş
-pencere bu çizgide kalır; masaüstü ikonları aynı work area kenarını kullanır.
-Auto-hide açıkken kayıt kalkar; pencereler altı tam kaplar.
+While auto-hide is **off**, a sibling unpainted `ABE_BOTTOM` (`DockWorkAreaReservation`, a raw
+window, alpha 0) reserves the full width at the plate height. The wallpaper stays. A maximized
+window stops at this line; desktop icons use the same work-area edge.
+While auto-hide is on, the registration is removed; windows cover the bottom fully.
 
-> **Pencere = plaka.** Büyütme headroom'u yok; hover ikonu plakadan taşırmıyor.
-> `dock.backgroundMode`: `mica` (varsayılan, `AllowsTransparency=false`, gerçek DWM Mica,
-> sistem yuvarlak köşe `DWMWCP_ROUND`) veya `transparent` / `tint` (katmanlı pencere, WPF köşe yarıçapı
-> 14 DIP, plakanın dışı boş). Mica ile `AllowsTransparency` birlikte değildir
-> (`docs/04-gotchas.md`). Mod değişince pencere yeniden kurulur (`RecreateDock`). Eski `dock.surface`
-> (`mica` / `acrylic`) ikisi de `mica` moduna yüklenir. **Gölge yok.** Hover düğmenin içini doldurur.
+> **Window = plate.** There is no magnification headroom; hover does not spill the icon off the plate.
+> `dock.backgroundMode`: `mica` (default, `AllowsTransparency=false`, real DWM Mica,
+> system rounded corner `DWMWCP_ROUND`) or `transparent` / `tint` (layered window, WPF corner radius
+> 14 DIP, empty outside the plate). `AllowsTransparency` is not combined with Mica
+> (`docs/04-gotchas.md`). When the mode changes the window is recreated (`RecreateDock`). The old `dock.surface`
+> (`mica` / `acrylic`) both load as the `mica` mode. **No shadow.** Hover fills the inside of the button.
 
-## İçerik
+## Contents
 
-Windows görev çubuğu düzeni: uygulama başına **bir** ikon
-([spec §0 #10](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
+Windows taskbar layout: **one** icon per application.
 
-- **Sol — Pinned** — önce Windows görev çubuğunun `User Pinned\TaskBar` kısayolları,
-  kapalı pinler dahil, görev çubuğu sırasında (`Taskband\Favorites` yalnız okunur;
-  ad blob'da yoksa dosya adı). Ardından `dock.items` içinde olup görev çubuğunda
-  olmayanlar. Aynı hedef bir kez görünür. Uygulama çalışınca **aynı kutuda** kalır
-  (`IsRunning`). Kapalı pinlerde kapsül yoktur. Sağda bir daha belirmez.
-  “Dock'a sabitle / kaldır” `dock.items` yazar ve hedef gerçek bir dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` yazar. `Taskband` yazılmaz.
-- **Sağ — Running** — sabitlenmemiş çalışan uygulamalar, ada göre sıralı (eşit adlarda
-  pencere tutamacı). `showRunningApps == false` iken bu taraf hiç üretilmez; kapalı
-  pinler solda kalır.
-- Küçültülmüş veya arkadaki pencere, uygulaması zaten şeritteyse **ikinci kutu olmaz**.
-  Kimlik geçişli birleşir (`RunningAppsSource.Collapse`): kanonik exe yolu, AppUserModelId
-  veya süreç kimliği. Aynı exe'nin AUMID'siz penceresi ve ikinci süreci de aynı kutudur.
-  Çalışan listesine hiç girmemiş bir süreç sağda **süreç başına bir** kutu olur
-  (pencere başına değil). "Pencereler" alt menüsü kutunun **bütün süreçlerinin**
-  pencerelerini listeler (`MinimizedWindowsSource` önbelleği; UI thread'inde `EnumWindows` yok).
-- Birden fazla pencere veya süreç tek kutuda kalır. `WindowCount` > 1 iken ikonun sağ
-  üstünde sayı rozeti durur; tooltip `Ad (N)` olur. Çalışan kapsül değişmez: masaüstünde
-  açık pencere varsa uzun accent çizgi, hepsi küçültülmüşse kısa nötr çizgi.
-  Rozet, çizgi ve küçük resim yalnız merkezi **bu** dock'un monitöründe olan pencereleri sayar
-  (ADR-014). Küçültülmüş pencerede merkez simge noktasından değil, geri yükleme
-  dikdörtgeninden (`rcNormalPosition`) okunur; yoksa sabitlenmemiş kutu kaybolurdu.
-  Cloak'lı küçültülmüş pencere çalışan kalır. Başka sanal masaüstünün cloak'ı sayılmaz.
-  Pin listesi her monitörde aynıdır.
-- **Launchpad** şeridin en solundadır. Glif dört yuvarlak karedir. Sol tık, ekranın ortasında kutuyu açar; kutu tarama bitmeden görünür, uygulamalar harf başlığı altında gelir. Arkada duvar kâğıdı görünür. Telefon bağlıysa kutunun sağında dikey panel açılır. Ekran fotoğrafı telefon çerçevesinin içindedir. Bildirim satırında uygulama ikonu vardır. Windows logosu menüyü açar. Kutunun alt şeridinde hesap çipi her zaman durur. Belgeler, İndirilenler, Resimler, Ayarlar, Widget, Eklenti ve Güç `launchpad.tools` ile seçilir; şeride sağ tık işaretli menüyü açar ve seçim hemen kaydolur. Düğme 40 DIP’tir, glif ortadadır; kart payı köşe kıvrımının dışında kalır.
-  Erişilemeyen `Programlar` bağlantısı atlanır. Widget ve Eklenti, galeriyi açar (ADR-017): yerleşik öğeler çalışır, yerel manifest yalnız kayıttır. `dock.items` ve User Pinned
-  klasörüne yazılmaz.
-- **İndirilenler** pin grubunun hemen ardından, **Geri Dönüşüm Kutusu** şeridin en sağında
-  durur. İkisi de `dock.items` ve User Pinned klasörüne yazılmaz.
+- **Left — Pinned** — first the Windows taskbar's `User Pinned\TaskBar` shortcuts,
+  including closed pins, in taskbar order (`Taskband\Favorites` is read-only;
+  if the name is missing from the blob, the file name). Then entries that are in `dock.items` and
+  not on the taskbar. The same target appears once. When the app runs it stays **in the same box**
+  (`IsRunning`). Closed pins have no capsule. It does not appear again on the right.
+  `Dock'a sabitle / kaldır` (Pin to Dock / Unpin) writes `dock.items` and, when the target is a real file or folder, writes a `.lnk` into `User Pinned\TaskBar`. `Taskband` is not written.
+- **Right — Running** — unpinned running applications, sorted by name (window handle when names tie).
+  While `showRunningApps == false` this side is not produced at all; closed
+  pins stay on the left.
+- A minimized or background window, when its application is already on the strip, **does not become a second box**.
+  Identity merges transitively (`RunningAppsSource.Collapse`): canonical exe path, AppUserModelId,
+  or process id. A window of the same exe without an AUMID, and a second process, are the same box too.
+  A process that never entered the running list becomes **one box per process** on the right
+  (not per window). The `Pencereler` (Windows) submenu lists windows of **all of the box's processes**
+  (`MinimizedWindowsSource` cache; no `EnumWindows` on the UI thread).
+- Multiple windows or processes stay in one box. While `WindowCount` > 1 a count badge sits at the icon's top
+  right; the tooltip becomes `Name (N)`. The running capsule does not change: a long accent line when a window is
+  open on the desktop, a short neutral line when all of them are minimized.
+  The badge, the line, and the thumbnail count only windows whose center is on **this** dock's monitor
+  (ADR-014). On a minimized window the center is read from the restore
+  rectangle (`rcNormalPosition`), not from the icon point; otherwise an unpinned box would disappear.
+  A cloaked minimized window stays running. Another virtual desktop's cloak is not counted.
+  The pin list is the same on every monitor.
+- **Launchpad** is at the far left of the strip. The glyph is four rounded squares. A left click opens the box in the center of the screen; the box is visible before the scan finishes, and apps arrive under a letter heading. The wallpaper shows behind it. If a phone is connected, a vertical panel opens on the right of the box. The screenshot is inside the phone frame. The notification row has the app icon. The Windows logo opens the menu. The account chip always sits on the box's bottom strip. `Belgeler` (Documents), `İndirilenler` (Downloads), `Resimler` (Pictures), `Ayarlar` (Settings), `Widget`, `Eklenti` (Plugin), and `Güç` (Power) are chosen with `launchpad.tools`; a right click on the strip opens a checked menu and the selection is saved immediately. The button is 40 DIP, the glyph is centered; the card padding stays outside the corner curve.
+  An unreachable `Programlar` (Programs) link is skipped. Widget and Plugin open the gallery (ADR-017): built-in items work, a local manifest is a record only. It is not written to `dock.items` or the User Pinned
+  folder.
+- **`İndirilenler` (Downloads)** sits immediately after the pin group, and **`Geri Dönüşüm Kutusu` (Recycle Bin)** sits at the far right of
+  the strip. Neither is written to `dock.items` or the User Pinned folder.
 
-Eşleşme (`PinMatches`): tam yol, büyük/küçük harf duyarsız (`\\?\` ve `\??\` önekleri
-soyulur); pin yolu bir AppUserModelId ise çalışan `Id` veya grubun diğer AUMID'leri;
-kayıt hâlâ `.lnk` ise çözülen hedef yol veya kısayolun AppUserModelId'si. Klasör pinleri
-`explorer.exe` ile birleşmez. Aynı dosya adını paylaşan iki farklı exe birleşmez
-(`System32` ile `SysWOW64` de ayrı tam yoldur). Farklı exe adları, ortak AppUserModelId
-veya süreç kimliği yoksa ayrı kalır. `User Pinned` sabitlemede `.lnk` alır; `Taskband` yazılmaz (ADR-005).
+Matching (`PinMatches`): full path, case-insensitive (`\\?\` and `\??\` prefixes
+are stripped); if the pin path is an AppUserModelId, the running `Id` or the group's other AUMIDs;
+if the record is still a `.lnk`, the resolved target path or the shortcut's AppUserModelId. Folder pins
+do not merge with `explorer.exe`. Two different exes that share a file name do not merge
+(`System32` and `SysWOW64` are different full paths too). Different exe names stay separate when there is no shared AppUserModelId
+or process id. `User Pinned` receives a `.lnk` on pin; `Taskband` is not written (ADR-005).
 
-Şerit **tek parça** — bölümler arasında ayraç yok (macOS denemesi reddedildi,
-[spec §0 #9](../../docs/superpowers/specs/2026-10-04-dock-macos-redesign-design.md)).
+The strip is **one piece** — no separator between sections (the macOS experiment was rejected).
 
-## Plaka
+## Plate
 
-Özel `DockStrip : Panel`. Slot genişliği düğmedir, glif değil. Ölçü `DockPlateMetrics`
-(saf, testli): düğme = ikon + 16 DIP (her yanda 8), düğmeler arası **4 DIP**, plaka payı
-**10×8 DIP**. Varsayılan ikon **24 DIP** → düğme 40, plaka yüksekliği **56 DIP**. Eski
-28 DIP varsayılanı yüklemede 24'e çekilir; 16–36 aralığındaki diğer değerler kalır.
+Custom `DockStrip : Panel`. Slot width is the button, not the glyph. Measurement is `DockPlateMetrics`
+(pure, tested): button = icon + 16 DIP (8 on each side), **4 DIP** between buttons, plate padding
+**10×8 DIP**. Default icon **24 DIP** → button 40, plate height **56 DIP**. The old
+28 DIP default is pulled to 24 on load; other values in the 16–36 range stay.
 
-Hover dolgusu `ControlFillColorSecondaryBrush`, yarıçap 4 DIP (`HoverPlate`). Kare, düğmenin
-üstünde durur; altta gösterge için **8 DIP** şerit kalır (plaka düğmeden 8 DIP kısadır). İkon
-büyümez. Masaüstünde açık pencere (`IsOpenOnDesktop`): kalıcı kare + ikonun altında,
-plakadan **3 DIP** aralıkla, **16×3 DIP** kapsül (24 DIP ikonda; genişlik glifle ölçeklenir),
-alttan 2 DIP, renk `AccentFillColorDefaultBrush`. Alta alınmış uygulama (`IsRunning` ve
-bütün pencereler `IsIconic`): kare yok, altta **8×3 DIP** nötr mini çizgi
-(`TextFillColorPrimaryBrush`). Kapalı pinde çizgi yok; dolgu yalnız hover'da. Birden fazla pencere/süreçte çizginin
-yanında değil, glifin sağ üstünde accent sayı rozeti (`WindowCount`) durur. Tıklama alta
-alınmış pencereyi yine geri yükler. Tooltip sistem stili
-(250 ms gecikme, 8 sn); sayı 1'den büyükse `Ad (N)`. Ad, kısayolun kabuk görünen adıdır
-(`SHGFI_DISPLAYNAME` — `File Explorer.lnk` dosyası `Dosya Gezgini` olur). Kabuk adı yalnız
-dosya adını tekrarlıyorsa pencere başlığının uygulama parçası kullanılır
-(`wharfbar - Dosya Gezgini` → `Dosya Gezgini`). Balon hedefin yatay ortasındadır; aralık
-25 DIP'tir ve DPI ile ölçeklenir. Tek pencere ve küçük resim yokken yüzey kartı açılmaz
-(ikinci bir metin balonu olurdu). Kart açıkken tooltip kapanır. Kart çerçevesi ve üst ışık çizgisi yok.
+Hover fill is `ControlFillColorSecondaryBrush`, radius 4 DIP (`HoverPlate`). It is square and sits
+on the button; an **8 DIP** strip remains at the bottom for the indicator (the plate is 8 DIP shorter than the button). The icon
+does not grow. A window open on the desktop (`IsOpenOnDesktop`): a persistent square + under the icon,
+**3 DIP** from the plate, a **16×3 DIP** capsule (on a 24 DIP icon; width scales with the glyph),
+2 DIP from the bottom, color `AccentFillColorDefaultBrush`. An app sent to the background (`IsRunning` and
+every window `IsIconic`): no square, a **8×3 DIP** neutral mini line at the bottom
+(`TextFillColorPrimaryBrush`). A closed pin has no line; the fill is only on hover. With multiple windows/processes the accent count badge (`WindowCount`) sits at the glyph's top right,
+not beside the line. A click still restores
+a backgrounded window. Tooltip uses the system style
+(250 ms delay, 8 s); when the count is greater than 1, `Name (N)`. The name is the shortcut's shell display name
+(`SHGFI_DISPLAYNAME` — a `File Explorer.lnk` file becomes `Dosya Gezgini` (File Explorer)). If the shell name only
+repeats the file name, the application segment of the window title is used
+(`wharfbar - Dosya Gezgini` → `Dosya Gezgini`). The balloon is at the horizontal center of the target; the gap
+is 25 DIP and scales with DPI. With a single window and no thumbnail the surface card does not open
+(it would be a second text balloon). While the card is open the tooltip closes. The card has no frame and no top light line.
 
-`DockMagnification` / `DockStripLayout` saf ve testli kalır; canlı şerit `MaxScale = 1` basar.
-Pencere `PlateWidth` / `PlateHeight` kadardır (boş dock bir düğme bütçeler). Hover'da `SetWindowPos` yok.
-ScrollViewer yoktur — çok sayıda ikon pencere genişliğine kırpılır. `dock.magnification` JSON'da durur ve okunur, uygulanmaz.
-İkon belirme/kaybolma sırasında plaka genişliği şeridin canlı genişliğini izler (`DockMotion`, 160 ms).
+`DockMagnification` / `DockStripLayout` stay pure and tested; the live strip pushes `MaxScale = 1`.
+The window is `PlateWidth` / `PlateHeight` (an empty dock budgets one button). No `SetWindowPos` on hover.
+There is no ScrollViewer — a large number of icons is clipped to the window width. `dock.magnification` stays in JSON and is read, and is not applied.
+While icons appear or disappear, the plate width follows the strip's live width (`DockMotion`, 160 ms).
 
-## Hareket
+## Motion
 
-Belirme, kaybolma, açık/kapalı kapsül, hover dolgusu ve sayı rozeti **160 ms** sürer
-(`DockMotion`). Slot ve kapsül genişliği `CubicEase` / `EaseInOut`; opaklık girişte
-`EaseOut`, çıkışta `EaseIn`. Yeni ikon slotuyla birlikte 0'dan 1'e ölçeklenir ve solar.
-Hover ikonu büyütmez; canlı şerit ölçeği 1'dir. Dock'un ilk yerleşimi anındır; sonraki değişimler yumuşar.
+Appear, disappear, the open/closed capsule, the hover fill, and the count badge last **160 ms**
+(`DockMotion`). Slot and capsule width use `CubicEase` / `EaseInOut`; opacity uses
+`EaseOut` on the way in and `EaseIn` on the way out. A new icon scales from 0 to 1 together with its slot and fades.
+Hover does not grow the icon; the live strip scale is 1. The dock's first placement is instant; later changes ease.
 
-## Etkileşim
+## Interaction
 
-| Aksiyon | Davranış |
+| Action | Behavior |
 |---|---|
-| Sol tık | Öne getir / çalıştır; ikinci tık küçült (`WindowActivationService`) |
-| Sol tık (klasör / İndirilenler) | Dizin yığını flyout'u. Dosya `ShellExecuteW` (kayıtlı fiil). Klasör bir alt düzeye iner |
-| Sol tık (çöp) | `shell:RecycleBinFolder` |
-| Hover (çalışan uygulama) | O uygulamanın pencereleri, yan yana DWM küçük resim. Tıklama `TryActivate` |
-| Sağ tık (ikon) | Aşağıdaki menü. İndirilenler ve çöpte yalnız başlık + Aç |
-| Sağ tık (boş levha) | Arka plan: Mica / Transparent / Tint + opaklık (tint) |
-| Sürükle | Sabit öğeleri sırala; accent çizgi hedefi gösterir; tıklama bastırılır |
-| Bırakma | `.lnk/.exe/.bat/.cmd` ekler; yola göre tekilleştirir |
-| Bırakma (çöp) | `SHFileOperationW` `FO_DELETE` \| `FOF_ALLOWUNDO`. Reparse dizin reddedilir |
+| Left click | Bring forward / launch; a second click minimizes (`WindowActivationService`) |
+| Left click (folder / `İndirilenler` (Downloads)) | Directory-stack flyout. A file uses `ShellExecuteW` (the registered verb). A folder goes down one level |
+| Left click (trash) | `shell:RecycleBinFolder` |
+| Hover (running app) | That app's windows, DWM thumbnails side by side. A click is `TryActivate` |
+| Right click (icon) | The menu below. Downloads and the trash have only the title + `Aç` (Open) |
+| Right click (empty plate) | Background: Mica / Transparent / Tint + opacity (tint) |
+| Drag | Reorder pinned items; an accent line shows the target; the click is suppressed |
+| Drop | Adds `.lnk/.exe/.bat/.cmd`; dedupes by path |
+| Drop (trash) | `SHFileOperationW` `FO_DELETE` \| `FOF_ALLOWUNDO`. A reparse directory is rejected |
 
-Sağ tık menüsü (`BuildContextMenuForItem`) — maddelerin koşulları koddan:
+Right-click menu (`BuildContextMenuForItem`) — item conditions come from the code:
 
-1. **Başlık kartı** — ikon + uygulama adı, her zaman (tıklanamaz).
-2. **Dock'a sabitle / Dock'tan kaldır** — her zaman; metin pin durumuna göre.
-3. **Görevi sonlandır** — her zaman görünür; **çalışıyorsa etkin**, değilse `IsEnabled=false`.
-4. **Pencereyi kapat** — aynı koşul (3) ve aynı `IsEnabled` mantığı.
-5. Ayraçdan sonra, **yalnız yol boş değilse ve dosya diskte varsa**
-   (`!IsNullOrWhiteSpace(Path) && File.Exists(Path)`): **Yönetici olarak çalıştır** ·
-   **Dosya konumunu aç** · **Yeni pencere aç**. Yol yoksa bu üçü **hiç görünmez**.
-6. **Pencereler** — alt menü yalnız kutucuk `IsRunning` **ve** canlı pencere tutuyorsa
-   (`MainWindowHandle != 0`) **ve** o süreç için **en az bir pencere** listede kaldıysa eklenir
-   (`Section`'a göre değil — pinli-ve-çalışan kutucuk da `IsRunning`'dır). Menü
-   `MinimizedWindowsSource`'un önbelleğinden beslenir; UI thread'inde `EnumWindows` çağrılmaz.
+1. **Title card** — icon + application name, always (not clickable).
+2. **`Dock'a sabitle` / `Dock'tan kaldır` (Pin to Dock / Unpin from Dock)** — always; the text follows the pin state.
+3. **`Görevi sonlandır` (End task)** — always visible; **enabled if it is running**, otherwise `IsEnabled=false`.
+4. **`Pencereyi kapat` (Close window)** — the same condition as (3) and the same `IsEnabled` logic.
+5. After the separator, **only when the path is not empty and the file exists on disk**
+   (`!IsNullOrWhiteSpace(Path) && File.Exists(Path)`): **`Yönetici olarak çalıştır` (Run as administrator)** ·
+   **`Dosya konumunu aç` (Open file location)** · **`Yeni pencere aç` (Open a new window)**. If there is no path these three **are not shown at all**.
+6. **`Pencereler` (Windows)** — the submenu is added only when the cell `IsRunning` **and** it holds a live window
+   (`MainWindowHandle != 0`) **and** **at least one window** remains in the list for that process
+   (not by `Section` — a pinned-and-running cell is `IsRunning` too). The menu
+   is fed from `MinimizedWindowsSource`'s cache; `EnumWindows` is not called on the UI thread.
 
-## Yüzey (ADR-014)
+## Surface (ADR-014)
 
-Tek flyout (`SurfaceFlyout`): hover'da pencere küçük resimleri, klasör tıklanınca dizin
-yığını. İç içe `Popup` yok. DWM kaydı ayrılınca ve kapanışta düşer. Cloak'lı, küçültülmüş
-veya DWM'nin reddettiği pencerede başlık satırı kalır, siyah kare yok.
+A single flyout (`SurfaceFlyout`): window thumbnails on hover, a directory
+stack when a folder is clicked. No nested `Popup`. It drops when the DWM registration detaches and on close. On a cloaked, minimized,
+or DWM-rejected window the title row remains, and there is no black square.
 
-İkonun altında ince ilerleme çubuğu, kabuğun görev çubuğu düğmesinde açtığı
-`RangeValue` / `ItemStatus` okumasını boyar (normal yüzde, indeterminate, paused, error).
-Okuma boşsa çubuk yoktur. Dikkat isteyen pencere ikonda ~1.6 sn accent nabız yapar;
-ikinci flaş süreyi baştan başlatır, aktivasyon bitirir. Konum oynamaz.
+A thin progress bar under the icon paints the
+`RangeValue` / `ItemStatus` reading the shell exposes on the taskbar button (normal percent, indeterminate, paused, error).
+If the reading is empty there is no bar. A window that wants attention pulses the icon in accent for ~1.6 s;
+a second flash restarts the duration, and activation ends it. Position does not move.
 
-Bir pencere küçülünce, yakalanan kare ~200 ms o ikona doğru ölçeklenir.
-`SystemParameters.ClientAreaAnimation` kapalıysa veya `PrintWindow` boşsa animasyon yok.
-Store uygulamasının logosu paket API'sinden gelir; dosya yoksa harf glifi.
+When a window minimizes, the captured frame scales toward that icon for ~200 ms.
+If `SystemParameters.ClientAreaAnimation` is off, or `PrintWindow` is empty, there is no animation.
+A Store app's logo comes from the package API; if the file is missing, a letter glyph.
 
-Canlı şerit ölçeği 1'dir. Hover `SetWindowPos` çağırmaz. Plaka AppBar değildir.
+The live strip scale is 1. Hover does not call `SetWindowPos`. The plate is not an AppBar.
 
-## Ayarlar
+## Settings
 
-[Ayarlar → Dock](settings.md#dock): `autoHide`, `iconSize` (16–36, varsayılan 24),
-`backgroundMode` (Mica / Saydam / Renkli) + yalnız Renkli'de opaklık 0–100, `position`
-(alt-sol/orta/sağ), `showRunningApps`, içerik listesi (ekle/sil/sürükleyerek sırala).
-Aynı arka plan menüsü boş plakaya sağ tıkla açılır (ikonun kendi menüsü değil).
-Mica ↔ saydam/renkli geçişi dock'u yeniden kurar. Konum yalnız **alt kenar**
-hizasıdır; yan dock kapsam dışı.
+[Settings → Dock](settings.md#dock): `autoHide`, `iconSize` (16–36, default 24),
+`backgroundMode` (`Mica` / `Saydam` (Transparent) / `Renkli` (Tint)) + opacity 0–100 only for `Renkli` (Tint), `position`
+(bottom-left/center/right), `showRunningApps`, content list (add/remove/drag to reorder).
+The same background menu opens by right-clicking the empty plate (not the icon's own menu).
+A Mica ↔ transparent/tint transition recreates the dock. Position is **bottom-edge**
+alignment only; a side dock is out of scope.
 
-## Tuzaklar
+## Gotchas
 
-`docs/04-gotchas.md` → "Dock'ta ..." girdirleri. Ayrıca:
+`docs/04-gotchas.md` → the `Dock'ta...` (On the dock...) entries. Also:
 
-- OLE bırakma kabulü **ölçülmedi**. Mica modu katmanlı değildir; saydam ve renkli modlar
-  katmanlıdır. Katmanlı `Topmost` pencere hedef olarak kabul edilmezse dosya bırakma **ve**
-  uygulama içi sıralama birlikte düşer (`RegisterDragDrop` HWND başına).
-- Sürükleme ile tıklama aynı butonda; bastırma **anahtarsızdır** (`_suppressNextClick`), çünkü
-  bırakma sırayı değiştirip serbest bırakılan hücrenin içeriğini değiştirir.
-- Plaka ritmi fare ile doğrulanmadı ([`conventions.md`](../conventions.md) §Test listesi).
+- OLE drop acceptance was **not measured**. Mica mode is not layered; transparent and tint modes
+  are layered. If a layered `Topmost` window is not accepted as a target, file drop **and**
+  in-app reorder fall together (`RegisterDragDrop` is per HWND).
+- Drag and click are the same button; suppression is a one-shot, not a mode switch (`_suppressNextClick`), because
+  the drop changes the order and changes the contents of the released cell.
+- The plate rhythm was not verified with the mouse ([`conventions.md`](../conventions.md) § Test list).

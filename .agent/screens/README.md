@@ -1,19 +1,19 @@
-# Ekranlar — özet indeks
+# Screens — summary index
 
-WharfBar'ın kullanıcı arayüzü turu: her ekranın ayrıntılı sayfası aşağıda. Kod tarafı:
-`src/WharfBar/Views/`; config karşılıkları `src/WharfBar/Models/AppConfig.cs`.
+A tour of WharfBar's user interface: each screen's detailed page is below. Code side:
+`src/WharfBar/Views/`; config counterparts are `src/WharfBar/Models/AppConfig.cs`.
 
-| Ekran | Sayfa | Özet |
-|-------|-------|------|
-| **Top bar** | [`topbar.md`](topbar.md) | 30 DIP AppBar; sol: Windows logo menüsü; orta: ada hapı (boşta Pano veya son kayıt, şimdi çalıyor, ses/parlaklık/pil, uydular; pano birincil, ikincil yalnız müzik ve sayaç); sağ: durum şeridi (sağ tık ile göster/gizle, sırala, arka plan + opaklık). |
-| **Dock** | [`dock.md`](dock.md) | Alt kenar overlay; solda salt okunur görev çubuğu pinleri (kapalılar dahil) + `dock.items`, sağda sabitlenmemiş çalışanlar, uygulama başına bir ikon; plaka düğme ritmi (ikon 24, düğme 40, aralık 4), büyütme yok, arka plan `mica`/`transparent`/`tint`, sürükle-sırala, dosya bırakma, alt-sol/orta/sağ konum. |
-| **Ayarlar** | [`settings.md`](settings.md) | Logo/tepsi menüsünden açılır; Genel · Görünüm · Dock · Ekranlar · Üst Çubuk · Kaplama · Ada · Eklentiler · Hakkında (WPF-UI NavigationView). |
-| **Hızlı ayarlar flyout** | [`topbar.md`](topbar.md#hızlı-ayarlar-flyout) | `controlCenter`/ses/ağ ikonlarının paylaştığı tek popup: Main / Mixer / Network sekmeleri (ADR-006); Wi-Fi (canlı ağ listesi + şifre paneli), Bluetooth (cihaz listesi), Yansıt (4 mod), gece ışığı tile (gerçek durum + toggle), kaplama tile (renk overlay aç/kapa, `\uE790`; ADR-007), tile animasyonları. |
-| **Parlaklık flyout** | [`topbar.md`](topbar.md#parlaklık-flyout) | Monitorian tarzı DDC/CI + WMI; master slider + monitör kartları. |
-| **Medya flyout** | [`topbar.md`](topbar.md#medya-flyout) | SMTC şu an çalan: kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturum seçici; öğe yalnızca oturum aktifken görünür |
+| Screen | Page | Summary |
+|--------|------|---------|
+| **Top bar** | [`topbar.md`](topbar.md) | 30 DIP AppBar; left: Windows logo menu; center: island pill (idle `Pano` (Clipboard) or the last clip, now playing, volume/brightness/battery, satellites; clipboard on the primary, secondary is music and meters only); right: status strip (right-click to show/hide, reorder, background + opacity). |
+| **Dock** | [`dock.md`](dock.md) | Bottom-edge overlay; read-only taskbar pins on the left (including closed ones) + `dock.items`, unpinned running apps on the right, one icon per application; plate button rhythm (icon 24, button 40, gap 4), no magnification, background `mica`/`transparent`/`tint`, drag-to-reorder, file drop, bottom-left/center/right position. |
+| **Settings** | [`settings.md`](settings.md) | Opens from the logo/tray menu; `Genel` (General) · `Görünüm` (Appearance) · `Dock` · `Ekranlar` (Displays) · `Üst Çubuk` (Top bar) · `Kaplama` (Overlay) · `Ada` (Island) · `Eklentiler` (Plugins) · `Hakkında` (About) (WPF-UI NavigationView). |
+| **Quick settings flyout** | [`topbar.md`](topbar.md#quick-settings-flyout) | One popup shared by the `controlCenter`/volume/network icons: Main / Mixer / Network tabs (ADR-006); Wi-Fi (live network list + password panel), Bluetooth (device list), `Yansıt` (Project) (4 modes), night light tile (real state + toggle), overlay tile (color overlay on/off, `\uE790`; ADR-007), tile animations. |
+| **Brightness flyout** | [`topbar.md`](topbar.md#brightness-flyout) | Monitorian-style DDC/CI + WMI; master slider + monitor cards. |
+| **Media flyout** | [`topbar.md`](topbar.md#media-flyout) | SMTC now playing: art, title/artist, `Oynat`/`Duraklat` (Play/Pause) + `İleri`/`Geri` (Next/Previous), multi-session picker; the item is visible only while a session is active |
 
-Ortak notlar:
+Shared notes:
 
-- Durum öğeleri / seçenekler config'ten canlı uygulanır (`ApplyConfigChanges`).
-- Sağ tık menüleri WPF-UI `BasedOn` stillerini kullanır (App.xaml; Aero2 ikon olukları ezilmez).
-- v1 yalnızca **birincil monitör**; tüm pencereler Per-Monitor V2 DPI.
+- Status items / options are applied live from config (`ApplyConfigChanges`).
+- Right-click menus use WPF-UI `BasedOn` styles (App.xaml; Aero2 icon gutters are not overwritten).
+- v1 is the **primary monitor** only; every window is Per-Monitor V2 DPI.

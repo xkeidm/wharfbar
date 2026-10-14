@@ -53,9 +53,50 @@ $RECYCLE.BIN/
 *.env
 .env.*
 appsettings.*.Local.json
+# The pattern above does not match the usual appsettings.Local.json filename.
+appsettings.Local.json
 
 ## Superpowers / agent scratch (briefs, review diffs)
 .superpowers/
 
+## Claude Code local settings (CLAUDE.md is committed)
+.claude/settings.local.json
+CLAUDE.local.md
+
 ## Git worktrees
 .worktrees/
+
+## Editor, merge, and local-run leftovers outside bin/obj
+*.log
+*.tmp
+*.bak
+*.orig
+~$*
+
+## WPF markup compile leaves these beside the csproj if a build is killed
+*.tmp_proj
+*_wpftmp.csproj
+
+## Test and coverage files that can land outside TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+## Crash dumps from a desktop run or debugger
+*.dmp
+*.mdmp
+
+## Private certificates and secret-shaped filenames
+*.pfx
+*.p12
+secrets.json
+
+## ReSharper caches (*.DotSettings.user is already matched by *.user)
+_ReSharper*/
+*.[Rr]e[Ss]harper
+
+## Local history, and Rider's solution file (.idea/ is already ignored)
+.history/
+.localhistory/
+.vshistory/
+*.sln.iml

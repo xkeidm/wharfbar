@@ -1,50 +1,52 @@
 # Conventions
 
-## Dil
+## Language
 
-- **İnsan dokümanları** (`README.md`, `docs/*.md`): tercihen Türkçe; API/tür adları İngilizce bırakılır.
-- **Kod** (ileride): İngilizce tanımlayıcılar, XML doc / yorumlar İngilizce veya kısa Türkçe — tutarlı ol.
-- **Commit mesajları:** İngilizce veya Türkçe; kısa, “why” odaklı (repo stiline uy).
+- Canonical docs and `README.md` are English.
+- The only extra translation is `README.tr.md` (Turkish). Do not add other language READMEs.
+- API, type, and config names stay English.
+- Code identifiers stay English. Comments may be English.
+- Commit messages may be English or Turkish, short and why-focused.
+- `.cursor` rules stay short pointers; do not paste long guides into them.
 
-## Doküman
+## Documentation
 
-- Davranış değişince `docs/` + `.agent/` birlikte güncellenir.
-- Cursor `.mdc` dosyalarına uzun rehber yapıştırma; işaretçi tut.
-- Yeni ADR: `docs/decisions/NNN-slug.md`.
-- Downloads veya dış yoldaki notlar kaynak değildir; içeriği `docs/`’a taşı.
+- When behavior changes, `docs/` and `.agent/` are updated together.
+- Do not paste long guides into Cursor `.mdc` files; keep them as pointers.
+- Notes in Downloads or on an external path are not a source; move the content into `docs/`.
 
-## Kod (hedef, scaffold sonrası)
+## Code (target, after the scaffold)
 
-- C#: `PascalCase` tür/üye, private field `_camelCase`; nullable açık.
-- Klasör: `Views/` (veya `UI/`), `Native/`, `Models/`, `Services/` — **`Windows/` klasör adı yok**.
-- P/Invoke: `Native/` altında ince wrapper’lar; UI’dan ham DllImport çağırma.
-- Win32 struct’lar (`APPBARDATA` vb.) `Native/` içinde `internal`; servis katmanı domain modellerine çevirir.
-- Yeni Win32 çağrısı: imzayı `docs/02-win32-appbar-dwm.md`’ye ekle; hata dönüşünü / `GetLastWin32Error`’ı sessizce yutma (en azından debug log).
-- WPF-UI backdrop önce; DWM yedek.
-- Config modellerinde `schemaVersion` zorunlu alan; alan bazlı varsayılanlarla kırılmadan okuma tercih.
-- AppBar yaşam döngüsü tek yerde (register/unregister/re-register); `ABM_NEW` / `ABM_REMOVE` simetrik.
-- `unsafe` / `AllowUnsafeBlocks` yalnızca gerçek ihtiyaçta.
-- Anlamlı isimler; gereksiz abstraction yok.
+- C#: `PascalCase` types/members, private fields `_camelCase`; nullable enabled.
+- Folders: `Views/` (or `UI/`), `Native/`, `Models/`, `Services/` — **no folder named `Windows/`**.
+- P/Invoke: thin wrappers under `Native/`; do not call raw DllImport from the UI.
+- Win32 structs (`APPBARDATA` and the like) are `internal` inside `Native/`; the service layer translates them into domain models.
+- A new Win32 call: add the signature to `docs/02-win32-appbar-dwm.md`; do not swallow the error return / `GetLastWin32Error` silently (at least a debug log).
+- WPF-UI backdrop first; DWM is the fallback.
+- `schemaVersion` is a required field on config models; prefer reading without breaking, using per-field defaults.
+- The AppBar lifecycle lives in one place (register/unregister/re-register); `ABM_NEW` / `ABM_REMOVE` stay symmetric.
+- `unsafe` / `AllowUnsafeBlocks` only when there is a real need.
+- Meaningful names; no unnecessary abstraction.
 
-## Test / doğrulama (v1 manuel)
+## Test / verification (v1 manual)
 
-- AppBar: maximize pencere top bar altına girmiyor mu?
-- Çıkış: work area geri geliyor mu?
-- Crash simülasyonu sonrası explorer düzeltmesi bilinçli
-- Mutex: ikinci örnek açılmıyor mu?
-- DPI değişiminde pozisyon
-- Dock: hover düğmeyi dolduruyor mu, pencere levhadan taşmıyor mu?
-- Dock: sürükleyerek sıralama çalışıyor mu ve uygulama açılmıyor mu?
-- Dock: Explorer'dan bırakma kabul ediliyor mu (değilse ayar listesinden ekleniyor mu)?
-- Dock: **otomatik gizleme kapalıyken** Explorer'dan bir dosyayı plakanın yanındaki saydam banda
-  (plakadan ~30 px öte) sürükle — dock ekliyor mu? Bırakma bölgesinin gerçek sınırı hiç ölçülmedi;
-  `DockWindow.xaml` kök `Grid` yorumu da iddia etmiyor. Eklemiyorsa sonraki adım bölgenin
-  daraltılmasına karar vermek, yorumu yeniden yazmak değil.
-- Dock: simge boyutu 16/36 uçlarında levha ikonlara yapışıyor mu? Mica ↔ saydam geçişi pencereyi yeniden kuruyor mu?
-- Dock: görev çubuğu pinleri WharfBar'yi etkilemiyor, WharfBar da görev çubuğunu etkilemiyor mu?
-  (ADR-005 revizyonu: hiçbir yönde yazma/okuma olmamalı)
+- AppBar: does a maximized window stay out from under the top bar?
+- Exit: does the work area come back?
+- After a crash simulation, the Explorer fix is intentional
+- Mutex: does a second instance fail to open?
+- Position on a DPI change
+- Dock: does hover fill the button, and does the window stay inside the plate?
+- Dock: does drag-to-reorder work, and does it not launch the app?
+- Dock: is a drop from Explorer accepted (if not, is it added from the settings list)?
+- Dock: with **auto-hide off**, drag a file from Explorer onto the transparent band beside the plate
+  (about 30 px beyond the plate) — does the dock add it? The drop region's real boundary was never measured;
+  the root `Grid` comment in `DockWindow.xaml` does not claim it either. If it does not add the file, the next step
+  is to decide to shrink the region, not to rewrite the comment.
+- Dock: at the 16/36 icon-size extremes, does the plate stay tight to the icons? Does the Mica ↔ transparent transition recreate the window?
+- Dock: do taskbar pins not affect WharfBar, and does WharfBar not affect the taskbar?
+  (ADR-005 revision: there must be no write or read in either direction)
 
 ## Git
 
-- Commit yalnızca kullanıcı istediğinde.
-- Gizli dosya / `.env` commit etme.
+- Commit only when the user asks.
+- Do not commit secret files / `.env`.

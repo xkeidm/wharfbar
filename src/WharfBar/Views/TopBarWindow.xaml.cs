@@ -17,7 +17,7 @@ using Wpf.Ui.Controls;
 namespace WharfBar.Views;
 
 /// <summary>
-/// The macOS-style menu bar across the top of the primary monitor.
+/// The top bar across the primary monitor.
 /// Owns the AppBar registration and every path that must release it.
 /// </summary>
 public partial class TopBarWindow : Window

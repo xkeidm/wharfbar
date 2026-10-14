@@ -1,10 +1,10 @@
-# 02 — Win32: AppBar, DWM, Tray, İkonlar
+# 02 — Win32: AppBar, DWM, Tray, Icons
 
-## a) AppBar — ekran alanı rezervasyonu
+## a) AppBar — reserving screen space
 
-Sadece `Topmost=true` yetmez; diğer pencerelerin altına girmemesi için Windows’a AppBar kaydı gerekir (görev çubuğunun yaptığı).
+`Topmost=true` alone is not enough; so that other windows do not go underneath, an AppBar must be registered with Windows (what the taskbar does).
 
-### API özeti
+### API summary
 
 ```csharp
 [DllImport("shell32.dll")]
@@ -14,53 +14,52 @@ static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
 // ABE_TOP = 1, ABE_BOTTOM = 3
 ```
 
-**Akış:** `ABM_NEW` → `ABM_QUERYPOS` → `ABM_SETPOS` → kapanırken **mutlaka** `ABM_REMOVE`.
+**Flow:** `ABM_NEW` → `ABM_QUERYPOS` → `ABM_SETPOS` → on close, **always** `ABM_REMOVE`.
 
-`ABM_REMOVE` kaçırılırsa rezerve alan asılı kalır; kullanıcı genelde `explorer.exe` yeniden başlatmak zorunda kalır.
+If `ABM_REMOVE` is missed, the reserved area stays stuck; the user usually has to restart `explorer.exe`.
 
-### Callback’ler
+### Callbacks
 
-AppBar kaydında `uCallbackMessage` ile özel bir window message tanımla. Gelen `ABN_*`
-bildirimlerini işle (ör. `ABN_POSCHANGED`, `ABN_FULLSCREENAPP`, `ABN_WINDOWARRANGE`).
-**`ABN_POSCHANGED` içinde `SHAppBarMessage` çağırma** — explorer `SendMessage` ile bildirir;
-içeriden `ABM_SETPOS` deadlock (üst barda wait cursor, tıklama yok). `BeginInvoke` +
-aynı rect’te SETPOS atla. Fullscreen gizleme ve yeniden konumlandırma buradan bağlanır.
+On AppBar registration, define a custom window message with `uCallbackMessage`. Handle the incoming `ABN_*`
+notifications (e.g. `ABN_POSCHANGED`, `ABN_FULLSCREENAPP`, `ABN_WINDOWARRANGE`).
+**Do not call `SHAppBarMessage` inside `ABN_POSCHANGED`** — explorer notifies with `SendMessage`;
+`ABM_SETPOS` from inside deadlocks (a wait cursor on the top bar, no clicks). `BeginInvoke` +
+skip SETPOS on the same rect. Fullscreen hiding and repositioning are wired from here.
 
-### Çoklu monitör
+### Multiple monitors
 
-AppBar `ABM_NEW` sırasında pencerenin bulunduğu monitöre bağlanır; bar önce hedef monitöre
-taşınıp sonra kaydedilirse her bar kendi monitöründe kenar rezerve eder. Yerleşim
-`Display.GetMonitorBounds` (ADR-003) ile ilgili monitörün fiziksel piksel sınırından hesaplanır;
-her monitör config'te ayrı açılır/kapanır (`monitors`).
+During `ABM_NEW` the AppBar binds to the monitor the window is on; if the bar is moved to the target monitor
+first and registered after that, each bar reserves an edge on its own monitor. Placement
+is computed from that monitor's physical-pixel bounds with `Display.GetMonitorBounds` (ADR-003);
+each monitor is turned on and off separately in config (`monitors`).
 
-Birincil monitörde bu yol görev çubuğuyla birebir çalışır. İkincil monitörlerde shell
-uyumluluğu daha kırılgan olabildiğinden yedek olarak `SystemParametersInfo(SPI_SETWORKAREA)`
- ile manuel work area genişletmesi planlanmıştı (dikkatli kullan; diğer shell bileşenleriyle
-çakışabilir — bkz. boundaries "Yap"). **25H2 (2026-08-29):** `SPI_SETWORKAREA` çalışmıyor;
-yedek yol ölü. Work area override'ı destekleyen bir shell gelene dek **alt şeridi yalnızca
-`ABM_SETSTATE(ABS_AUTOHIDE)` ile bırakmak mümkündür** (aşağıdaki görev çubuğu gizleme
-bölümü) — `SPI_SETWORKAREA`'ya gerek yok.
+On the primary monitor this path works one-to-one with the taskbar. On secondary monitors shell
+compatibility can be more fragile, so a manual work-area expansion with `SystemParametersInfo(SPI_SETWORKAREA)`
+ was planned as a fallback (use it carefully; it can clash with other shell components — see boundaries "Do"). **25H2 (2026-08-29):** `SPI_SETWORKAREA` does not work;
+the fallback path is dead. Until a shell that supports a work-area override arrives, **the bottom strip can be released only
+with `ABM_SETSTATE(ABS_AUTOHIDE)`** (the taskbar-hiding
+section below) — `SPI_SETWORKAREA` is not needed.
 
-> **Tuzak (2026-09-30):** Bu API'ye dışarıdan (kayıtlı **olmayan** bir süreçten) bakıp
-> "25H2'de her şey ölü" sonucuna varmak yanıltıcıdır. `SPI_SETWORKAREA` gerçekten
-> `TRUE` dönüp **sessizce hiçbir şey yapmıyor** (ölçüldü) — ama alt şeridin bırakılması
-> zaten bu yola değil, `ABM_SETSTATE(ABS_AUTOHIDE)`'ye bağlıdır ve o **çalışır**.
-> Aynı şekilde `ABM_SETSTATE`'i de kayıt dışı bir süreçten prob etmek yanlış negatif verir:
-> yalnızca **kayıtlı bir AppBar**'ın çağrısı etkilidir. Ölçümü WharfBar çalışırken yap.
+> **Trap (2026-09-30):** Looking at this API from the outside (from a process that is **not** registered)
+> and concluding that "everything is dead on 25H2" is misleading. `SPI_SETWORKAREA` really does
+> return `TRUE` and **silently does nothing** (measured) — but releasing the bottom strip
+> is not tied to this path anyway; it is tied to `ABM_SETSTATE(ABS_AUTOHIDE)`, and that **works**.
+> Likewise, probing `ABM_SETSTATE` from a process that is not registered gives a false negative:
+> only a call from **a registered AppBar** has an effect. Measure while WharfBar is running.
 
-### Explorer çöküşü / yeniden başlama
+### Explorer crash / restart
 
-Shell yeniden başlayınca AppBar kaydı kaybolur.
+When the shell restarts, the AppBar registration is lost.
 
-**Uygulanan çözüm:** `RegisterWindowMessage("TaskbarCreated")` dinlenir; mesaj gelince `ABM_NEW`
-tekrar çalıştırılıp yerleşim yeniden uygulanır. Eski kayıt ölen shell ile birlikte gittiği için
-öncesinde `ABM_REMOVE` gerekmez. Bkz. [ADR-003](decisions/003-topbar-placement-and-appbar-lifecycle.md).
+**Implemented solution:** `RegisterWindowMessage("TaskbarCreated")` is listened for; when the message arrives, `ABM_NEW`
+is run again and placement is re-applied. `ABM_REMOVE` is not required beforehand, because the old registration
+left with the dead shell. See ADR-003.
 
-### Dock ve AppBar
+### The dock and the AppBar
 
-Üst bar için AppBar uygundur. Dock plakası overlay'dir (Topmost + auto-hide); plaka HWND'i AppBar yapılmaz — `ABM_QUERYPOS` alt kenarda pencereyi monitör genişliğine gerer. Bkz. ADR-001.
+An AppBar is appropriate for the top bar. The dock plate is an overlay (Topmost + auto-hide); the plate HWND is not made an AppBar — `ABM_QUERYPOS` stretches the window to the monitor width on the bottom edge. See ADR-001.
 
-`dock.autoHide=false` iken kardeş bir pencere (`DockWorkAreaReservation`) `ABE_BOTTOM` kaydıyla plaka yüksekliğinde, tam genişlikte bir şerit rezerve eder. Pencere ham `CreateWindowEx` ile kurulur (`WS_EX_LAYERED` + alpha 0 + `WS_EX_TRANSPARENT`): WPF `HwndSource` bu şeridi siyah boyar, çünkü DWM redirection `LWA_ALPHA`'yı yok sayar. Duvar kâğıdı görünür, tıklama masaüstüne düşer. Maximize pencere work area'yı izlediği için dock tepesinde durur; masaüstü ikonları aynı kenarı kullanır. Oto-gizle `ABM_REMOVE` çağırır. `SPI_SETWORKAREA` bu iş için kullanılmaz (25H2'de sessiz no-op). Çıkışta kayıt `ABM_REMOVE` ile bırakılır.
+While `dock.autoHide=false`, a sibling window (`DockWorkAreaReservation`) reserves a full-width strip at the plate height with an `ABE_BOTTOM` registration. The window is created with raw `CreateWindowEx` (`WS_EX_LAYERED` + alpha 0 + `WS_EX_TRANSPARENT`): a WPF `HwndSource` paints this strip black, because DWM redirection ignores `LWA_ALPHA`. The wallpaper stays visible, and the click falls through to the desktop. A maximized window follows the work area, so it stops at the top of the dock; desktop icons use the same edge. Auto-hide calls `ABM_REMOVE`. `SPI_SETWORKAREA` is not used for this job (a silent no-op on 25H2). On exit the registration is released with `ABM_REMOVE`.
 
 ---
 
@@ -73,446 +72,445 @@ tekrar çalıştırılıp yerleşim yeniden uygulanır. Eski kayıt ölen shell 
 // DWMWA_SYSTEMBACKDROP_TYPE = 38       (2 = Mica, 3 = Acrylic, 4 = MicaAlt)
 ```
 
-**Tercih sırası:** Önce **WPF-UI** backdrop API’leri. Ham DWM Mica yalnızca WPF-UI yetmezse veya ince ayar için; çakışmadan kaçın. Uygulama: `Services/WindowAppearance.cs` + `Native/Dwm.cs`. Ayrıntı: [ADR-004](decisions/004-topbar-mica-corners-and-theme.md).
+**Preference order:** The **WPF-UI** backdrop APIs first. Raw DWM Mica only if WPF-UI is not enough, or for fine-tuning; avoid a clash. Implementation: `Services/WindowAppearance.cs` + `Native/Dwm.cs`. Detail: ADR-004.
 
-**Kritik tuzak:** WPF `AllowsTransparency=true` DWM composition’ı (Mica’yı) bozar.
+**Critical trap:** WPF `AllowsTransparency=true` breaks DWM composition (Mica).
 
-**Üst bar uygulanan desen (Faz 3):**
+**Top-bar pattern that was applied (Phase 3):**
 
-- Opak pencere; `AllowsTransparency` kapalı; `WindowStyle=None` (caption min-height ~39 px’i aşmak için)
-- Backdrop doğrulanınca arka plan `Transparent` brush; aksi halde opak fallback
-- `DwmExtendFrameIntoClientArea` ile `MARGINS` = `-1` (glass bölgesi; caption gerekmez)
-- Köşe: üst bar `DWMWCP_DONOTROUND`; dock (Faz 4) yuvarlak kullanabilir
+- An opaque window; `AllowsTransparency` off; `WindowStyle=None` (to get past the caption min-height of ~39 px)
+- Once the backdrop is verified, the background is a `Transparent` brush; otherwise an opaque fallback
+- `MARGINS` = `-1` with `DwmExtendFrameIntoClientArea` (the glass region; a caption is not required)
+- Corner: the top bar uses `DWMWCP_DONOTROUND`; the dock (Phase 4) may use round
 
-> `WindowChrome` ile caption bırakmak Mica için gerekli değildir ve 30 DIP şeridi
-> DefWindowProc min yüksekliğine (~39) şişirir — kullanılmaz (ADR-004).
+> Leaving a caption with `WindowChrome` is not required for Mica, and it inflates the 30 DIP strip
+> to DefWindowProc's min height (~39) — it is not used (ADR-004).
 
 ---
 
-## c) Sistem tepsisi / durum göstergeleri
+## c) System tray / status indicators
 
 ```csharp
 Shell_NotifyIcon  // NIM_ADD / MODIFY / DELETE
 ```
 
-**Önemli:** `Shell_NotifyIcon` **kendi** tepsi ikonunu eklemek/güncellemek içindir. Wi-Fi, ses, pil gibi **sistem tepsi ikonlarını okumak resmi API ile desteklenmez**.
+**Important:** `Shell_NotifyIcon` is for adding/updating **our own** tray icon. Reading **system tray icons** such as Wi-Fi, volume, and battery is not supported by an official API.
 
-Top bar göstergeleri için:
+For top-bar indicators:
 
-- Durumu `NetworkInformation`, güç API’leri (`GetSystemPowerStatus`), saat vb. **.NET / Win32 API’lerinden** oku
-- Kendi ikon setini kullan (üst barda **Segoe MDL2 Assets** glifleri — Mica AppBar şeridinde
-  WPF-UI `SymbolIcon` boş kalabiliyordu; saat dışı göstergeler kayboluyordu)
-- İsteğe bağlı: WharfBar’ın kendi `NotifyIcon`’u — uygulama: `TrayIconService` + `NotifyIconHost` (Quit menüsü); sistem ikon okuma değildir
-- **Tepsi hibrit + ayna (ADR-005 + ADR-009):** üçüncü taraf ikonlar **belgelenmiş comctl32
-  toolbar mesajlarıyla** (`TB_BUTTONCOUNT`, `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`),
-  `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id))
-  üst barda aynalanır; tıklama `SendMessageTimeout` mouse mesajlarıyla forward edilir.
-  `ReadProcessMemory` / enjeksiyon / belgelenmemiş enumeration yok. Gizli/overflow ikonlar
-  aynalanamaz (yalnızca açık popup'ta var); `TrayOverflowInvoker` (`Win+B` / chevron) kalır.
-  Poll 4 sn; ikon pikseli her turda çekilmez (blip en fazla 60 sn). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI'ı
-  kilitlemez.
-- **Windows 11 25H2+ UIA fallback:** klasik `ToolbarWindow32` tepsi bu sürümde kaldırıldı
-  (25H2'de `TrayNotifyWnd` altında `SysPager`/`ToolbarWindow32` yok). `FindToolbarHwnd()` boş
-  dönünce ayna UI Automation'a düşer: `Shell_TrayWnd → … → TaskbarFrameAutomationPeer` altındaki
-  `SystemTray.NormalButton` butonları (ad + `AutomationElement`); sistem ikonları farklı
-  class'larda (`AccentButton`/`OmniButton*`/`ShowDesktopButton`) + giriş göstergesi tooltip
-filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RENDERFULLCONTENT)`
-   ile park+cloak'lı taskbar'ın kendi içeriğini çekip butonun `Image` çocuk rect'ini kırpar
-   (gerçek ikon, flash yok; başarısızsa `TrayLetterGlyph` fallback). UIA
-    çocukları yalnızca taskbar `SW_SHOW` iken açığa çıkar → her poll `BeginTrayPeek(stealth:true)`
-    (cloak + ekran dışı park) ile okunur, flash yok. DWM cloak bazı makinelerde reddedilir
-    (`DwmSetWindowAttribute` S_OK dönmez) → `TrySetTrayVisibleStealth` o durumda
-    **WS_EX_LAYERED + alpha 0** yedeğiyle görünmezlik sağlar (UIA `IsWindowVisible=true` görmeye
-    devam eder); o da başarısızsa peek açılmaz, poll atlanır.
+- Read the state from **.NET / Win32 APIs** such as `NetworkInformation`, the power APIs (`GetSystemPowerStatus`), and the clock
+- Use our own icon set (**Segoe MDL2 Assets** glyphs on the top bar — a WPF-UI `SymbolIcon` could come out empty on a Mica AppBar strip;
+  indicators other than the clock were disappearing)
+- Optional: WharfBar's own `NotifyIcon` — implementation: `TrayIconService` + `NotifyIconHost` (Quit menu); this is not system-icon reading
+- **Tray hybrid + mirror (ADR-005 + ADR-009):** third-party icons are mirrored on the top bar **with documented comctl32
+  toolbar messages** (`TB_BUTTONCOUNT`, `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`),
+  `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id));
+  the click is forwarded with `SendMessageTimeout` mouse messages.
+  There is no `ReadProcessMemory` / injection / undocumented enumeration. Hidden/overflow icons
+  cannot be mirrored (they exist only in the open popup); `TrayOverflowInvoker` (`Win+B` / chevron) remains.
+  The poll is 4 s; the icon pixel is not pulled every round (a blip at most every 60 s). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) does not
+  lock the UI on a hung explorer.
+- **Windows 11 25H2+ UIA fallback:** the classic `ToolbarWindow32` tray was removed in this version
+  (on 25H2 there is no `SysPager`/`ToolbarWindow32` under `TrayNotifyWnd`). When `FindToolbarHwnd` returns
+  empty, the mirror falls back to UI Automation: the `SystemTray.NormalButton` buttons under
+  `Shell_TrayWnd → … → TaskbarFrameAutomationPeer` (name + `AutomationElement`); system icons are filtered out
+  by a different class (`AccentButton`/`OmniButton*`/`ShowDesktopButton`) plus the input-indicator tooltip.
+  There is no icon bitmap in UIA → `TrayCapture` pulls the parked+cloaked taskbar's own content with `PrintWindow(PW_RENDERFULLCONTENT)`
+  and crops the button's `Image` child rect
+  (the real icon, no flash; `TrayLetterGlyph` fallback if it fails). UIA
+  children are exposed only while the taskbar is `SW_SHOW` → every poll reads them with `BeginTrayPeek(stealth:true)`
+  (cloak + off-screen park), no flash. DWM cloak is rejected on some machines
+  (`DwmSetWindowAttribute` does not return S_OK) → in that case `TrySetTrayVisibleStealth`
+  keeps it invisible with a **WS_EX_LAYERED + alpha 0** fallback (UIA continues to see
+  `IsWindowVisible=true`); if that fails too, the peek does not open and the poll is skipped.
 
-   > **İkon yakalaması PEEK'in İÇİNDE olmak zorunda (2026-09-30, canlı ölçüm + düzeltme).**
-   > `PrintWindow(PW_RENDERFULLCONTENT)` görev çubuğu **`IsWindowVisible=False` iken DIB'e hiç
-   > piksel yazmaz ama `TRUE` döner** → `1920x48` tamamen siyah (`[0,0,0,255]`) bitmap
-   > "başarılı" diye yayınlanır ve üst bar **siyah kareler** gösterir. Ölçülen fark:
+   > **Icon capture has to be INSIDE the PEEK (2026-09-30, live measurement + fix).**
+   > `PrintWindow(PW_RENDERFULLCONTENT)` **writes no pixels at all into the DIB while the taskbar
+   > `IsWindowVisible=False`, but returns `TRUE`** → a `1920x48` fully black (`[0,0,0,255]`) bitmap
+   > is published as "successful" and the top bar shows **black squares**. The measured difference:
    >
-   > | Durum | `IsWindowVisible` | Kırpılan pikseller |
+   > | State | `IsWindowVisible` | Cropped pixels |
    > |---|---|---|
-   > | peek kapalı (yarış) | `False` | `[0,0,0,255]` ×9 — düz siyah |
-   > | peek açık | `True` | `[67,67,67] [68,68,68] [33,33,33]…` — gerçek görev çubuğu |
+   > | peek closed (race) | `False` | `[0,0,0,255]` ×9 — flat black |
+   > | peek open | `True` | `[67,67,67] [68,68,68] [33,33,33]…` — the real taskbar |
    >
-   > **alpha 0 `PrintWindow`'i engellemiyor** — tek belirleyici `IsWindowVisible`, yani peek'in
-   > açık olması. `TryRefreshViaBlip` ikonları **kendi `finally`'inden (`EndTrayPeek`) önce**
-   > yakalar ve hazır `TrayMirrorItem` listesi döndürür; `PollUia` yalnız o listeyi kullanır.
-   > Kalıcı savunma: `TrayCapture.IsBlankCapture` tek renkli/tam saydam kırpımayı reddeder →
-   > çağıran taraf harf glifine düşer, **artık siyah kare mümkün değildir**
-> (`TrayCaptureTests` ile testli).
-   Ayna yalnızca birincil monitörün
-   üst barına işlenir (ikincil barlarda `trayMirror` bölümü oluşmaz). Tıklama: tüm türler için
-   `SendInputMouse` fiziksel tıklama (`InvokePattern` 25H2 XAML tray butonlarında
-   doğrulanmadı; rect bulunamazsa son çare fallback). Uygulamanın flyout/menüsü park edilmiş
-   taskbar konumuna (alt kenar) ya da geri getirilen imlece göre açılır → `TrayMenuReanchor`
-   uygulamanın yeni beliren popup penceresini ayna ikonunun altına taşır (`SetWindowPos`,
-   work-area kelepçeli; `#32768` menü her zaman, diğer sınıflar yalnızca tıklanan butonun
-   çevresindeki tık bölgesinde aday; tam ekran overlay'ler hiçbir zaman). Eşleşme pid ile
-   DEĞİL: 25H2 XAML butonlarının tümü explorer pid'i raporlar.
+   > **alpha 0 does not block `PrintWindow`** — the only determinant is `IsWindowVisible`, that is, the peek
+   > being open. `TryRefreshViaBlip` captures the icons **before its own `finally` (`EndTrayPeek`)**
+   > and returns a ready `TrayMirrorItem` list; `PollUia` uses only that list.
+   > Lasting defense: `TrayCapture.IsBlankCapture` rejects a single-color/fully transparent crop →
+   > the caller falls back to a letter glyph, **a black square is no longer possible**
+> (tested with `TrayCaptureTests`).
+   The mirror is rendered only on the primary monitor's
+   top bar (the `trayMirror` section is not created on secondary bars). Click: a `SendInputMouse` physical click for all kinds
+   (`InvokePattern` was not verified on 25H2 XAML tray buttons;
+   a last-resort fallback if the rect cannot be found). The application's flyout/menu opens according to the parked
+   taskbar position (the bottom edge) or the restored cursor → `TrayMenuReanchor`
+   moves the application's newly appeared popup window under the mirror icon (`SetWindowPos`,
+   work-area clamped; a `#32768` menu always, other classes are candidates only in the click region
+   around the clicked button; fullscreen overlays never). Matching is NOT by pid:
+   every 25H2 XAML button reports the explorer pid.
 
-**Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
-sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ağ · pil`
-(`topBar.statusItems`; özelleştirilebilir). `volume` / `brightness` / `media` katalogdadır,
-varsayılan kapalıdır; sağ tık ve Üst Çubuk ayarı katalogdaki her öğeyi listeler.
-**Tümünü göster** eksikleri komşusunun yanına ekler, kayıtlı sırayı bozmaz. Görünür öğeler
-barda sürüklenerek sıralanır (eşik altı tıklama flyout açar; OLE değil, fare yakalama).
-Saat/tarih: tek satır `tr-TR` birleşik etiket
-(örn. `9 Ağu Paz 21:57`, Segoe UI) + zil glifi; ikisi de native Notification Center
-(`Win+N` — takvim + bildirimler; ayrı takvim `Popup` yok; ADR-005 aynası yok).
-`controlCenter` → QS **Main**; ses → QS **Mixer**; ağ → QS **Network** — paylaşılan
-**Hızlı ayarlar** flyout (ADR-006); `PopupAnimation=Fade` için katmanlı (layered) `Popup`
-(`AllowsTransparency=true`). Kural değişmedi: **ana pencerede** Mica + `AllowsTransparency`
-yasak; popup ayrı bir pencere olduğundan Mica'yı etkilemez.
+**Implemented:** the left Windows logo (4 squares of **Path/Rectangle**, not a font glyph — visible on Mica);
+the right cluster's default LTR is `trayMirror · hidden · date/time · notification · controlCenter · network · battery`
+(`topBar.statusItems`; customizable). `volume` / `brightness` / `media` are in the catalog and
+off by default; right-click and the Top Bar (`Üst Çubuk`) setting list every item in the catalog.
+**Show all** (`Tümünü göster`) inserts the missing ones next to their neighbor and does not disturb the saved order. Visible items
+are ordered by dragging on the bar (a click under the threshold opens the flyout; mouse capture, not OLE).
+Clock/date: a single-line `tr-TR` combined label
+(e.g. `9 Ağu Paz 21:57`, Segoe UI; 9 Aug Sun 21:57) + a bell glyph; both open the native Notification Center
+(`Win+N` — calendar + notifications; there is no separate calendar `Popup`; there is no ADR-005 mirror).
+`controlCenter` → QS **Main**; volume → QS **Mixer**; network → QS **Network** — a shared
+**Quick settings** (`Hızlı ayarlar`) flyout (ADR-006); a layered `Popup`
+for `PopupAnimation=Fade` (`AllowsTransparency=true`). The rule is unchanged: Mica + `AllowsTransparency`
+is forbidden **on the main window**; because a popup is a separate window, it does not affect Mica.
 
-**Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
-`TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,
-sonra `EndTrayPeek()`. Çıkışta tam `Restore`.
+**Overflow + a hidden taskbar:** while `Shell_TrayWnd` is `SW_HIDE`, a plain `Win+B` is a no-op.
+`TrayOverflowInvoker` first shows the tray temporarily with `BeginTrayPeek`, opens the overflow,
+then `EndTrayPeek`. On exit, a full `Restore`.
 
-**WharfBar hapı:** birincil barda chevron, aynadaki simgeler için yatay bir kapsül açar.
-Kapsülde yalnız simge vardır; ad tooltip'tedir. Kullanıcının bıraktığı anahtarlar
-`topBar.trayOverflowIcons` içindedir; listede olmayan simge çubukta kalır. Kısa tıklama
-iletime devam eder. Çubuğa geri alma, hapın içinden sağ şeride bırakmaktır. Windows'un
-sayılamayan gizli alanı hapın sonundaki chevron ile aynı `TrayOverflowInvoker` yolunu
-kullanır. İkincil barda chevron doğrudan `Win+B` açar.
-
----
-
-## d) Ses (Core Audio) — hızlı ayarlar
-
-```
-IMMDeviceEnumerator / IMMDevice          // aygıt listesi + varsayılan
-IAudioEndpointVolume                     // master seviye / mute
-IAudioSessionManager2 / ISimpleAudioVolume // uygulama oturumları
-IPolicyConfig.SetDefaultEndpoint         // varsayılan çıkış (ADR-006; dar istisna)
-```
-
-Ham COM `Native/AudioEndpointVolume.cs`, `CoreAudioDevices.cs`, `CoreAudioSessions.cs` içinde;
-UI `QuickSettingsFlyout` üzerinden.
+**The WharfBar pill:** on the primary bar the chevron opens a horizontal capsule for the icons in the mirror.
+The capsule has only the icon; the name is in the tooltip. The keys the user placed
+are in `topBar.trayOverflowIcons`; an icon that is not in the list stays on the bar. A short click
+keeps forwarding. Putting one back on the bar is dropping it from inside the pill onto the right strip. Windows'
+hidden area, which cannot be enumerated, uses the same `TrayOverflowInvoker` path via the chevron at the end of the pill.
+On a secondary bar the chevron opens `Win+B` directly.
 
 ---
 
-## e) Uygulama ikonu (dock)
+## d) Audio (Core Audio) — quick settings
+
+```
+IMMDeviceEnumerator / IMMDevice          // device list + the default
+IAudioEndpointVolume                     // master level / mute
+IAudioSessionManager2 / ISimpleAudioVolume // application sessions
+IPolicyConfig.SetDefaultEndpoint         // the default output (ADR-006; a narrow exception)
+```
+
+Raw COM is in `Native/AudioEndpointVolume.cs`, `CoreAudioDevices.cs`, and `CoreAudioSessions.cs`;
+the UI goes through `QuickSettingsFlyout`.
+
+---
+
+## e) Application icon (dock)
 
 ```csharp
-// Tercih: SHGetFileInfo(SHGFI_ICONLOCATION) + SHDefExtractIcon(istenen px)
-//         — kabuk jumbo kaynağından küçültür; 16/32 bitmap büyütülmez
-// Yedek:  SHGetFileInfo(SHGFI_SYSICONINDEX) + SHGetImageList(SHIL_JUMBO 256 / SHIL_EXTRALARGE 48)
-// Son:    SHGFI_ICON | LARGEICON / SMALLICON
-// HICON → CreateBitmapSourceFromHIcon; çizim UseLayoutRounding + SnapsToDevicePixels
+// Preference: SHGetFileInfo(SHGFI_ICONLOCATION) + SHDefExtractIcon(the desired px)
+//         — shrinks from the shell jumbo source; 16/32 bitmaps are not scaled up
+// Fallback:  SHGetFileInfo(SHGFI_SYSICONINDEX) + SHGetImageList(SHIL_JUMBO 256 / SHIL_EXTRALARGE 48)
+// Last:    SHGFI_ICON | LARGEICON / SMALLICON
+// HICON → CreateBitmapSourceFromHIcon; drawing UseLayoutRounding + SnapsToDevicePixels
 //
-// Uygulama adı: SHGetFileInfo(SHGFI_DISPLAYNAME) — kısayolun dosya adı değil, kabuğun
-// gösterdiği ad (File Explorer.lnk → Dosya Gezgini). szDisplayName ikon yolu değildir;
-// SHGFI_ICONLOCATION ile karıştırılmaz. Sonuç dosya adıyla aynıysa pencere başlığının
-// son " - " parçasındaki uygulama adı kullanılır.
+// Application name: SHGetFileInfo(SHGFI_DISPLAYNAME) — not the shortcut's file name, the name the
+// shell shows (File Explorer.lnk → Dosya Gezgini). szDisplayName is not an icon path;
+// it is not confused with SHGFI_ICONLOCATION. If the result is the same as the file name, the
+// application name in the last " - " piece of the window title is used.
 ```
 
-Masaüstünde açık pencere (`IsOpenOnDesktop`): kalıcı kare (`ControlFillColorSecondaryBrush`)
-ve plakadan **3 DIP** aralıkla **16×3 DIP** kapsül (24 DIP ikonda), alttan 2 DIP, renk
-`AccentFillColorDefaultBrush`. Alta alınmış uygulama (`IsRunning`, bütün pencereler
-`IsIconic`): kare yok, altta **8×3 DIP** nötr mini çizgi (`TextFillColorPrimaryBrush`).
-Kapalı pinde çizgi yok. `IsRunning` kalır, tıklama geri yükler. Düğmenin alt **8 DIP**
-şeridi her iki çizgiye de ayrılır.
+A window open on the desktop (`IsOpenOnDesktop`): a persistent square (`ControlFillColorSecondaryBrush`)
+and a **16×3 DIP** capsule **3 DIP** away from the plate (on a 24 DIP icon), 2 DIP from the bottom, color
+`AccentFillColorDefaultBrush`. A minimized application (`IsRunning`, every window
+`IsIconic`): no square, an **8×3 DIP** neutral mini line at the bottom (`TextFillColorPrimaryBrush`).
+No line on a closed pin. `IsRunning` remains, and a click restores. The button's bottom **8 DIP**
+strip is reserved for both lines.
 
-Varsayılan `dock.iconSize` **24 DIP**. Düğme glif + 16 DIP, aralık 4, levha payı 10×8;
-24'te düğme 40 ve levha yüksekliği **56 DIP**. Pencere levhaya eşittir (ölçek 1).
-Yerleşim: birincil monitör alt kenarı (`BottomGapDip = 0`; gizlenmiş görev çubuğu work-area boşluğu
-yok). Klasik `.exe` / `.lnk` için uygundur.
-**UWP/Store** logosu `Windows.Management.Deployment` + `SHLoadIndirectString` ile çözülür;
-dosya yoksa harf glifi (ADR-014). Kırık görüntü yolu bırakılmaz.
+The default `dock.iconSize` is **24 DIP**. The button is glyph + 16 DIP, the gap is 4, the plate padding is 10×8;
+at 24 the button is 40 and the plate height is **56 DIP**. The window equals the plate (scale 1).
+Placement: the primary monitor's bottom edge (`BottomGapDip = 0`; there is no work-area gap from the hidden taskbar).
+It fits a classic `.exe` / `.lnk`.
+The **UWP/Store** logo is resolved with `Windows.Management.Deployment` + `SHLoadIndirectString`;
+if the file is missing, a letter glyph (ADR-014). A broken image path is not left behind.
 
-İkon bitmap'i glif boyutunda istenir (`ResolveIconPixelSize` = `iconSize`, 16–256 px'e kırpılır).
+The icon bitmap is requested at glyph size (`ResolveIconPixelSize` = `iconSize`, clipped to 16–256 px).
 
-Yatay hizalama `dock.position` ile seçilir: `bottom-left` / `bottom-center` / `bottom-right`.
-`DockPositions.Normalize` geçersiz/boş değerde `bottom-center` döndürür (yan dock kapsam dışı:
-work-area rezervasyonu ve aşağı kayma gizleme değişmez — yalnızca X hizalanır). Kenar yaslama
-12 DIP iç payla.
+Horizontal alignment is chosen with `dock.position`: `bottom-left` / `bottom-center` / `bottom-right`.
+`DockPositions.Normalize` returns `bottom-center` on an invalid/empty value (a side dock is out of scope:
+work-area reservation and slide-down hiding do not change — only X is aligned). Edge snapping
+uses 12 DIP of inner padding.
 
-**Küçültülmüş pencereler:** `WindowCensus` **tek** `EnumWindows` geçişi yapar —
-`WindowEnumeration.GetTopLevelCandidates()` tablosu alınır, küçültülmüş alt küme her pencere
-için ayrı `IsIconic(hwnd)` çağrısıyla ayrıştırılır. Küçültülmüş pencereler `WS_VISIBLE` korur,
-bu yüzden `IsCandidate` filtresi tek başına yetmez; ikinci bir `EnumWindows` geçişi de
-gereksizdir. UI iş parçacığında `EnumWindows` çağrırma (donmuş HWND'de kilitler) — pencere
-tablosu `WindowCensus` ile arka iş parçacığında 3 sn'de bir, tüm dock'lar için bir kez taranır. `RunningAppsSource` ikinci bir `EnumWindows` geçişi çalıştırmaz.
+**Minimized windows:** `WindowCensus` does a **single** `EnumWindows` pass —
+the `WindowEnumeration.GetTopLevelCandidates` table is taken, and the minimized subset is split out
+with a separate `IsIconic(hwnd)` call per window. Minimized windows keep `WS_VISIBLE`,
+so the `IsCandidate` filter alone is not enough; a second `EnumWindows` pass is also
+unnecessary. Do not call `EnumWindows` on the UI thread (it locks on a hung HWND) — the window
+table is scanned by `WindowCensus` on a background thread once every 3 s, once for all docks. `RunningAppsSource` does not run a second `EnumWindows` pass.
 
 ---
 
-## f) Görev çubuğu gizleme / geri yükleme (ADR-005)
+## f) Hiding / restoring the taskbar (ADR-005)
 
-WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada durum yakalanır,
-çıkış/crash yollarında geri yüklenir (`ABM_REMOVE` disiplini). Uygulama: `TaskbarVisibilityService`
+While WharfBar is running, the primary monitor's taskbar is hidden; the state is captured at startup
+and restored on the exit/crash paths (`ABM_REMOVE` discipline). Implementation: `TaskbarVisibilityService`
 + `Native/TaskbarNative.cs`.
 
-**Seçilen hide yolu (plan):**
+**Chosen hide path (plan):**
 
-1. **Baseline:** `ABM_GETSTATE` (auto-hide bayrağı) + birincil `SPI_GETWORKAREA` +
-   `FindWindow("Shell_TrayWnd")` — restore için saklanır. (25H2'de `ABM_GETSTATE`
-   güvenilmez: auto-hide açıkken de 0 döner.)
-2. **Gizleme:** `ShowWindow` + `SWP_HIDEWINDOW` (`FindWindow("Shell_TrayWnd")` ve
-`FindWindowEx` ile `Shell_SecondaryTrayWnd`; UI thread’de tam `EnumWindows` yok —
-    asılı bir pencere AppBar’da wait cursor bırakır). **(Tarihsel: `ABM_SETSTATE` eskiden
-    edge-reveal kaygısıyla kullanılmıyordu — 2026-08-30'da şerit çözümünün kendisi oldu.)**
+1. **Baseline:** `ABM_GETSTATE` (the auto-hide flag) + the primary `SPI_GETWORKAREA` +
+   `FindWindow("Shell_TrayWnd")` — stored for restore. (On 25H2 `ABM_GETSTATE`
+   is unreliable: it returns 0 even when auto-hide is on.)
+2. **Hide:** `ShowWindow` + `SWP_HIDEWINDOW` (`FindWindow("Shell_TrayWnd")` and
+`FindWindowEx` for `Shell_SecondaryTrayWnd`; there is no full `EnumWindows` on the UI thread —
+    a hung window leaves a wait cursor on the AppBar). **(Historical: `ABM_SETSTATE` used to be
+    unused because of the edge-reveal concern — on 2026-08-30 it became the strip solution itself.)**
 
-   **25H2 gerçeği (2026-08-29 ölçüm, 2026-09-30 tekrar doğrulandı — Win11 25H2 build 26200.9457):**
-   `SW_HIDE` tek başına AppBar rezervasyonunu bırakır (~48px hayalet şerit) ve
-   `SPI_SETWORKAREA` ile genişletme **çalışmaz** (ölçüldü: `TRUE` dönüyor, work area
-   değişmiyor; bazı çağrı biçimleri ayrıca `ERROR_INVALID_PARAMETER (87)` veriyor).
+   **The 25H2 fact (measured 2026-08-29, verified again 2026-09-30 — Win11 25H2 build 26200.9457):**
+   `SW_HIDE` alone leaves the AppBar reservation (~48px ghost strip), and
+   expanding with `SPI_SETWORKAREA` **does not work** (measured: it returns `TRUE`, the work area
+   does not change; some call shapes also give `ERROR_INVALID_PARAMETER (87)`).
 
-   **Çözüm — native auto-hide state (ADR-005 notu 5, çalıştığı doğrulandı):** gizleme akışı
-   `ABM_SETSTATE(ABS_AUTOHIDE)` verir ve çalışma süresince o state'te kalır. Explorer görev
-   çubuğunu ~2px'lik kenar kıskacına park eder ve **alt rezervasyonu work-area'dan çıkarır**.
-   WharfBar çalışırken ölçülen tablo:
+   **Solution — native auto-hide state (ADR-005 note 5, verified to work):** the hide flow
+   issues `ABM_SETSTATE(ABS_AUTOHIDE)` and stays in that state for the runtime. Explorer parks the
+   taskbar in an ~2px edge clamp and **removes the bottom reservation from the work area**.
+   The table measured while WharfBar is running:
 
-   | | `ABM_GETSTATE` | `Shell_TrayWnd` görünür | tray top | `SPI_GETWORKAREA.Bottom` | alt boşluk |
+   | | `ABM_GETSTATE` | `Shell_TrayWnd` visible | tray top | `SPI_GETWORKAREA.Bottom` | bottom gap |
    |---|---|---|---|---|---|
-   | uygulama kapalı | 0 | True | 1032 | 1032 | 48 |
-   | **uygulama çalışırken** | **1** | **False** | **1078** (park) | **1080** | **0** |
+   | application closed | 0 | True | 1032 | 1032 | 48 |
+   | **while the application is running** | **1** | **False** | **1078** (parked) | **1080** | **0** |
 
-   → maximize pencereler alt şeridi **tam ekran** kaplar, hiçbir pencereye müdahale edilmez
-   (maximize telafisi `SetWindowPos` ile denendi ve 7 ms'lik savaş ürettiği için söküldü).
-   Aynı ölçümde 9 child'ın hepsi gizli (`DesktopWindowContentBridge` dahil) → XAML hayaleti yok.
+   → maximized windows cover the bottom strip **full screen**, and no window is touched
+   (a maximize compensation with `SetWindowPos` was tried and removed because it produced a 7 ms fight).
+   In the same measurement all 9 children were hidden (`DesktopWindowContentBridge` included) → there is no XAML ghost.
 
-   > **Ölçüm tuzağı (2026-09-30):** `ABM_SETSTATE`/`ABM_SETPOS` **yalnızca kayıtlı bir AppBar**
-   > çağırdığında etkilidir. Kayıt dışı bir süreçten çağrılırsa `TRUE` döner ama hiçbir şey
-   > olmaz — bu, "API ölü" yanlış sonucuna yol açar. Doğrulama WharfBar çalışırken yapılır.
+   > **Measurement trap (2026-09-30):** `ABM_SETSTATE`/`ABM_SETPOS` take effect **only when a registered AppBar**
+   > calls them. If they are called from a process that is not registered, they return `TRUE` but nothing
+   > happens — this leads to the wrong conclusion that "the API is dead". Verify while WharfBar is running.
 
-   Tray aynası parklı tray'de
-    okunamaz (XAML içeriği virtualize): desktop-root UIA okumaları özel STA dispatcher
-    thread'inden yapılır. Tazeleme önce state'siz stealth peek dener; bu okuma ikon
-    döndürürse `ABM_SETSTATE` çevrilmez (o çevirme work area'yı açıp kapatır, masaüstü
-    ve pencereler zıplar). Boşsa maximize yokken state blip'i kalır, aralık 3 dk'dır.
-    Boş okuma aynayı temizlemez (son iyi snapshot donuk kalır). Restore,
-    `SetState(baseline)` + `SetTrayVisible(true)`; zorla kill sonrası stale watchdog
-    dosyası baseline state'i geri yükler.
-3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
-   `EnsureWorkAreaExpanded()`. `ApplyPlacement` içinde `ReapplyHide` yok — gizleme +
-   `SETPOS` `ABN_POSCHANGED` döngüsü üst barda wait cursor ve dock auto-hide iptali
-   üretir. `ABN_POSCHANGED` / `ABN_STATECHANGE` `Dispatcher.BeginInvoke` ile işlenir
-   (explorer `SendMessage` içinde `SHAppBarMessage` deadlock). `ABM_SETPOS` yalnızca
-   QUERYPOS sonucu son commit’ten farklıysa. `WorkAreaChanged` yalnızca yerleşim
-   gerçekten değişince.    `WM_WINDOWPOSCHANGING` onaylı AppBar rect’ine kıskanç:
-   phantom alt şerit dönünce WPF barı work-area tepesine (`y=30`) iter; rezerv
-   şeritte takılı kare kalır. Dock overlay aynı itmede `ClampSlideY` ile
-   auto-hide aralığında kalır (önbellekli Y; `WM_WINDOWPOSCHANGING` içinde
-   `Measure` yok). Onaylı rect’teyken `ABM_WINDOWPOSCHANGED` atlanır —
-   aksi halde WPF’nin work-area itmesi her layout’ta explorer `SendMessage`
-   ile UI’yi dondurur.
-4. **Keep-hidden:** 250 ms `FindWindow` / `FindWindowEx` — peek dışında görünür
-   tepsiye `SW_HIDE`. **Arka plan `System.Threading.Timer` üzerinde çalışır**
-   (WPF dispatcher’a bağımlı değil; meşgul UI thread’i re-hide’ı asla
-   açlıktan öldüremez). Peek yalnızca **taze** iken tepsiyi korur: kaçırılmış
-   `EndTrayPeek` ile takılı kalan (orphaned) peek, `TrayPeekTracker`’ın 45 sn
-   sınırını aşınca keep-hidden tarafından zorla sonlandırılır (`Reset` +
-   re-hide) — görev çubuğu bu yüzden asla sonsuza dek görünür kalamaz.
-   HWND gizli kalsa bile explorer görev çubuğu AppBar’ını
-   yeniden `SETPOS` edebilir; work area altı daralmışsa en fazla 1 sn’de bir
-   `EnsureWorkAreaExpanded` — **25H2+’ta `WorkAreaExpandPolicy` devre kesicisi
-   araya girer:** arka arkaya 2 kez `ERROR_INVALID_PARAMETER` alan çağrı 10 dk
-   boyunca atlanır (ölü API’ye saniyede bir vurmak yerine tek prob), 10 dk sonunda
-   tek prob ile yeniden denenir; `TaskbarCreated` (shell restart) kesiciyi sıfırlar.
-   `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`) her üst düzey pencereye broadcast yapar ve
-   sağlıklı shell’lerde ~1 sn bloklar — UI thread’i donmaması için çağrı arka plan
-   thread’e kaydırıldı (guard: aynı anda tek genişletme; restore ile yarışan
-   genişletme baseline’a geri alınır).
-   `Shell_NotifyIcon` sonrası ve `TaskbarCreated` için `ReapplyHide`.
-5. **Geri yükleme:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
-   `SPI_SETWORKAREA(baseline work area)` (25H2+’ta SPI adımı devre kesicisiyle
-   atlanır; tray görünür olunca explorer şeridi kendi onaylatır); izleme durur.
-6. **Çıkış sırası:** görev çubuğu restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
-7. **`TaskbarCreated`:** AppBar yeniden kayıt + `ReapplyHide()`.
+   The tray mirror cannot be read
+    on a parked tray (XAML content is virtualized): desktop-root UIA reads are done from a dedicated STA dispatcher
+    thread. Refresh first tries a stateless stealth peek; if that read returns an icon,
+    `ABM_SETSTATE` is not flipped (that flip opens and closes the work area, and the desktop
+    and windows jump). If it is empty, the state blip remains while there is no maximize, and the interval is 3 min.
+    An empty read does not clear the mirror (the last good snapshot stays frozen). Restore is
+    `SetState(baseline)` + `SetTrayVisible(true)`; after a force kill, the stale watchdog
+    file restores the baseline state.
+3. **After an AppBar `SETPOS`:** if the shell can write the bottom strip back,
+   `EnsureWorkAreaExpanded`. There is no `ReapplyHide` inside `ApplyPlacement` — hide +
+   `SETPOS` producing an `ABN_POSCHANGED` loop yields a wait cursor on the top bar and cancels dock auto-hide.
+   `ABN_POSCHANGED` / `ABN_STATECHANGE` are handled with `Dispatcher.BeginInvoke`
+   (a deadlock if `SHAppBarMessage` runs inside explorer's `SendMessage`). `ABM_SETPOS` only if
+   the QUERYPOS result differs from the last commit. `WorkAreaChanged` only when placement
+   has actually changed.    `WM_WINDOWPOSCHANGING` clamps to the approved AppBar rect:
+   when the phantom bottom strip returns, WPF pushes the bar to the top of the work area (`y=30`); a stuck
+   frame remains on the reservation strip. On the same push the dock overlay stays
+   in the auto-hide range with `ClampSlideY` (cached Y; no `Measure` inside
+   `WM_WINDOWPOSCHANGING`). While it is on the approved rect, `ABM_WINDOWPOSCHANGED` is skipped —
+   otherwise WPF's work-area push freezes the UI on every layout via explorer `SendMessage`.
+4. **Keep-hidden:** a 250 ms `FindWindow` / `FindWindowEx` — `SW_HIDE` on a tray that is visible
+   outside a peek. **It runs on a background `System.Threading.Timer`**
+   (it does not depend on the WPF dispatcher; a busy UI thread can never
+   starve the re-hide to death). The peek protects the tray only while it is **fresh**: an orphaned
+   peek stuck because `EndTrayPeek` was missed is force-ended by keep-hidden once it passes
+   `TrayPeekTracker`'s 45 s limit (`Reset` +
+   re-hide) — the taskbar therefore can never stay visible forever.
+   Even if the HWND stays hidden, explorer can
+   `SETPOS` its taskbar AppBar again; if the bottom of the work area has shrunk, `EnsureWorkAreaExpanded`
+   at most once a second — **on 25H2+ the `WorkAreaExpandPolicy` circuit breaker
+   steps in:** a call that gets `ERROR_INVALID_PARAMETER` twice in a row is skipped for 10 min
+   (a single probe instead of hitting a dead API once a second), and after 10 min
+   it is tried again with a single probe; `TaskbarCreated` (shell restart) resets the breaker.
+   `SPI_SETWORKAREA` (`SPIF_SENDCHANGE`) broadcasts to every top-level window and
+   blocks for ~1 s on healthy shells — the call was moved to a background
+   thread so the UI thread does not freeze (guard: a single expansion at a time; an expansion that races
+   with restore is rolled back to the baseline).
+   `ReapplyHide` after `Shell_NotifyIcon` and for `TaskbarCreated`.
+5. **Restore:** `ShowWindow(SW_SHOW)` + `ABM_SETSTATE(baseline)` +
+   `SPI_SETWORKAREA(baseline work area)` (on 25H2+ the SPI step is skipped by the circuit breaker;
+   once the tray is visible, explorer gets the strip approved itself); monitoring stops.
+6. **Exit order:** taskbar restore → `ABM_REMOVE` (`TopBarWindow.ReleaseShellState`).
+7. **`TaskbarCreated`:** AppBar re-registration + `ReapplyHide`.
 
-Çoklu monitör: work area genişletmesi her monitör için o monitöre göre hedeflenir
-(25H2+’ta API ölü — yukarıda); dock rezervasyonu `SetDockReservation(Monitor, heightPx)`
-ile monitör bazında (bkz. boundaries "Yap").
+Multiple monitors: work-area expansion is targeted per monitor, for that monitor
+(on 25H2+ the API is dead — above); dock reservation is per monitor with `SetDockReservation(Monitor, heightPx)`
+(see boundaries "Do").
 
-Zorla kill restore’u atlayabilir → [`04-gotchas.md`](04-gotchas.md).
-
----
-
-## g) Çalışan uygulama listesi (dock)
-
-`EnumWindows` ile üst düzey görünür pencereler **arka plan thread**’de taranır (UI’da
-asılı bir HWND wait cursor bırakır); `IsHungAppWindow` atlanır. `Shell_TrayWnd`, `Progman`,
-`WorkerW`, `ApplicationFrameWindow` ve kendi sürecimiz hariç tutulur
-(`Native/WindowEnumeration.cs`). `ApplicationFrameWindow`, UWP uygulamalarının
-ApplicationFrameHost çerçevesidir (asıl uygulama penceresi `Windows.UI.Core.CoreWindow`
-ayrıca enumerate edilir); hariç tutulmazsa her UWP uygulaması iki kez görünür.
-Yol için `QueryFullProcessImageName` (`Process.MainModule` UI’yi kilitleyebilir). Gruplama
-için `GetProp(ApplicationUserModelID)` (`AppUserModelId.cs`; Win11’de UWP pencerelerinde
-boş döner, dedup’ı `ApplicationFrameWindow` hariç tutulması sağlar). `C:\Windows\SystemApps\`
-altındaki süreçler (Windows Input Experience / TextInputHost vb. sistem yardımcı
-host’ları) çalışan uygulama sayılmaz (`RunningAppsSource`). WharfBar kendi pencereleri
-(`ShowInTaskbar=false`) için `Process.MainWindowHandle` güvenilmez — odaklama
-`WindowActivationService` + `EnumWindows` + PID filtresi ile yapılır.
-
-Dock ikon tıklaması (görev çubuğu benzeri toggle): minimized → `SW_RESTORE` + `SetForegroundWindow`;
-arka planda → öne getir; zaten öndeyse → `SW_MINIMIZE`. Dock tıklamada odağı çalabileceği için
-`PreviewMouseLeftButtonDown` anında `GetForegroundWindow` kaydedilir; aynı süreç PID’si de
-“önde” sayılır (Electron vb. alt pencereler).
-
-**Hover ve pencere boyutu:** canlı ölçek **1**. Hover kareyi boyar (köşe 4 DIP,
-`ControlFillColorSecondaryBrush`); kare alt **8 DIP** şeridin üstünde biter. Masaüstünde açık
-pencerede aynı kare ve **16×3 DIP** `AccentFillColorDefaultBrush` çizgi durur. Alta alınmış
-uygulamada kare yok, altta **8×3 DIP** nötr mini çizgi vardır. `DockMagnification` /
-`DockStripLayout` saf ve testli kalır; `dock.magnification` yüklenir, uygulanmaz.
-Bölüm ayracı **yoktur**.
-
-Pencere `DockPlateMetrics.PlateWidth` / `PlateHeight` kadardır (boş dock bir düğme bütçeler).
-Hover sırasında `SetWindowPos` **çağrılmaz**. ScrollViewer yoktur; çok sayıda ikon ekran
-genişliğine kırpılır.
-
-**Dock yüzeyi:** `dock.backgroundMode`. `mica` (varsayılan): pencere levhadır, gerçek DWM Mica,
-`DWMWCP_ROUND`, `AllowsTransparency=false`. `transparent` ve `tint`: pencere yeniden kurulur,
-katmanlıdır, köşe WPF'te 14 DIP; tint dolgusu koyu `#202020` / açık `#FAFAFA`, alpha =
-`tintOpacity`/100. Eski `dock.surface` (`mica` ve `acrylic`) yüklemede `mica` moduna iner.
-Mica ile `AllowsTransparency` birlikte değildir (`docs/04-gotchas.md`).
-
-**Sürükleme ve bırakma:** Sıralama için dock sürüklemesi `DoDragDrop(StringFormat)` yolunu,
-dosya ekleme ise `DataFormats.FileDrop` yolunu kullanır — biri `Move`, diğeri `Copy` efektidir,
-bu yüzden `DragOver` dosya bırakmasını hücrede **işaretlemez** (`Handled = false`), yüzey
-handler'ına bubble eder. Sürükleyerek sıralama **yalnızca sabit (`Pinned`) kutucuklarda**
-çalışır; sürükleme yükü `DockItemStore.Normalize(item.Path)` ile **yol** tabanlıdır, `Id` ile
-değil (pinli-ve-çalışan kutucuğun `Id`'si çalışan uygulamadan gelir). **OLE riski (R1) pencere
-düzeyindedir ve sıralamayı da kapsar:** `RegisterDragDrop` HWND başınadır; katmanlı
-(`WS_EX_LAYERED`) `Topmost` pencere hedef olarak kabul edilmezse bu pencerede **hiçbir**
-`DragOver`/`Drop` gelmez — Explorer'dan dosya bırakma de, uygulama içi sıralama da düşer.
-Yedek yalnızca **dosya bırakmada** vardır (ayar listesindeki “ekle”); sıralamanın yedeği yoktur,
-bu yüzden kabul canlı **ölçülmeli** ve elle doğrulamada önce sıralama denenmelidir. Kök `Grid`
-bırakma hedefidir ama **arka planı yoktur** — pencere en geniş büyütülmüş genişliğe göre
-boyutlandığı için arka plan ~57 DIP hayalet hit alanı eklerdi.
+A force kill can skip the restore → [`04-gotchas.md`](04-gotchas.md).
 
 ---
 
-## h) DPI ve ekran değişimi
+## g) The running-application list (dock)
+
+Top-level visible windows are scanned with `EnumWindows` on a **background thread** (a hung HWND on the UI
+leaves a wait cursor); `IsHungAppWindow` is skipped. `Shell_TrayWnd`, `Progman`,
+`WorkerW`, `ApplicationFrameWindow`, and our own process are excluded
+(`Native/WindowEnumeration.cs`). `ApplicationFrameWindow` is the ApplicationFrameHost frame of UWP applications
+(the real application window, `Windows.UI.Core.CoreWindow`,
+is enumerated separately); if it is not excluded, every UWP application appears twice.
+For the path, `QueryFullProcessImageName` (`Process.MainModule` can lock the UI). For grouping,
+`GetProp(ApplicationUserModelID)` (`AppUserModelId.cs`; on Win11 it returns
+empty on UWP windows, and excluding `ApplicationFrameWindow` provides the dedup). Processes under
+`C:\Windows\SystemApps\` (system helper hosts such as Windows Input Experience / TextInputHost)
+do not count as running applications (`RunningAppsSource`). `Process.MainWindowHandle` is unreliable for WharfBar's own windows
+(`ShowInTaskbar=false`) — focusing is done
+with `WindowActivationService` + `EnumWindows` + a PID filter.
+
+A dock icon click (a taskbar-like toggle): minimized → `SW_RESTORE` + `SetForegroundWindow`;
+in the background → bring it forward; if it is already in front → `SW_MINIMIZE`. Because a dock click can steal focus,
+`GetForegroundWindow` is recorded at the `PreviewMouseLeftButtonDown` instant; the same process PID
+also counts as “in front” (child windows such as Electron).
+
+**Hover and window size:** the live scale is **1**. Hover paints the square (corner 4 DIP,
+`ControlFillColorSecondaryBrush`); the square ends above the bottom **8 DIP** strip. On a window open on the desktop,
+the same square and a **16×3 DIP** `AccentFillColorDefaultBrush` line are present. On a minimized
+application there is no square, and there is an **8×3 DIP** neutral mini line at the bottom. `DockMagnification` /
+`DockStripLayout` stay pure and tested; `dock.magnification` is loaded and is not applied.
+There is **no** section separator.
+
+The window is `DockPlateMetrics.PlateWidth` / `PlateHeight` (an empty dock budgets one button).
+`SetWindowPos` is **not called** during hover. There is no ScrollViewer; a large number of icons is clipped
+to the screen width.
+
+**Dock surface:** `dock.backgroundMode`. `mica` (the default): the window is the plate, real DWM Mica,
+`DWMWCP_ROUND`, `AllowsTransparency=false`. `transparent` and `tint`: the window is rebuilt,
+it is layered, and the corner is 14 DIP in WPF; the tint fill is dark `#202020` / light `#FAFAFA`, alpha =
+`tintOpacity`/100. The old `dock.surface` (`mica` and `acrylic`) drops to `mica` mode on load.
+Mica and `AllowsTransparency` are not used together (`docs/04-gotchas.md`).
+
+**Drag and drop:** Dock dragging for reorder uses the `DoDragDrop(StringFormat)` path,
+while adding a file uses the `DataFormats.FileDrop` path — one is a `Move` effect and the other is `Copy`,
+so `DragOver` does **not mark** the file drop on the cell (`Handled = false`) and bubbles it to the surface
+handler. Drag-reorder works **only on fixed (`Pinned`) boxes**;
+the drag payload is **path**-based via `DockItemStore.Normalize(item.Path)`, not via `Id`
+(the `Id` of a pinned-and-running box comes from the running application). **The OLE risk (R1) is at window
+level and covers reorder too:** `RegisterDragDrop` is per HWND; if a layered
+(`WS_EX_LAYERED`) `Topmost` window is not accepted as a target, **no**
+`DragOver`/`Drop` arrives on this window — both dropping a file from Explorer and in-app reorder fail.
+A fallback exists only for **file drop** (Add (`Ekle`) in the settings list); reorder has no fallback,
+so acceptance must be **measured** live, and manual verification should try reorder first. The root `Grid`
+is the drop target but it **has no background** — because the window is sized to the widest magnified width,
+a background would have added an ~57 DIP ghost hit area.
+
+---
+
+## h) DPI and display change
 
 - Manifest: Per-Monitor V2
-- `WM_DPICHANGED` ve display change bildirimlerini dinle; AppBar `QUERYPOS`/`SETPOS` ve pencere konumunu güncelle
-- Handler’lar `TopBarWindow` / `AppBar` katmanında toplanmalı
-- **Konumu WPF’in DIP tabanlı `Left/Top/Width/Height`’ı ile hesaplama** — bunlar birincil monitörün
-  ölçeğini varsayar. `GetDpiForWindow` + `GetMonitorInfo` ile fiziksel piksel hesapla, `SetWindowPos`
-  ile uygula ([ADR-003](decisions/003-topbar-placement-and-appbar-lifecycle.md)).
-- Dock (`DockWindow`) `MonitorInfo.Dpi` değerini yapılandırma anında alır ve `WM_DPICHANGED`
-  `wParam` üst kelimesiyle tazeler (`_monitorDpi`); `wParam` sıfır dönerse `MonitorInfo.Dpi`’ye
-  düşer. Yerleşim ve edge probe yalnızca bu alanı okur — `MonitorInfo` kopyasını doğrudan okumaz.
-  Ölçek değişimi strip’i de yeniden kurar: ikon rengi `AppIconService` önbelleğinde boyut anahtarıyla
-  tutulduğu için eski rasterdan büyütülmez.
+- Listen for `WM_DPICHANGED` and display-change notifications; update the AppBar `QUERYPOS`/`SETPOS` and the window position
+- Handlers should be gathered in the `TopBarWindow` / `AppBar` layer
+- **Do not compute the position with WPF's DIP-based `Left/Top/Width/Height`** — they assume the primary monitor's
+  scale. Compute physical pixels with `GetDpiForWindow` + `GetMonitorInfo`, and apply them with `SetWindowPos`
+  (ADR-003).
+- The dock (`DockWindow`) takes the `MonitorInfo.Dpi` value at configuration time and refreshes it with the high word of the
+  `WM_DPICHANGED` `wParam` (`_monitorDpi`); if `wParam` returns zero, it falls back to `MonitorInfo.Dpi`.
+  Placement and the edge probe read only this field — they do not read a `MonitorInfo` copy directly.
+  A scale change also rebuilds the strip: because the icon is held in the `AppIconService` cache with a size key,
+  it is not enlarged from the old raster.
 
 ---
 
 ## i) Hit-testing (dock / overlay)
 
-Overlay dock’ta mouse’un bar dışına geçmesi, auto-hide ve “tıklama altındaki pencereye gitsin mi?” davranışı için hit-test stratejileri gerekir. AppBar kullanan top bar’da work area zaten ayrıldığı için hit-test ihtiyacı farklıdır.
+On an overlay dock, the mouse leaving the bar needs hit-test strategies for auto-hide and for “should the click go to the window underneath?”. On a top bar that uses an AppBar, the work area is already set aside, so the hit-test need is different.
 
-**Faz 8 (uygulandı):** `DockHitTest` görünür / gösteriliyor durumda `ApplyInteractive` (`WS_EX_TRANSPARENT` temiz); gizli veya off-screen animasyonda `ApplyPassthrough` (`WS_EX_TRANSPARENT` set) — tıklama alttaki pencereye geçer. `DockAutoHideController` kenar bandı poll + slide animasyonu yönetir. Ayrıntı: [dock auto-hide spec](superpowers/specs/2026-08-10-dock-auto-hide-design.md).
+**Phase 8 (implemented):** while visible / being shown, `DockHitTest` uses `ApplyInteractive` (`WS_EX_TRANSPARENT` cleared); while hidden or in an off-screen animation, `ApplyPassthrough` (`WS_EX_TRANSPARENT` set) — the click passes to the window underneath. `DockAutoHideController` manages the edge-band poll + the slide animation.
 
 ---
 
 ## j) AllowUnsafeBlocks
 
-Temel `[DllImport]` P/Invoke için `AllowUnsafeBlocks` **gerekmez**. Yalnızca pointer arithmetic veya `unsafe` blok gerçekten yazılırsa aç.
+`AllowUnsafeBlocks` is **not required** for basic `[DllImport]` P/Invoke. Turn it on only if pointer arithmetic or an `unsafe` block is actually written.
 
 ---
 
-## k) Global kısayol (RegisterHotKey)
+## k) Global shortcut (RegisterHotKey)
 
-Kaplama (ADR-007) ve benzeri toggle'lar için sistem geneli kısayol; uygulama: `Native/Hotkey.cs` + `VeilService`.
+A system-wide shortcut for the overlay (ADR-007) and similar toggles; implementation: `Native/Hotkey.cs` + `VeilService`.
 
 ```csharp
 RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk)      // user32.dll
 UnregisterHotKey(IntPtr hWnd, int id)                               // user32.dll
 // fsModifiers: MOD_ALT=0x1, MOD_CONTROL=0x2, MOD_SHIFT=0x4, MOD_WIN=0x8
-// WM_HOTKEY = 0x0312; wParam = id; mesaj-only HwndSource (ParentWindow=-3)
+// WM_HOTKEY = 0x0312; wParam = id; message-only HwndSource (ParentWindow=-3)
 ```
 
-- Mesaj alımı için **mesaj-only** pencere: `HwndSourceParameters` + `ParentWindow = new IntPtr(-3)` (TrayIconService deseni); `AddHook` ile `WM_HOTKEY` → toggle.
-- `RegisterHotKey` başarısızlığı (başka uygulamanın çakışması) çökme değildir: kayıt yok + uyarı, config bozulmaz.
-- **Çıkış garantisi:** `UnregisterHotKey` `VeilService.Dispose`'ta (normal çıkış + `App.Exit`); kaçırılırsa kısayol ikinci başlatmada yeniden kaydedilemez.
+- For receiving messages, a **message-only** window: `HwndSourceParameters` + `ParentWindow = new IntPtr(-3)` (the TrayIconService pattern); `WM_HOTKEY` → toggle via `AddHook`.
+- A `RegisterHotKey` failure (a clash with another application) is not a crash: no registration + a warning, and the config is not corrupted.
+- **Exit guarantee:** `UnregisterHotKey` is in `VeilService.Dispose` (normal exit + `App.Exit`); if it is missed, the shortcut cannot be registered again on the second start.
 
 ---
 
-## l) Dock yüzeyi (ADR-014)
+## l) Dock surface (ADR-014)
 
-Plaka AppBar değildir; canlı ölçek 1 kalır. Ayrıntı: [ADR-014](decisions/014-dock-surface.md).
+The plate is not an AppBar; the live scale stays 1. Detail: ADR-014.
 
 ```csharp
 DwmRegisterThumbnail / DwmUpdateThumbnailProperties / DwmUnregisterThumbnail   // dwmapi.dll
 RegisterShellHookWindow / DeregisterShellHookWindow                           // user32.dll
 RegisterWindowMessage("SHELLHOOK"); HSHELL_FLASH = HSHELL_REDRAW | 0x8000
-SetWinEventHook(EVENT_SYSTEM_MINIMIZESTART, ..., WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)
+SetWinEventHook(EVENT_SYSTEM_MINIMIZESTART,..., WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS)
 PrintWindow(PW_RENDERFULLCONTENT)                                             // user32.dll
 SHGetKnownFolderPath(FOLDERID_Downloads)                                      // shell32.dll
-SHFileOperationW(FO_DELETE | FOF_ALLOWUNDO)                                   // shell32.dll — kalıcı silme yok
+SHFileOperationW(FO_DELETE | FOF_ALLOWUNDO)                                   // shell32.dll — no permanent delete
 ShellExecuteW(verb: null)                                                     // shell32.dll
 SHLoadIndirectString                                                          // shlwapi.dll
 SHGetStockIconInfo(SIID_RECYCLER)
 PackageManager.FindPackagesForUser / Package.GetLogo                          // Windows.Management.Deployment
 ```
 
-İlerleme `GetProgressValue` ile okunmaz. Görev çubuğu düğmesi UI Automation (`RangeValue`, `ItemStatus`) ile okunur; açık veri yoksa çubuk çizilmez.
+Progress is not read with `GetProgressValue`. The taskbar button is read with UI Automation (`RangeValue`, `ItemStatus`); if there is no exposed data, the bar is not drawn.
 
 ---
 
-### user32.dll / kernel32.dll — pano (clipboard) — Island
+### user32.dll / kernel32.dll — clipboard — Island
 
-Belgelenmiş pano API'si; uygulama: `Native/ClipboardNative.cs` + `Services/ClipboardMessageWindow.cs`
+The documented clipboard API; implementation: `Native/ClipboardNative.cs` + `Services/ClipboardMessageWindow.cs`
 (ADR-010).
 
 ```csharp
 // user32.dll
-OpenClipboard(IntPtr hWndNewOwner) / CloseClipboard()      // OpenClipboard bloklayabilir
-EmptyClipboard()                                           // önceki kopyayı GERİ DÖNÜŞSÜZ siler
+OpenClipboard(IntPtr hWndNewOwner) / CloseClipboard      // OpenClipboard can block
+EmptyClipboard                                           // IRREVERSIBLY deletes the previous copy
 IsClipboardFormatAvailable(uint format)
 GetClipboardData(uint format)                              // CF_UNICODETEXT = 13
-SetClipboardData(uint format, IntPtr hMem)                 // başarıda belleği DEVRALIR
+SetClipboardData(uint format, IntPtr hMem)                 // on success it TAKES OWNERSHIP of the memory
 AddClipboardFormatListener(IntPtr hwnd)
 RemoveClipboardFormatListener(IntPtr hwnd)
 RegisterClipboardFormatW(string name)                      // "CanIncludeInClipboardHistory"
-GetClipboardOwner()                                        // pano sahibi HWND (yoksa IntPtr.Zero)
+GetClipboardOwner                                        // clipboard-owner HWND (IntPtr.Zero if there is none)
 GetWindowThreadProcessId(IntPtr hwnd, out uint pid)
-// WM_CLIPBOARDUPDATE = 0x031D (mesaj-only HwndSource + AddHook)
+// WM_CLIPBOARDUPDATE = 0x031D (message-only HwndSource + AddHook)
 
-// kernel32.dll — SetClipboardData'ya verilen blok
+// kernel32.dll — the block given to SetClipboardData
 GlobalAlloc(uint flags, IntPtr bytes)   // GMEM_MOVEABLE = 0x0002
 GlobalLock(IntPtr mem) / GlobalUnlock(IntPtr mem) / GlobalSize(IntPtr mem) / GlobalFree(IntPtr mem)
 ```
 
-- **Okuma STA thread'inde olmalıdır.** `OpenClipboard` başka bir süreç kilitlediyse bloklar;
-  UI thread'inde yapılırsa tüm bar donar. Depoda `System.Windows.Clipboard` **kullanılmaz**
-  (UI thread'ine bağlıdır) — `IslandService` kendi STA dispatcher'ını kurar, `TrayMirrorService`
-  kalıbı. Kilitliyse birkaç kez kısa bekleyip olayı sessizce düşürür.
-- **Sahiplik:** `OpenClipboard(NULL)` + `EmptyClipboard()` çağrısı pano sahibini `NULL` yapar —
-  önceki sahip (kaynak uygulama) artık sahip değildir. `EmptyClipboard` kullanıcının önceki
-  kopyasını **dönüşsüz** siler; bu yüzden bloklar `EmptyClipboard`'den **önce** ayrılıp doldurulur
-  ve sonraki her hata hem `GlobalFree` **hem de log** gerektirir. `SetClipboardData` başarıda
-  belleği devralır → o noktadan sonra `GlobalFree` **yapılmaz** (başarısızlıkta çağıran sorumludur).
-- **Opt-out sinyali:** Windows'un kendi `Win+V` geçmişi `CanIncludeInClipboardHistory` formatını
-  kullanır; DWORD `0` = "bu içeriği geçmişe alma". Okuma yolu DWORD'u 0 ise kayıt almaz, format
-  id'i `RegisterClipboardFormatW` ile **alınamıyorsa** da kayıt almaz (fail-closed). Yazma yolu
-  (`TryWriteText`) aynı işareti **birlikte yazar** — yoksa kendi `WM_CLIPBOARDUPDATE`'imiz kendi
-  kaydımızı geri yakalar. Blok 4 bayttan kısaysa okunmaz ve 0 sayılır (taşma okuma yok).
-- `CF_UNICODETEXT` **null sonlu UTF-16**'dır; UTF-8 yazılırsa geri okuma bozuk karakter üretir.
-- `QueryFullProcessImageName` (kernel32) kanonik bildirim olarak `NativeMethods`'ta zaten var;
-  pano sahibi HWND'sinden süreç adı çözümünde yeniden kullanılır (`GetClipboardOwner` →
+- **Reading must be on an STA thread.** `OpenClipboard` blocks if another process has locked it;
+  if it is done on the UI thread, the whole bar freezes. `System.Windows.Clipboard` is **not used** in the store
+  (it is bound to the UI thread) — `IslandService` sets up its own STA dispatcher, the `TrayMirrorService`
+  pattern. If it is locked, it waits briefly a few times and silently drops the event.
+- **Ownership:** an `OpenClipboard(NULL)` + `EmptyClipboard` call sets the clipboard owner to `NULL` —
+  the previous owner (the source application) is no longer the owner. `EmptyClipboard` deletes the user's previous
+  copy **with no undo**; therefore the blocks are allocated and filled **before** `EmptyClipboard`,
+  and every later error requires both `GlobalFree` **and a log**. On success, `SetClipboardData`
+  takes ownership of the memory → `GlobalFree` is **not done** from that point (on failure the caller is responsible).
+- **Opt-out signal:** Windows' own `Win+V` history uses the `CanIncludeInClipboardHistory` format;
+  DWORD `0` = "do not put this content in history". The read path does not take an entry if the DWORD is 0, and it also does not take an entry if the format
+  id **cannot be obtained** with `RegisterClipboardFormatW` (fail-closed). The write path
+  (`TryWriteText`) **writes the same flag along with it** — otherwise our own `WM_CLIPBOARDUPDATE` recaptures
+  our own entry. If the block is shorter than 4 bytes it is not read and counts as 0 (no over-read).
+- `CF_UNICODETEXT` is **null-terminated UTF-16**; if UTF-8 is written, reading it back produces corrupt characters.
+- `QueryFullProcessImageName` (kernel32) is already in `NativeMethods` as the canonical declaration;
+  it is reused when resolving the process name from the clipboard-owner HWND (`GetClipboardOwner` →
   `GetWindowThreadProcessId` → `OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION)` →
-  `QueryFullProcessImageName` → dosya adı). Elevated / başka oturum sahipleri için `OpenProcess`
-  `ERROR_ACCESS_DENIED` verir — normal, kaynak uygulama alanı boş kalır.
+  `QueryFullProcessImageName` → the file name). For elevated / other-session owners, `OpenProcess`
+  gives `ERROR_ACCESS_DENIED` — that is normal, and the source-application field stays empty.
 
-> **Tuzak — `RemoveClipboardFormatListener` idempotent DEĞİLDİR (ölçüldü, 5/5 deneme).**
-> Kayıt varken ilk `Remove` `TRUE` döner; ikinci ve sonrakiler `FALSE` + `0x57`
-> (`ERROR_INVALID_WINDOW`). Hiç eklenmemiş bir pencere de `0x57` verir. Yani bir güvenli çağrı
-> ikinci bir çağrıyla **hataya dönüşür**. Yalnızca kayıtlıyken ve bir kez çağrılmalıdır;
-> `ClipboardMessageWindow._disposed` bayrağı bunu garanti eder.
+> **Trap — `RemoveClipboardFormatListener` is NOT idempotent (measured, 5/5 tries).**
+> While a registration exists, the first `Remove` returns `TRUE`; the second and later ones return `FALSE` + `0x57`
+> (`ERROR_INVALID_WINDOW`). A window that was never added also gives `0x57`. So one safe call
+> **turns into an error** with a second call. It must be called only while registered, and only once;
+> the `ClipboardMessageWindow._disposed` flag guarantees this.
 
-WPF tarafında sürükle-bırak OLE bırakma hedefiyle çalışır (`AllowDrop=True` + `DragOver`/`Drop`);
-bu, projede **ilk** `AllowDrop` kullanımı ve kayıtlı bir **AppBar** penceresinin bırakma hedefi
-olarak kabulü **canlı ölçülmedi** (bkz. `docs/04-gotchas.md`). Bırakma yalnız **birincil** hapta
-açıktır; ikincil bar `AllowDrop=false`.
+On the WPF side, drag-and-drop works with an OLE drop target (`AllowDrop=True` + `DragOver`/`Drop`);
+this is the project's **first** use of `AllowDrop`, and acceptance of a registered **AppBar** window
+as a drop target was **not measured live** (see `docs/04-gotchas.md`). Drop is open only on the **primary** pill;
+a secondary bar has `AllowDrop=false`.
 
-### user32.dll — ekran yakalama dışında bırakma (ada, son kayıt)
+### user32.dll — excluding from screen capture (island, the last entry)
 
-Hap ayrı bir HWND değildir. `island.idleLabel = lastClip` ve boşta yüz boş olmayan bir önizleme
-gösterirken hap kendi penceresine alınır ve yalnız o pencere yakalamadan düşer. Üst çubuk
-karede kalır. Sabit "Pano", müzik ve sayaç sırasında hap çubuğa döner (ADR-012, ADR-015).
+The pill is not a separate HWND. While `island.idleLabel = lastClip` and the idle face is showing a non-empty preview,
+the pill is taken into its own window and only that window drops out of capture. The top bar
+stays in the frame. During a fixed "Clipboard" (`Pano`), music, and a counter, the pill returns to the bar (ADR-012, ADR-015).
 
 ```csharp
 // user32.dll — Native/WindowCapture.cs
@@ -521,47 +519,46 @@ SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity)
 // WDA_EXCLUDEFROMCAPTURE = 0x11
 ```
 
-Başarısızlık `GetLastWin32Error` ile debug log'a yazılır; sessizce yutulmaz.
+Failure is written to the debug log with `GetLastWin32Error`; it is not swallowed silently.
 
-### wlanapi.dll — Wi-Fi listesi / bağlanma (Quick Settings)
+### wlanapi.dll — Wi-Fi list / connecting (Quick Settings)
 
 - `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`
 - `WlanEnumInterfaces(handle, NULL, &list)` — WLAN_INTERFACE_INFO_LIST (InterfaceGuid)
-- `WlanScan(handle, &guid, NULL, NULL, NULL)` — taramayı tetikler (sonuç asenkron; sonraki
-  GetAvailableNetworkList çağrılarının cache'inde görünür). Tetiklenmezse bayat cache listelenir.
+- `WlanScan(handle, &guid, NULL, NULL, NULL)` — triggers a scan (the result is asynchronous; it shows up in the cache of later
+  GetAvailableNetworkList calls). If it is not triggered, a stale cache is listed.
 - `WlanGetAvailableNetworkList(handle, &guid, 0, NULL, &list)` — WLAN_AVAILABLE_NETWORK_LIST
   (dwFlags & CONNECTED/HAS_PROFILE, wlanSignalQuality 0-100, bSecurityEnabled).
-  **Tuzak:** Struct native layout'a birebir uymalı (628 bayt, `strProfileName` ilk alan,
-  `dwFlags`+`dwReserved` sonda, RSSI alanı yoktur) — `WlanStructLayoutTests` bunu kilitler.
-  Sapması SSID metnini kaydırıp sinyali bozuyordu. Boş SSID = gizli ağ.
-- `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — kalıcı profil.
-  Düz metin parola profilinde `<protected>false</protected>` zorunludur; `true` şifreli
-  anahtar blob'u bekler ve `WlanSetProfile` düz metni reddeder. Kurumsal (802.1X) ağlara
-  profil yazılmaz.
+  **Trap:** The struct must match the native layout exactly (628 bytes, `strProfileName` is the first field,
+  `dwFlags`+`dwReserved` are at the end, there is no RSSI field) — `WlanStructLayoutTests` locks this in.
+  A deviation was shifting the SSID text and breaking the signal. An empty SSID = a hidden network.
+- `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — a persistent profile.
+  In a plaintext password profile, `<protected>false</protected>` is required; `true` expects an encrypted
+  key blob, and `WlanSetProfile` rejects plaintext. A profile is not written for enterprise (802.1X) networks.
 - `WlanConnect(handle, &guid, &params)` — WLAN_CONNECTION_PARAMETERS (mode=profile)
-- `WlanDisconnect(handle, &guid, NULL)` — bağlı ağı keser (Wifi sayfasında bağlı satır)
-- `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection, ...)` — mevcut SSID.
-  `wlan_interface_state_connected` değeri **1**'dir (4 = disconnected).
-- `WlanEnumInterfaces` birden fazla adaptörde bağlı olanı seçer.
+- `WlanDisconnect(handle, &guid, NULL)` — disconnects the connected network (the connected row on the Wifi page)
+- `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection,...)` — the current SSID.
+  The value of `wlan_interface_state_connected` is **1** (4 = disconnected).
+- `WlanEnumInterfaces` selects the connected one when there is more than one adapter.
 - `WlanFreeMemory` / `WlanCloseHandle`
 
-### user32.dll — display topology (Quick Settings / Yansıt)
+### user32.dll — display topology (Quick Settings / Project (`Yansıt`))
 
 - `GetDisplayConfigBufferSizes(QDC_DATABASE_CURRENT | QDC_VIRTUAL_MODE_AWARE, &paths, &modes)`
-  ardından `QueryDisplayConfig` gerçek path/mode tamponlarıyla — mevcut topoloji.
-  `QDC_DATABASE_CURRENT` **0x4**, `QDC_VIRTUAL_MODE_AWARE` **0x10**. Sıfır tampon bu
-  sistemde 87 döner. 0x2 `QDC_ONLY_ACTIVE_PATHS`'tir; topology işaretçisiyle birlikte
-  de 87 döner (eski kod bayrağı 0x2 sanıp hep tahmine düşüyordu).
-  **Tuzak:** Okuma yine başarısızsa mod tahmini GetSystemMetrics geometrisinden yapılır
+  then `QueryDisplayConfig` with the real path/mode buffers — the current topology.
+  `QDC_DATABASE_CURRENT` is **0x4**, `QDC_VIRTUAL_MODE_AWARE` is **0x10**. A zero buffer returns
+  87 on this system. 0x2 is `QDC_ONLY_ACTIVE_PATHS`; together with the topology pointer
+  it also returns 87 (the old code thought the flag was 0x2 and always fell back to a guess).
+  **Trap:** If the read still fails, the mode is guessed from GetSystemMetrics geometry
   (`ProjectionService.GuessCurrentMode`).
-  DISPLAYCONFIG_TOPOLOGY_ID değerleri 1, 2, 4, 8'dir (ardışık değil — wingdi.h).
-- `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY)` — topoloji değiştirmenin
-  kanıtlanmış tek güvenilir kombinasyonu. Ekstra flag'ler (SDC_USE_SUPPLIED_DISPLAY_CONFIG,
-  SDC_ALLOW_CHANGES, SDC_SAVE_TO_DATABASE) hibrit-GPU'da 87 döndürüyor; SDC_APPLY +
-  SDC_VALIDATE birlikte de geçersizdir.
+  DISPLAYCONFIG_TOPOLOGY_ID values are 1, 2, 4, and 8 (not consecutive — wingdi.h).
+- `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY)` — the only proven reliable combination
+  for changing topology. Extra flags (SDC_USE_SUPPLIED_DISPLAY_CONFIG,
+  SDC_ALLOW_CHANGES, SDC_SAVE_TO_DATABASE) return 87 on a hybrid GPU; SDC_APPLY +
+  SDC_VALIDATE together is also invalid.
 
-### user32.dll / powrprof.dll — güç eylemleri (Windows logo menüsü)
+### user32.dll / powrprof.dll — power actions (the Windows logo menu)
 
-- `LockWorkStation()` (user32) — oturumu kilitle
-- `SetSuspendState(FALSE, FALSE, FALSE)` (powrprof) — uyku
-- `shutdown.exe /s|/r /t 0` — kapat / yeniden başlat (P/Invoke değil, `Process.Start`)
+- `LockWorkStation` (user32) — lock the session
+- `SetSuspendState(FALSE, FALSE, FALSE)` (powrprof) — sleep
+- `shutdown.exe /s|/r /t 0` — shut down / restart (not P/Invoke, `Process.Start`)

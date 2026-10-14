@@ -1,126 +1,162 @@
 # WharfBar
 
-Windows için macOS tarzı **üst bar** (saat, durum göstergeleri) ve **dock** (kendi listesindeki
-sabitlenmiş uygulamalar, çalışan uygulamalar ve küçültülmüş pencereler).
+A Windows menu bar and dock: a thin top strip that reserves screen space, and a dock for pinned and running apps. WharfBar is inspired by Windows, macOS, and Linux desktops. The look is Windows Fluent, with no Apple branding or icon language.
 
-Öncelik: düşük kaynak tüketimi → Windows Fluent native görünüm → basitlik. macOS marka/ikon dili yok.
+**Türkçe:** [README.tr.md](README.tr.md)
 
-> Durum: Geliştirme aşaması. **Faz 1–9 + Parlaklık Kontrolü + Dock yeniden tasarımı tamamlandı** —
-> üst bar AppBar + Mica, dock overlay (kendi kalıcı uygulama listesi, macOS tipi büyütme,
-> sürükle-sırala, dosya bırakma, sağ tık bağlam menüsü: Başlık kartı, Dock'a sabitle/kaldır,
-> Görevi sonlandır, Pencereyi kapat), tepsi entegrasyonu ve görev çubuğu gizleme/geri yükleme
-> (ADR-005), Hızlı Ayarlar flyout (ADR-006),
-> **Monitör Parlaklık Kontrolü** (Monitorian tarzı DDC/CI + WMI hibrit), kalıcı JSON config (`%AppData%/WharfBar/config.json`),
-> Startup klasörü autostart, saat / ağ / pil / ses / parlaklık göstergeleri, tepsi Quit menüsü.
+## What it is
 
-## Kurulum ve çalıştırma
+WharfBar draws its own top bar and dock on the Windows desktop.
 
-Gereken: **.NET SDK 8 veya 9** (Windows). SDK 9 ile `net8.0-windows10.0.19041.0` hedefi sorunsuz
-derlenir; depoda bilinçli olarak `global.json` yoktur.
+The top bar is a real AppBar (`ABE_TOP`, 30 DIP). Maximized windows stop under it. The dock is a topmost overlay. While WharfBar is running, the Windows taskbar is hidden and returns to its previous state on a normal quit.
+
+Each Windows app keeps its own menu. The top bar carries the clock, status, tray, and controls. When a choice is in conflict, the order is low resource use, then a native Fluent look, then simplicity.
+
+## Why run it
+
+- Clock, CPU / GPU / RAM, network, battery, notifications, and quick settings sit on one strip, and the work area is actually reserved.
+- Pinned apps, including ones that are closed, and running apps share a dock, one tile per app, while the Windows taskbar stays out of the way.
+- Clipboard history, now playing, and short volume, brightness, and battery readouts live in the center pill.
+- Wi-Fi, display projection, monitor brightness, and media controls cover the common cases from the bar.
+- Idle work stays sparse. Every dock shares one window census (about every 3 seconds). Stats are sampled every 4 seconds off the UI thread and stop when you hide them. The tray mirror polls every 4 seconds, and the icon bitmap is not recaptured on every pass.
+
+## Features
+
+### Top bar
+
+One bar per enabled monitor, each registered as an AppBar on that monitor. Visibility is the `monitors` config.
+
+- **Left:** a drawn Windows logo menu (Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, and quit) and a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). If the GPU counter is missing, that part is omitted. There is no temperature.
+- **Center:** the island pill.
+- **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. The default order is tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media stay in the catalog and start hidden, because the island already shows them. A saved order is kept.
+- The clock is a single `tr-TR` line. Click opens notification text and a month calendar. The bell sends `Win+N`.
+- Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined.
+
+### Island
+
+On the primary bar the pill idles as **Clipboard** (`Pano`), or shows the last clip when `island.idleLabel` is `lastClip`. It expands for now playing (`island.musicPresence` is `persistent` by default, or `transient`) and briefly for volume, brightness, and battery. At most two satellites sit beside it. Clipboard history and file drops belong to the primary pill. A secondary monitor’s pill shows music and those counters only. The bar stays 30 DIP; the panel opens under the pill.
+
+Low battery uses `island.lowBatteryPercent` (default 20, allowed range 5–50).
+
+### Dock
+
+A topmost overlay: bottom-left, bottom-center, bottom-right, or the left edge. It can auto-hide, and it hides while another app is fullscreen.
+
+- **Left:** the Windows taskbar’s `User Pinned\TaskBar` shortcuts, read in taskbar order, including apps that are not running, then entries in `dock.items` that are not already there. A running pin stays on that same tile.
+- **Right:** running apps that are not pinned, one tile per app (canonical path, AppUserModelID, or process id). Extra windows are a count badge and a **Windows** submenu. A minimized window is not a second tile.
+- The glyph stays a fixed size. The default is 24 DIP, the button 40, the gap 4 DIP. Hover fills the button and can show a DWM thumbnail of that app’s windows on this monitor. A progress bar appears under the icon when UI Automation reports one. An icon that wants attention gets a short accent pulse.
+- Pin and unpin write `dock.items`. A file or folder target also gets a `.lnk` in `User Pinned\TaskBar`. `Taskband` is left untouched.
+- Drag to reorder. Drop `.lnk`, `.exe`, `.bat`, or `.cmd` from Explorer. Right-click: title card, pin or unpin, end task, close window, run as administrator, open file location, new window, window list.
+- Background is Mica, transparent, or tint, chosen separately from the top bar.
+- **Launchpad** (far left), **Downloads**, and **Recycle Bin** (far right) are built-in tiles and are not written into the pin folder. A folder pin opens a stack. Store packages use the package icon when it resolves, and a letter glyph when it does not. Badges, the running mark, and thumbnails count windows on that dock’s monitor.
+
+### Taskbar
+
+While WharfBar runs, the Windows taskbar is hidden. A normal quit restores the state from before launch. After a force-kill, a watchdog restores the taskbar in about half a second. The reserved top strip is separate; see the warning below.
+
+### Quick settings
+
+One flyout, opened from the quick-settings, volume, or network icon: **Main**, **Mixer**, and **Network**.
+
+- Wi-Fi: a live network list, connect, and disconnect through `wlanapi`. Profiles are stored as plain text. The list is empty while the radio is off. Hidden and enterprise networks are left to Windows Settings.
+- Bluetooth: the radio, plus paired classic and LE devices. Connecting a device stays in Windows Settings.
+- Night light follows the real setting when it can be written. When it cannot, the tile opens Windows Settings.
+- Project: PC screen only, duplicate, extend, or second screen only.
+- The energy-saver tile tracks the system switch and toggles it.
+- The veil tile toggles the color overlay.
+
+### Brightness
+
+A separate flyout: one master slider for every display, and a card per monitor. Desktop monitors use DDC/CI; internal panels use WMI. Writes go through a background queue with a 50 ms debounce.
+
+### Media
+
+Windows SMTC. The status-strip media icon appears only while a session exists. The flyout shows cover art, title, artist, play/pause, previous, and next, and a session picker when more than one app is active. The island can keep now playing on the pill.
+
+### Veil
+
+A click-through full-screen color overlay on the primary monitor. Toggle it from quick settings or with the shortcut (`Ctrl+F11` by default). Color, opacity, and the shortcut are on the Veil settings page.
+
+### Tray
+
+WharfBar’s own notification icon has a quit item, **WharfBar'ı kapat** (Quit WharfBar). On the primary bar, third-party tray icons are mirrored with documented toolbar messages and clicks are forwarded. Chosen icons can sit in a pill behind the chevron; the chevron also opens Windows’ hidden icons with `Win+B`. System icons are filtered out. Icons Windows already keeps in the overflow stay there. On Windows 11 25H2 and later, where that toolbar is gone, the mirror uses UI Automation. A secondary bar has the chevron only. Icons are not read from another process’s memory.
+
+### Launchpad and plugins
+
+The Launchpad tile opens one centered surface over the wallpaper. It can open before the app scan finishes. Apps are grouped under letter headings. The Windows logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
+
+Widget and Plugin open the same catalog as Settings → Plugins. The pieces that run are the island visualizer, the Bluetooth connection notice, the camera mirror, and the desktop clock and calendar. A local `%AppData%/WharfBar/plugins/<folder>/manifest.json` is an on/off registration. Plugin assemblies are not loaded. Top bar and dock plugin slots are stored and not drawn.
+
+### Config, startup, one instance, DPI
+
+- Config lives in `%AppData%/WharfBar/config.json` (`schemaVersion`). Settings pages: General, Appearance, Dock, Displays, Top bar, Veil, Island, Plugins, About. Changes apply immediately.
+- Autostart is a `WharfBar.lnk` in the Startup folder (`AppConfig.autostart`), not the Registry Run key.
+- A named mutex makes a second instance exit.
+- DPI awareness is Per-Monitor V2 (`app.manifest`).
+
+## Requirements
+
+- Windows 10 version 19041 or later. The project targets `net8.0-windows10.0.19041.0`.
+- The .NET SDK 8 or 9. An SDK 9 install can build the `net8.0` target.
+- There is no `global.json` on purpose. Pinning the SDK to 8.x breaks the build on a machine that only has the .NET 9 SDK.
+
+## Build and run
 
 ```bash
-git clone https://github.com/<kullanıcı>/wharfbar.git
+git clone https://github.com/xkeidm/wharfbar.git
 cd wharfbar
 
 dotnet build WharfBar.sln
 dotnet run --project src/WharfBar
 ```
 
-Çift tıklayarak: kökteki `run.bat` (derler, `WharfBar.exe`’yi **ayrık** başlatır — bat
-penceresini kapatmak uygulamayı öldürmez).
+Or double-click `run.bat` in the repo root. It builds, then starts `WharfBar.exe` detached, so closing that console does not kill the app.
 
-> ⚠️ **Çalıştırmadan önce oku.** Uygulama açıkken ekranın üstünde bir şerit alan rezerve edilir
-> ve Windows görev çubuğu gizlenir. Süreç zorla sonlandırılırsa (`Stop-Process -Force`,
-> `dotnet run` konsolunu kapatmak) **görev çubuğu watchdog alt süreci tarafından ~0.5 sn içinde
-> geri getirilir**; yalnızca rezerve AppBar şeridi asılı kalabilir — onun düzeltmesi Görev
-> Yöneticisi'nden **Windows Gezgini'ni yeniden başlatmak**tır. Normal kapatmada (tepsi Quit /
-> Alt+F4) her ikisi de geri gelir. `run.bat` kullan; ham `dotnet run` konsolunu kapatma.
+> **Warning.** Running the app reserves a strip along the top of the screen and hides the Windows taskbar. A force-kill (`Stop-Process -Force`, detaching the debugger, closing a raw `dotnet run` console) skips `ABM_REMOVE`. The taskbar watchdog restores the taskbar in about 0.5 seconds. The reserved strip can stick until `explorer.exe` is restarted. A normal quit (tray **WharfBar'ı kapat** (Quit WharfBar), or Alt+F4) restores both. Prefer `run.bat` to closing a `dotnet run` window.
 
-İkinci bir örnek başlatılamaz (named Mutex); çalışan örnek varken `dotnet run` sessizce çıkar.
+A second instance exits because of the named mutex.
 
-### Nasıl kapatılır
+`dotnet test` runs `tests/WharfBar.Tests` (xUnit).
 
-Sistem tepsisindeki WharfBar ikonuna tıklayıp **Quit WharfBar** seçin. Alternatif: bara odaklanıp
-**Alt+F4**.
+## How to quit
 
-`Process.MainWindowHandle` bu pencere için `0` döner (`ShowInTaskbar=false` WPF’te pencereye
-gizli bir owner verir), bu yüzden betikten kapatırken `CloseMainWindow()` işe yaramaz — PID’e
-göre pencereyi bulup `WM_CLOSE` göndermek gerekir.
+Click the WharfBar notification icon and choose **WharfBar'ı kapat** (Quit WharfBar), or focus the bar and press **Alt+F4**. The Windows logo menu has the same quit item.
 
-### Doğrulanan davranış
+`Process.MainWindowHandle` is `0` for this process (`ShowInTaskbar=false` gives the window a hidden owner), so `CloseMainWindow` from a script does nothing. Find the window by PID and send `WM_CLOSE`.
 
-1920×1080 @ %100 ölçekte betikle ölçüldü: work area üst kenarı `0` → `30` px iniyor, uygulama
-kapanınca **birebir** geri geliyor, maximize edilmiş pencereler barın altında kalıyor, ikinci
-örnek kendiliğinden çıkıyor. Ayrıntı: [`.agent/context/roadmap.md`](.agent/context/roadmap.md)
-
-## Proje yapısı
+## Project layout
 
 ```
 WharfBar.sln
 src/WharfBar/
-  Views/     TopBarWindow, DockWindow, QuickSettingsFlyout, BrightnessFlyout, AboutWindow, SettingsWindow
-  Native/    AppBar, Dwm, NativeMethods, Display, ShellIcon, PowerStatus, NotifyIconHost, MonitorNative, …
-  Models/    AppConfig, TopBarStatusItemIds, PinnedApp, DockAppItem, TopBarBackgroundModes
-  Services/  ConfigService, StatusService, MonitorBrightnessService, VolumeService, AudioMixerService, …
-  app.manifest                — Per-Monitor V2 DPI
+  Views/          TopBarWindow, DockWindow, SettingsWindow, flyouts
+  Views/Pages/    General, Appearance, Dock, Displays, TopBar, Veil, Island, Plugins, About
+  Native/         AppBar, Dwm, ShellIcon, tray, DDC/CI
+  Models/         AppConfig and related records
+  Services/       config, dock, status, tray, island, quick settings
+  app.manifest    Per-Monitor V2 DPI
+tests/WharfBar.Tests/
+docs/
 ```
 
-Ayrıntı: [`docs/01-architecture.md`](docs/01-architecture.md)
+The code root is `src/WharfBar/`. UI lives in `Views/`, so the folder name is not confused with Win32.
 
-## Stack
+## Docs
 
-| Katman | Teknoloji |
-|--------|-----------|
-| Runtime | .NET 8 (`net8.0-windows10.0.19041.0`) |
-| UI | WPF + [WPF-UI](https://github.com/lepoco/wpfui) |
-| Native | Win32 P/Invoke (AppBar, DWM, shell ikonları, DDC/CI Monitor Configuration, WMI) |
+- [docs/00-overview.md](docs/00-overview.md) — purpose, goals, and scope
+- [docs/01-architecture.md](docs/01-architecture.md) — folders, services, and config
+- [docs/04-gotchas.md](docs/04-gotchas.md) — AppBar, Mica, and DPI traps
+- [AGENTS.md](AGENTS.md) — build commands and the agent index
 
-## Hedefler (v1)
+## Contributing
 
-- Ekranın üstünde rezerve edilmiş top bar (AppBar)
-- Altta overlay dock (Topmost + auto-hide; **kendi uygulama listesi** + çalışan uygulamalar + küçültülmüş pencereler; macOS tipi büyütme ve komşu kayması; sürükle-sırala, dosya bırakma, sağ tık bağlam menüsü)
-- Monitör parlaklık kontrolü (Monitorian tarzı DDC/CI + laptop WMI hibrit uçan pencere)
-- Win11 tarzı Hızlı Ayarlar flyout (ses karıştırıcı, ağ durumu, sistem ayarları)
-- Sabitlenmiş ve çalışan masaüstü uygulamaları
-- JSON config (`%AppData%/WharfBar/`) ve görsel ayarlar arabirimi
-- Startup klasörü ile otomatik başlatma
-- Per-Monitor V2 DPI awareness
-- Tek örnek (Mutex)
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
+Bug reports and feature requests use the GitHub issue templates.
 
-## Non-goals (v1)
+## Status
 
-- Çoklu monitör AppBar rezervasyonu
-- UWP / Microsoft Store uygulama ikonları
-- Gerçek sistem tepsisi ikonlarını okuma (Wi-Fi/pil vb. — .NET API ile simülasyon)
+In development. This tree is the product; there is no numbered release.
 
-## Önemli uyarılar
+## License
 
-1. **Tray:** `Shell_NotifyIcon` kendi tepsi ikonun içindir; sistem Wi-Fi/pil ikonlarını okumaz.
-2. **Dock:** macOS dock gibi overlay’dir; üst bar için AppBar, dock için Topmost + auto-hide tercih edilir.
-3. **Mica:** Önce WPF-UI backdrop; ham DWM Mica ile çakışmadan kaçın. `AllowsTransparency=true` Mica’yı bozar.
-4. **AppBar:** Çıkışta mutlaka `ABM_REMOVE`; explorer çöküşünden sonra yeniden kayıt planlanmalı.
-5. **Autostart:** Registry `Run` yerine **Startup klasörü** tercih edilir.
-6. **Parlaklık:** DDC/CI (masaüstü) ve WMI (laptop) komutları 50ms debounced arka plan kuyruğuyla yürütülür; WPF UI thread kilitlenmez.
-
-Ayrıntılar: [`docs/`](docs/) · Agent bağlamı: [`AGENTS.md`](AGENTS.md) · [`.agent/`](.agent/)
-
-## Geliştirme sırası (özet)
-
-1. ✅ İskelet pencere (pozisyon/boyut, DPI, Mutex)
-2. ✅ Top bar AppBar (`ABM_REMOVE` garantisi, callback’ler, yeniden kayıt)
-3. ✅ Görsellik (WPF-UI Mica, sistem teması, kare köşeler — ADR-004)
-4. ✅ Dock overlay + pinned apps
-5. ✅ Config
-6. ✅ Autostart (Startup klasörü)
-7. ✅ Durum göstergeleri / saat (+ tepsi Quit)
-8. ✅ Dock auto-hide / hit-test polish
-9. ✅ Shell yerine geçme / Canlı Dock (ADR-005)
-10. ✅ Hızlı ayarlar flyout (ADR-006)
-11. ✅ Monitör parlaklık kontrolü (Monitorian entegrasyonu)
-
-Tam sıra ve yapılacaklar: [`docs/03-development-order.md`](docs/03-development-order.md) ·
-[`.agent/context/roadmap.md`](.agent/context/roadmap.md)
-
-## Lisans
-
-[MIT](LICENSE) (WPF-UI de MIT).
+[MIT](LICENSE). [WPF-UI](https://github.com/lepoco/wpfui) is MIT as well.

@@ -38,7 +38,7 @@
                    FontSize="13"
                    TextWrapping="Wrap"
                    MaxWidth="360"
-                   Text="Windows’ta macOS tarzı üst bar ve dock. Fluent / Mica görünüm; görev çubuğu yerine geçen hibrit tepsi (yabancı tepsi ikonu çizilmez)." />
+                   Text="Windows, macOS ve Linux masaüstülerinden esinlenen üst çubuk ve dock. Fluent / Mica görünüm; görev çubuğu yerine geçen hibrit tepsi (yabancı tepsi ikonu çizilmez)." />
 
         <TextBlock Grid.Row="3"
                    Margin="0,10,0,0"

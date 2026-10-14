@@ -1,59 +1,59 @@
 # Stack
 
-Öncelik: düşük kaynak > Fluent native görünüm > basitlik. WPF seçimi Flutter/Electron’a göre
-RAM/başlangıç maliyeti içindir (gerekçe: [`../../docs/01-architecture.md`](../../docs/01-architecture.md)).
+Priority: low resource use > Fluent native look > simplicity. WPF was chosen for RAM/startup cost
+compared with Flutter/Electron (rationale: [`../../docs/01-architecture.md`](../../docs/01-architecture.md)).
 
 ## Runtime / UI
 
-| Parça | Seçim | Not |
-|-------|--------|-----|
-| Framework | .NET 8 | `net8.0-windows10.0.19041.0` |
-| UI | WPF | `UseWPF` — gömülü Chromium/Skia yok |
-| Tasarım sistemi | WPF-UI | Fluent; backdrop önce burada |
+| Piece | Choice | Note |
+|-------|--------|------|
+| Framework |.NET 8 | `net8.0-windows10.0.19041.0` |
+| UI | WPF | `UseWPF` — no embedded Chromium/Skia |
+| Design system | WPF-UI | Fluent; backdrop starts here |
 | DPI | Per-Monitor V2 | `app.manifest` |
-| Unsafe | Kapalı (varsayılan) | Temel P/Invoke için gerekmez |
-| Lisans | MIT | WPF-UI de MIT |
+| Unsafe | Off (default) | Not required for basic P/Invoke |
+| License | MIT | WPF-UI is MIT too |
 
 ## Native (P/Invoke)
 
-| API | Kullanım |
-|-----|----------|
+| API | Use |
+|-----|-----|
 | `SHAppBarMessage` | Top bar AppBar |
-| `DwmSetWindowAttribute` / `DwmExtendFrameIntoClientArea` | Yedek görsellik |
-| `SHGetFileInfo` | Dock ikonları |
-| `Shell_NotifyIcon` | Kendi NotifyIcon (`TrayIconService` / Quit menüsü) |
+| `DwmSetWindowAttribute` / `DwmExtendFrameIntoClientArea` | Fallback visuals |
+| `SHGetFileInfo` | Dock icons |
+| `Shell_NotifyIcon` | WharfBar's own NotifyIcon (`TrayIconService` / Quit menu) |
 
-## .NET API’ler (simülasyon / sistem)
+##.NET APIs (simulation / system)
 
-- Saat / kültür
-- `NetworkInformation` (bağlantı)
-- Güç / pil API’leri
+- Clock / culture
+- `NetworkInformation` (connection)
+- Power / battery APIs
 - `Process.Start` / shell execute (launcher)
 
-## Kalıcılık / OS entegrasyonu
+## Persistence / OS integration
 
-- Config: JSON under `%AppData%/WharfBar/` (`config.json`; yerel eklenti klasörü `plugins/`)
-- Autostart: **Startup klasörü** kısayolu
+- Config: JSON under `%AppData%/WharfBar/` (`config.json`; local plugin folder `plugins/`)
+- Autostart: **Startup folder** shortcut
 - Single-instance: named **Mutex**
 
-## Dock kodu (2026-10-04 yeniden tasarımı)
+## Dock code (2026-10-04 redesign)
 
-| Dosya | Rol |
-|-------|-----|
-| `Services/DockMagnification.cs` + `Services/DockStripLayout.cs` | Saf büyütme/yerleşim matematiği (WPF tipi yok, testli) |
-| `Services/DockItemStore.cs` | Bağımsız sabit liste (`dock.items`; `App` tek örneği) |
-| `Services/WindowCensus.cs` | Tüm dock'lar için tek pencere sayımı (3 sn, pid yol önbelleği) |
-| `Services/MinimizedWindowsSource.cs` | Küçültülmüş pencere tablosu (`WindowCensus` anlık görüntüsü) |
-| `Services/DockStripBuilder.cs` | Bölüm ayraç slotları (1 DIP) |
-| `Services/DockPlateMetrics.cs` | Levha geometrisi (düğme, aralık, pay, yükseklik/genişlik) |
-| `Views/Controls/DockStrip.cs` | Şerit `Panel` — canlı ölçek 1; matematik `DockStripLayout`'da |
-| `Views/Controls/DockItemCell.xaml` | Tek hücre: ikon + çalışan çizgisi \| ayraç |
+| File | Role |
+|------|------|
+| `Services/DockMagnification.cs` + `Services/DockStripLayout.cs` | Pure magnification/layout math (no WPF types, tested) |
+| `Services/DockItemStore.cs` | Independent pinned list (`dock.items`; a single `App` instance) |
+| `Services/WindowCensus.cs` | One window census for every dock (3 s, pid path cache) |
+| `Services/MinimizedWindowsSource.cs` | Minimized-window table (`WindowCensus` snapshot) |
+| `Services/DockStripBuilder.cs` | Section-separator slots (1 DIP) |
+| `Services/DockPlateMetrics.cs` | Plate geometry (button, gap, padding, height/width) |
+| `Views/Controls/DockStrip.cs` | Strip `Panel` — live scale 1; the math is in `DockStripLayout` |
+| `Views/Controls/DockItemCell.xaml` | Single cell: icon + running indicator \| separator |
 
-## Bilinçli dışarıda (v1)
+## Consciously out of scope (v1)
 
-- UWP ApplicationModel / AppxManifest ikon yolu
-- Çoklu monitör AppBar
-- Görev çubuğu **pinlerini** okuma/yazma (dock'un tek listesi kendi `dock.items`'i —
-  ADR-005 revizyonu). Görev çubuğunu **gizleme/geri yükleme** ise kapsamdadır (ADR-005 §3).
-- macOS global menü / Apple marka öğeleri
-- Flutter / Electron (kaynak maliyeti)
+- UWP ApplicationModel / AppxManifest icon path
+- Multi-monitor AppBar
+- Reading/writing taskbar **pins** (the dock's only list is its own `dock.items` —
+  ADR-005 revision). **Hiding/restoring** the taskbar is in scope (ADR-005 §3).
+- macOS global menu / Apple brand elements
+- Flutter / Electron (resource cost)

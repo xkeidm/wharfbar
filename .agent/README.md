@@ -1,23 +1,23 @@
-# `.agent/` — AI için kanonik bağlam
+# `.agent/` — canonical context for AI
 
-Bu klasör **WharfBar ajanları için kaynak gerçektir.** Cursor `.cursor/rules` yalnızca buraya ve `docs/`’a işaret eder.
+This folder **is the source of truth for WharfBar agents.** Cursor `.cursor/rules` only points here and at `docs/`.
 
-## Nasıl kullan
+## How to use it
 
-1. Her görevde önce [`project.md`](project.md) ve [`boundaries.md`](boundaries.md) oku.
-2. Kod/stil için [`conventions.md`](conventions.md).
-3. UI / kullanıcı akışları: [`screens/README.md`](screens/README.md) — ekran başına
-   ayrı sayfalar (top bar, dock, ayarlar).
-4. Stack / yol haritası: [`context/stack.md`](context/stack.md), [`context/roadmap.md`](context/roadmap.md).
-5. Teknik ayrıntı için kök [`docs/`](../docs/) — özellikle Win32 ve tuzaklar.
-6. Kök indeks: [`../AGENTS.md`](../AGENTS.md).
+1. On every task, read [`project.md`](project.md) and [`boundaries.md`](boundaries.md) first.
+2. For code/style, [`conventions.md`](conventions.md).
+3. UI / user flows: [`screens/README.md`](screens/README.md) — a separate page
+   per screen (top bar, dock, settings).
+4. Stack / roadmap: [`context/stack.md`](context/stack.md), [`context/roadmap.md`](context/roadmap.md).
+5. For technical detail, the root [`docs/`](../docs/) — especially Win32 and gotchas.
+6. Root index: [`../AGENTS.md`](../AGENTS.md).
 
-## Ne yazılmaz buraya
+## What is not written here
 
-- Uzun Win32 kopyaları → `docs/02-win32-appbar-dwm.md`
-- İnsan odaklı pazarlama → `README.md`
-- İnce IDE kuralları → `.cursor/rules/` (şişirme)
+- Long Win32 copies → `docs/02-win32-appbar-dwm.md`
+- Human-facing marketing → `README.md`
+- Thin IDE rules → `.cursor/rules/` (do not bloat them)
 
-## Güncelleme kuralı
+## Update rule
 
-Davranış, sınır veya mimari değişince ilgili `.agent/` + `docs/` dosyasını **aynı PR/değişiklikte** güncelle.
+When behavior, a boundary, or the architecture changes, update the matching `.agent/` and `docs/` file **in the same PR/change**.

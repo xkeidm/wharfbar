@@ -1,0 +1,66 @@
+name: Bug report
+description: Something in WharfBar behaved wrongly on your machine.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Quit WharfBar from the tray (**WharfBar'ı kapat**) or with Alt+F4 before you collect logs.
+        A force-kill skips `ABM_REMOVE`. The taskbar comes back quickly; a stuck top strip needs an `explorer.exe` restart.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      placeholder: |
+        1. Start WharfBar with run.bat
+        2. …
+        3. …
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Settings → System → About. Example `Windows 11 25H2`.
+      placeholder: Windows 11 24H2
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: WharfBar build
+      description: Commit, or “local build from main”.
+      placeholder: main @ abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: monitors
+    attributes:
+      label: Monitors
+      options:
+        - One
+        - Two or more
+    validations:
+      required: true
+  - type: dropdown
+    id: quit
+    attributes:
+      label: How you closed the app while testing
+      options:
+        - Tray quit or Alt+F4
+        - Force-kill or closed the dotnet run window
+        - Still running
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: DPI scale, dock position, or a screenshot if you have one.

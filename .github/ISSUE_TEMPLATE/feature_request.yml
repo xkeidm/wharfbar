@@ -1,0 +1,23 @@
+name: Feature request
+description: A change you want in the top bar, dock, or settings.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What is awkward or missing today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: The smallest change that would help. WharfBar prefers low resource use, a native Fluent look, then simplicity.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: Other ways you considered, including leaving it to Windows.
