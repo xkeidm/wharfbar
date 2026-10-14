@@ -110,7 +110,7 @@ The line is not a child of the strip; it does not shift the measure. Ordering do
 | id | Surface | Click behavior |
 |----|---------|----------------|
 | `trayOverflow` | `Gizli simgeler` (Hidden icons) (glyph `E70E`) | WharfBar pill (icon only); Windows overflow from inside it (Win+B) |
-| `dateTime` | clock+date on one line, `tr-TR` abbreviations | `ClockPanelFlyout`: notification text + month calendar |
+| `dateTime` | clock+date on one line; abbreviations follow resolved UI culture (`config.language` → `LocalizationService`) | `ClockPanelFlyout`: notification text + month calendar |
 | `notifications` | bell glyph `EA8F` | Win+N (notification center) |
 | `controlCenter` | quick settings glyph `E9CE` | `QuickSettingsFlyout` → **Main** tab |
 | `volume` | volume glyph `E767` | `QuickSettingsFlyout` → **Mixer** tab |

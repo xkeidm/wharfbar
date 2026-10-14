@@ -466,7 +466,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
-| `language` | `system` \| `en` \| `tr` (default `system`) | UI + formatting culture; applied at startup via `LocalizationService`. Soft field (`schemaVersion` stays 2). `system` uses `CultureInfo.InstalledUICulture` (`tr*` → Turkish, otherwise English). User strings come from `Resources/Strings.resx` + `Strings.tr.resx` (`{x:Static}` / `Strings.*` in C#). A change in Settings → General is saved immediately and applies after restart |
+| `language` | UI + formatting culture: `system` / `en` / `tr` (default `system`); applied at startup via `LocalizationService`. Soft field (`schemaVersion` stays 2). `system` uses `CultureInfo.InstalledUICulture` (`tr*` → Turkish, otherwise English). User strings come from `Resources/Strings.resx` + `Strings.tr.resx` (`{x:Static}` / `Strings.*` in C#). A change in Settings → General is saved immediately and applies after restart |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
 | `dock.autoHide` | `true` → edge-band proximity + animated hide; `false` → always visible |
 | `dock.iconSize` | DIP; 16–36 (default **24**). The old 48/72 and the previous default of 28 are pulled down to 24 on load |
