@@ -6,6 +6,7 @@ using System.Windows.Media;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using WharfBar.Services;
+using WharfBar.Resources;
 
 namespace WharfBar.Views;
 
@@ -125,7 +126,7 @@ public partial class ClockPanelFlyout : UserControl
     {
         int generation = ++_notificationLoad;
         NotificationList.Children.Clear();
-        ShowNotificationMessage("Bildirimler okunuyor…");
+        ShowNotificationMessage(Strings.Clock_ReadingNotifications);
         try
         {
             UserNotificationListener listener = UserNotificationListener.Current;
@@ -142,7 +143,7 @@ public partial class ClockPanelFlyout : UserControl
 
             if (access != UserNotificationListenerAccessStatus.Allowed)
             {
-                ShowNotificationMessage("Bildirimlere erişim verilmedi.");
+                ShowNotificationMessage(Strings.Clock_AccessDenied);
                 return;
             }
 
@@ -163,7 +164,7 @@ public partial class ClockPanelFlyout : UserControl
             IReadOnlyList<NotificationText> recent = NotificationDigest.TakeRecent(rows);
             if (recent.Count == 0)
             {
-                ShowNotificationMessage("Bildirim yok.");
+                ShowNotificationMessage(Strings.Clock_NoNotifications);
                 return;
             }
 
@@ -178,7 +179,7 @@ public partial class ClockPanelFlyout : UserControl
             Debug.WriteLine($"[WharfBar] notifications failed: {ex.Message}");
             if (generation == _notificationLoad)
             {
-                ShowNotificationMessage("Bildirimler okunamadı.");
+                ShowNotificationMessage(Strings.Clock_ReadFailed);
             }
         }
     }

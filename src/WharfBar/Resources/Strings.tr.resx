@@ -630,4 +630,84 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
   <data name="Dock_Downloads" xml:space="preserve"><value>İndirilenler</value></data>
   <data name="Dock_RecycleBin" xml:space="preserve"><value>Geri Dönüşüm Kutusu</value></data>
+  <data name="Qs_Title" xml:space="preserve"><value>Hızlı ayarlar</value></data>
+  <data name="Qs_Mixer" xml:space="preserve"><value>Ses karıştırıcı</value></data>
+  <data name="Qs_Mute" xml:space="preserve"><value>Sessiz</value></data>
+  <data name="Qs_Unmute" xml:space="preserve"><value>Sesi aç</value></data>
+  <data name="Qs_NoAudioDevice" xml:space="preserve"><value>Ses aygıtı yok</value></data>
+  <data name="Qs_Settings" xml:space="preserve"><value>Ayarlar</value></data>
+  <data name="Qs_Back" xml:space="preserve"><value>Geri</value></data>
+  <data name="Qs_OutputDevice" xml:space="preserve"><value>Çıkış cihazı</value></data>
+  <data name="Qs_NoOutputDevice" xml:space="preserve"><value>Çıkış aygıtı bulunamadı</value></data>
+  <data name="Qs_DefaultSuffixFormat" xml:space="preserve"><value>{0} (varsayılan)</value></data>
+  <data name="Qs_NoAppSessions" xml:space="preserve"><value>Uygulama oturumu yok</value></data>
+  <data name="Qs_Network" xml:space="preserve"><value>Ağ</value></data>
+  <data name="Qs_LiveTraffic" xml:space="preserve"><value>Anlık trafik</value></data>
+  <data name="Qs_Properties" xml:space="preserve"><value>Özellikler</value></data>
+  <data name="Qs_Adapter" xml:space="preserve"><value>Adaptör</value></data>
+  <data name="Qs_Type" xml:space="preserve"><value>Tür</value></data>
+  <data name="Qs_IPv4" xml:space="preserve"><value>IPv4 adresi</value></data>
+  <data name="Qs_IPv6" xml:space="preserve"><value>IPv6 adresi</value></data>
+  <data name="Qs_Gateway" xml:space="preserve"><value>Ağ geçidi</value></data>
+  <data name="Qs_MacAddress" xml:space="preserve"><value>MAC adresi</value></data>
+  <data name="Qs_LinkSpeed" xml:space="preserve"><value>Bağlantı hızı</value></data>
+  <data name="Qs_OpenNetworkSettings" xml:space="preserve"><value>Ağ ayarlarını aç</value></data>
+  <data name="Qs_WifiSettings" xml:space="preserve"><value>Wi-Fi ayarları</value></data>
+  <data name="Qs_EthernetSettings" xml:space="preserve"><value>Ethernet ayarları</value></data>
+  <data name="Qs_Connect" xml:space="preserve"><value>Bağlan</value></data>
+  <data name="Qs_Cancel" xml:space="preserve"><value>İptal</value></data>
+  <data name="Qs_OpenBluetoothSettings" xml:space="preserve"><value>Bluetooth ayarlarını aç</value></data>
+  <data name="Qs_Project" xml:space="preserve"><value>Yansıt</value></data>
+  <data name="Qs_DisplaySettings" xml:space="preserve"><value>Ekran ayarları</value></data>
+  <data name="Qs_NoConnection" xml:space="preserve"><value>Bağlantı yok</value></data>
+  <data name="Qs_Connected" xml:space="preserve"><value>Bağlı</value></data>
+  <data name="Qs_Saved" xml:space="preserve"><value>Kayıtlı</value></data>
+  <data name="Qs_WifiOff" xml:space="preserve"><value>Wi-Fi kapalı</value></data>
+  <data name="Qs_NoAdapter" xml:space="preserve"><value>Adaptör bulunamadı</value></data>
+  <data name="Qs_NotConnected" xml:space="preserve"><value>Bağlı değil</value></data>
+  <data name="Qs_ScanningNetworks" xml:space="preserve"><value>Ağlar aranıyor…</value></data>
+  <data name="Qs_DisconnectFailed" xml:space="preserve"><value>Bağlantı kesilemedi</value></data>
+  <data name="Qs_Connecting" xml:space="preserve"><value>Bağlanıyor…</value></data>
+  <data name="Qs_ConnectFailed" xml:space="preserve"><value>Bağlanılamadı</value></data>
+  <data name="Qs_OtherNetwork" xml:space="preserve"><value>Diğer ağ</value></data>
+  <data name="Qs_On" xml:space="preserve"><value>Açık</value></data>
+  <data name="Qs_Off" xml:space="preserve"><value>Kapalı</value></data>
+  <data name="Qs_BluetoothOffHint" xml:space="preserve"><value>Bluetooth kapalı — cihazları görmek için açın</value></data>
+  <data name="Qs_NoPairedDevices" xml:space="preserve"><value>Eşleşmiş cihaz yok</value></data>
+  <data name="Qs_ProjectPcOnly" xml:space="preserve"><value>Yalnızca PC ekranı</value></data>
+  <data name="Qs_ProjectDuplicate" xml:space="preserve"><value>Çoğalt</value></data>
+  <data name="Qs_ProjectExtend" xml:space="preserve"><value>Genişlet</value></data>
+  <data name="Qs_ProjectSecondOnly" xml:space="preserve"><value>Yalnızca 2. ekran</value></data>
+  <data name="Qs_NoSecondDisplay" xml:space="preserve"><value>İkinci ekran yok</value></data>
+  <data name="Qs_ProjectModeFailed" xml:space="preserve"><value>Bu mod uygulanamadı</value></data>
+  <data name="Qs_Airplane" xml:space="preserve"><value>Uçak modu</value></data>
+  <data name="Qs_NightLight" xml:space="preserve"><value>Gece ışığı</value></data>
+  <data name="Qs_Overlay" xml:space="preserve"><value>Kaplama</value></data>
+  <data name="Qs_ColorOverlay" xml:space="preserve"><value>Renk kaplaması</value></data>
+  <data name="Qs_EnergySaver" xml:space="preserve"><value>Enerji tasarrufu</value></data>
+  <data name="Qs_EnergySaverOn" xml:space="preserve"><value>Enerji tasarrufu açık</value></data>
+  <data name="Qs_TurnOffAirplane" xml:space="preserve"><value>Uçak modunu kapatın</value></data>
+  <data name="Qs_NetworkUnavailable" xml:space="preserve"><value>Ağ kullanılamıyor</value></data>
+  <data name="Qs_NetworkConnected" xml:space="preserve"><value>Ağ bağlı</value></data>
+  <data name="Clock_Notifications" xml:space="preserve"><value>Bildirimler</value></data>
+  <data name="Clock_OpenNotificationCenter" xml:space="preserve"><value>Bildirim merkezini aç</value></data>
+  <data name="Clock_PreviousMonth" xml:space="preserve"><value>Önceki ay</value></data>
+  <data name="Clock_NextMonth" xml:space="preserve"><value>Sonraki ay</value></data>
+  <data name="Clock_ReadingNotifications" xml:space="preserve"><value>Bildirimler okunuyor…</value></data>
+  <data name="Clock_AccessDenied" xml:space="preserve"><value>Bildirimlere erişim verilmedi.</value></data>
+  <data name="Clock_NoNotifications" xml:space="preserve"><value>Bildirim yok.</value></data>
+  <data name="Clock_ReadFailed" xml:space="preserve"><value>Bildirimler okunamadı.</value></data>
+  <data name="Media_NothingPlaying" xml:space="preserve"><value>Çalan medya yok</value></data>
+  <data name="Media_PreviousSession" xml:space="preserve"><value>Önceki medya oturumu</value></data>
+  <data name="Media_NextSession" xml:space="preserve"><value>Sonraki medya oturumu</value></data>
+  <data name="Media_PreviousTrack" xml:space="preserve"><value>Önceki parça</value></data>
+  <data name="Media_PlayPause" xml:space="preserve"><value>Oynat/Duraklat</value></data>
+  <data name="Media_NextTrack" xml:space="preserve"><value>Sonraki parça</value></data>
+  <data name="Brightness_Title" xml:space="preserve"><value>Monitör Parlaklığı</value></data>
+  <data name="Brightness_AllDisplays" xml:space="preserve"><value>Tüm Ekranlar</value></data>
+  <data name="Brightness_RefreshMonitors" xml:space="preserve"><value>Monitörleri Yenile</value></data>
+  <data name="Brightness_NoMonitors" xml:space="preserve"><value>Bağlı monitör bulunamadı</value></data>
+  <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI parlaklık kontrolü desteklenmiyor</value></data>
+  <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>simge yok</value></data>
+  <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Windows gizli simgelerini aç</value></data>
 </root>

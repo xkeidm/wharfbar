@@ -1224,5 +1224,485 @@ namespace WharfBar.Resources {
                 return ResourceManager.GetString("Dock_RecycleBin", resourceCulture);
             }
         }
+
+        public static string Qs_Title {
+            get {
+                return ResourceManager.GetString("Qs_Title", resourceCulture);
+            }
+        }
+
+        public static string Qs_Mixer {
+            get {
+                return ResourceManager.GetString("Qs_Mixer", resourceCulture);
+            }
+        }
+
+        public static string Qs_Mute {
+            get {
+                return ResourceManager.GetString("Qs_Mute", resourceCulture);
+            }
+        }
+
+        public static string Qs_Unmute {
+            get {
+                return ResourceManager.GetString("Qs_Unmute", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoAudioDevice {
+            get {
+                return ResourceManager.GetString("Qs_NoAudioDevice", resourceCulture);
+            }
+        }
+
+        public static string Qs_Settings {
+            get {
+                return ResourceManager.GetString("Qs_Settings", resourceCulture);
+            }
+        }
+
+        public static string Qs_Back {
+            get {
+                return ResourceManager.GetString("Qs_Back", resourceCulture);
+            }
+        }
+
+        public static string Qs_OutputDevice {
+            get {
+                return ResourceManager.GetString("Qs_OutputDevice", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoOutputDevice {
+            get {
+                return ResourceManager.GetString("Qs_NoOutputDevice", resourceCulture);
+            }
+        }
+
+        public static string Qs_DefaultSuffixFormat {
+            get {
+                return ResourceManager.GetString("Qs_DefaultSuffixFormat", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoAppSessions {
+            get {
+                return ResourceManager.GetString("Qs_NoAppSessions", resourceCulture);
+            }
+        }
+
+        public static string Qs_Network {
+            get {
+                return ResourceManager.GetString("Qs_Network", resourceCulture);
+            }
+        }
+
+        public static string Qs_LiveTraffic {
+            get {
+                return ResourceManager.GetString("Qs_LiveTraffic", resourceCulture);
+            }
+        }
+
+        public static string Qs_Properties {
+            get {
+                return ResourceManager.GetString("Qs_Properties", resourceCulture);
+            }
+        }
+
+        public static string Qs_Adapter {
+            get {
+                return ResourceManager.GetString("Qs_Adapter", resourceCulture);
+            }
+        }
+
+        public static string Qs_Type {
+            get {
+                return ResourceManager.GetString("Qs_Type", resourceCulture);
+            }
+        }
+
+        public static string Qs_IPv4 {
+            get {
+                return ResourceManager.GetString("Qs_IPv4", resourceCulture);
+            }
+        }
+
+        public static string Qs_IPv6 {
+            get {
+                return ResourceManager.GetString("Qs_IPv6", resourceCulture);
+            }
+        }
+
+        public static string Qs_Gateway {
+            get {
+                return ResourceManager.GetString("Qs_Gateway", resourceCulture);
+            }
+        }
+
+        public static string Qs_MacAddress {
+            get {
+                return ResourceManager.GetString("Qs_MacAddress", resourceCulture);
+            }
+        }
+
+        public static string Qs_LinkSpeed {
+            get {
+                return ResourceManager.GetString("Qs_LinkSpeed", resourceCulture);
+            }
+        }
+
+        public static string Qs_OpenNetworkSettings {
+            get {
+                return ResourceManager.GetString("Qs_OpenNetworkSettings", resourceCulture);
+            }
+        }
+
+        public static string Qs_WifiSettings {
+            get {
+                return ResourceManager.GetString("Qs_WifiSettings", resourceCulture);
+            }
+        }
+
+        public static string Qs_EthernetSettings {
+            get {
+                return ResourceManager.GetString("Qs_EthernetSettings", resourceCulture);
+            }
+        }
+
+        public static string Qs_Connect {
+            get {
+                return ResourceManager.GetString("Qs_Connect", resourceCulture);
+            }
+        }
+
+        public static string Qs_Cancel {
+            get {
+                return ResourceManager.GetString("Qs_Cancel", resourceCulture);
+            }
+        }
+
+        public static string Qs_OpenBluetoothSettings {
+            get {
+                return ResourceManager.GetString("Qs_OpenBluetoothSettings", resourceCulture);
+            }
+        }
+
+        public static string Qs_Project {
+            get {
+                return ResourceManager.GetString("Qs_Project", resourceCulture);
+            }
+        }
+
+        public static string Qs_DisplaySettings {
+            get {
+                return ResourceManager.GetString("Qs_DisplaySettings", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoConnection {
+            get {
+                return ResourceManager.GetString("Qs_NoConnection", resourceCulture);
+            }
+        }
+
+        public static string Qs_Connected {
+            get {
+                return ResourceManager.GetString("Qs_Connected", resourceCulture);
+            }
+        }
+
+        public static string Qs_Saved {
+            get {
+                return ResourceManager.GetString("Qs_Saved", resourceCulture);
+            }
+        }
+
+        public static string Qs_WifiOff {
+            get {
+                return ResourceManager.GetString("Qs_WifiOff", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoAdapter {
+            get {
+                return ResourceManager.GetString("Qs_NoAdapter", resourceCulture);
+            }
+        }
+
+        public static string Qs_NotConnected {
+            get {
+                return ResourceManager.GetString("Qs_NotConnected", resourceCulture);
+            }
+        }
+
+        public static string Qs_ScanningNetworks {
+            get {
+                return ResourceManager.GetString("Qs_ScanningNetworks", resourceCulture);
+            }
+        }
+
+        public static string Qs_DisconnectFailed {
+            get {
+                return ResourceManager.GetString("Qs_DisconnectFailed", resourceCulture);
+            }
+        }
+
+        public static string Qs_Connecting {
+            get {
+                return ResourceManager.GetString("Qs_Connecting", resourceCulture);
+            }
+        }
+
+        public static string Qs_ConnectFailed {
+            get {
+                return ResourceManager.GetString("Qs_ConnectFailed", resourceCulture);
+            }
+        }
+
+        public static string Qs_OtherNetwork {
+            get {
+                return ResourceManager.GetString("Qs_OtherNetwork", resourceCulture);
+            }
+        }
+
+        public static string Qs_On {
+            get {
+                return ResourceManager.GetString("Qs_On", resourceCulture);
+            }
+        }
+
+        public static string Qs_Off {
+            get {
+                return ResourceManager.GetString("Qs_Off", resourceCulture);
+            }
+        }
+
+        public static string Qs_BluetoothOffHint {
+            get {
+                return ResourceManager.GetString("Qs_BluetoothOffHint", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoPairedDevices {
+            get {
+                return ResourceManager.GetString("Qs_NoPairedDevices", resourceCulture);
+            }
+        }
+
+        public static string Qs_ProjectPcOnly {
+            get {
+                return ResourceManager.GetString("Qs_ProjectPcOnly", resourceCulture);
+            }
+        }
+
+        public static string Qs_ProjectDuplicate {
+            get {
+                return ResourceManager.GetString("Qs_ProjectDuplicate", resourceCulture);
+            }
+        }
+
+        public static string Qs_ProjectExtend {
+            get {
+                return ResourceManager.GetString("Qs_ProjectExtend", resourceCulture);
+            }
+        }
+
+        public static string Qs_ProjectSecondOnly {
+            get {
+                return ResourceManager.GetString("Qs_ProjectSecondOnly", resourceCulture);
+            }
+        }
+
+        public static string Qs_NoSecondDisplay {
+            get {
+                return ResourceManager.GetString("Qs_NoSecondDisplay", resourceCulture);
+            }
+        }
+
+        public static string Qs_ProjectModeFailed {
+            get {
+                return ResourceManager.GetString("Qs_ProjectModeFailed", resourceCulture);
+            }
+        }
+
+        public static string Qs_Airplane {
+            get {
+                return ResourceManager.GetString("Qs_Airplane", resourceCulture);
+            }
+        }
+
+        public static string Qs_NightLight {
+            get {
+                return ResourceManager.GetString("Qs_NightLight", resourceCulture);
+            }
+        }
+
+        public static string Qs_Overlay {
+            get {
+                return ResourceManager.GetString("Qs_Overlay", resourceCulture);
+            }
+        }
+
+        public static string Qs_ColorOverlay {
+            get {
+                return ResourceManager.GetString("Qs_ColorOverlay", resourceCulture);
+            }
+        }
+
+        public static string Qs_EnergySaver {
+            get {
+                return ResourceManager.GetString("Qs_EnergySaver", resourceCulture);
+            }
+        }
+
+        public static string Qs_EnergySaverOn {
+            get {
+                return ResourceManager.GetString("Qs_EnergySaverOn", resourceCulture);
+            }
+        }
+
+        public static string Qs_TurnOffAirplane {
+            get {
+                return ResourceManager.GetString("Qs_TurnOffAirplane", resourceCulture);
+            }
+        }
+
+        public static string Qs_NetworkUnavailable {
+            get {
+                return ResourceManager.GetString("Qs_NetworkUnavailable", resourceCulture);
+            }
+        }
+
+        public static string Qs_NetworkConnected {
+            get {
+                return ResourceManager.GetString("Qs_NetworkConnected", resourceCulture);
+            }
+        }
+
+        public static string Clock_Notifications {
+            get {
+                return ResourceManager.GetString("Clock_Notifications", resourceCulture);
+            }
+        }
+
+        public static string Clock_OpenNotificationCenter {
+            get {
+                return ResourceManager.GetString("Clock_OpenNotificationCenter", resourceCulture);
+            }
+        }
+
+        public static string Clock_PreviousMonth {
+            get {
+                return ResourceManager.GetString("Clock_PreviousMonth", resourceCulture);
+            }
+        }
+
+        public static string Clock_NextMonth {
+            get {
+                return ResourceManager.GetString("Clock_NextMonth", resourceCulture);
+            }
+        }
+
+        public static string Clock_ReadingNotifications {
+            get {
+                return ResourceManager.GetString("Clock_ReadingNotifications", resourceCulture);
+            }
+        }
+
+        public static string Clock_AccessDenied {
+            get {
+                return ResourceManager.GetString("Clock_AccessDenied", resourceCulture);
+            }
+        }
+
+        public static string Clock_NoNotifications {
+            get {
+                return ResourceManager.GetString("Clock_NoNotifications", resourceCulture);
+            }
+        }
+
+        public static string Clock_ReadFailed {
+            get {
+                return ResourceManager.GetString("Clock_ReadFailed", resourceCulture);
+            }
+        }
+
+        public static string Media_NothingPlaying {
+            get {
+                return ResourceManager.GetString("Media_NothingPlaying", resourceCulture);
+            }
+        }
+
+        public static string Media_PreviousSession {
+            get {
+                return ResourceManager.GetString("Media_PreviousSession", resourceCulture);
+            }
+        }
+
+        public static string Media_NextSession {
+            get {
+                return ResourceManager.GetString("Media_NextSession", resourceCulture);
+            }
+        }
+
+        public static string Media_PreviousTrack {
+            get {
+                return ResourceManager.GetString("Media_PreviousTrack", resourceCulture);
+            }
+        }
+
+        public static string Media_PlayPause {
+            get {
+                return ResourceManager.GetString("Media_PlayPause", resourceCulture);
+            }
+        }
+
+        public static string Media_NextTrack {
+            get {
+                return ResourceManager.GetString("Media_NextTrack", resourceCulture);
+            }
+        }
+
+        public static string Brightness_Title {
+            get {
+                return ResourceManager.GetString("Brightness_Title", resourceCulture);
+            }
+        }
+
+        public static string Brightness_AllDisplays {
+            get {
+                return ResourceManager.GetString("Brightness_AllDisplays", resourceCulture);
+            }
+        }
+
+        public static string Brightness_RefreshMonitors {
+            get {
+                return ResourceManager.GetString("Brightness_RefreshMonitors", resourceCulture);
+            }
+        }
+
+        public static string Brightness_NoMonitors {
+            get {
+                return ResourceManager.GetString("Brightness_NoMonitors", resourceCulture);
+            }
+        }
+
+        public static string Brightness_Unsupported {
+            get {
+                return ResourceManager.GetString("Brightness_Unsupported", resourceCulture);
+            }
+        }
+
+        public static string TrayOverflow_NoIcons {
+            get {
+                return ResourceManager.GetString("TrayOverflow_NoIcons", resourceCulture);
+            }
+        }
+
+        public static string TrayOverflow_OpenHidden {
+            get {
+                return ResourceManager.GetString("TrayOverflow_OpenHidden", resourceCulture);
+            }
+        }
     }
 }

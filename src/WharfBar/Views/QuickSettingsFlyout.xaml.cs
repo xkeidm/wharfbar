@@ -8,6 +8,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using WharfBar.Native;
 using WharfBar.Services;
+using WharfBar.Resources;
 
 namespace WharfBar.Views;
 
@@ -439,8 +440,8 @@ public partial class QuickSettingsFlyout : UserControl
             string glyph = snap.IsMuted || snap.Percent == 0 ? "\uE74F" : "\uE767";
             MasterMuteGlyph.Text = glyph;
             MasterMuteButton.ToolTip = snap.IsAvailable
-                ? snap.IsMuted ? "Sesi aç" : "Sessiz"
-                : "Ses aygıtı yok";
+                ? snap.IsMuted ? Strings.Qs_Unmute : Strings.Qs_Mute
+                : Strings.Qs_NoAudioDevice;
         }
         finally
         {
@@ -462,7 +463,7 @@ public partial class QuickSettingsFlyout : UserControl
         {
             if (snap.Selected is null)
             {
-                SelectedDeviceNameText.Text = "Çıkış aygıtı bulunamadı";
+                SelectedDeviceNameText.Text = Strings.Qs_NoOutputDevice;
                 SelectedDeviceNameText.ToolTip = null;
                 DevicePickerButton.IsEnabled = false;
                 SetDevicePickerExpanded(false);
@@ -482,7 +483,7 @@ public partial class QuickSettingsFlyout : UserControl
             MixerMasterSlider.IsEnabled = !snap.Selected.IsMuted;
             MixerMasterMuteGlyph.Text =
                 snap.Selected.IsMuted || snap.Selected.Percent == 0 ? "\uE74F" : "\uE767";
-            MixerMasterMuteButton.ToolTip = snap.Selected.IsMuted ? "Sesi aç" : "Sessiz";
+            MixerMasterMuteButton.ToolTip = snap.Selected.IsMuted ? Strings.Qs_Unmute : Strings.Qs_Mute;
             if (!_masterDragging && !MixerMasterSlider.IsMouseCaptureWithin)
             {
                 MixerMasterSlider.Value = snap.Selected.Percent;
@@ -522,7 +523,7 @@ public partial class QuickSettingsFlyout : UserControl
 
             row.Child = new TextBlock
             {
-                Text = device.IsDefault ? $"{device.Name} (varsayılan)" : device.Name,
+                Text = device.IsDefault ? string.Format(Strings.Culture ?? System.Globalization.CultureInfo.CurrentUICulture, Strings.Qs_DefaultSuffixFormat, device.Name) : device.Name,
                 FontSize = 12,
                 FontWeight = device.IsDefault ? FontWeights.SemiBold : FontWeights.Normal,
                 TextTrimming = TextTrimming.CharacterEllipsis,
@@ -538,7 +539,7 @@ public partial class QuickSettingsFlyout : UserControl
         {
             if (MixerSessionList.Children.Count == 1
                 && MixerSessionList.Children[0] is TextBlock empty
-                && empty.Text == "Uygulama oturumu yok")
+                && empty.Text == Strings.Qs_NoAppSessions)
             {
                 return;
             }
@@ -546,7 +547,7 @@ public partial class QuickSettingsFlyout : UserControl
             MixerSessionList.Children.Clear();
             MixerSessionList.Children.Add(new TextBlock
             {
-                Text = "Uygulama oturumu yok",
+                Text = Strings.Qs_NoAppSessions,
                 Opacity = 0.55,
                 FontSize = 12,
                 Margin = new Thickness(4, 4, 0, 0),
@@ -804,7 +805,7 @@ public partial class QuickSettingsFlyout : UserControl
 
         NetworkDetails net = _quick.Network;
         NetworkTitleText.Text = net.Title;
-        NetworkSubtitleText.Text = net.IsOnline ? net.Subtitle : "Bağlantı yok";
+        NetworkSubtitleText.Text = net.IsOnline ? net.Subtitle : Strings.Qs_NoConnection;
         NetworkGlyphLarge.Text = net.Kind switch
         {
             NetworkKind.WiFi => "\uE701",
@@ -1087,10 +1088,10 @@ public partial class QuickSettingsFlyout : UserControl
         if (_quick is not null)
         {
             WifiSummarySubtitle.Text = !radioOn
-                ? "Wi-Fi kapalı"
+                ? Strings.Qs_WifiOff
                 : !_wifi.IsAvailable
-                    ? "Adaptör bulunamadı"
-                    : _wifi.Networks.FirstOrDefault(n => n.IsConnected)?.Ssid ?? "Bağlı değil";
+                    ? Strings.Qs_NoAdapter
+                    : _wifi.Networks.FirstOrDefault(n => n.IsConnected)?.Ssid ?? Strings.Qs_NotConnected;
         }
 
         WifiNetworkList.Children.Clear();
@@ -1106,7 +1107,7 @@ public partial class QuickSettingsFlyout : UserControl
         {
             WifiNetworkList.Children.Add(new TextBlock
             {
-                Text = !radioOn ? "Wi-Fi kapalı" : "Ağlar aranıyor…",
+                Text = !radioOn ? Strings.Qs_WifiOff : Strings.Qs_ScanningNetworks,
                 Opacity = 0.55,
                 FontSize = 12,
                 Margin = new Thickness(4, 4, 0, 0),
@@ -1175,9 +1176,9 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         var badge = network.IsConnected
-            ? "Bağlı"
+            ? Strings.Qs_Connected
             : network.IsKnown
-                ? "Kayıtlı"
+                ? Strings.Qs_Saved
                 : string.Empty;
         if (badge.Length > 0)
         {
@@ -1217,7 +1218,7 @@ public partial class QuickSettingsFlyout : UserControl
             }
             else
             {
-                ShowWifiError(disconnectError ?? "Bağlantı kesilemedi");
+                ShowWifiError(disconnectError ?? Strings.Qs_DisconnectFailed);
             }
 
             return;
@@ -1265,18 +1266,18 @@ public partial class QuickSettingsFlyout : UserControl
             return false;
         }
 
-        ShowWifiError("Bağlanıyor…");
+        ShowWifiError(Strings.Qs_Connecting);
         (bool ok, string? error) = await Task.Run(() => _wifi.TryConnect(network, password));
         if (!ok)
         {
-            ShowWifiError(error ?? "Bağlanılamadı");
+            ShowWifiError(error ?? Strings.Qs_ConnectFailed);
             return false;
         }
 
         bool connected = await Task.Run(() => _wifi.WaitUntilConnected(network.Ssid, TimeSpan.FromSeconds(8)));
         if (!connected)
         {
-            ShowWifiError("Bağlanılamadı");
+            ShowWifiError(Strings.Qs_ConnectFailed);
             RefreshWifiPage();
             return false;
         }
@@ -1327,8 +1328,8 @@ public partial class QuickSettingsFlyout : UserControl
         {
             NetworkKind.WiFi => "Wi-Fi",
             NetworkKind.Ethernet => "Ethernet",
-            NetworkKind.Offline => "Bağlantı yok",
-            _ => "Diğer ağ",
+            NetworkKind.Offline => Strings.Qs_NoConnection,
+            _ => Strings.Qs_OtherNetwork,
         };
 
         SetNetRow(NetAdapterName, snap.AdapterName);
@@ -1356,7 +1357,7 @@ public partial class QuickSettingsFlyout : UserControl
 
         if (_quick is not null)
         {
-            BtSummarySubtitle.Text = _quick.IsBluetoothRadioOn ? "Açık" : "Kapalı";
+            BtSummarySubtitle.Text = _quick.IsBluetoothRadioOn ? Strings.Qs_On : Strings.Qs_Off;
         }
 
         BluetoothDeviceList.Children.Clear();
@@ -1388,7 +1389,7 @@ public partial class QuickSettingsFlyout : UserControl
             {
                 var badge = new TextBlock
                 {
-                    Text = "Bağlı",
+                    Text = Strings.Qs_Connected,
                     FontSize = 11,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(8, 0, 0, 0),
@@ -1407,7 +1408,7 @@ public partial class QuickSettingsFlyout : UserControl
             bool radioOn = _quick?.IsBluetoothRadioOn ?? true;
             BluetoothDeviceList.Children.Add(new TextBlock
             {
-                Text = !radioOn ? "Bluetooth kapalı — cihazları görmek için açın" : "Eşleşmiş cihaz yok",
+                Text = !radioOn ? Strings.Qs_BluetoothOffHint : Strings.Qs_NoPairedDevices,
                 Opacity = 0.55,
                 FontSize = 12,
                 Margin = new Thickness(4, 4, 0, 0),
@@ -1431,10 +1432,10 @@ public partial class QuickSettingsFlyout : UserControl
 
     private static readonly (ProjectionMode Mode, string Label)[] ProjectModes =
     [
-        (ProjectionMode.InternalOnly, "Yalnızca PC ekranı"),
-        (ProjectionMode.Clone, "Çoğalt"),
-        (ProjectionMode.Extend, "Genişlet"),
-        (ProjectionMode.ExternalOnly, "Yalnızca 2. ekran"),
+        (ProjectionMode.InternalOnly, Strings.Qs_ProjectPcOnly),
+        (ProjectionMode.Clone, Strings.Qs_ProjectDuplicate),
+        (ProjectionMode.Extend, Strings.Qs_ProjectExtend),
+        (ProjectionMode.ExternalOnly, Strings.Qs_ProjectSecondOnly),
     ];
 
     private void RefreshProjectPage()
@@ -1517,7 +1518,7 @@ public partial class QuickSettingsFlyout : UserControl
         int monitors = DisplayTopology.ReadMonitorMetrics().Monitors;
         if (mode != ProjectionMode.InternalOnly && monitors < 2)
         {
-            _projectError = "İkinci ekran yok";
+            _projectError = Strings.Qs_NoSecondDisplay;
             RefreshProjectPage();
             return;
         }
@@ -1529,7 +1530,7 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
-        _projectError = "Bu mod uygulanamadı";
+        _projectError = Strings.Qs_ProjectModeFailed;
         RefreshProjectPage();
     }
 

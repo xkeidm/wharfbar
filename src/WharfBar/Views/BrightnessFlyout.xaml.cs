@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using WharfBar.Services;
+using WharfBar.Resources;
 
 namespace WharfBar.Views;
 
@@ -77,7 +78,7 @@ public partial class BrightnessFlyout : UserControl
             {
                 var emptyText = new TextBlock
                 {
-                    Text = "Bağlı monitör bulunamadı",
+                    Text = Strings.Brightness_NoMonitors,
                     FontSize = 12,
                     Opacity = 0.6,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -195,7 +196,7 @@ public partial class BrightnessFlyout : UserControl
         {
             var noticeText = new TextBlock
             {
-                Text = "DDC/CI / WMI parlaklık kontrolü desteklenmiyor",
+                Text = Strings.Brightness_Unsupported,
                 FontSize = 11,
                 Opacity = 0.5,
                 Margin = new Thickness(0, 2, 0, 0)

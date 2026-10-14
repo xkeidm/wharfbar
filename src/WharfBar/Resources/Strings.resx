@@ -627,4 +627,84 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
   <data name="Dock_Downloads" xml:space="preserve"><value>Downloads</value></data>
   <data name="Dock_RecycleBin" xml:space="preserve"><value>Recycle Bin</value></data>
+  <data name="Qs_Title" xml:space="preserve"><value>Quick settings</value></data>
+  <data name="Qs_Mixer" xml:space="preserve"><value>Volume mixer</value></data>
+  <data name="Qs_Mute" xml:space="preserve"><value>Mute</value></data>
+  <data name="Qs_Unmute" xml:space="preserve"><value>Unmute</value></data>
+  <data name="Qs_NoAudioDevice" xml:space="preserve"><value>No audio device</value></data>
+  <data name="Qs_Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Qs_Back" xml:space="preserve"><value>Back</value></data>
+  <data name="Qs_OutputDevice" xml:space="preserve"><value>Output device</value></data>
+  <data name="Qs_NoOutputDevice" xml:space="preserve"><value>Output device not found</value></data>
+  <data name="Qs_DefaultSuffixFormat" xml:space="preserve"><value>{0} (default)</value></data>
+  <data name="Qs_NoAppSessions" xml:space="preserve"><value>No app sessions</value></data>
+  <data name="Qs_Network" xml:space="preserve"><value>Network</value></data>
+  <data name="Qs_LiveTraffic" xml:space="preserve"><value>Live traffic</value></data>
+  <data name="Qs_Properties" xml:space="preserve"><value>Properties</value></data>
+  <data name="Qs_Adapter" xml:space="preserve"><value>Adapter</value></data>
+  <data name="Qs_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Qs_IPv4" xml:space="preserve"><value>IPv4 address</value></data>
+  <data name="Qs_IPv6" xml:space="preserve"><value>IPv6 address</value></data>
+  <data name="Qs_Gateway" xml:space="preserve"><value>Gateway</value></data>
+  <data name="Qs_MacAddress" xml:space="preserve"><value>MAC address</value></data>
+  <data name="Qs_LinkSpeed" xml:space="preserve"><value>Link speed</value></data>
+  <data name="Qs_OpenNetworkSettings" xml:space="preserve"><value>Open network settings</value></data>
+  <data name="Qs_WifiSettings" xml:space="preserve"><value>Wi-Fi settings</value></data>
+  <data name="Qs_EthernetSettings" xml:space="preserve"><value>Ethernet settings</value></data>
+  <data name="Qs_Connect" xml:space="preserve"><value>Connect</value></data>
+  <data name="Qs_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Qs_OpenBluetoothSettings" xml:space="preserve"><value>Open Bluetooth settings</value></data>
+  <data name="Qs_Project" xml:space="preserve"><value>Project</value></data>
+  <data name="Qs_DisplaySettings" xml:space="preserve"><value>Display settings</value></data>
+  <data name="Qs_NoConnection" xml:space="preserve"><value>No connection</value></data>
+  <data name="Qs_Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Qs_Saved" xml:space="preserve"><value>Saved</value></data>
+  <data name="Qs_WifiOff" xml:space="preserve"><value>Wi-Fi off</value></data>
+  <data name="Qs_NoAdapter" xml:space="preserve"><value>No adapter found</value></data>
+  <data name="Qs_NotConnected" xml:space="preserve"><value>Not connected</value></data>
+  <data name="Qs_ScanningNetworks" xml:space="preserve"><value>Scanning for networks…</value></data>
+  <data name="Qs_DisconnectFailed" xml:space="preserve"><value>Could not disconnect</value></data>
+  <data name="Qs_Connecting" xml:space="preserve"><value>Connecting…</value></data>
+  <data name="Qs_ConnectFailed" xml:space="preserve"><value>Could not connect</value></data>
+  <data name="Qs_OtherNetwork" xml:space="preserve"><value>Other network</value></data>
+  <data name="Qs_On" xml:space="preserve"><value>On</value></data>
+  <data name="Qs_Off" xml:space="preserve"><value>Off</value></data>
+  <data name="Qs_BluetoothOffHint" xml:space="preserve"><value>Bluetooth is off — turn it on to see devices</value></data>
+  <data name="Qs_NoPairedDevices" xml:space="preserve"><value>No paired devices</value></data>
+  <data name="Qs_ProjectPcOnly" xml:space="preserve"><value>PC screen only</value></data>
+  <data name="Qs_ProjectDuplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Qs_ProjectExtend" xml:space="preserve"><value>Extend</value></data>
+  <data name="Qs_ProjectSecondOnly" xml:space="preserve"><value>Second screen only</value></data>
+  <data name="Qs_NoSecondDisplay" xml:space="preserve"><value>No second display</value></data>
+  <data name="Qs_ProjectModeFailed" xml:space="preserve"><value>Could not apply this mode</value></data>
+  <data name="Qs_Airplane" xml:space="preserve"><value>Airplane mode</value></data>
+  <data name="Qs_NightLight" xml:space="preserve"><value>Night light</value></data>
+  <data name="Qs_Overlay" xml:space="preserve"><value>Overlay</value></data>
+  <data name="Qs_ColorOverlay" xml:space="preserve"><value>Color overlay</value></data>
+  <data name="Qs_EnergySaver" xml:space="preserve"><value>Energy saver</value></data>
+  <data name="Qs_EnergySaverOn" xml:space="preserve"><value>Energy saver on</value></data>
+  <data name="Qs_TurnOffAirplane" xml:space="preserve"><value>Turn off airplane mode</value></data>
+  <data name="Qs_NetworkUnavailable" xml:space="preserve"><value>Network unavailable</value></data>
+  <data name="Qs_NetworkConnected" xml:space="preserve"><value>Network connected</value></data>
+  <data name="Clock_Notifications" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Clock_OpenNotificationCenter" xml:space="preserve"><value>Open notification center</value></data>
+  <data name="Clock_PreviousMonth" xml:space="preserve"><value>Previous month</value></data>
+  <data name="Clock_NextMonth" xml:space="preserve"><value>Next month</value></data>
+  <data name="Clock_ReadingNotifications" xml:space="preserve"><value>Reading notifications…</value></data>
+  <data name="Clock_AccessDenied" xml:space="preserve"><value>Notification access was not granted.</value></data>
+  <data name="Clock_NoNotifications" xml:space="preserve"><value>No notifications.</value></data>
+  <data name="Clock_ReadFailed" xml:space="preserve"><value>Could not read notifications.</value></data>
+  <data name="Media_NothingPlaying" xml:space="preserve"><value>Nothing playing</value></data>
+  <data name="Media_PreviousSession" xml:space="preserve"><value>Previous media session</value></data>
+  <data name="Media_NextSession" xml:space="preserve"><value>Next media session</value></data>
+  <data name="Media_PreviousTrack" xml:space="preserve"><value>Previous track</value></data>
+  <data name="Media_PlayPause" xml:space="preserve"><value>Play/Pause</value></data>
+  <data name="Media_NextTrack" xml:space="preserve"><value>Next track</value></data>
+  <data name="Brightness_Title" xml:space="preserve"><value>Display brightness</value></data>
+  <data name="Brightness_AllDisplays" xml:space="preserve"><value>All displays</value></data>
+  <data name="Brightness_RefreshMonitors" xml:space="preserve"><value>Refresh monitors</value></data>
+  <data name="Brightness_NoMonitors" xml:space="preserve"><value>No connected monitors found</value></data>
+  <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI brightness control is not supported</value></data>
+  <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>No icons</value></data>
+  <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Open Windows hidden icons</value></data>
 </root>
