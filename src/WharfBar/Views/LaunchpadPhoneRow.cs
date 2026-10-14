@@ -14,8 +14,7 @@ namespace WharfBar.Views;
 internal static class LaunchpadPhoneRow
 {
     private static readonly Brush TransparentFill = Brushes.Transparent;
-    private static readonly ControlTemplate FlatTemplate = BuildFlatTemplate();
-    private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+    private static readonly ControlTemplate FlatTemplate = CreateFlatTemplate();
     private static readonly SolidColorBrush ConnectedBrush = CreateConnectedBrush();
 
     internal const double PanelWidth = 268;
@@ -525,7 +524,7 @@ internal static class LaunchpadPhoneRow
         var block = new TextBlock
         {
             Text = code,
-            FontFamily = IconFont,
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
             FontSize = size,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,
@@ -552,5 +551,12 @@ internal static class LaunchpadPhoneRow
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
         border.AppendChild(presenter);
         return new ControlTemplate(typeof(Button)) { VisualTree = border };
+    }
+
+    private static ControlTemplate CreateFlatTemplate()
+    {
+        ControlTemplate template = BuildFlatTemplate();
+        template.Seal();
+        return template;
     }
 }

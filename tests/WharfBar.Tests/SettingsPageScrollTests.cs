@@ -12,6 +12,7 @@ namespace WharfBar.Tests;
 /// That measures the page with infinite height, so a root ScrollViewer reports no scroll range
 /// and still eats the mouse wheel. Settings pages opt out so their own ScrollViewer is bounded.
 /// </summary>
+[Collection(WpfApplicationCollection.Name)]
 public class SettingsPageScrollTests
 {
     [Fact]

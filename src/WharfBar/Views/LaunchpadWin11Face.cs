@@ -19,8 +19,10 @@ internal static class LaunchpadWin11Face
     private const int RecentPreview = 6;
 
     private static readonly Brush TransparentFill = Brushes.Transparent;
-    private static readonly ControlTemplate FlatTemplate = BuildFlatTemplate();
-    private static readonly FontFamily IconFont = new("Segoe Fluent Icons, Segoe MDL2 Assets");
+
+    // Sealed so a second STA (unit tests each spin their own) can share the template.
+    // An unfrozen ControlTemplate belongs to the thread that first touched this type.
+    private static readonly ControlTemplate FlatTemplate = CreateFlatTemplate();
 
     internal static UIElement Create(LaunchpadSession session)
     {
@@ -552,7 +554,7 @@ internal static class LaunchpadWin11Face
         var block = new TextBlock
         {
             Text = code,
-            FontFamily = IconFont,
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
             FontSize = size,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,
@@ -659,5 +661,12 @@ internal static class LaunchpadWin11Face
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
         border.AppendChild(presenter);
         return new ControlTemplate(typeof(Button)) { VisualTree = border };
+    }
+
+    private static ControlTemplate CreateFlatTemplate()
+    {
+        ControlTemplate template = BuildFlatTemplate();
+        template.Seal();
+        return template;
     }
 }
