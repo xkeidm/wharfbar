@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 using SymbolIcon = Wpf.Ui.Controls.SymbolIcon;
@@ -48,7 +49,7 @@ internal sealed class DockSettingsRow : Border
             FontSize = 16,
             Foreground = BrushFor("TextFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "Sürükleyerek sırayı değiştirin",
+            ToolTip = Strings.DockRow_DragTooltip,
         };
         Grid.SetColumn(handle, 0);
         grid.Children.Add(handle);
@@ -82,7 +83,7 @@ internal sealed class DockSettingsRow : Border
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
             Foreground = BrushFor("TextFillColorSecondaryBrush"),
-            ToolTip = "Dock'tan kaldır",
+            ToolTip = Strings.DockRow_RemoveTooltip,
         };
         Grid.SetColumn(remove, 3);
         grid.Children.Add(remove);

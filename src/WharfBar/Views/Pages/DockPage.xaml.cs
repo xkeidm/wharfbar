@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Microsoft.Win32;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Pages;
@@ -106,8 +107,8 @@ public partial class DockPage : Page
     {
         var dialog = new OpenFileDialog
         {
-            Title = "Dock'a ekle",
-            Filter = "Uygulamalar (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|Tüm dosyalar (*.*)|*.*",
+            Title = Strings.DockPage_AddDialogTitle,
+            Filter = Strings.DockPage_AddDialogFilter,
             CheckFileExists = true,
             Multiselect = true,
         };

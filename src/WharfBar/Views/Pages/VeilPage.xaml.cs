@@ -5,6 +5,7 @@ using System.Windows.Interop;
 using System.Windows.Media;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Pages;
@@ -17,14 +18,14 @@ public partial class VeilPage : Page
 {
     private static readonly (string Name, string Hex)[] PresetColors =
     [
-        ("Mavi", "#4A90D9"),
-        ("Yeşil", "#7CB342"),
-        ("Pembe", "#E57373"),
-        ("Turuncu", "#E6A23C"),
-        ("Sarı", "#D4C24A"),
-        ("Mor", "#9E7BB5"),
-        ("Gri", "#8E8E8E"),
-        ("Koyu", "#2B2B2B"),
+        (Strings.VeilPage_Color_Blue, "#4A90D9"),
+        (Strings.VeilPage_Color_Green, "#7CB342"),
+        (Strings.VeilPage_Color_Pink, "#E57373"),
+        (Strings.VeilPage_Color_Orange, "#E6A23C"),
+        (Strings.VeilPage_Color_Yellow, "#D4C24A"),
+        (Strings.VeilPage_Color_Purple, "#9E7BB5"),
+        (Strings.VeilPage_Color_Gray, "#8E8E8E"),
+        (Strings.VeilPage_Color_Dark, "#2B2B2B"),
     ];
 
     private bool _isLoading = true;
@@ -234,7 +235,7 @@ public partial class VeilPage : Page
 
     private void UpdateHotkeyUi(string hotkey)
     {
-        HotkeyLabel.Text = string.IsNullOrEmpty(hotkey) ? "Kısayol yok" : hotkey;
+        HotkeyLabel.Text = string.IsNullOrEmpty(hotkey) ? Strings.VeilPage_NoHotkey : hotkey;
         string? error = WharfApp.Veil?.HotkeyRegistrationError;
         HotkeyErrorText.Text = error ?? string.Empty;
         HotkeyErrorText.Visibility = string.IsNullOrEmpty(error) ? Visibility.Collapsed : Visibility.Visible;

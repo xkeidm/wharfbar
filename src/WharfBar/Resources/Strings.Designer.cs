@@ -115,5 +115,863 @@ namespace WharfBar.Resources {
                 return ResourceManager.GetString("General_QuitToApply", resourceCulture);
             }
         }
+
+        public static string Settings_Appearance {
+            get {
+                return ResourceManager.GetString("Settings_Appearance", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeSection {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeSection", resourceCulture);
+            }
+        }
+
+        public static string Appearance_AccentStyleTitle {
+            get {
+                return ResourceManager.GetString("Appearance_AccentStyleTitle", resourceCulture);
+            }
+        }
+
+        public static string Appearance_AccentStyleDescription {
+            get {
+                return ResourceManager.GetString("Appearance_AccentStyleDescription", resourceCulture);
+            }
+        }
+
+        public static string Appearance_AccentSystem {
+            get {
+                return ResourceManager.GetString("Appearance_AccentSystem", resourceCulture);
+            }
+        }
+
+        public static string Appearance_AccentFixed {
+            get {
+                return ResourceManager.GetString("Appearance_AccentFixed", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeTitle {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeTitle", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeDescription {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeDescription", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeSystem {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeSystem", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeLight {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeLight", resourceCulture);
+            }
+        }
+
+        public static string Appearance_ThemeDark {
+            get {
+                return ResourceManager.GetString("Appearance_ThemeDark", resourceCulture);
+            }
+        }
+
+        public static string Appearance_TopBarBackgroundSection {
+            get {
+                return ResourceManager.GetString("Appearance_TopBarBackgroundSection", resourceCulture);
+            }
+        }
+
+        public static string Appearance_BackdropModeTitle {
+            get {
+                return ResourceManager.GetString("Appearance_BackdropModeTitle", resourceCulture);
+            }
+        }
+
+        public static string Appearance_BackdropModeDescription {
+            get {
+                return ResourceManager.GetString("Appearance_BackdropModeDescription", resourceCulture);
+            }
+        }
+
+        public static string Appearance_BackdropMica {
+            get {
+                return ResourceManager.GetString("Appearance_BackdropMica", resourceCulture);
+            }
+        }
+
+        public static string Appearance_BackdropTransparent {
+            get {
+                return ResourceManager.GetString("Appearance_BackdropTransparent", resourceCulture);
+            }
+        }
+
+        public static string Appearance_BackdropTint {
+            get {
+                return ResourceManager.GetString("Appearance_BackdropTint", resourceCulture);
+            }
+        }
+
+        public static string Appearance_OpacityTitle {
+            get {
+                return ResourceManager.GetString("Appearance_OpacityTitle", resourceCulture);
+            }
+        }
+
+        public static string Settings_Dock {
+            get {
+                return ResourceManager.GetString("Settings_Dock", resourceCulture);
+            }
+        }
+
+        public static string DockPage_ContentSection {
+            get {
+                return ResourceManager.GetString("DockPage_ContentSection", resourceCulture);
+            }
+        }
+
+        public static string DockPage_ItemsTitle {
+            get {
+                return ResourceManager.GetString("DockPage_ItemsTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_Add {
+            get {
+                return ResourceManager.GetString("DockPage_Add", resourceCulture);
+            }
+        }
+
+        public static string DockPage_EmptyHint {
+            get {
+                return ResourceManager.GetString("DockPage_EmptyHint", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BehaviorSection {
+            get {
+                return ResourceManager.GetString("DockPage_BehaviorSection", resourceCulture);
+            }
+        }
+
+        public static string DockPage_AutoHideTitle {
+            get {
+                return ResourceManager.GetString("DockPage_AutoHideTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_AutoHideDescription {
+            get {
+                return ResourceManager.GetString("DockPage_AutoHideDescription", resourceCulture);
+            }
+        }
+
+        public static string DockPage_AppearanceSection {
+            get {
+                return ResourceManager.GetString("DockPage_AppearanceSection", resourceCulture);
+            }
+        }
+
+        public static string DockPage_IconSizeTitle {
+            get {
+                return ResourceManager.GetString("DockPage_IconSizeTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BackgroundTitle {
+            get {
+                return ResourceManager.GetString("DockPage_BackgroundTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BackgroundDescription {
+            get {
+                return ResourceManager.GetString("DockPage_BackgroundDescription", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BackdropMica {
+            get {
+                return ResourceManager.GetString("DockPage_BackdropMica", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BackdropTransparent {
+            get {
+                return ResourceManager.GetString("DockPage_BackdropTransparent", resourceCulture);
+            }
+        }
+
+        public static string DockPage_BackdropTint {
+            get {
+                return ResourceManager.GetString("DockPage_BackdropTint", resourceCulture);
+            }
+        }
+
+        public static string DockPage_OpacityTitle {
+            get {
+                return ResourceManager.GetString("DockPage_OpacityTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_PositionTitle {
+            get {
+                return ResourceManager.GetString("DockPage_PositionTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_PositionCenter {
+            get {
+                return ResourceManager.GetString("DockPage_PositionCenter", resourceCulture);
+            }
+        }
+
+        public static string DockPage_PositionLeft {
+            get {
+                return ResourceManager.GetString("DockPage_PositionLeft", resourceCulture);
+            }
+        }
+
+        public static string DockPage_PositionRight {
+            get {
+                return ResourceManager.GetString("DockPage_PositionRight", resourceCulture);
+            }
+        }
+
+        public static string DockPage_PositionLeftEdge {
+            get {
+                return ResourceManager.GetString("DockPage_PositionLeftEdge", resourceCulture);
+            }
+        }
+
+        public static string DockPage_ShowRunningTitle {
+            get {
+                return ResourceManager.GetString("DockPage_ShowRunningTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_ShowRunningDescription {
+            get {
+                return ResourceManager.GetString("DockPage_ShowRunningDescription", resourceCulture);
+            }
+        }
+
+        public static string Settings_TopBar {
+            get {
+                return ResourceManager.GetString("Settings_TopBar", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_PreviewSection {
+            get {
+                return ResourceManager.GetString("TopBarPage_PreviewSection", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_PreviewDescription {
+            get {
+                return ResourceManager.GetString("TopBarPage_PreviewDescription", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_StatsSection {
+            get {
+                return ResourceManager.GetString("TopBarPage_StatsSection", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_StatsDescription {
+            get {
+                return ResourceManager.GetString("TopBarPage_StatsDescription", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_StatsToggle {
+            get {
+                return ResourceManager.GetString("TopBarPage_StatsToggle", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_SplitGpu {
+            get {
+                return ResourceManager.GetString("TopBarPage_SplitGpu", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_SplitGpuHint {
+            get {
+                return ResourceManager.GetString("TopBarPage_SplitGpuHint", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_StatusItemsSection {
+            get {
+                return ResourceManager.GetString("TopBarPage_StatusItemsSection", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_StatusItemsDescription {
+            get {
+                return ResourceManager.GetString("TopBarPage_StatusItemsDescription", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_ShowAll {
+            get {
+                return ResourceManager.GetString("TopBarPage_ShowAll", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_ResetDefault {
+            get {
+                return ResourceManager.GetString("TopBarPage_ResetDefault", resourceCulture);
+            }
+        }
+
+        public static string Settings_Island {
+            get {
+                return ResourceManager.GetString("Settings_Island", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_VisibilitySection {
+            get {
+                return ResourceManager.GetString("IslandPage_VisibilitySection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ShowTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_ShowTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ShowDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_ShowDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MusicSection {
+            get {
+                return ResourceManager.GetString("IslandPage_MusicSection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MusicVisibilityTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_MusicVisibilityTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MusicVisibilityDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_MusicVisibilityDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MusicWhilePlaying {
+            get {
+                return ResourceManager.GetString("IslandPage_MusicWhilePlaying", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MusicBrief {
+            get {
+                return ResourceManager.GetString("IslandPage_MusicBrief", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_IdleSection {
+            get {
+                return ResourceManager.GetString("IslandPage_IdleSection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_IdleTextTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_IdleTextTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_IdleTextDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_IdleTextDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_IdleClipboard {
+            get {
+                return ResourceManager.GetString("IslandPage_IdleClipboard", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_IdleLastEntry {
+            get {
+                return ResourceManager.GetString("IslandPage_IdleLastEntry", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_BatterySection {
+            get {
+                return ResourceManager.GetString("IslandPage_BatterySection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_LowBatteryTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_LowBatteryTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_LowBatteryDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_LowBatteryDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_HistorySection {
+            get {
+                return ResourceManager.GetString("IslandPage_HistorySection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionModeTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionModeTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionModeDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionModeDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionSession {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionSession", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionPersistent {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionPersistent", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionDaysTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionDaysTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RetentionDaysDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_RetentionDaysDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MaxItemsTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_MaxItemsTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MaxItemsDescription {
+            get {
+                return ResourceManager.GetString("IslandPage_MaxItemsDescription", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_MaintenanceSection {
+            get {
+                return ResourceManager.GetString("IslandPage_MaintenanceSection", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_OpenDropFolder {
+            get {
+                return ResourceManager.GetString("IslandPage_OpenDropFolder", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_DeleteDroppedFiles {
+            get {
+                return ResourceManager.GetString("IslandPage_DeleteDroppedFiles", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ClearHistory {
+            get {
+                return ResourceManager.GetString("IslandPage_ClearHistory", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_DeleteDroppedFilesNote {
+            get {
+                return ResourceManager.GetString("IslandPage_DeleteDroppedFilesNote", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ClearHistoryNote {
+            get {
+                return ResourceManager.GetString("IslandPage_ClearHistoryNote", resourceCulture);
+            }
+        }
+
+        public static string Settings_Monitors {
+            get {
+                return ResourceManager.GetString("Settings_Monitors", resourceCulture);
+            }
+        }
+
+        public static string MonitorsPage_Description {
+            get {
+                return ResourceManager.GetString("MonitorsPage_Description", resourceCulture);
+            }
+        }
+
+        public static string MonitorsPage_Primary {
+            get {
+                return ResourceManager.GetString("MonitorsPage_Primary", resourceCulture);
+            }
+        }
+
+        public static string MonitorsPage_TopBar {
+            get {
+                return ResourceManager.GetString("MonitorsPage_TopBar", resourceCulture);
+            }
+        }
+
+        public static string Settings_Plugins {
+            get {
+                return ResourceManager.GetString("Settings_Plugins", resourceCulture);
+            }
+        }
+
+        public static string Settings_Veil {
+            get {
+                return ResourceManager.GetString("Settings_Veil", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_EnableTitle {
+            get {
+                return ResourceManager.GetString("VeilPage_EnableTitle", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_EnableDescription {
+            get {
+                return ResourceManager.GetString("VeilPage_EnableDescription", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_ColorTitle {
+            get {
+                return ResourceManager.GetString("VeilPage_ColorTitle", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_CustomColor {
+            get {
+                return ResourceManager.GetString("VeilPage_CustomColor", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_PickColor {
+            get {
+                return ResourceManager.GetString("VeilPage_PickColor", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_InvalidColor {
+            get {
+                return ResourceManager.GetString("VeilPage_InvalidColor", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_OpacityTitle {
+            get {
+                return ResourceManager.GetString("VeilPage_OpacityTitle", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_HotkeyTitle {
+            get {
+                return ResourceManager.GetString("VeilPage_HotkeyTitle", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_HotkeyDescription {
+            get {
+                return ResourceManager.GetString("VeilPage_HotkeyDescription", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_CurrentHotkey {
+            get {
+                return ResourceManager.GetString("VeilPage_CurrentHotkey", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_ChangeHotkey {
+            get {
+                return ResourceManager.GetString("VeilPage_ChangeHotkey", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_RemoveHotkey {
+            get {
+                return ResourceManager.GetString("VeilPage_RemoveHotkey", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_ResetHotkey {
+            get {
+                return ResourceManager.GetString("VeilPage_ResetHotkey", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_CaptureHint {
+            get {
+                return ResourceManager.GetString("VeilPage_CaptureHint", resourceCulture);
+            }
+        }
+
+        public static string Settings_About {
+            get {
+                return ResourceManager.GetString("Settings_About", resourceCulture);
+            }
+        }
+
+        public static string About_VersionPlaceholder {
+            get {
+                return ResourceManager.GetString("About_VersionPlaceholder", resourceCulture);
+            }
+        }
+
+        public static string About_License {
+            get {
+                return ResourceManager.GetString("About_License", resourceCulture);
+            }
+        }
+
+        public static string About_LicenseValue {
+            get {
+                return ResourceManager.GetString("About_LicenseValue", resourceCulture);
+            }
+        }
+
+        public static string About_Platform {
+            get {
+                return ResourceManager.GetString("About_Platform", resourceCulture);
+            }
+        }
+
+        public static string Settings_WindowTitle {
+            get {
+                return ResourceManager.GetString("Settings_WindowTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_AddDialogTitle {
+            get {
+                return ResourceManager.GetString("DockPage_AddDialogTitle", resourceCulture);
+            }
+        }
+
+        public static string DockPage_AddDialogFilter {
+            get {
+                return ResourceManager.GetString("DockPage_AddDialogFilter", resourceCulture);
+            }
+        }
+
+        public static string DockRow_DragTooltip {
+            get {
+                return ResourceManager.GetString("DockRow_DragTooltip", resourceCulture);
+            }
+        }
+
+        public static string DockRow_RemoveTooltip {
+            get {
+                return ResourceManager.GetString("DockRow_RemoveTooltip", resourceCulture);
+            }
+        }
+
+        public static string TopBarPage_DisabledHint {
+            get {
+                return ResourceManager.GetString("TopBarPage_DisabledHint", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_TrayMirror {
+            get {
+                return ResourceManager.GetString("TopBarItem_TrayMirror", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_TrayOverflow {
+            get {
+                return ResourceManager.GetString("TopBarItem_TrayOverflow", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_DateTime {
+            get {
+                return ResourceManager.GetString("TopBarItem_DateTime", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Notifications {
+            get {
+                return ResourceManager.GetString("TopBarItem_Notifications", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_ControlCenter {
+            get {
+                return ResourceManager.GetString("TopBarItem_ControlCenter", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Volume {
+            get {
+                return ResourceManager.GetString("TopBarItem_Volume", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Brightness {
+            get {
+                return ResourceManager.GetString("TopBarItem_Brightness", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Media {
+            get {
+                return ResourceManager.GetString("TopBarItem_Media", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Network {
+            get {
+                return ResourceManager.GetString("TopBarItem_Network", resourceCulture);
+            }
+        }
+
+        public static string TopBarItem_Battery {
+            get {
+                return ResourceManager.GetString("TopBarItem_Battery", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_RangeError {
+            get {
+                return ResourceManager.GetString("IslandPage_RangeError", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_DeleteConfirmTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_DeleteConfirmTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_DeleteConfirmMessage {
+            get {
+                return ResourceManager.GetString("IslandPage_DeleteConfirmMessage", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ClearConfirmTitle {
+            get {
+                return ResourceManager.GetString("IslandPage_ClearConfirmTitle", resourceCulture);
+            }
+        }
+
+        public static string IslandPage_ClearConfirmMessage {
+            get {
+                return ResourceManager.GetString("IslandPage_ClearConfirmMessage", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_NoHotkey {
+            get {
+                return ResourceManager.GetString("VeilPage_NoHotkey", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Blue {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Blue", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Green {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Green", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Pink {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Pink", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Orange {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Orange", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Yellow {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Yellow", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Purple {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Purple", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Gray {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Gray", resourceCulture);
+            }
+        }
+
+        public static string VeilPage_Color_Dark {
+            get {
+                return ResourceManager.GetString("VeilPage_Color_Dark", resourceCulture);
+            }
+        }
+
+        public static string About_VersionFormat {
+            get {
+                return ResourceManager.GetString("About_VersionFormat", resourceCulture);
+            }
+        }
+
+        public static string About_VersionBetaFormat {
+            get {
+                return ResourceManager.GetString("About_VersionBetaFormat", resourceCulture);
+            }
+        }
+
+        public static string About_Description {
+            get {
+                return ResourceManager.GetString("About_Description", resourceCulture);
+            }
+        }
     }
 }

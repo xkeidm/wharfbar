@@ -94,4 +94,437 @@
   <data name="General_QuitToApply" xml:space="preserve">
     <value>Quit now</value>
   </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Appearance_ThemeSection" xml:space="preserve">
+    <value>Theme and Colors</value>
+  </data>
+  <data name="Appearance_AccentStyleTitle" xml:space="preserve">
+    <value>Accent Color Style</value>
+  </data>
+  <data name="Appearance_AccentStyleDescription" xml:space="preserve">
+    <value>Should windows and controls use the Windows system accent color or a fixed theme mode?</value>
+  </data>
+  <data name="Appearance_AccentSystem" xml:space="preserve">
+    <value>System Accent Color</value>
+  </data>
+  <data name="Appearance_AccentFixed" xml:space="preserve">
+    <value>Fixed Theme Mode</value>
+  </data>
+  <data name="Appearance_ThemeTitle" xml:space="preserve">
+    <value>App Theme</value>
+  </data>
+  <data name="Appearance_ThemeDescription" xml:space="preserve">
+    <value>Use light, dark, or the Windows system default theme</value>
+  </data>
+  <data name="Appearance_ThemeSystem" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="Appearance_ThemeLight" xml:space="preserve">
+    <value>Light mode</value>
+  </data>
+  <data name="Appearance_ThemeDark" xml:space="preserve">
+    <value>Dark mode</value>
+  </data>
+  <data name="Appearance_TopBarBackgroundSection" xml:space="preserve">
+    <value>Top Bar Background</value>
+  </data>
+  <data name="Appearance_BackdropModeTitle" xml:space="preserve">
+    <value>Background Mode</value>
+  </data>
+  <data name="Appearance_BackdropModeDescription" xml:space="preserve">
+    <value>Adjust the blur and transparency effect of the top bar</value>
+  </data>
+  <data name="Appearance_BackdropMica" xml:space="preserve">
+    <value>Mica (Blur)</value>
+  </data>
+  <data name="Appearance_BackdropTransparent" xml:space="preserve">
+    <value>Transparent</value>
+  </data>
+  <data name="Appearance_BackdropTint" xml:space="preserve">
+    <value>Tinted</value>
+  </data>
+  <data name="Appearance_OpacityTitle" xml:space="preserve">
+    <value>Background Opacity</value>
+  </data>
+  <data name="Settings_Dock" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="DockPage_ContentSection" xml:space="preserve">
+    <value>Content</value>
+  </data>
+  <data name="DockPage_ItemsTitle" xml:space="preserve">
+    <value>Dock Items</value>
+  </data>
+  <data name="DockPage_Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="DockPage_EmptyHint" xml:space="preserve">
+    <value>The dock is empty. Drag an app from Explorer straight onto the dock, or add one above.</value>
+  </data>
+  <data name="DockPage_BehaviorSection" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="DockPage_AutoHideTitle" xml:space="preserve">
+    <value>Auto-hide</value>
+  </data>
+  <data name="DockPage_AutoHideDescription" xml:space="preserve">
+    <value>Automatically hide the dock at the bottom of the screen when the pointer is not near it</value>
+  </data>
+  <data name="DockPage_AppearanceSection" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="DockPage_IconSizeTitle" xml:space="preserve">
+    <value>Icon Size</value>
+  </data>
+  <data name="DockPage_BackgroundTitle" xml:space="preserve">
+    <value>Background</value>
+  </data>
+  <data name="DockPage_BackgroundDescription" xml:space="preserve">
+    <value>Mica is real system blur; transparent and tinted recreate the panel</value>
+  </data>
+  <data name="DockPage_BackdropMica" xml:space="preserve">
+    <value>Mica (Blur)</value>
+  </data>
+  <data name="DockPage_BackdropTransparent" xml:space="preserve">
+    <value>Transparent</value>
+  </data>
+  <data name="DockPage_BackdropTint" xml:space="preserve">
+    <value>Tinted</value>
+  </data>
+  <data name="DockPage_OpacityTitle" xml:space="preserve">
+    <value>Opacity</value>
+  </data>
+  <data name="DockPage_PositionTitle" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="DockPage_PositionCenter" xml:space="preserve">
+    <value>Center (default)</value>
+  </data>
+  <data name="DockPage_PositionLeft" xml:space="preserve">
+    <value>Left</value>
+  </data>
+  <data name="DockPage_PositionRight" xml:space="preserve">
+    <value>Right</value>
+  </data>
+  <data name="DockPage_PositionLeftEdge" xml:space="preserve">
+    <value>Left edge</value>
+  </data>
+  <data name="DockPage_ShowRunningTitle" xml:space="preserve">
+    <value>Show Running Apps</value>
+  </data>
+  <data name="DockPage_ShowRunningDescription" xml:space="preserve">
+    <value>Show unpinned running apps and minimized windows in the dock</value>
+  </data>
+  <data name="Settings_TopBar" xml:space="preserve">
+    <value>Top Bar</value>
+  </data>
+  <data name="TopBarPage_PreviewSection" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="TopBarPage_PreviewDescription" xml:space="preserve">
+    <value>Changes appear here once they are saved to the top bar</value>
+  </data>
+  <data name="TopBarPage_StatsSection" xml:space="preserve">
+    <value>System Statistics</value>
+  </data>
+  <data name="TopBarPage_StatsDescription" xml:space="preserve">
+    <value>Show CPU, GPU and memory usage next to the Windows logo</value>
+  </data>
+  <data name="TopBarPage_StatsToggle" xml:space="preserve">
+    <value>CPU · GPU · RAM indicator</value>
+  </data>
+  <data name="TopBarPage_SplitGpu" xml:space="preserve">
+    <value>Show graphics cards separately (GPU0 · GPU1)</value>
+  </data>
+  <data name="TopBarPage_SplitGpuHint" xml:space="preserve">
+    <value>When off, all graphics cards are combined into a single value</value>
+  </data>
+  <data name="TopBarPage_StatusItemsSection" xml:space="preserve">
+    <value>Status Items</value>
+  </data>
+  <data name="TopBarPage_StatusItemsDescription" xml:space="preserve">
+    <value>Every icon in the catalog is here. Disabled ones stay at the bottom and come back when enabled. Change the order by dragging on the top bar or with the ⋮⋮ handle</value>
+  </data>
+  <data name="TopBarPage_ShowAll" xml:space="preserve">
+    <value>Show all</value>
+  </data>
+  <data name="TopBarPage_ResetDefault" xml:space="preserve">
+    <value>Reset to Default</value>
+  </data>
+  <data name="Settings_Island" xml:space="preserve">
+    <value>Island</value>
+  </data>
+  <data name="IslandPage_VisibilitySection" xml:space="preserve">
+    <value>Visibility</value>
+  </data>
+  <data name="IslandPage_ShowTitle" xml:space="preserve">
+    <value>Show Island</value>
+  </data>
+  <data name="IslandPage_ShowDescription" xml:space="preserve">
+    <value>Track text you copy and files you drop on the island. If you turn it off, the clipboard listener stops and nothing is recorded.</value>
+  </data>
+  <data name="IslandPage_MusicSection" xml:space="preserve">
+    <value>Music</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityTitle" xml:space="preserve">
+    <value>Music visibility</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityDescription" xml:space="preserve">
+    <value>Show while playing: the island keeps the note and track name, and controls open on hover. Show briefly: the island stays idle; controls appear for a short time when the track changes or on play/pause.</value>
+  </data>
+  <data name="IslandPage_MusicWhilePlaying" xml:space="preserve">
+    <value>Show while playing</value>
+  </data>
+  <data name="IslandPage_MusicBrief" xml:space="preserve">
+    <value>Show briefly</value>
+  </data>
+  <data name="IslandPage_IdleSection" xml:space="preserve">
+    <value>Idle</value>
+  </data>
+  <data name="IslandPage_IdleTextTitle" xml:space="preserve">
+    <value>Idle text</value>
+  </data>
+  <data name="IslandPage_IdleTextDescription" xml:space="preserve">
+    <value>Clipboard: the pill shows fixed text. Last entry: the pill shows a short preview of the last copied text. While that preview is on screen, the top bar is excluded from screenshots.</value>
+  </data>
+  <data name="IslandPage_IdleClipboard" xml:space="preserve">
+    <value>Clipboard</value>
+  </data>
+  <data name="IslandPage_IdleLastEntry" xml:space="preserve">
+    <value>Last entry</value>
+  </data>
+  <data name="IslandPage_BatterySection" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="IslandPage_LowBatteryTitle" xml:space="preserve">
+    <value>Low battery threshold</value>
+  </data>
+  <data name="IslandPage_LowBatteryDescription" xml:space="preserve">
+    <value>5–50. If the saved value is outside this range it becomes 20; a number typed in the box is clamped to 5–50. When the threshold changes, the next drop is shown once.</value>
+  </data>
+  <data name="IslandPage_HistorySection" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="IslandPage_RetentionModeTitle" xml:space="preserve">
+    <value>Retention</value>
+  </data>
+  <data name="IslandPage_RetentionModeDescription" xml:space="preserve">
+    <value>Session: kept in memory only and deleted when WharfBar closes. Persistent: written to disk and restored on restart.</value>
+  </data>
+  <data name="IslandPage_RetentionSession" xml:space="preserve">
+    <value>Session (deleted on close)</value>
+  </data>
+  <data name="IslandPage_RetentionPersistent" xml:space="preserve">
+    <value>Persistent (written to disk)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysTitle" xml:space="preserve">
+    <value>Retention period (days)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysDescription" xml:space="preserve">
+    <value>1–3650. Applies only in persistent mode; in session mode history is deleted on close anyway.</value>
+  </data>
+  <data name="IslandPage_MaxItemsTitle" xml:space="preserve">
+    <value>Maximum entries</value>
+  </data>
+  <data name="IslandPage_MaxItemsDescription" xml:space="preserve">
+    <value>Hard cap of 10–5000. Applies in both modes; the oldest entries beyond it are dropped.</value>
+  </data>
+  <data name="IslandPage_MaintenanceSection" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="IslandPage_OpenDropFolder" xml:space="preserve">
+    <value>Open drop folder</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFiles" xml:space="preserve">
+    <value>Delete dropped files</value>
+  </data>
+  <data name="IslandPage_ClearHistory" xml:space="preserve">
+    <value>Clear all history</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFilesNote" xml:space="preserve">
+    <value>“Delete dropped files” scans the %AppData%\WharfBar\Drop folder and empties it completely — including orphaned copies that were dropped by MaxItems pruning or cleared earlier. File entries are removed from the list; clipboard texts are untouched. This cannot be undone, so it asks for confirmation.</value>
+  </data>
+  <data name="IslandPage_ClearHistoryNote" xml:space="preserve">
+    <value>“Clear all history” empties the list but does not delete the file copies on disk; you need to delete those separately. It also asks for confirmation.</value>
+  </data>
+  <data name="Settings_Monitors" xml:space="preserve">
+    <value>Displays</value>
+  </data>
+  <data name="MonitorsPage_Description" xml:space="preserve">
+    <value>Choose which monitors show the top bar and dock. Appearance settings are shared across all displays.</value>
+  </data>
+  <data name="MonitorsPage_Primary" xml:space="preserve">
+    <value>Primary</value>
+  </data>
+  <data name="MonitorsPage_TopBar" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Settings_Plugins" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="Settings_Veil" xml:space="preserve">
+    <value>Overlay</value>
+  </data>
+  <data name="VeilPage_EnableTitle" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="VeilPage_EnableDescription" xml:space="preserve">
+    <value>Place a semi-transparent color overlay over the screen (dyslexia / visual stress / brightness reduction)</value>
+  </data>
+  <data name="VeilPage_ColorTitle" xml:space="preserve">
+    <value>Color</value>
+  </data>
+  <data name="VeilPage_CustomColor" xml:space="preserve">
+    <value>Custom color (#RRGGBB):</value>
+  </data>
+  <data name="VeilPage_PickColor" xml:space="preserve">
+    <value>Pick color…</value>
+  </data>
+  <data name="VeilPage_InvalidColor" xml:space="preserve">
+    <value>Invalid color code (#RRGGBB or #RGB)</value>
+  </data>
+  <data name="VeilPage_OpacityTitle" xml:space="preserve">
+    <value>Opacity</value>
+  </data>
+  <data name="VeilPage_HotkeyTitle" xml:space="preserve">
+    <value>Shortcut</value>
+  </data>
+  <data name="VeilPage_HotkeyDescription" xml:space="preserve">
+    <value>Global shortcut to toggle the overlay</value>
+  </data>
+  <data name="VeilPage_CurrentHotkey" xml:space="preserve">
+    <value>Current shortcut:</value>
+  </data>
+  <data name="VeilPage_ChangeHotkey" xml:space="preserve">
+    <value>Change shortcut</value>
+  </data>
+  <data name="VeilPage_RemoveHotkey" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="VeilPage_ResetHotkey" xml:space="preserve">
+    <value>Reset (Ctrl+F11)</value>
+  </data>
+  <data name="VeilPage_CaptureHint" xml:space="preserve">
+    <value>Press the new shortcut… (Esc: cancel)</value>
+  </data>
+  <data name="Settings_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="About_VersionPlaceholder" xml:space="preserve">
+    <value>Version —</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="About_LicenseValue" xml:space="preserve">
+    <value>MIT License</value>
+  </data>
+  <data name="About_Platform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="Settings_WindowTitle" xml:space="preserve">
+    <value>WharfBar Settings</value>
+  </data>
+  <data name="DockPage_AddDialogTitle" xml:space="preserve">
+    <value>Add to Dock</value>
+  </data>
+  <data name="DockPage_AddDialogFilter" xml:space="preserve">
+    <value>Applications (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|All files (*.*)|*.*</value>
+  </data>
+  <data name="DockRow_DragTooltip" xml:space="preserve">
+    <value>Drag to reorder</value>
+  </data>
+  <data name="DockRow_RemoveTooltip" xml:space="preserve">
+    <value>Remove from Dock</value>
+  </data>
+  <data name="TopBarPage_DisabledHint" xml:space="preserve">
+    <value>Off — returns to the top bar when enabled</value>
+  </data>
+  <data name="TopBarItem_TrayMirror" xml:space="preserve">
+    <value>Tray icons</value>
+  </data>
+  <data name="TopBarItem_TrayOverflow" xml:space="preserve">
+    <value>Hidden icons</value>
+  </data>
+  <data name="TopBarItem_DateTime" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="TopBarItem_Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="TopBarItem_ControlCenter" xml:space="preserve">
+    <value>Quick settings</value>
+  </data>
+  <data name="TopBarItem_Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="TopBarItem_Brightness" xml:space="preserve">
+    <value>Brightness (Displays)</value>
+  </data>
+  <data name="TopBarItem_Media" xml:space="preserve">
+    <value>Media</value>
+  </data>
+  <data name="TopBarItem_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="TopBarItem_Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="IslandPage_RangeError" xml:space="preserve">
+    <value>Enter a whole number in the range {0}.</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmTitle" xml:space="preserve">
+    <value>Delete dropped files?</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmMessage" xml:space="preserve">
+    <value>The %AppData%\WharfBar\Drop folder is scanned and ALL copies in it are permanently deleted.
+
+Your original files are not deleted, but the copies cannot be restored.</value>
+  </data>
+  <data name="IslandPage_ClearConfirmTitle" xml:space="preserve">
+    <value>Clear all history?</value>
+  </data>
+  <data name="IslandPage_ClearConfirmMessage" xml:space="preserve">
+    <value>Clipboard history and dropped-file entries are removed from the list.
+
+File copies on disk are not deleted; you need to remove them separately with “Delete dropped files”.</value>
+  </data>
+  <data name="VeilPage_NoHotkey" xml:space="preserve">
+    <value>No shortcut</value>
+  </data>
+  <data name="VeilPage_Color_Blue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="VeilPage_Color_Green" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="VeilPage_Color_Pink" xml:space="preserve">
+    <value>Pink</value>
+  </data>
+  <data name="VeilPage_Color_Orange" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="VeilPage_Color_Yellow" xml:space="preserve">
+    <value>Yellow</value>
+  </data>
+  <data name="VeilPage_Color_Purple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="VeilPage_Color_Gray" xml:space="preserve">
+    <value>Gray</value>
+  </data>
+  <data name="VeilPage_Color_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="About_VersionFormat" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="About_VersionBetaFormat" xml:space="preserve">
+    <value>Version {0} · Beta</value>
+  </data>
+  <data name="About_Description" xml:space="preserve">
+    <value>A top bar and dock inspired by Windows, macOS and Linux desktops. Fluent / Mica look; a hybrid tray that replaces the taskbar.</value>
+  </data>
 </root>

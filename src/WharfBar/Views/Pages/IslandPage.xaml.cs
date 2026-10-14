@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Pages;
@@ -191,7 +192,7 @@ public partial class IslandPage : Page
 
         if (!int.TryParse(LowBatteryBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            LowBatteryErrorText.Text = $"{LowBatteryRangeText} aralığında bir tam sayı girin.";
+            LowBatteryErrorText.Text = string.Format(Strings.IslandPage_RangeError, LowBatteryRangeText);
             LowBatteryErrorText.Visibility = Visibility.Visible;
             return;
         }
@@ -212,7 +213,7 @@ public partial class IslandPage : Page
             // int.TryParse tasma girdide de false doner ("99999999999" gecerli bir tam sayidir ama
             // int'e sigmaz), o yuzden mesaj kutunun gercek araligini soylemeli — "gecerli bir tam
             // sayi girin" ile kutu altindaki aralik yazisi celisirdi.
-            LimitsErrorText.Text = $"{rangeText} aralığında bir tam sayı girin.";
+            LimitsErrorText.Text = string.Format(Strings.IslandPage_RangeError, rangeText);
             LimitsErrorText.Visibility = Visibility.Visible;
             return false;
         }
@@ -267,10 +268,8 @@ public partial class IslandPage : Page
         }
 
         if (!ConfirmDestructive(
-                "Bırakılan dosyalar silinsin mi?",
-                "%AppData%\\WharfBar\\Drop klasörü taranır ve içindeki TÜM kopyalar kalıcı "
-                    + "olarak silinir.\n\nOrijinal dosyalarınız silinmez, ama kopyaları geri "
-                    + "getirilemez."))
+                Strings.IslandPage_DeleteConfirmTitle,
+                Strings.IslandPage_DeleteConfirmMessage))
         {
             return;
         }
@@ -287,10 +286,8 @@ public partial class IslandPage : Page
         }
 
         if (!ConfirmDestructive(
-                "Tüm geçmiş temizlensin mi?",
-                "Pano geçmişi ve bırakılan dosya kayıtları listeden silinir.\n\nDiskteki dosya "
-                    + "kopyaları silinmez; onları ayrıca “Bırakılan dosyaları sil” ile "
-                    + "temizlemeniz gerekir."))
+                Strings.IslandPage_ClearConfirmTitle,
+                Strings.IslandPage_ClearConfirmMessage))
         {
             return;
         }

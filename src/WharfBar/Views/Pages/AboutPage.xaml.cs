@@ -1,4 +1,5 @@
 using System.Windows.Controls;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Pages;
@@ -13,8 +14,8 @@ public partial class AboutPage : Page
         InitializeComponent();
 
         VersionText.Text = AppVersion.IsPrerelease
-            ? $"Sürüm {AppVersion.Current} · Beta"
-            : $"Sürüm {AppVersion.Current}";
+            ? string.Format(Strings.About_VersionBetaFormat, AppVersion.Current)
+            : string.Format(Strings.About_VersionFormat, AppVersion.Current);
 
         string os = SystemVersion.IsWindows11 ? "Windows 11" : "Windows 10";
         PlatformText.Text = $".NET {Environment.Version.Major} — {os}";
