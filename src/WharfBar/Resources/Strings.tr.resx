@@ -530,4 +530,91 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="About_Description" xml:space="preserve">
     <value>Windows, macOS ve Linux masaüstülerinden esinlenen üst çubuk ve dock. Fluent / Mica görünüm; görev çubuğu yerine geçen hibrit tepsi.</value>
   </data>
+  <data name="TopBar_Menu" xml:space="preserve">
+    <value>Menü</value>
+  </data>
+  <data name="TopBar_PcSettings" xml:space="preserve">
+    <value>Ayarlar (PC)</value>
+  </data>
+  <data name="TopBar_Profile" xml:space="preserve">
+    <value>Profil</value>
+  </data>
+  <data name="TopBar_AboutPc" xml:space="preserve">
+    <value>Bilgisayar hakkında</value>
+  </data>
+  <data name="TopBar_Lock" xml:space="preserve">
+    <value>Bilgisayarı kilitle</value>
+  </data>
+  <data name="TopBar_Sleep" xml:space="preserve">
+    <value>Uyku</value>
+  </data>
+  <data name="TopBar_Shutdown" xml:space="preserve">
+    <value>Kapat</value>
+  </data>
+  <data name="TopBar_Restart" xml:space="preserve">
+    <value>Yeniden başlat</value>
+  </data>
+  <data name="TopBar_WharfBarSettings" xml:space="preserve">
+    <value>WharfBar Ayarları</value>
+  </data>
+  <data name="TopBar_About" xml:space="preserve">
+    <value>WharfBar hakkında</value>
+  </data>
+  <data name="TopBar_Quit" xml:space="preserve">
+    <value>WharfBar'ı kapat</value>
+  </data>
+  <data name="TopBar_TrayIcons" xml:space="preserve">
+    <value>Tepsi simgeleri</value>
+  </data>
+  <data name="TopBar_TrayOverflow" xml:space="preserve">
+    <value>Gizli simgeler</value>
+  </data>
+  <data name="TopBar_DateTime" xml:space="preserve">
+    <value>Tarih ve saat</value>
+  </data>
+  <data name="TopBar_Notifications" xml:space="preserve">
+    <value>Bildirimler</value>
+  </data>
+  <data name="TopBar_ControlCenter" xml:space="preserve">
+    <value>Hızlı ayarlar</value>
+  </data>
+  <data name="TopBar_Volume" xml:space="preserve">
+    <value>Ses</value>
+  </data>
+  <data name="TopBar_Brightness" xml:space="preserve">
+    <value>Parlaklık</value>
+  </data>
+  <data name="TopBar_MonitorBrightness" xml:space="preserve">
+    <value>Monitör Parlaklığı</value>
+  </data>
+  <data name="TopBar_Network" xml:space="preserve">
+    <value>Ağ</value>
+  </data>
+  <data name="TopBar_Battery" xml:space="preserve">
+    <value>Pil</value>
+  </data>
+  <data name="TopBar_Media" xml:space="preserve">
+    <value>Medya</value>
+  </data>
+  <data name="TopBar_NowPlaying" xml:space="preserve">
+    <value>Çalan medya</value>
+  </data>
+  <data name="TopBar_Background" xml:space="preserve">
+    <value>Arka plan</value>
+  </data>
+  <data name="TopBar_OpacityFormat" xml:space="preserve">
+    <value>Opaklık {0}%</value>
+  </data>
+  <data name="TopBar_MoveLeft" xml:space="preserve">
+    <value>Sola taşı</value>
+  </data>
+  <data name="TopBar_MoveRight" xml:space="preserve">
+    <value>Sağa taşı</value>
+  </data>
+  <data name="TopBar_ShowAll" xml:space="preserve">
+    <value>Tümünü göster</value>
+  </data>
+  <data name="TopBar_ResetDefault" xml:space="preserve">
+    <value>Varsayılana sıfırla</value>
+  </data>
 </root>

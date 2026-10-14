@@ -527,4 +527,91 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="About_Description" xml:space="preserve">
     <value>A top bar and dock inspired by Windows, macOS and Linux desktops. Fluent / Mica look; a hybrid tray that replaces the taskbar.</value>
   </data>
+  <data name="TopBar_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="TopBar_PcSettings" xml:space="preserve">
+    <value>Settings (PC)</value>
+  </data>
+  <data name="TopBar_Profile" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="TopBar_AboutPc" xml:space="preserve">
+    <value>About this PC</value>
+  </data>
+  <data name="TopBar_Lock" xml:space="preserve">
+    <value>Lock PC</value>
+  </data>
+  <data name="TopBar_Sleep" xml:space="preserve">
+    <value>Sleep</value>
+  </data>
+  <data name="TopBar_Shutdown" xml:space="preserve">
+    <value>Shut down</value>
+  </data>
+  <data name="TopBar_Restart" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="TopBar_WharfBarSettings" xml:space="preserve">
+    <value>WharfBar Settings</value>
+  </data>
+  <data name="TopBar_About" xml:space="preserve">
+    <value>About WharfBar</value>
+  </data>
+  <data name="TopBar_Quit" xml:space="preserve">
+    <value>Quit WharfBar</value>
+  </data>
+  <data name="TopBar_TrayIcons" xml:space="preserve">
+    <value>Tray icons</value>
+  </data>
+  <data name="TopBar_TrayOverflow" xml:space="preserve">
+    <value>Hidden icons</value>
+  </data>
+  <data name="TopBar_DateTime" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="TopBar_Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="TopBar_ControlCenter" xml:space="preserve">
+    <value>Quick settings</value>
+  </data>
+  <data name="TopBar_Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="TopBar_Brightness" xml:space="preserve">
+    <value>Brightness</value>
+  </data>
+  <data name="TopBar_MonitorBrightness" xml:space="preserve">
+    <value>Monitor brightness</value>
+  </data>
+  <data name="TopBar_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="TopBar_Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="TopBar_Media" xml:space="preserve">
+    <value>Media</value>
+  </data>
+  <data name="TopBar_NowPlaying" xml:space="preserve">
+    <value>Now playing</value>
+  </data>
+  <data name="TopBar_Background" xml:space="preserve">
+    <value>Background</value>
+  </data>
+  <data name="TopBar_OpacityFormat" xml:space="preserve">
+    <value>Opacity {0}%</value>
+  </data>
+  <data name="TopBar_MoveLeft" xml:space="preserve">
+    <value>Move left</value>
+  </data>
+  <data name="TopBar_MoveRight" xml:space="preserve">
+    <value>Move right</value>
+  </data>
+  <data name="TopBar_ShowAll" xml:space="preserve">
+    <value>Show all</value>
+  </data>
+  <data name="TopBar_ResetDefault" xml:space="preserve">
+    <value>Reset to default</value>
+  </data>
 </root>

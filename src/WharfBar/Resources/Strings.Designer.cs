@@ -973,5 +973,179 @@ namespace WharfBar.Resources {
                 return ResourceManager.GetString("About_Description", resourceCulture);
             }
         }
+
+        public static string TopBar_Menu {
+            get {
+                return ResourceManager.GetString("TopBar_Menu", resourceCulture);
+            }
+        }
+
+        public static string TopBar_PcSettings {
+            get {
+                return ResourceManager.GetString("TopBar_PcSettings", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Profile {
+            get {
+                return ResourceManager.GetString("TopBar_Profile", resourceCulture);
+            }
+        }
+
+        public static string TopBar_AboutPc {
+            get {
+                return ResourceManager.GetString("TopBar_AboutPc", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Lock {
+            get {
+                return ResourceManager.GetString("TopBar_Lock", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Sleep {
+            get {
+                return ResourceManager.GetString("TopBar_Sleep", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Shutdown {
+            get {
+                return ResourceManager.GetString("TopBar_Shutdown", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Restart {
+            get {
+                return ResourceManager.GetString("TopBar_Restart", resourceCulture);
+            }
+        }
+
+        public static string TopBar_WharfBarSettings {
+            get {
+                return ResourceManager.GetString("TopBar_WharfBarSettings", resourceCulture);
+            }
+        }
+
+        public static string TopBar_About {
+            get {
+                return ResourceManager.GetString("TopBar_About", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Quit {
+            get {
+                return ResourceManager.GetString("TopBar_Quit", resourceCulture);
+            }
+        }
+
+        public static string TopBar_TrayIcons {
+            get {
+                return ResourceManager.GetString("TopBar_TrayIcons", resourceCulture);
+            }
+        }
+
+        public static string TopBar_TrayOverflow {
+            get {
+                return ResourceManager.GetString("TopBar_TrayOverflow", resourceCulture);
+            }
+        }
+
+        public static string TopBar_DateTime {
+            get {
+                return ResourceManager.GetString("TopBar_DateTime", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Notifications {
+            get {
+                return ResourceManager.GetString("TopBar_Notifications", resourceCulture);
+            }
+        }
+
+        public static string TopBar_ControlCenter {
+            get {
+                return ResourceManager.GetString("TopBar_ControlCenter", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Volume {
+            get {
+                return ResourceManager.GetString("TopBar_Volume", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Brightness {
+            get {
+                return ResourceManager.GetString("TopBar_Brightness", resourceCulture);
+            }
+        }
+
+        public static string TopBar_MonitorBrightness {
+            get {
+                return ResourceManager.GetString("TopBar_MonitorBrightness", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Network {
+            get {
+                return ResourceManager.GetString("TopBar_Network", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Battery {
+            get {
+                return ResourceManager.GetString("TopBar_Battery", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Media {
+            get {
+                return ResourceManager.GetString("TopBar_Media", resourceCulture);
+            }
+        }
+
+        public static string TopBar_NowPlaying {
+            get {
+                return ResourceManager.GetString("TopBar_NowPlaying", resourceCulture);
+            }
+        }
+
+        public static string TopBar_Background {
+            get {
+                return ResourceManager.GetString("TopBar_Background", resourceCulture);
+            }
+        }
+
+        public static string TopBar_OpacityFormat {
+            get {
+                return ResourceManager.GetString("TopBar_OpacityFormat", resourceCulture);
+            }
+        }
+
+        public static string TopBar_MoveLeft {
+            get {
+                return ResourceManager.GetString("TopBar_MoveLeft", resourceCulture);
+            }
+        }
+
+        public static string TopBar_MoveRight {
+            get {
+                return ResourceManager.GetString("TopBar_MoveRight", resourceCulture);
+            }
+        }
+
+        public static string TopBar_ShowAll {
+            get {
+                return ResourceManager.GetString("TopBar_ShowAll", resourceCulture);
+            }
+        }
+
+        public static string TopBar_ResetDefault {
+            get {
+                return ResourceManager.GetString("TopBar_ResetDefault", resourceCulture);
+            }
+        }
     }
 }

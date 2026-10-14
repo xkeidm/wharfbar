@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 using Image = System.Windows.Controls.Image;
 using Wpf.Ui.Controls;
@@ -1060,7 +1061,7 @@ public partial class TopBarWindow : Window
     {
         if (!snapshot.HasSession)
         {
-            return "Çalan medya";
+            return Strings.TopBar_NowPlaying;
         }
 
         if (string.IsNullOrEmpty(snapshot.Title))
@@ -1196,7 +1197,7 @@ public partial class TopBarWindow : Window
 
         menu.Items.Add(new System.Windows.Controls.MenuItem
         {
-            Header = "Arka plan",
+            Header = Strings.TopBar_Background,
             IsEnabled = false,
         });
 
@@ -1216,7 +1217,7 @@ public partial class TopBarWindow : Window
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         row.Children.Add(new System.Windows.Controls.TextBlock
         {
-            Text = $"Opaklık {opacity}%",
+            Text = string.Format(Strings.Culture ?? CultureInfo.CurrentUICulture, Strings.TopBar_OpacityFormat, opacity),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
             Width = 88,
@@ -1235,7 +1236,7 @@ public partial class TopBarWindow : Window
         slider.ValueChanged += (_, args) =>
         {
             int v = (int)Math.Round(args.NewValue);
-            label.Text = $"Opaklık {v}%";
+            label.Text = string.Format(Strings.Culture ?? CultureInfo.CurrentUICulture, Strings.TopBar_OpacityFormat, v);
             ScheduleTintOpacitySave(v);
         };
         row.Children.Add(slider);
@@ -1267,14 +1268,14 @@ public partial class TopBarWindow : Window
             int index = current.IndexOf(hitId);
             var moveLeft = new System.Windows.Controls.MenuItem
             {
-                Header = "Sola taşı",
+                Header = Strings.TopBar_MoveLeft,
                 IsEnabled = index > 0,
                 Tag = hitId,
             };
             moveLeft.Click += OnMoveStatusItemLeft;
             var moveRight = new System.Windows.Controls.MenuItem
             {
-                Header = "Sağa taşı",
+                Header = Strings.TopBar_MoveRight,
                 IsEnabled = index >= 0 && index < current.Count - 1,
                 Tag = hitId,
             };
@@ -1296,13 +1297,13 @@ public partial class TopBarWindow : Window
 
         var showAll = new System.Windows.Controls.MenuItem
         {
-            Header = "Tümünü göster",
+            Header = Strings.TopBar_ShowAll,
             IsEnabled = missing,
         };
         showAll.Click += OnShowAllStatusItems;
         menu.Items.Add(showAll);
 
-        var reset = new System.Windows.Controls.MenuItem { Header = "Varsayılana sıfırla" };
+        var reset = new System.Windows.Controls.MenuItem { Header = Strings.TopBar_ResetDefault };
         reset.Click += OnResetStatusItems;
         menu.Items.Add(reset);
         return menu;
@@ -1338,16 +1339,16 @@ public partial class TopBarWindow : Window
 
     private static string StatusItemHeader(string id) => id switch
     {
-        TopBarStatusItemIds.TrayMirror => "Tepsi simgeleri",
-        TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
-        TopBarStatusItemIds.DateTime => "Tarih ve saat",
-        TopBarStatusItemIds.Notifications => "Bildirimler",
-        TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
-        TopBarStatusItemIds.Volume => "Ses",
-        TopBarStatusItemIds.Brightness => "Parlaklık",
-        TopBarStatusItemIds.Network => "Ağ",
-        TopBarStatusItemIds.Battery => "Pil",
-        TopBarStatusItemIds.Media => "Medya",
+        TopBarStatusItemIds.TrayMirror => Strings.TopBar_TrayIcons,
+        TopBarStatusItemIds.TrayOverflow => Strings.TopBar_TrayOverflow,
+        TopBarStatusItemIds.DateTime => Strings.TopBar_DateTime,
+        TopBarStatusItemIds.Notifications => Strings.TopBar_Notifications,
+        TopBarStatusItemIds.ControlCenter => Strings.TopBar_ControlCenter,
+        TopBarStatusItemIds.Volume => Strings.TopBar_Volume,
+        TopBarStatusItemIds.Brightness => Strings.TopBar_Brightness,
+        TopBarStatusItemIds.Network => Strings.TopBar_Network,
+        TopBarStatusItemIds.Battery => Strings.TopBar_Battery,
+        TopBarStatusItemIds.Media => Strings.TopBar_Media,
         _ => id,
     };
 
