@@ -43,8 +43,7 @@ internal sealed class ProjectionService
         }
         else
         {
-            // Hibrit-GPU makinelerinde (ör. NVIDIA + AMD iGPU) topology veritabanı
-            // ERROR_INVALID_PARAMETER döndürür; geometriden tahmin et.
+            // Veritabanı okunamazsa (bazı hibrit GPU'lar hâlâ 87 döner) geometriden tahmin et.
             Debug.WriteLine("WharfBar: QueryDisplayConfig failed — guessing from monitor metrics");
             (int monitors, int vx, int vy, int vw, int vh, int pw, int ph) = DisplayTopology.ReadMonitorMetrics();
             Current = GuessCurrentMode(monitors, vx, vy, vw, vh, pw, ph);

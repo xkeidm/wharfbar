@@ -44,11 +44,12 @@ internal sealed class QuickSettingsService : IDisposable
     private readonly DispatcherTimer _timer;
     private readonly Dispatcher _dispatcher;
     private bool _disposed;
-    private bool _wifiOn = true;
+    private bool _wifiOn;
     private bool _bluetoothOn;
     private bool _airplaneOn;
     private bool _radiosKnown;
     private int _radioInitBusy;
+    private bool _radioScanCompleted;
     private readonly NightLightService _nightLight;
     private readonly VeilService _veil;
     private readonly EventHandler _onVeilChanged;
@@ -136,7 +137,11 @@ internal sealed class QuickSettingsService : IDisposable
                 await SetAirplaneAsync(!_airplaneOn).ConfigureAwait(true);
                 break;
             case "nightlight":
-                _nightLight.SetEnabled(!_nightLight.IsEnabled);
+                if (!_nightLight.SetEnabled(!_nightLight.IsEnabled))
+                {
+                    OpenSettingsUri("ms-settings:nightlight");
+                }
+
                 break;
             case "veil":
                 _veil.SetEnabled(!_veil.IsEnabled);
@@ -195,6 +200,15 @@ internal sealed class QuickSettingsService : IDisposable
         _disposed = true;
         _timer.Stop();
         _veil.Changed -= _onVeilChanged;
+        foreach (List<Windows.Devices.Radios.Radio> list in _radios.Values)
+        {
+            foreach (Windows.Devices.Radios.Radio radio in list)
+            {
+                radio.StateChanged -= OnRadioStateChanged;
+            }
+        }
+
+        _radios.Clear();
         if (_energySaverHooked)
         {
             Windows.System.Power.PowerManager.EnergySaverStatusChanged -= OnEnergySaverStatusChanged;
@@ -318,7 +332,7 @@ internal sealed class QuickSettingsService : IDisposable
 
         try
         {
-            if (_radios.Count > 0 || !await EnsureRadioAccessAsync())
+            if (_radioScanCompleted || !await EnsureRadioAccessAsync())
             {
                 return;
             }
@@ -326,19 +340,10 @@ internal sealed class QuickSettingsService : IDisposable
             var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
             foreach (Windows.Devices.Radios.Radio radio in radios)
             {
-                radio.StateChanged += OnRadioStateChanged;
-                if (radio.Kind is Windows.Devices.Radios.RadioKind.WiFi or Windows.Devices.Radios.RadioKind.Bluetooth)
-                {
-                    if (!_radios.TryGetValue(radio.Kind, out var list))
-                    {
-                        list = [];
-                        _radios[radio.Kind] = list;
-                    }
-
-                    list.Add(radio);
-                }
+                CacheRadio(radio);
             }
 
+            _radioScanCompleted = true;
             UpdateRadioStates();
         }
         catch (Exception ex)
@@ -445,9 +450,23 @@ internal sealed class QuickSettingsService : IDisposable
             List<Windows.Devices.Radios.Radio>? targets = _radios.GetValueOrDefault(kind);
             if (targets is null or { Count: 0 })
             {
-                // Cache henüz hazır değil — tek seferlik keşif.
                 var radios = await Windows.Devices.Radios.Radio.GetRadiosAsync();
-                targets = radios.Where(r => r.Kind == kind).ToList();
+                foreach (Windows.Devices.Radios.Radio radio in radios)
+                {
+                    CacheRadio(radio);
+                }
+
+                _radioScanCompleted = true;
+                targets = _radios.GetValueOrDefault(kind);
+            }
+
+            if (targets is null or { Count: 0 })
+            {
+                OpenSettingsUri(kind == Windows.Devices.Radios.RadioKind.WiFi
+                    ? "ms-settings:network-wifi"
+                    : "ms-settings:bluetooth");
+                UpdateRadioStates();
+                return;
             }
 
             var state = turnOn
@@ -470,6 +489,28 @@ internal sealed class QuickSettingsService : IDisposable
             OpenSettingsUri("ms-settings:network");
             UpdateRadioStates();
         }
+    }
+
+    private void CacheRadio(Windows.Devices.Radios.Radio radio)
+    {
+        if (radio.Kind is not (Windows.Devices.Radios.RadioKind.WiFi or Windows.Devices.Radios.RadioKind.Bluetooth))
+        {
+            return;
+        }
+
+        if (!_radios.TryGetValue(radio.Kind, out List<Windows.Devices.Radios.Radio>? list))
+        {
+            list = [];
+            _radios[radio.Kind] = list;
+        }
+
+        if (list.Exists(existing => string.Equals(existing.Name, radio.Name, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        radio.StateChanged += OnRadioStateChanged;
+        list.Add(radio);
     }
 
     private async Task<bool> EnsureRadioAccessAsync()

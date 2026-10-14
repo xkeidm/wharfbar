@@ -9,6 +9,7 @@ public partial class BrightnessFlyout : UserControl
 {
     private MonitorBrightnessService? _service;
     private bool _isUpdatingUi;
+    private bool _drivingMaster;
 
     public BrightnessFlyout()
     {
@@ -91,7 +92,9 @@ public partial class BrightnessFlyout : UserControl
             var supportedMonitors = monitors.Where(m => m.IsSupported).ToList();
             MasterPanel.Visibility = supportedMonitors.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            if (supportedMonitors.Count > 0)
+            // A master-slider drag already owns the thumb. Writing the average back
+            // (one panel may clamp) yanks the thumb out from under the pointer.
+            if (supportedMonitors.Count > 0 && !_drivingMaster)
             {
                 int avgBrightness = (int)Math.Round(supportedMonitors.Average(m => m.CurrentBrightness));
                 MasterBrightnessSlider.Value = avgBrightness;
@@ -211,8 +214,16 @@ public partial class BrightnessFlyout : UserControl
 
         if (!_isUpdatingUi && _service is not null)
         {
-            _service.SetAllBrightness(val);
-            RebuildMonitorList();
+            _drivingMaster = true;
+            try
+            {
+                _service.SetAllBrightness(val);
+                RebuildMonitorList();
+            }
+            finally
+            {
+                _drivingMaster = false;
+            }
         }
     }
 }

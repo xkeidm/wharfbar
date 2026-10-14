@@ -4,8 +4,8 @@ using Microsoft.Win32;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Best-effort gece ışığı okuma/yazma. Registry blob formatı Windows sürümleri arasında
-/// kırılabilir; okuyucu "bilinmiyor" dönerse oturum override'ı tile'ı doğru tutar.
+/// Best-effort gece ışığı okuma/yazma. Registry blob tanınmazsa yazılmaz ve karo değişmez;
+/// daha önce yazılmış bir oturum override'ı, okuma tekrar tanıyana kadar durur.
 /// </summary>
 internal sealed class NightLightService
 {
@@ -17,12 +17,20 @@ internal sealed class NightLightService
 
     internal bool IsEnabled => _override ?? _lastKnown;
 
-    /// <summary>Override önce güncellenir (tile anında doğru), ardından registry'ye yazım denenir.</summary>
-    internal void SetEnabled(bool enabled)
+    /// <summary>
+    /// Registry yazımı tutarsa karo yeni duruma geçer. Blob tanınmıyorsa override kurulmaz;
+    /// çağıran Windows Ayarları'nı açabilir.
+    /// </summary>
+    internal bool SetEnabled(bool enabled)
     {
+        if (!TryWriteRegistry(enabled))
+        {
+            return false;
+        }
+
         _override = enabled;
         _lastKnown = enabled;
-        TryWriteRegistry(enabled);
+        return true;
     }
 
     /// <summary>Registry'yi yeniden okur; dışarıdan değişiklik okunabilir ve override'dan
@@ -56,7 +64,7 @@ internal sealed class NightLightService
         }
     }
 
-    private static void TryWriteRegistry(bool enabled)
+    private static bool TryWriteRegistry(bool enabled)
     {
         try
         {
@@ -64,20 +72,22 @@ internal sealed class NightLightService
             if (data is null || !NightLightBlob.TryParse(data, out bool current))
             {
                 Debug.WriteLine("WharfBar: Night light write skipped — blob not recognised");
-                return;
+                return false;
             }
 
             if (current == enabled)
             {
-                return;
+                return true;
             }
 
             using RegistryKey key = Registry.CurrentUser.CreateSubKey(StateKeyPath);
             key.SetValue("Data", NightLightBlob.ToggleFlag(data, enabled), RegistryValueKind.Binary);
+            return true;
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar: Night light write failed — {ex.Message}");
+            return false;
         }
     }
 }

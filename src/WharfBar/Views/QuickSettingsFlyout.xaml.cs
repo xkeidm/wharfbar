@@ -30,6 +30,7 @@ public partial class QuickSettingsFlyout : UserControl
     private int _activeSessionDrags;
     private bool _masterDragging;
     private QuickSettingsPage _page = QuickSettingsPage.Main;
+    private string? _projectError;
     private bool _flyoutOpen;
     private int _pageMotionGeneration;
 
@@ -157,16 +158,19 @@ public partial class QuickSettingsFlyout : UserControl
         if (page == QuickSettingsPage.Wifi)
         {
             _wifi?.StartPolling();
+            RefreshWifiPage();
         }
         else
         {
             _wifi?.StopPolling();
             WifiPasswordPanel.Visibility = Visibility.Collapsed;
+            ClearWifiStatus();
         }
 
         if (page == QuickSettingsPage.Bluetooth)
         {
             _bluetooth?.StartPolling();
+            RefreshBluetoothPage();
         }
         else
         {
@@ -388,7 +392,18 @@ public partial class QuickSettingsFlyout : UserControl
 
     private void OnMixerChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshMixer);
 
-    private void OnQuickChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshQuick);
+    private void OnQuickChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(() =>
+    {
+        RefreshQuick();
+        if (_page == QuickSettingsPage.Wifi)
+        {
+            RefreshWifiPage();
+        }
+        else if (_page == QuickSettingsPage.Bluetooth)
+        {
+            RefreshBluetoothPage();
+        }
+    });
 
     private void OnWifiChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(RefreshWifiPage);
 
@@ -414,10 +429,18 @@ public partial class QuickSettingsFlyout : UserControl
         _masterSliderUpdating = true;
         try
         {
-            MasterVolumeSlider.Value = snap.Percent;
+            MasterVolumeSlider.IsEnabled = snap.IsAvailable;
+            MasterMuteButton.IsEnabled = snap.IsAvailable;
+            if (snap.IsAvailable)
+            {
+                MasterVolumeSlider.Value = snap.Percent;
+            }
+
             string glyph = snap.IsMuted || snap.Percent == 0 ? "\uE74F" : "\uE767";
             MasterMuteGlyph.Text = glyph;
-            MasterMuteButton.ToolTip = snap.IsMuted ? "Sesi aç" : "Sessiz";
+            MasterMuteButton.ToolTip = snap.IsAvailable
+                ? snap.IsMuted ? "Sesi aç" : "Sessiz"
+                : "Ses aygıtı yok";
         }
         finally
         {
@@ -918,6 +941,7 @@ public partial class QuickSettingsFlyout : UserControl
             SetTileBackground(ui, tile.IsActive ? ui.AccentBrush : ui.BaseBrush);
         }
 
+        ui.Border.IsEnabled = tile.IsEnabled;
         if (!tile.IsEnabled)
         {
             ui.Border.Style = TryFindResource("QsTileDisabled") as Style;
@@ -984,7 +1008,7 @@ public partial class QuickSettingsFlyout : UserControl
 
     private async void OnTileClick(object sender, MouseButtonEventArgs e)
     {
-        if (sender is not FrameworkElement { Tag: string id } || _quick is null)
+        if (sender is not FrameworkElement { Tag: string id, IsEnabled: true } || _quick is null)
         {
             return;
         }
@@ -1059,25 +1083,27 @@ public partial class QuickSettingsFlyout : UserControl
             return;
         }
 
+        bool radioOn = _quick?.IsWifiRadioOn ?? true;
         if (_quick is not null)
         {
-            bool radioOn = _quick.IsWifiRadioOn;
-            WifiSummarySubtitle.Text = !_wifi.IsAvailable
-                ? "Adaptör bulunamadı"
-                : !radioOn
-                    ? "Wi-Fi kapalı"
+            WifiSummarySubtitle.Text = !radioOn
+                ? "Wi-Fi kapalı"
+                : !_wifi.IsAvailable
+                    ? "Adaptör bulunamadı"
                     : _wifi.Networks.FirstOrDefault(n => n.IsConnected)?.Ssid ?? "Bağlı değil";
         }
 
         WifiNetworkList.Children.Clear();
-        foreach (WifiNetworkInfo network in _wifi.Networks)
+        if (radioOn)
         {
-            WifiNetworkList.Children.Add(BuildWifiRow(network));
+            foreach (WifiNetworkInfo network in _wifi.Networks)
+            {
+                WifiNetworkList.Children.Add(BuildWifiRow(network));
+            }
         }
 
-        if (WifiNetworkList.Children.Count == 0 && _wifi.IsAvailable)
+        if (WifiNetworkList.Children.Count == 0 && (_wifi.IsAvailable || !radioOn))
         {
-            bool radioOn = _quick?.IsWifiRadioOn ?? true;
             WifiNetworkList.Children.Add(new TextBlock
             {
                 Text = !radioOn ? "Wi-Fi kapalı" : "Ağlar aranıyor…",
@@ -1174,7 +1200,7 @@ public partial class QuickSettingsFlyout : UserControl
         return border;
     }
 
-    private void OnWifiRowClick(object sender, MouseButtonEventArgs e)
+    private async void OnWifiRowClick(object sender, MouseButtonEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: WifiNetworkInfo network } || _wifi is null)
         {
@@ -1184,29 +1210,40 @@ public partial class QuickSettingsFlyout : UserControl
         e.Handled = true;
         if (network.IsConnected)
         {
-            return;
-        }
-
-        if (network.IsKnown || !network.IsSecured)
-        {
-            (bool ok, string? error) = _wifi.TryConnect(network, password: null);
-            if (!ok)
+            (bool disconnected, string? disconnectError) = _wifi.TryDisconnect();
+            if (disconnected)
             {
-                ShowWifiError(error ?? "Bağlanılamadı");
+                ClearWifiStatus();
+            }
+            else
+            {
+                ShowWifiError(disconnectError ?? "Bağlantı kesilemedi");
             }
 
             return;
         }
 
+        if (WifiService.ConnectBlockReason(network) is { } blocked)
+        {
+            ShowWifiError(blocked);
+            return;
+        }
+
+        if (network.IsKnown || !network.IsSecured)
+        {
+            await ConfirmWifiConnectAsync(network, password: null);
+            return;
+        }
+
         _pendingWifiConnect = network;
         WifiPasswordSsid.Text = network.Ssid;
-        WifiErrorText.Text = string.Empty;
+        ClearWifiStatus();
         WifiPasswordBox.Password = string.Empty;
         WifiPasswordPanel.Visibility = Visibility.Visible;
         WifiPasswordBox.Focus();
     }
 
-    private void OnWifiConnectClick(object sender, RoutedEventArgs e)
+    private async void OnWifiConnectClick(object sender, RoutedEventArgs e)
     {
         if (_wifi is null || _pendingWifiConnect is not { } network)
         {
@@ -1214,25 +1251,61 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         string password = WifiPasswordBox.Password;
-        (bool ok, string? error) = _wifi.TryConnect(network, password);
-        if (ok)
+        if (await ConfirmWifiConnectAsync(network, password))
         {
             WifiPasswordPanel.Visibility = Visibility.Collapsed;
             _pendingWifiConnect = null;
-            RefreshWifiPage();
-            return;
+        }
+    }
+
+    private async Task<bool> ConfirmWifiConnectAsync(WifiNetworkInfo network, string? password)
+    {
+        if (_wifi is null)
+        {
+            return false;
         }
 
-        ShowWifiError(error ?? "Bağlanılamadı");
+        ShowWifiError("Bağlanıyor…");
+        (bool ok, string? error) = await Task.Run(() => _wifi.TryConnect(network, password));
+        if (!ok)
+        {
+            ShowWifiError(error ?? "Bağlanılamadı");
+            return false;
+        }
+
+        bool connected = await Task.Run(() => _wifi.WaitUntilConnected(network.Ssid, TimeSpan.FromSeconds(8)));
+        if (!connected)
+        {
+            ShowWifiError("Bağlanılamadı");
+            RefreshWifiPage();
+            return false;
+        }
+
+        ClearWifiStatus();
+        RefreshWifiPage();
+        return true;
     }
 
     private void OnWifiCancelClick(object sender, RoutedEventArgs e)
     {
         WifiPasswordPanel.Visibility = Visibility.Collapsed;
         _pendingWifiConnect = null;
+        ClearWifiStatus();
     }
 
-    private void ShowWifiError(string message) => WifiErrorText.Text = message;
+    private void ShowWifiError(string message)
+    {
+        WifiErrorText.Text = message;
+        WifiStatusText.Text = message;
+        WifiStatusText.Visibility = Visibility.Visible;
+    }
+
+    private void ClearWifiStatus()
+    {
+        WifiErrorText.Text = string.Empty;
+        WifiStatusText.Text = string.Empty;
+        WifiStatusText.Visibility = Visibility.Collapsed;
+    }
 
     private void RefreshNetworkPage()
     {
@@ -1372,15 +1445,18 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         _projection.Refresh();
+        int monitors = DisplayTopology.ReadMonitorMetrics().Monitors;
         ProjectModeList.Children.Clear();
         foreach ((ProjectionMode mode, string label) in ProjectModes)
         {
             bool active = _projection.Current == mode;
+            bool needsSecond = mode != ProjectionMode.InternalOnly && monitors < 2;
             var border = new Border
             {
                 Padding = new Thickness(12, 10, 12, 10),
                 CornerRadius = new CornerRadius(8),
-                Cursor = Cursors.Hand,
+                Cursor = needsSecond ? Cursors.Arrow : Cursors.Hand,
+                Opacity = needsSecond ? 0.45 : 1,
                 Margin = new Thickness(0, 0, 0, 6),
                 Background = active
                     ? TryFindResource("AccentFillColorDefaultBrush") as Brush
@@ -1416,6 +1492,18 @@ public partial class QuickSettingsFlyout : UserControl
             border.MouseLeftButtonUp += OnProjectModeClick;
             ProjectModeList.Children.Add(border);
         }
+
+        if (!string.IsNullOrEmpty(_projectError))
+        {
+            ProjectModeList.Children.Add(new TextBlock
+            {
+                Text = _projectError,
+                FontSize = 12,
+                Opacity = 0.75,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(4, 2, 0, 0),
+            });
+        }
     }
 
     private void OnProjectModeClick(object sender, MouseButtonEventArgs e)
@@ -1426,10 +1514,23 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         e.Handled = true;
+        int monitors = DisplayTopology.ReadMonitorMetrics().Monitors;
+        if (mode != ProjectionMode.InternalOnly && monitors < 2)
+        {
+            _projectError = "İkinci ekran yok";
+            RefreshProjectPage();
+            return;
+        }
+
         if (_projection.TryApply(mode))
         {
+            _projectError = null;
             RefreshProjectPage();
+            return;
         }
+
+        _projectError = "Bu mod uygulanamadı";
+        RefreshProjectPage();
     }
 
     private void OnOpenDisplaySettingsClick(object sender, RoutedEventArgs e) =>

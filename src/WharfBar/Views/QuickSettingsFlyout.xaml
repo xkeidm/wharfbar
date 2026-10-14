@@ -449,6 +449,11 @@
                                        Opacity="0.75"
                                        TextWrapping="Wrap"
                                        Text="—" />
+                            <TextBlock x:Name="WifiStatusText"
+                                       FontSize="11"
+                                       Opacity="0.85"
+                                       TextWrapping="Wrap"
+                                       Visibility="Collapsed" />
                         </StackPanel>
                     </DockPanel>
                 </Border>

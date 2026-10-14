@@ -58,4 +58,76 @@ public class WifiServiceTests
 
         Assert.Equal(["connected", "strong", "weak"], sorted.Select(n => n.Ssid));
     }
+
+    [Fact]
+    public void BuildProfileXml_PassphraseIsCleartext()
+    {
+        string xml = WifiService.BuildProfileXml("Cafe", "s3cret");
+
+        Assert.Contains("<protected>false</protected>", xml, StringComparison.Ordinal);
+        Assert.Contains("<keyMaterial>s3cret</keyMaterial>", xml, StringComparison.Ordinal);
+        Assert.Contains("<authentication>WPA2PSK</authentication>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("<protected>true</protected>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildProfileXml_EscapesPassword()
+    {
+        string xml = WifiService.BuildProfileXml("Cafe", "a<b&c");
+
+        Assert.Contains("<keyMaterial>a&lt;b&amp;c</keyMaterial>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildProfileXml_OpenNetworkHasNoKey()
+    {
+        string xml = WifiService.BuildProfileXml("Open", null);
+
+        Assert.Contains("<authentication>open</authentication>", xml, StringComparison.Ordinal);
+        Assert.DoesNotContain("keyMaterial", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BuildProfileXml_Wpa3Sae()
+    {
+        string xml = WifiService.BuildProfileXml("Cafe", "s3cret", WifiService.AuthWpa3Sae);
+
+        Assert.Contains("<authentication>WPA3SAE</authentication>", xml, StringComparison.Ordinal);
+        Assert.Contains("<protected>false</protected>", xml, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void DedupeNetworks_KeepsConnectedCopyOfSameSsid()
+    {
+        var weak = new WifiNetworkInfo("Cafe", 10, true, false, false, null);
+        var known = new WifiNetworkInfo("Cafe", 80, true, true, false, "Cafe");
+        var connected = new WifiNetworkInfo("Cafe", 40, true, true, true, "Cafe");
+        var home = new WifiNetworkInfo("Home", 20, false, false, false, null);
+
+        IReadOnlyList<WifiNetworkInfo> deduped = WifiService.DedupeNetworks([weak, known, connected, home]);
+
+        Assert.Equal(2, deduped.Count);
+        Assert.Contains(deduped, n => n.Ssid == "Cafe" && n.IsConnected);
+        Assert.Contains(deduped, n => n.Ssid == "Home");
+    }
+
+    [Theory]
+    [InlineData(WifiService.AuthRsna, true)]
+    [InlineData(WifiService.AuthWpa3Ent, true)]
+    [InlineData(WifiService.AuthRsnaPsk, false)]
+    [InlineData(WifiService.AuthWpa3Sae, false)]
+    [InlineData(0u, false)]
+    public void IsEnterpriseAuth_OnlyEnterpriseAlgorithms(uint auth, bool enterprise)
+    {
+        Assert.Equal(enterprise, WifiService.IsEnterpriseAuth(auth));
+    }
+
+    [Fact]
+    public void ConnectBlockReason_HiddenEnterpriseAndUnconnectable()
+    {
+        Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("(Gizli ağ)", 10, true, false, false, null)));
+        Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("Corp", 10, true, false, false, null, WifiService.AuthRsna)));
+        Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("Nope", 10, true, false, false, null, IsConnectable: false)));
+        Assert.Null(WifiService.ConnectBlockReason(new WifiNetworkInfo("Cafe", 10, true, false, false, null, WifiService.AuthRsnaPsk)));
+    }
 }

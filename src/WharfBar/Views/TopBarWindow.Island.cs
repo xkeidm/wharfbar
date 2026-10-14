@@ -396,6 +396,8 @@ public partial class TopBarWindow
         {
             ApplyIslandChrome(focusMusic: false);
         }
+
+        SyncVisualizerTimer();
     }
 
     private void NoteIslandBattery(bool apply)
@@ -449,6 +451,7 @@ public partial class TopBarWindow
         if (!SyncIslandVisibility(snap))
         {
             ApplyCaptureAffinity(snap, pillShown: false);
+            SyncVisualizerTimer();
             return;
         }
 
@@ -456,6 +459,7 @@ public partial class TopBarWindow
         SyncIslandPopup(snap, focusMusic);
         ApplyCaptureAffinity(snap, pillShown: true);
         ArmIslandClock();
+        SyncVisualizerTimer();
     }
 
     private bool SyncIslandVisibility(IslandPresenceView snap)
@@ -1063,11 +1067,8 @@ public partial class TopBarWindow
             {
                 island.EntryAdded += OnIslandEntryAdded;
                 _engine.Bluetooth.Changed += OnBluetoothNotice;
-                _engine.Bluetooth.StartPolling();
+                SyncBluetoothWatch();
                 CameraMirrorHost.Updated += OnCameraMirrorUpdated;
-                _vizTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
-                _vizTimer.Tick += OnVisualizerTick;
-                _vizTimer.Start();
             }
         }
 
@@ -1096,6 +1097,7 @@ public partial class TopBarWindow
         }
 
         _engine.Bluetooth.Changed -= OnBluetoothNotice;
+        _engine.Bluetooth.StopWatching();
         CameraMirrorHost.Updated -= OnCameraMirrorUpdated;
         if (_vizTimer is not null)
         {
@@ -1398,13 +1400,53 @@ public partial class TopBarWindow
         ApplyIslandChrome(focusMusic: false);
     }
 
+    private void SyncBluetoothWatch()
+    {
+        if (!Monitor.IsPrimary)
+        {
+            return;
+        }
+
+        if (Island?.Config.BluetoothNotice == true)
+        {
+            _engine.Bluetooth.WatchConnections();
+            return;
+        }
+
+        _engine.Bluetooth.StopWatching();
+    }
+
+    private bool VisualizerWanted()
+        => Monitor.IsPrimary
+           && Island?.Config.Visualizer == true
+           && _engine.Media.Snapshot.IsPlaying
+           && _presence?.View.Face == IslandPillFace.NowPlaying;
+
+    private void SyncVisualizerTimer()
+    {
+        if (!VisualizerWanted())
+        {
+            _vizTimer?.Stop();
+            return;
+        }
+
+        if (_vizTimer is null)
+        {
+            _vizTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _vizTimer.Tick += OnVisualizerTick;
+        }
+
+        if (!_vizTimer.IsEnabled)
+        {
+            _vizTimer.Start();
+        }
+    }
+
     private void OnVisualizerTick(object? sender, EventArgs e)
     {
-        bool show = Island?.Config.Visualizer == true
-            && _engine.Media.Snapshot.IsPlaying
-            && _presence?.View.Face == IslandPillFace.NowPlaying;
-        if (!show)
+        if (!VisualizerWanted())
         {
+            _vizTimer?.Stop();
             if (IslandBars.Visibility == Visibility.Visible)
             {
                 ApplyIslandChrome(focusMusic: false);

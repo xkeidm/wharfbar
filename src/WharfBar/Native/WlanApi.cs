@@ -112,7 +112,8 @@ internal static class WlanApi
     internal const uint ERROR_SUCCESS = 0;
     internal const uint WLAN_AVAILABLE_NETWORK_CONNECTED = 1;
     internal const uint WLAN_AVAILABLE_NETWORK_HAS_PROFILE = 2;
-    internal const uint WLAN_INTERFACE_STATE_CONNECTED = 4;
+    /// <summary><c>wlan_interface_state_connected</c> (wlanapi.h). 4 is disconnected.</summary>
+    internal const uint WLAN_INTERFACE_STATE_CONNECTED = 1;
     private const uint wlan_connection_mode_profile = 1;
     private const uint dot11_BSS_type_infrastructure = 2;
     private const uint wlan_intf_opcode_current_connection = 7;
@@ -125,7 +126,9 @@ internal static class WlanApi
         bool Secured,
         bool HasProfile,
         bool Connected,
-        string? ProfileName);
+        string? ProfileName,
+        uint AuthAlgorithm = 0,
+        bool Connectable = true);
 
     [DllImport("wlanapi.dll")]
     private static extern uint WlanOpenHandle(uint dwClientVersion, IntPtr pReserved, out uint pdwNegotiatedVersion, out IntPtr phClientHandle);
@@ -141,6 +144,9 @@ internal static class WlanApi
 
     [DllImport("wlanapi.dll")]
     private static extern uint WlanConnect(IntPtr hClientHandle, ref Guid pInterfaceGuid, ref WLAN_CONNECTION_PARAMETERS pConnectionParameters);
+
+    [DllImport("wlanapi.dll")]
+    private static extern uint WlanDisconnect(IntPtr hClientHandle, ref Guid pInterfaceGuid, IntPtr pReserved);
 
     [DllImport("wlanapi.dll")]
     private static extern uint WlanQueryInterface(IntPtr hClientHandle, ref Guid pInterfaceGuid, uint OpCode, IntPtr pReserved, out uint pdwDataSize, out IntPtr ppData, IntPtr pWlanOpcodeValueType);
@@ -184,7 +190,26 @@ internal static class WlanApi
                 return false;
             }
 
-            guid = Marshal.PtrToStructure<WLAN_INTERFACE_INFO>(listPtr + InterfaceListHeaderBytes).InterfaceGuid;
+            int stride = Marshal.SizeOf<WLAN_INTERFACE_INFO>();
+            IntPtr first = listPtr + InterfaceListHeaderBytes;
+            Guid? connected = null;
+            Guid fallback = Guid.Empty;
+            for (int i = 0; i < list.dwNumberOfItems; i++)
+            {
+                WLAN_INTERFACE_INFO info = Marshal.PtrToStructure<WLAN_INTERFACE_INFO>(first + (i * stride));
+                if (i == 0)
+                {
+                    fallback = info.InterfaceGuid;
+                }
+
+                if (info.isState == WLAN_INTERFACE_STATE_CONNECTED)
+                {
+                    connected = info.InterfaceGuid;
+                    break;
+                }
+            }
+
+            guid = connected ?? fallback;
             return true;
         }
         finally
@@ -223,7 +248,9 @@ internal static class WlanApi
                     n.bSecurityEnabled != 0,
                     hasProfile,
                     (n.dwFlags & WLAN_AVAILABLE_NETWORK_CONNECTED) != 0,
-                    hasProfile && !string.IsNullOrEmpty(n.strProfileName) ? n.strProfileName : null));
+                    hasProfile && !string.IsNullOrEmpty(n.strProfileName) ? n.strProfileName : null,
+                    n.dot11DefaultAuthAlgorithm,
+                    n.bNetworkConnectable != 0));
             }
 
             return true;
@@ -262,6 +289,9 @@ internal static class WlanApi
         }
     }
 
+    internal static bool TryDisconnect(IntPtr handle, Guid guid) =>
+        WlanDisconnect(handle, ref guid, IntPtr.Zero) == ERROR_SUCCESS;
+
     internal static bool TryGetCurrentSsid(IntPtr handle, Guid guid, out byte[] ssid)
     {
         ssid = Array.Empty<byte>();
@@ -278,7 +308,14 @@ internal static class WlanApi
                 return false;
             }
 
-            ssid = attrs.wlanAssociationAttributes.dot11Ssid.ucSSID;
+            DOT11_SSID dot11 = attrs.wlanAssociationAttributes.dot11Ssid;
+            int len = Math.Min((int)dot11.uSSIDLength, dot11.ucSSID?.Length ?? 0);
+            if (len <= 0 || dot11.ucSSID is null)
+            {
+                return false;
+            }
+
+            ssid = dot11.ucSSID[..len];
             return true;
         }
         finally

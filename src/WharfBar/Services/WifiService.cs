@@ -6,20 +6,31 @@ using WharfBar.Native;
 
 namespace WharfBar.Services;
 
-internal sealed record WifiNetworkInfo(string Ssid, int Signal, bool IsSecured, bool IsKnown, bool IsConnected, string? ProfileName);
+internal sealed record WifiNetworkInfo(
+    string Ssid,
+    int Signal,
+    bool IsSecured,
+    bool IsKnown,
+    bool IsConnected,
+    string? ProfileName,
+    uint AuthAlgorithm = 0,
+    bool IsConnectable = true);
 
 /// <summary>Wlan API üzerinden ağ listesi ve bağlanma. Sadece Wifi sayfası açıkken poll edilir.</summary>
 internal sealed class WifiService : IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
 
+    private readonly Dispatcher _dispatcher;
     private readonly DispatcherTimer _timer;
+    private int _refreshGate;
     private bool _disposed;
 
     internal WifiService()
     {
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _timer = new DispatcherTimer { Interval = PollInterval };
-        _timer.Tick += (_, _) => Refresh();
+        _timer.Tick += (_, _) => _ = RefreshAsync();
     }
 
     internal bool IsAvailable { get; private set; }
@@ -35,7 +46,7 @@ internal sealed class WifiService : IDisposable
             return;
         }
 
-        Refresh();
+        _ = RefreshAsync();
         _timer.Start();
     }
 
@@ -52,8 +63,47 @@ internal sealed class WifiService : IDisposable
         _timer.Stop();
     }
 
+    internal const uint AuthWpa = 3;
+    internal const uint AuthWpaPsk = 4;
+    internal const uint AuthRsna = 6;
+    internal const uint AuthRsnaPsk = 7;
+    internal const uint AuthWpa3Ent192 = 8;
+    internal const uint AuthWpa3Sae = 9;
+    internal const uint AuthOwe = 10;
+    internal const uint AuthWpa3Ent = 11;
+    internal const string HiddenSsidLabel = "(Gizli ağ)";
+
+    /// <summary>Bağlanma denemeden önce elenen ağlar. Şifre eksikliği burada yoktur.</summary>
+    internal static string? ConnectBlockReason(WifiNetworkInfo network)
+    {
+        if (network.Ssid == HiddenSsidLabel)
+        {
+            return "Gizli ağa buradan bağlanılamaz";
+        }
+
+        if (!network.IsConnectable)
+        {
+            return "Bu ağa bağlanılamıyor";
+        }
+
+        if (IsEnterpriseAuth(network.AuthAlgorithm))
+        {
+            return "Kurumsal ağ — Wi-Fi ayarlarından bağlanın";
+        }
+
+        return null;
+    }
+
+    internal static bool IsEnterpriseAuth(uint auth) =>
+        auth is AuthWpa or AuthRsna or AuthWpa3Ent192 or AuthWpa3Ent;
+
     internal (bool Ok, string? Error) TryConnect(WifiNetworkInfo network, string? password)
     {
+        if (ConnectBlockReason(network) is { } blocked)
+        {
+            return (false, blocked);
+        }
+
         if (!WlanApi.TryOpen(out IntPtr handle))
         {
             return (false, "Wi-Fi hizmeti açılamadı");
@@ -73,12 +123,12 @@ internal sealed class WifiService : IDisposable
             }
             else
             {
-                if (network.IsSecured && password is null)
+                if (network.IsSecured && string.IsNullOrEmpty(password))
                 {
                     return (false, "Şifre gerekli");
                 }
 
-                string xml = BuildProfileXml(network.Ssid, network.IsSecured ? password : null);
+                string xml = BuildProfileXml(network.Ssid, network.IsSecured ? password : null, network.AuthAlgorithm);
                 if (!WlanApi.TrySetProfile(handle, guid, xml, out uint reason))
                 {
                     return (false, $"Profil oluşturulamadı (hata {reason})");
@@ -90,6 +140,77 @@ internal sealed class WifiService : IDisposable
             return WlanApi.TryConnectProfile(handle, guid, profileName)
                 ? (true, null)
                 : (false, "Bağlanılamadı");
+        }
+        finally
+        {
+            WlanApi.Close(handle);
+        }
+    }
+
+    internal (bool Ok, string? Error) TryDisconnect()
+    {
+        if (!WlanApi.TryOpen(out IntPtr handle))
+        {
+            return (false, "Wi-Fi hizmeti açılamadı");
+        }
+
+        try
+        {
+            if (!WlanApi.TryGetInterfaceGuid(handle, out Guid guid))
+            {
+                return (false, "Adaptör bulunamadı");
+            }
+
+            return WlanApi.TryDisconnect(handle, guid)
+                ? (true, null)
+                : (false, "Bağlantı kesilemedi");
+        }
+        finally
+        {
+            WlanApi.Close(handle);
+        }
+    }
+
+    /// <summary>
+    /// <c>WlanConnect</c> isteği kabul etmek ile ilişkilendirme aynı şey değildir.
+    /// Yanlış parolada API yine başarı döner; SSID gerçekten bağlanana kadar beklenir.
+    /// </summary>
+    internal bool WaitUntilConnected(string ssid, TimeSpan timeout)
+    {
+        DateTime deadline = DateTime.UtcNow + timeout;
+        do
+        {
+            if (string.Equals(TryReadCurrentSsid(), ssid, StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            if (DateTime.UtcNow >= deadline)
+            {
+                return false;
+            }
+
+            Thread.Sleep(400);
+        }
+        while (true);
+    }
+
+    private static string? TryReadCurrentSsid()
+    {
+        if (!WlanApi.TryOpen(out IntPtr handle))
+        {
+            return null;
+        }
+
+        try
+        {
+            if (!WlanApi.TryGetInterfaceGuid(handle, out Guid guid)
+                || !WlanApi.TryGetCurrentSsid(handle, guid, out byte[] ssid))
+            {
+                return null;
+            }
+
+            return SsidToString(ssid, ssid.Length);
         }
         finally
         {
@@ -114,7 +235,7 @@ internal sealed class WifiService : IDisposable
         if (len == 0)
         {
             // Boş SSID = yayınını kapatmış AP (gizli ağ).
-            return "(Gizli ağ)";
+            return HiddenSsidLabel;
         }
 
         byte[] slice = ssid[..len];
@@ -130,6 +251,17 @@ internal sealed class WifiService : IDisposable
         _ => 1,
     };
 
+    /// <summary>Aynı SSID bir kez: bağlı, sonra kayıtlı, sonra en güçlü sinyal.</summary>
+    internal static IReadOnlyList<WifiNetworkInfo> DedupeNetworks(IEnumerable<WifiNetworkInfo> networks) =>
+        networks
+            .GroupBy(n => n.Ssid, StringComparer.Ordinal)
+            .Select(group => group
+                .OrderByDescending(n => n.IsConnected)
+                .ThenByDescending(n => n.IsKnown)
+                .ThenByDescending(n => n.Signal)
+                .First())
+            .ToList();
+
     /// <summary>Bağlı ağ en üste; ardından sinyal gücüne göre azalan.</summary>
     internal static IReadOnlyList<WifiNetworkInfo> SortNetworks(IEnumerable<WifiNetworkInfo> networks) =>
         networks
@@ -137,14 +269,17 @@ internal sealed class WifiService : IDisposable
             .ThenByDescending(n => n.Signal)
             .ToList();
 
-    private static string BuildProfileXml(string ssid, string? password)
+    /// <summary>
+    /// Düz metin parola <c>protected=false</c> ister. <c>true</c> şifreli anahtar blob'u demektir
+    /// ve WlanSetProfile düz metni reddeder.
+    /// </summary>
+    internal static string BuildProfileXml(string ssid, string? password, uint authAlgorithm = 0)
     {
         string name = SecurityElement.Escape(ssid);
-        string auth = password is null ? "open" : "WPA2PSK";
-        string enc = password is null ? "none" : "AES";
+        (string auth, string enc) = ProfileSecurity(authAlgorithm, password is not null);
         string sharedKey = password is null
             ? string.Empty
-            : $"<sharedKey><keyType>passPhrase</keyType><protected>true</protected><keyMaterial>{SecurityElement.Escape(password)}</keyMaterial></sharedKey>";
+            : $"<sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>{SecurityElement.Escape(password)}</keyMaterial></sharedKey>";
 
         return $"""
 <?xml version="1.0"?>
@@ -161,50 +296,101 @@ internal sealed class WifiService : IDisposable
 """;
     }
 
-    private void Refresh()
+    internal static (string Auth, string Enc) ProfileSecurity(uint authAlgorithm, bool hasPassword)
+    {
+        if (!hasPassword)
+        {
+            return authAlgorithm == AuthOwe ? ("OWE", "AES") : ("open", "none");
+        }
+
+        return authAlgorithm switch
+        {
+            AuthWpaPsk => ("WPAPSK", "AES"),
+            AuthWpa3Sae => ("WPA3SAE", "AES"),
+            AuthOwe => ("OWE", "AES"),
+            _ => ("WPA2PSK", "AES"),
+        };
+    }
+
+    private async Task RefreshAsync()
+    {
+        if (_disposed || Interlocked.Exchange(ref _refreshGate, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            (bool available, IReadOnlyList<WifiNetworkInfo> networks) = await Task.Run(ReadSnapshot);
+            if (_disposed)
+            {
+                return;
+            }
+
+            void Apply()
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                IsAvailable = available;
+                Networks = networks;
+                Changed?.Invoke(this, EventArgs.Empty);
+            }
+
+            if (_dispatcher.CheckAccess())
+            {
+                Apply();
+            }
+            else
+            {
+                _ = _dispatcher.BeginInvoke(Apply);
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _refreshGate, 0);
+        }
+    }
+
+    private static (bool Available, IReadOnlyList<WifiNetworkInfo> Networks) ReadSnapshot()
     {
         if (!WlanApi.TryOpen(out IntPtr handle))
         {
-            IsAvailable = false;
-            Networks = [];
-            Changed?.Invoke(this, EventArgs.Empty);
-            return;
+            return (false, []);
         }
 
         try
         {
             if (!WlanApi.TryGetInterfaceGuid(handle, out Guid guid))
             {
-                IsAvailable = false;
-                Networks = [];
-                Changed?.Invoke(this, EventArgs.Empty);
-                return;
+                return (false, []);
             }
 
-            IsAvailable = true;
             // Tarama asenkron tamamlanır; sonuç sonraki poll'ların cache'inde görünür.
             WlanApi.Scan(handle, guid);
             if (!WlanApi.TryGetNetworks(handle, guid, out List<WlanApi.RawNetwork> raw))
             {
-                Networks = [];
-                Changed?.Invoke(this, EventArgs.Empty);
-                return;
+                return (true, []);
             }
 
-            Networks = SortNetworks(raw
+            IReadOnlyList<WifiNetworkInfo> networks = SortNetworks(DedupeNetworks(raw
                 .Select(n => new WifiNetworkInfo(
                     SsidToString(n.Ssid, n.SsidLength),
                     n.Signal,
                     n.Secured,
                     n.HasProfile,
                     n.Connected,
-                    n.ProfileName))
-                .ToList());
-            Changed?.Invoke(this, EventArgs.Empty);
+                    n.ProfileName,
+                    n.AuthAlgorithm,
+                    n.Connectable))));
+            return (true, networks);
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar: Wi-Fi refresh failed — {ex.Message}");
+            return (false, []);
         }
         finally
         {

@@ -33,6 +33,16 @@ public class GalleryDraftTests
     }
 
     [Fact]
+    public void SameDevices_IgnoresAnUnchangedPairedList()
+    {
+        var devices = new[] { new BluetoothDeviceInfo("a", "Kulaklık", true) };
+        Assert.True(BluetoothService.SameDevices(devices, devices));
+        Assert.False(BluetoothService.SameDevices(
+            devices,
+            [new BluetoothDeviceInfo("a", "Kulaklık", false)]));
+    }
+
+    [Fact]
     public void Heights_AreFlatWhenThePeakIsZero()
     {
         Assert.Equal([1, 1, 1, 1, 1], VisualizerBars.Heights(0f));

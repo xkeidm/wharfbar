@@ -4,8 +4,7 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Hibrit-GPU makinelerinde QueryDisplayConfig(QDC_DATABASE_CURRENT) ERROR_INVALID_PARAMETER
-/// döndürdüğü için mevcut yansıtma modu GetSystemMetrics geometrisinden tahmin edilir.
+/// QueryDisplayConfig başarısız olursa mevcut yansıtma modu GetSystemMetrics geometrisinden tahmin edilir.
 /// </summary>
 public class ProjectionCurrentModeTests
 {
