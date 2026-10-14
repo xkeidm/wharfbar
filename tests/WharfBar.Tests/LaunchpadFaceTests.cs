@@ -125,7 +125,7 @@ public class LaunchpadFaceTests
         Assert.Contains(Strings.Launchpad_Recent, Texts(win11));
         Assert.Contains("notlar", Texts(win11));
         Assert.DoesNotContain("Mesajlar", Texts(win11));
-        Assert.Contains("Uygulama, ayar ve belge ara", Texts(win11));
+        Assert.Contains(Strings.Launchpad_SearchPlaceholder, Texts(win11));
         Assert.DoesNotContain("Mac", Texts(win11));
         ClickApp(win11, "Uygulama 01");
         Assert.Equal("Uygulama 01", opened?.Name);

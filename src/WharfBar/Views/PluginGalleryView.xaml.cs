@@ -6,7 +6,6 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using WharfBar.Resources;
 using WharfBar.Models;
-using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;

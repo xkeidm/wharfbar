@@ -5,7 +5,6 @@ using System.Windows.Input;
 using System.Windows.Media;
 using WharfBar.Resources;
 using WharfBar.Native;
-using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;

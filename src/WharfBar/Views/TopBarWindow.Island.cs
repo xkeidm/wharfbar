@@ -9,9 +9,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Resources;
 using WharfBar.Models;
-using WharfBar.Resources;
 using WharfBar.Native;
-using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
