@@ -206,7 +206,9 @@ public partial class VeilPage : Page
             return;
         }
 
-        if (!TryMapKey(e.Key, out uint vk))
+        // Alt chords report Key.System; the letter or function key is SystemKey.
+        // Reading Key alone swallows Alt+… and leaves capture running.
+        if (!TryMapKey(PhysicalKey(e.Key, e.SystemKey), out uint vk))
         {
             return;
         }
@@ -243,6 +245,10 @@ public partial class VeilPage : Page
         Config.Save(Cfg);
         WharfApp.Veil?.ApplyConfig(Cfg.Veil);
     }
+
+    /// <summary>The key the user pressed. Alt combinations arrive as <see cref="Key.System"/>.</summary>
+    internal static Key PhysicalKey(Key key, Key systemKey) =>
+        key == Key.System ? systemKey : key;
 
     private static bool TryMapKey(Key key, out uint vk)
     {
