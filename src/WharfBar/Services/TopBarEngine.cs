@@ -71,7 +71,6 @@ internal sealed class TopBarEngine : IDisposable
     {
         _ = Media.InitializeAsync();
         TrayMirror.Reenumerate();
-        SystemStats.Start();
     }
 
     public void Dispose()

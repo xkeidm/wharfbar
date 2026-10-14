@@ -36,12 +36,16 @@ internal sealed record SystemStatsSnapshot(
 /// </summary>
 internal sealed class SystemStatsService : IDisposable
 {
-    private static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// GPU PDH wildcard collection is the expensive sample. It runs off the UI thread.
+    /// </summary>
+    internal static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(4);
 
-    /// <summary>Sparkline window. Sampled on <see cref="SampleInterval"/>, not a faster timer.</summary>
+    /// <summary>Sparkline window. A point is kept only when the visible readout changes.</summary>
     private const int SampleHistoryCap = 30;
 
-    private readonly DispatcherTimer _timer;
+    private readonly Dispatcher _dispatcher;
+    private readonly Timer _timer;
     private readonly GpuUsageQuery? _gpu;
     private readonly IReadOnlySet<string> _softwareAdapterKeys;
     private readonly List<double> _cpuHistory = [];
@@ -53,32 +57,45 @@ internal sealed class SystemStatsService : IDisposable
     private long _prevSent;
     private DateTime _prevNetAt;
     private bool _haveNet;
-    private bool _disposed;
+    private volatile bool _sampling;
+    private int _sampleBusy;
+    private volatile bool _disposed;
 
     internal SystemStatsService()
     {
-        // Created on the UI thread (TopBarEngine ctor) so the timer ticks there.
+        _dispatcher = Dispatcher.CurrentDispatcher;
         _gpu = GpuUsageQuery.TryCreate();
         _softwareAdapterKeys = SystemStatsNative.GetSoftwareAdapterLuidKeys();
         Snapshot = new SystemStatsSnapshot(null, null, null, [], [], [], "—", "—");
-
-        _timer = new DispatcherTimer { Interval = SampleInterval };
-        _timer.Tick += (_, _) => SampleOnce();
+        _timer = new Timer(_ => SampleOnce(), null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
     }
 
     internal SystemStatsSnapshot Snapshot { get; private set; }
 
     internal event EventHandler? Changed;
 
-    internal void Start()
+    /// <summary>Starts or stops sampling. Hidden stats do not keep the PDH query collecting.</summary>
+    internal void SetSampling(bool enabled)
     {
-        if (_disposed || _timer.IsEnabled)
+        if (_disposed)
         {
             return;
         }
 
-        SampleOnce();
-        _timer.Start();
+        if (!enabled)
+        {
+            _sampling = false;
+            _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            return;
+        }
+
+        if (_sampling)
+        {
+            return;
+        }
+
+        _sampling = true;
+        _timer.Change(TimeSpan.Zero, SampleInterval);
     }
 
     public void Dispose()
@@ -89,40 +106,89 @@ internal sealed class SystemStatsService : IDisposable
         }
 
         _disposed = true;
-        _timer.Stop();
+        _sampling = false;
+        _timer.Dispose();
         _gpu?.Dispose();
     }
 
     private void SampleOnce()
     {
-        double? cpu = SampleCpu();
-        double? ram = SampleRam();
-        double?[]? gpu = SampleGpu() ?? Snapshot.GpuPercents;
-        (string down, string up) = SampleNetwork();
-        PushSample(_cpuHistory, cpu);
-        PushSample(_ramHistory, ram);
-        if (gpu is { Length: > 0 })
-        {
-            PushSample(_gpuHistory, SumGpuInstances([.. gpu.Select(static value => value ?? 0d)]));
-        }
-
-        var next = new SystemStatsSnapshot(
-            cpu,
-            gpu,
-            ram,
-            _cpuHistory.ToArray(),
-            _ramHistory.ToArray(),
-            _gpuHistory.ToArray(),
-            down,
-            up);
-        if (SameSnapshot(Snapshot, next))
+        if (_disposed || !_sampling || Interlocked.Exchange(ref _sampleBusy, 1) != 0)
         {
             return;
         }
 
-        Snapshot = next;
-        Changed?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            double? cpu = SampleCpu();
+            double? ram = SampleRam();
+            double?[]? gpu = SampleGpu() ?? Snapshot.GpuPercents;
+            (string down, string up) = SampleNetwork();
+            var probe = new SystemStatsSnapshot(cpu, gpu, ram, null, null, null, down, up);
+            if (SameReadout(Snapshot, probe))
+            {
+                return;
+            }
+
+            PushSample(_cpuHistory, cpu);
+            PushSample(_ramHistory, ram);
+            if (gpu is { Length: > 0 })
+            {
+                PushSample(_gpuHistory, SumGpuInstances([.. gpu.Select(static value => value ?? 0d)]));
+            }
+
+            var next = new SystemStatsSnapshot(
+                cpu,
+                gpu,
+                ram,
+                _cpuHistory.ToArray(),
+                _ramHistory.ToArray(),
+                _gpuHistory.ToArray(),
+                down,
+                up);
+            Publish(next);
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _sampleBusy, 0);
+        }
     }
+
+    private void Publish(SystemStatsSnapshot next)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Snapshot = next;
+            Changed?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _ = _dispatcher.BeginInvoke(() =>
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            Snapshot = next;
+            Changed?.Invoke(this, EventArgs.Empty);
+        });
+    }
+
+    /// <summary>
+    /// True when the top-bar text and the network-rate labels would not change.
+    /// Sub-percent noise does not wake the UI or extend the sparkline.
+    /// </summary>
+    internal static bool SameReadout(SystemStatsSnapshot current, SystemStatsSnapshot next)
+        => string.Equals(current.DisplayText(false), next.DisplayText(false), StringComparison.Ordinal)
+           && string.Equals(current.DisplayText(true), next.DisplayText(true), StringComparison.Ordinal)
+           && string.Equals(current.NetworkDownText, next.NetworkDownText, StringComparison.Ordinal)
+           && string.Equals(current.NetworkUpText, next.NetworkUpText, StringComparison.Ordinal);
 
     private (string Down, string Up) SampleNetwork()
     {
@@ -156,37 +222,6 @@ internal sealed class SystemStatsService : IDisposable
         {
             history.RemoveAt(0);
         }
-    }
-
-    private static bool SameSnapshot(SystemStatsSnapshot current, SystemStatsSnapshot next)
-        => current.ChangeKey == next.ChangeKey
-           && current.NetworkDownText == next.NetworkDownText
-           && current.NetworkUpText == next.NetworkUpText
-           && SameHistory(current.CpuHistory, next.CpuHistory)
-           && SameHistory(current.RamHistory, next.RamHistory)
-           && SameHistory(current.GpuHistory, next.GpuHistory);
-
-    private static bool SameHistory(IReadOnlyList<double>? left, IReadOnlyList<double>? right)
-    {
-        if (left is null || right is null)
-        {
-            return left is null && right is null;
-        }
-
-        if (left.Count != right.Count)
-        {
-            return false;
-        }
-
-        for (int i = 0; i < left.Count; i++)
-        {
-            if (left[i] != right[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     /// <summary>CPU busy percentage since the previous sample; null until two samples exist.</summary>

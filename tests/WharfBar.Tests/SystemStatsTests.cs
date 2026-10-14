@@ -413,4 +413,24 @@ public class SystemStatsTests
         Assert.Equal("t7", recent[7].Title);
         Assert.Empty(NotificationDigest.TakeRecent(null));
     }
+
+    [Fact]
+    public void SameReadout_IgnoresSubPercentNoise()
+    {
+        var left = new SystemStatsSnapshot(12.2, [4.2], 40.2, NetworkDownText: "1,0 KB/sn", NetworkUpText: "—");
+        var right = new SystemStatsSnapshot(12.4, [4.4], 40.4, NetworkDownText: "1,0 KB/sn", NetworkUpText: "—");
+        Assert.True(SystemStatsService.SameReadout(left, right));
+    }
+
+    [Fact]
+    public void SameReadout_NoticesARoundedStepOrNetworkLabel()
+    {
+        var baseline = new SystemStatsSnapshot(12.2, [4.2], 40.2, NetworkDownText: "1,0 KB/sn", NetworkUpText: "—");
+        Assert.False(SystemStatsService.SameReadout(
+            baseline,
+            baseline with { CpuPercent = 12.6 }));
+        Assert.False(SystemStatsService.SameReadout(
+            baseline,
+            baseline with { NetworkDownText = "2,0 KB/sn" }));
+    }
 }
