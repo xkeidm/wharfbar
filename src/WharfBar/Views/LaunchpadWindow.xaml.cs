@@ -230,13 +230,13 @@ internal partial class LaunchpadWindow : Window
             },
             OpenWidgets = () =>
             {
-                GalleryWindow.Show(_config, widgets: true);
                 RequestClose();
+                GalleryWindow.Show(_config, widgets: true);
             },
             OpenPlugins = () =>
             {
-                GalleryWindow.Show(_config, widgets: false);
                 RequestClose();
+                GalleryWindow.Show(_config, widgets: false);
             },
             OpenPath = OpenPath,
             Pinned = LaunchpadPins.FromDock(_config.Dock),

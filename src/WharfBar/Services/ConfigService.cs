@@ -287,6 +287,9 @@ internal sealed class ConfigService
         config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
         config.Island.IdleLabel = IslandNormalizer.NormalizeIdleLabel(config.Island.IdleLabel);
         config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
+        config.Island.OpenWidgets = PluginCatalog.NormalizeOpenWidgets(config.Island.OpenWidgets);
+        config.Plugins ??= new PluginsConfig();
+        config.Plugins.Enabled = PluginCatalog.NormalizeEnabled(config.Plugins.Enabled);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);

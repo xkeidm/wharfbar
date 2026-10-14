@@ -36,6 +36,13 @@ internal sealed class AppConfig
 
     public LaunchpadConfig Launchpad { get; set; } = new();
 
+    /// <summary>
+    /// Local plugin enable flags (<c>plugins.enabled</c>).
+    /// Soft block: <see cref="CurrentSchemaVersion"/> stays 2.
+    /// Built-in island plugins and desktop widgets stay on <see cref="Island"/>.
+    /// </summary>
+    public PluginsConfig Plugins { get; set; } = new();
+
     public List<PinnedApp> PinnedApps { get; set; } = [];
 
     public List<MonitorConfig> Monitors { get; set; } = [];
@@ -371,6 +378,16 @@ internal sealed class IslandConfig
 
     /// <summary>Desktop widgets currently placed: <c>clock</c>, <c>calendar</c>.</summary>
     public List<string> OpenWidgets { get; set; } = [];
+}
+
+/// <summary>
+/// Enable flags for local plugin manifests. Soft block — schema stays 2.
+/// An id here is a record only; WharfBar does not load an assembly or download code.
+/// </summary>
+internal sealed class PluginsConfig
+{
+    /// <summary>Enabled local manifest ids. Built-in ids are not stored here.</summary>
+    public List<string> Enabled { get; set; } = [];
 }
 
 /// <summary>Pure static normalization helpers for <see cref="IslandConfig"/> (unit-tested).</summary>
