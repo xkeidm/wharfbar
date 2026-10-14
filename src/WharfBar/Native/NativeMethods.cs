@@ -215,6 +215,9 @@ internal static class NativeMethods
     /// <summary>DWMWA_CLOAKED — window hidden from composition (shell-cloaked apps, other virtual desktops).</summary>
     internal const uint DWMWA_CLOAKED = 14;
 
+    /// <summary>Localized name the shell shows, in <c>szDisplayName</c>. No HICON to destroy.</summary>
+    internal const uint SHGFI_DISPLAYNAME = 0x000000200;
+
     internal const uint SHGFI_ICON = 0x000000100;
     internal const uint SHGFI_LARGEICON = 0x000000000;
     internal const uint SHGFI_SMALLICON = 0x000000001;

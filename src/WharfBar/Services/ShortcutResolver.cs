@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using WharfBar.Native;
 
 namespace WharfBar.Services;
 
@@ -15,6 +16,14 @@ internal static class ShortcutResolver
         if (string.IsNullOrWhiteSpace(lnkPath) || !File.Exists(lnkPath))
         {
             return false;
+        }
+
+        // The file name stays in the language Windows used when the shortcut was created
+        // ("File Explorer.lnk"). The shell display name is what the computer shows ("Dosya Gezgini").
+        string? shown = ShellDisplayName.TryGet(lnkPath);
+        if (AppDisplayName.IsUsableShellName(shown, lnkPath))
+        {
+            label = shown!.Trim();
         }
 
         try

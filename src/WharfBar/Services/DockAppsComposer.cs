@@ -171,7 +171,7 @@ internal sealed class DockAppsComposer : IDisposable
                 $"pid:{window.Pid}",
                 string.Empty,
                 string.Empty,
-                string.IsNullOrEmpty(window.Title) ? "App" : window.Title,
+                LabelForMinimized(window.Title),
                 IsPinned: false,
                 IsRunning: true,
                 window.Handle,
@@ -618,6 +618,12 @@ internal sealed class DockAppsComposer : IDisposable
         }
 
         return DockItemStore.Normalize(trimmed);
+    }
+
+    private static string LabelForMinimized(string? title)
+    {
+        string segment = AppDisplayName.ApplicationSegment(title);
+        return segment.Length > 0 ? segment : "App";
     }
 
     private void OnSourceChanged(object? sender, EventArgs e) => Rebuild();
