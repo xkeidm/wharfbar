@@ -15,7 +15,7 @@ namespace WharfBar.Resources {
     [global::System.CodeDom.Compiler.GeneratedCodeAttribute("System.Resources.Tools.StronglyTypedResourceBuilder", "17.0.0.0")]
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
     [global::System.Runtime.CompilerServices.CompilerGeneratedAttribute()]
-    internal class Strings {
+    public class Strings {
 
         private static global::System.Resources.ResourceManager resourceMan;
 
@@ -44,73 +44,73 @@ namespace WharfBar.Resources {
             }
         }
 
-        internal static string Settings_General {
+        public static string Settings_General {
             get {
                 return ResourceManager.GetString("Settings_General", resourceCulture);
             }
         }
 
-        internal static string General_LanguageSection {
+        public static string General_LanguageSection {
             get {
                 return ResourceManager.GetString("General_LanguageSection", resourceCulture);
             }
         }
 
-        internal static string General_LanguageTitle {
+        public static string General_LanguageTitle {
             get {
                 return ResourceManager.GetString("General_LanguageTitle", resourceCulture);
             }
         }
 
-        internal static string General_LanguageDescription {
+        public static string General_LanguageDescription {
             get {
                 return ResourceManager.GetString("General_LanguageDescription", resourceCulture);
             }
         }
 
-        internal static string General_LanguageSystem {
+        public static string General_LanguageSystem {
             get {
                 return ResourceManager.GetString("General_LanguageSystem", resourceCulture);
             }
         }
 
-        internal static string General_LanguageEnglish {
+        public static string General_LanguageEnglish {
             get {
                 return ResourceManager.GetString("General_LanguageEnglish", resourceCulture);
             }
         }
 
-        internal static string General_LanguageTurkish {
+        public static string General_LanguageTurkish {
             get {
                 return ResourceManager.GetString("General_LanguageTurkish", resourceCulture);
             }
         }
 
-        internal static string General_LanguageRestartNote {
+        public static string General_LanguageRestartNote {
             get {
                 return ResourceManager.GetString("General_LanguageRestartNote", resourceCulture);
             }
         }
 
-        internal static string General_AutostartTitle {
+        public static string General_AutostartTitle {
             get {
                 return ResourceManager.GetString("General_AutostartTitle", resourceCulture);
             }
         }
 
-        internal static string General_AutostartDescription {
+        public static string General_AutostartDescription {
             get {
                 return ResourceManager.GetString("General_AutostartDescription", resourceCulture);
             }
         }
 
-        internal static string General_StartupSection {
+        public static string General_StartupSection {
             get {
                 return ResourceManager.GetString("General_StartupSection", resourceCulture);
             }
         }
 
-        internal static string General_QuitToApply {
+        public static string General_QuitToApply {
             get {
                 return ResourceManager.GetString("General_QuitToApply", resourceCulture);
             }

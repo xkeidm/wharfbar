@@ -6,7 +6,7 @@ using WharfBar.Services;
 namespace WharfBar.Views.Pages;
 
 /// <summary>
-/// General settings page: autostart.
+/// General settings page: autostart and display language.
 /// </summary>
 public partial class GeneralPage : Page
 {
@@ -30,6 +30,14 @@ public partial class GeneralPage : Page
     private void LoadSettings()
     {
         AutostartToggle.IsChecked = Cfg.Autostart;
+        LanguageCombo.SelectedIndex = Cfg.Language switch
+        {
+            AppConfig.LanguageEn => 1,
+            AppConfig.LanguageTr => 2,
+            _ => 0,
+        };
+        LanguageRestartNote.Visibility = Visibility.Collapsed;
+        QuitToApplyButton.Visibility = Visibility.Collapsed;
     }
 
     private void OnAutostartChanged(object sender, RoutedEventArgs e)
@@ -37,6 +45,26 @@ public partial class GeneralPage : Page
         if (_isLoading) return;
         Cfg.Autostart = AutostartToggle.IsChecked == true;
         SaveAndApply();
+    }
+
+    private void OnLanguageChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading) return;
+        string language = LanguageCombo.SelectedIndex switch
+        {
+            1 => AppConfig.LanguageEn,
+            2 => AppConfig.LanguageTr,
+            _ => AppConfig.LanguageSystem,
+        };
+        Cfg.Language = LocalizationService.NormalizeLanguage(language);
+        Config.Save(Cfg);
+        LanguageRestartNote.Visibility = Visibility.Visible;
+        QuitToApplyButton.Visibility = Visibility.Visible;
+    }
+
+    private void OnQuitToApplyClick(object sender, RoutedEventArgs e)
+    {
+        Application.Current.Shutdown();
     }
 
     private void SaveAndApply()

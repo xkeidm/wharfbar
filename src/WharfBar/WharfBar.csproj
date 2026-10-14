@@ -28,7 +28,7 @@
 
   <ItemGroup>
     <EmbeddedResource Update="Resources\Strings.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
+      <Generator>PublicResXFileCodeGenerator</Generator>
       <LastGenOutput>Strings.Designer.cs</LastGenOutput>
       <CustomToolNamespace>WharfBar.Resources</CustomToolNamespace>
     </EmbeddedResource>
