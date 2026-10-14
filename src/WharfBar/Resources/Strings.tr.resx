@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -772,7 +772,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Gallery_ChipIslandDetail" xml:space="preserve"><value>hap</value></data>
   <data name="Gallery_EmptyLocalTitle" xml:space="preserve"><value>Henüz yerel kayıt yok</value></data>
   <data name="Gallery_EmptyLocalBody" xml:space="preserve"><value>plugins klasörünün altında bir klasör açın ve içine manifest.json koyun. Kökteki dosya okunmaz; bağlantı (junction) klasörleri de atlanır.</value></data>
-  <data name="Gallery_ExampleId" xml:space="preserve"><value>hava</value></data>
+  <data name="Gallery_ExampleId" xml:space="preserve"><value>weather</value></data>
   <data name="Gallery_ExampleName" xml:space="preserve"><value>Hava</value></data>
   <data name="Gallery_ExampleDescription" xml:space="preserve"><value>Kısa durum.</value></data>
   <data name="Gallery_RecordOnly" xml:space="preserve"><value>yalnız kayıt</value></data>
