@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Windows.Threading;
 using WharfBar.Native;
 
@@ -38,59 +37,47 @@ internal readonly record struct RunningWindowSnapshot(
 
 internal sealed class RunningAppsSource : IDisposable
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
-
     private static readonly string SystemAppsDir = Path.GetFullPath(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "SystemApps"));
 
     private readonly Dispatcher _dispatcher;
+    private readonly WindowCensus _census;
     private readonly List<RunningAppInfo> _apps = [];
-    private DispatcherTimer? _poll;
     private bool _disposed;
-    private int _refreshBusy;
 
     internal RunningAppsSource(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher;
-        _poll = new DispatcherTimer { Interval = PollInterval };
-        _poll.Tick += (_, _) => RequestRefresh();
-        _poll.Start();
-        RequestRefresh();
+        _census = WindowCensus.Acquire();
+        _census.Subscribe(OnCensus);
     }
 
     internal IReadOnlyList<RunningAppInfo> Apps => _apps;
     internal event EventHandler? Changed;
 
-    internal void Refresh() => RequestRefresh();
+    internal void Refresh() => _census.RequestScan();
 
-    private void RequestRefresh()
+    private void OnCensus(IReadOnlyList<CensusWindow> windows)
     {
-        if (_disposed || Interlocked.Exchange(ref _refreshBusy, 1) != 0)
+        if (_disposed)
         {
             return;
         }
 
-        _ = Task.Run(() =>
+        try
         {
-            try
+            List<RunningAppInfo> next = FromCensus(windows);
+            if (_disposed)
             {
-                List<RunningAppInfo> next = Scan();
-                if (_disposed)
-                {
-                    return;
-                }
+                return;
+            }
 
-                _ = _dispatcher.BeginInvoke(() => ApplyScan(next));
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"WharfBar running-apps scan failed: {ex.Message}");
-            }
-            finally
-            {
-                Interlocked.Exchange(ref _refreshBusy, 0);
-            }
-        });
+            _ = _dispatcher.BeginInvoke(() => ApplyScan(next));
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar running-apps scan failed: {ex.Message}");
+        }
     }
 
     private void ApplyScan(List<RunningAppInfo> next)
@@ -110,19 +97,17 @@ internal sealed class RunningAppsSource : IDisposable
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    private static List<RunningAppInfo> Scan()
+    private static List<RunningAppInfo> FromCensus(IReadOnlyList<CensusWindow> windows)
     {
-        var snapshots = new List<RunningWindowSnapshot>();
-
-        foreach (var (hwnd, title, pid) in WindowEnumeration.GetTopLevelCandidates())
+        var snapshots = new List<RunningWindowSnapshot>(windows.Count);
+        foreach (CensusWindow window in windows)
         {
-            bool hasAumid = AppUserModelId.TryGet(hwnd, out string aumid);
             snapshots.Add(new RunningWindowSnapshot(
-                hwnd,
-                title,
-                pid,
-                TryGetProcessPath(pid),
-                hasAumid ? aumid : null));
+                window.Hwnd,
+                window.Title,
+                window.Pid,
+                window.Path,
+                window.AppUserModelId));
         }
 
         return [.. FromSnapshots(snapshots)];
@@ -281,8 +266,8 @@ internal sealed class RunningAppsSource : IDisposable
         }
 
         _disposed = true;
-        _poll?.Stop();
-        _poll = null;
+        _census.Unsubscribe(OnCensus);
+        _census.Release();
     }
 
     private static RunningAppInfo Merge(IReadOnlyList<RunningAppInfo> apps, List<int> members)
@@ -537,50 +522,8 @@ internal sealed class RunningAppsSource : IDisposable
             && full[SystemAppsDir.Length] == Path.DirectorySeparatorChar;
     }
 
-    private static string TryGetProcessPath(uint pid)
-    {
-        IntPtr handle = NativeMethods.OpenProcess(
-            NativeMethods.PROCESS_QUERY_LIMITED_INFORMATION,
-            bInheritHandle: false,
-            pid);
-        if (handle == IntPtr.Zero)
-        {
-            return string.Empty;
-        }
-
-        try
-        {
-            var sb = new StringBuilder(1024);
-            int size = sb.Capacity;
-            return NativeMethods.QueryFullProcessImageName(handle, 0, sb, ref size)
-                ? sb.ToString()
-                : string.Empty;
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"WharfBar process path lookup failed (pid {pid}): {ex.Message}");
-            return string.Empty;
-        }
-        finally
-        {
-            _ = NativeMethods.CloseHandle(handle);
-        }
-    }
-
-    private static string ResolveLabel(string title, string path)
-    {
-        if (!string.IsNullOrWhiteSpace(title))
-        {
-            return title;
-        }
-
-        if (!string.IsNullOrEmpty(path))
-        {
-            return Path.GetFileName(path);
-        }
-
-        return string.Empty;
-    }
+    private static string ResolveLabel(string title, string path) =>
+        AppDisplayName.Choose(ShellDisplayName.TryGet(path), title, path);
 
     private static bool AppsEqual(List<RunningAppInfo> a, List<RunningAppInfo> b)
     {

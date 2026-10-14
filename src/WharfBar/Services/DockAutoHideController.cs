@@ -32,6 +32,12 @@ internal sealed class DockAutoHideController : IDisposable
     internal const int HideDelayMs = 500;
     internal const int PollMs = 50;
 
+    /// <summary>Cursor poll while the dock is already hidden. The edge is not under the pointer.</summary>
+    internal const int IdlePollMs = 200;
+
+    internal static int PollIntervalMs(DockAutoHideVisualState state)
+        => state == DockAutoHideVisualState.Hidden ? IdlePollMs : PollMs;
+
     private bool _enabled;
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _hideTimer;
@@ -177,11 +183,28 @@ internal sealed class DockAutoHideController : IDisposable
         if (IsInEdgeBand(pos.X, pos.Y, ctx, bandHeightPx) || IsInDockRect(pos.X, pos.Y, ctx))
         {
             _hideTimer.Stop();
+            ApplyPollInterval(PollMs);
             RequestShow();
             return;
         }
 
+        if (State is DockAutoHideVisualState.Hidden or DockAutoHideVisualState.Hiding)
+        {
+            ApplyPollInterval(PollIntervalMs(State));
+            return;
+        }
+
+        ApplyPollInterval(PollMs);
         RestartHideDebounce();
+    }
+
+    private void ApplyPollInterval(int milliseconds)
+    {
+        var next = TimeSpan.FromMilliseconds(milliseconds);
+        if (_pollTimer.Interval != next)
+        {
+            _pollTimer.Interval = next;
+        }
     }
 
     private void OnHideTimerTick(object? sender, EventArgs e)

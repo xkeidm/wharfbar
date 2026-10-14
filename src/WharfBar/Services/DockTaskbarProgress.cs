@@ -18,6 +18,13 @@ internal static class DockTaskbarProgress
 
     internal readonly record struct Scan(bool Exposed, IReadOnlyList<DockProgressButton> Buttons);
 
+    internal static readonly TimeSpan ActiveInterval = TimeSpan.FromSeconds(2);
+    internal static readonly TimeSpan QuietInterval = TimeSpan.FromSeconds(20);
+
+    /// <summary>UI Automation walks only while a running app's taskbar button is actually exposed.</summary>
+    internal static TimeSpan NextInterval(bool anyRunning, bool trayExposed)
+        => anyRunning && trayExposed ? ActiveInterval : QuietInterval;
+
     /// <summary>
     /// Reads taskbar buttons under <c>Shell_TrayWnd</c> only. A desktop-root walk hits every
     /// window on the machine and dumps a stream of automation faults into the debugger on startup.
@@ -102,9 +109,14 @@ internal static class DockTaskbarProgress
     internal static IReadOnlyDictionary<string, DockProgressState> ForItems(
         IReadOnlyList<DockAppItem> items,
         IReadOnlyList<AppWindowInfo> windows)
+        => Assign(items, windows, ReadButtons());
+
+    internal static IReadOnlyDictionary<string, DockProgressState> Assign(
+        IReadOnlyList<DockAppItem> items,
+        IReadOnlyList<AppWindowInfo> windows,
+        Scan scan)
     {
         ArgumentNullException.ThrowIfNull(items);
-        Scan scan = ReadButtons();
         if (!scan.Exposed)
         {
             return new Dictionary<string, DockProgressState>();

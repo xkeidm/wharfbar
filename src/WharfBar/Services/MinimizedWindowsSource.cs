@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Windows.Threading;
-using WharfBar.Native;
 
 namespace WharfBar.Services;
 
@@ -16,26 +15,22 @@ internal sealed record AppWindowInfo(IntPtr Handle, string Title, uint Pid, bool
 /// <para>
 /// The whole table is cached so the dock's "Pencereler" submenu can filter it on the UI
 /// thread without calling <c>EnumWindows</c> (which stalls on a hung HWND).
+/// The table comes from the shared <see cref="WindowCensus"/>, not a private timer.
 /// </para>
 /// </summary>
 internal sealed class MinimizedWindowsSource : IDisposable
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(800);
-
     private readonly Dispatcher _dispatcher;
+    private readonly WindowCensus _census;
     private List<AppWindowInfo> _windows = [];
     private List<AppWindowInfo> _minimized = [];
-    private DispatcherTimer? _poll;
     private bool _disposed;
-    private int _refreshBusy;
 
     internal MinimizedWindowsSource(Dispatcher dispatcher)
     {
         _dispatcher = dispatcher;
-        _poll = new DispatcherTimer { Interval = PollInterval };
-        _poll.Tick += (_, _) => RequestRefresh();
-        _poll.Start();
-        RequestRefresh();
+        _census = WindowCensus.Acquire();
+        _census.Subscribe(OnCensus);
     }
 
     internal IReadOnlyList<AppWindowInfo> Windows => _windows;
@@ -44,7 +39,7 @@ internal sealed class MinimizedWindowsSource : IDisposable
 
     internal event EventHandler? Changed;
 
-    internal void Refresh() => RequestRefresh();
+    internal void Refresh() => _census.RequestScan();
 
     internal static IReadOnlyList<AppWindowInfo> SelectMinimized(IReadOnlyList<AppWindowInfo> windows) =>
         windows is null ? [] : [.. windows.Where(static w => w.IsMinimized)];
@@ -63,46 +58,32 @@ internal sealed class MinimizedWindowsSource : IDisposable
         return [.. windows.Where(w => w.Pid == pid).OrderBy(static w => w.IsMinimized)];
     }
 
-    private void RequestRefresh()
+    private void OnCensus(IReadOnlyList<CensusWindow> windows)
     {
-        if (_disposed || Interlocked.Exchange(ref _refreshBusy, 1) != 0)
+        if (_disposed)
         {
             return;
         }
 
-        _ = Task.Run(() =>
+        try
         {
-            try
+            var next = new List<AppWindowInfo>(windows.Count);
+            foreach (CensusWindow window in windows)
             {
-                List<AppWindowInfo> next = Scan();
-                if (_disposed)
-                {
-                    return;
-                }
-
-                _ = _dispatcher.BeginInvoke(() => ApplyScan(next));
+                next.Add(new AppWindowInfo(window.Hwnd, window.Title, window.Pid, window.IsMinimized));
             }
-            catch (Exception ex)
+
+            if (_disposed)
             {
-                Debug.WriteLine($"WharfBar minimized-windows scan failed: {ex.Message}");
+                return;
             }
-            finally
-            {
-                Interlocked.Exchange(ref _refreshBusy, 0);
-            }
-        });
-    }
 
-    private static List<AppWindowInfo> Scan()
-    {
-        var all = new List<AppWindowInfo>();
-
-        foreach (var (hwnd, title, pid) in WindowEnumeration.GetTopLevelCandidates())
-        {
-            all.Add(new AppWindowInfo(hwnd, title, pid, NativeMethods.IsIconic(hwnd)));
+            _ = _dispatcher.BeginInvoke(() => ApplyScan(next));
         }
-
-        return all;
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar minimized-windows scan failed: {ex.Message}");
+        }
     }
 
     private void ApplyScan(List<AppWindowInfo> next)
@@ -157,7 +138,7 @@ internal sealed class MinimizedWindowsSource : IDisposable
         }
 
         _disposed = true;
-        _poll?.Stop();
-        _poll = null;
+        _census.Unsubscribe(OnCensus);
+        _census.Release();
     }
 }
