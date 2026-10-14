@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using WharfBar.Models;
+using WharfBar.Resources;
 
 namespace WharfBar.Services;
 
@@ -61,7 +62,7 @@ internal static class DockBuiltInTiles
             LaunchpadId,
             string.Empty,
             string.Empty,
-            "Launchpad",
+            Strings.Dock_Launchpad,
             IsPinned: false,
             IsRunning: false,
             IntPtr.Zero,
@@ -85,7 +86,7 @@ internal static class DockBuiltInTiles
             DownloadsId,
             downloadsPath ?? string.Empty,
             string.Empty,
-            "İndirilenler",
+            Strings.Dock_Downloads,
             IsPinned: false,
             IsRunning: false,
             IntPtr.Zero,
@@ -97,7 +98,7 @@ internal static class DockBuiltInTiles
             TrashId,
             "shell:RecycleBinFolder",
             string.Empty,
-            "Geri Dönüşüm Kutusu",
+            Strings.Dock_RecycleBin,
             IsPinned: false,
             IsRunning: false,
             IntPtr.Zero,

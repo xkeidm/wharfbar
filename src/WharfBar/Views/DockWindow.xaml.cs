@@ -10,6 +10,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 using WharfBar.Views.Controls;
 using Wpf.Ui.Appearance;
@@ -977,7 +978,7 @@ public partial class DockWindow : Window
     {
         menu.Items.Add(new MenuItem
         {
-            Header = "Arka plan",
+            Header = Strings.TopBar_Background,
             IsEnabled = false,
         });
 
@@ -998,7 +999,7 @@ public partial class DockWindow : Window
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         var label = new System.Windows.Controls.TextBlock
         {
-            Text = $"Opaklık {opacity}%",
+            Text = string.Format(Strings.Culture ?? System.Globalization.CultureInfo.CurrentUICulture, Strings.TopBar_OpacityFormat, opacity),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 8, 0),
             Width = 88,
@@ -1016,7 +1017,7 @@ public partial class DockWindow : Window
         slider.ValueChanged += (_, args) =>
         {
             int v = (int)Math.Round(args.NewValue);
-            label.Text = $"Opaklık {v}%";
+            label.Text = string.Format(Strings.Culture ?? System.Globalization.CultureInfo.CurrentUICulture, Strings.TopBar_OpacityFormat, v);
             ScheduleDockTintSave(v);
         };
         row.Children.Add(label);
@@ -1162,7 +1163,7 @@ public partial class DockWindow : Window
         // 2. Pin / Unpin
         var pinItem = new MenuItem
         {
-            Header = item.IsPinned ? "Dock'tan kaldır" : "Dock'a sabitle",
+            Header = item.IsPinned ? Strings.Dock_Unpin : Strings.Dock_Pin,
             Icon = CreateMenuIcon(item.IsPinned ? SymbolRegular.PinOff24 : SymbolRegular.Pin24),
         };
         pinItem.Click += (_, _) => TogglePin(item, pin: !item.IsPinned);
@@ -1171,7 +1172,7 @@ public partial class DockWindow : Window
         // 3. Görevi sonlandır (Force Quit)
         var forceQuitItem = new MenuItem
         {
-            Header = "Görevi sonlandır",
+            Header = Strings.Dock_EndTask,
             Icon = CreateMenuIcon(SymbolRegular.DismissCircle24),
             IsEnabled = item.IsRunning && item.MainWindowHandle != IntPtr.Zero,
         };
@@ -1181,7 +1182,7 @@ public partial class DockWindow : Window
         // 4. Pencereyi kapat (Close Window)
         var closeItem = new MenuItem
         {
-            Header = "Pencereyi kapat",
+            Header = Strings.Dock_CloseWindow,
             Icon = CreateMenuIcon(SymbolRegular.Dismiss24),
             IsEnabled = item.IsRunning && item.MainWindowHandle != IntPtr.Zero,
         };
@@ -1201,7 +1202,7 @@ public partial class DockWindow : Window
             {
                 var runAdminItem = new MenuItem
                 {
-                    Header = "Yönetici olarak çalıştır",
+                    Header = Strings.Dock_RunAsAdmin,
                     Icon = CreateMenuIcon(SymbolRegular.Shield24),
                 };
                 runAdminItem.Click += (_, _) => _launcher.LaunchAsAdmin(item.Path, item.Args);
@@ -1210,7 +1211,7 @@ public partial class DockWindow : Window
 
             var openFolderItem = new MenuItem
             {
-                Header = "Dosya konumunu aç",
+                Header = Strings.Dock_OpenFileLocation,
                 Icon = CreateMenuIcon(SymbolRegular.Folder24),
             };
             openFolderItem.Click += (_, _) => OpenFileLocation(item.Path);
@@ -1220,7 +1221,7 @@ public partial class DockWindow : Window
             {
                 var newInstanceItem = new MenuItem
                 {
-                    Header = "Yeni pencere aç",
+                    Header = Strings.Dock_NewWindow,
                     Icon = CreateMenuIcon(SymbolRegular.Add24),
                 };
                 newInstanceItem.Click += (_, _) => _launcher.Launch(item.Path, item.Args);
@@ -1265,13 +1266,13 @@ public partial class DockWindow : Window
             {
                 menu.Items.Add(new Separator());
 
-                var windowsMenu = new MenuItem { Header = "Pencereler" };
+                var windowsMenu = new MenuItem { Header = Strings.Dock_Windows };
                 foreach (AppWindowInfo window in windows)
                 {
                     var entry = new MenuItem
                     {
                         Header = string.IsNullOrWhiteSpace(window.Title)
-                            ? "Başlıksız pencere"
+                            ? Strings.Dock_UntitledWindow
                             : window.Title,
                     };
                     entry.Click += (_, _) => _activation?.TryActivate(window.Handle);

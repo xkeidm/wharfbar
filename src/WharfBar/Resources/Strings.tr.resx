@@ -617,4 +617,17 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="TopBar_ResetDefault" xml:space="preserve">
     <value>Varsayılana sıfırla</value>
   </data>
+  <data name="Dock_Pin" xml:space="preserve"><value>Dock'a sabitle</value></data>
+  <data name="Dock_Unpin" xml:space="preserve"><value>Dock'tan kaldır</value></data>
+  <data name="Dock_EndTask" xml:space="preserve"><value>Görevi sonlandır</value></data>
+  <data name="Dock_CloseWindow" xml:space="preserve"><value>Pencereyi kapat</value></data>
+  <data name="Dock_Windows" xml:space="preserve"><value>Pencereler</value></data>
+  <data name="Dock_UntitledWindow" xml:space="preserve"><value>Başlıksız pencere</value></data>
+  <data name="Dock_RunAsAdmin" xml:space="preserve"><value>Yönetici olarak çalıştır</value></data>
+  <data name="Dock_OpenFileLocation" xml:space="preserve"><value>Dosya konumunu aç</value></data>
+  <data name="Dock_NewWindow" xml:space="preserve"><value>Yeni pencere</value></data>
+  <data name="Dock_Open" xml:space="preserve"><value>Aç</value></data>
+  <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
+  <data name="Dock_Downloads" xml:space="preserve"><value>İndirilenler</value></data>
+  <data name="Dock_RecycleBin" xml:space="preserve"><value>Geri Dönüşüm Kutusu</value></data>
 </root>

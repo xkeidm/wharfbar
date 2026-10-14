@@ -614,4 +614,17 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="TopBar_ResetDefault" xml:space="preserve">
     <value>Reset to default</value>
   </data>
+  <data name="Dock_Pin" xml:space="preserve"><value>Pin to Dock</value></data>
+  <data name="Dock_Unpin" xml:space="preserve"><value>Unpin from Dock</value></data>
+  <data name="Dock_EndTask" xml:space="preserve"><value>End task</value></data>
+  <data name="Dock_CloseWindow" xml:space="preserve"><value>Close window</value></data>
+  <data name="Dock_Windows" xml:space="preserve"><value>Windows</value></data>
+  <data name="Dock_UntitledWindow" xml:space="preserve"><value>Untitled window</value></data>
+  <data name="Dock_RunAsAdmin" xml:space="preserve"><value>Run as administrator</value></data>
+  <data name="Dock_OpenFileLocation" xml:space="preserve"><value>Open file location</value></data>
+  <data name="Dock_NewWindow" xml:space="preserve"><value>New window</value></data>
+  <data name="Dock_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
+  <data name="Dock_Downloads" xml:space="preserve"><value>Downloads</value></data>
+  <data name="Dock_RecycleBin" xml:space="preserve"><value>Recycle Bin</value></data>
 </root>
