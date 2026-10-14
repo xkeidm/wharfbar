@@ -156,8 +156,7 @@ the right cluster's default LTR is `trayMirror · hidden · date/time · notific
 off by default; right-click and the Top Bar (`Üst Çubuk`) setting list every item in the catalog.
 **Show all** (`Tümünü göster`) inserts the missing ones next to their neighbor and does not disturb the saved order. Visible items
 are ordered by dragging on the bar (a click under the threshold opens the flyout; mouse capture, not OLE).
-Clock/date: a single-line `tr-TR` combined label
-(e.g. `9 Ağu Paz 21:57`, Segoe UI; 9 Aug Sun 21:57) + a bell glyph; both open the native Notification Center
+Clock/date: a single-line combined label in the **resolved UI culture** (`LocalizationService` / `config.language`; e.g. `tr-TR` → `9 Ağu Paz 21:57`, `en-US` → `9 Aug Sun 21:57`, Segoe UI) + a bell glyph; both open the native Notification Center
 (`Win+N` — calendar + notifications; there is no separate calendar `Popup`; there is no ADR-005 mirror).
 `controlCenter` → QS **Main**; volume → QS **Mixer**; network → QS **Network** — a shared
 **Quick settings** (`Hızlı ayarlar`) flyout (ADR-006); a layered `Popup`

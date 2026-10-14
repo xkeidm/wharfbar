@@ -37,7 +37,7 @@ One bar per enabled monitor, each registered as an AppBar on that monitor. Visib
 - **Left:** a drawn Windows logo menu (Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, and quit) and a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). If the GPU counter is missing, that part is omitted. There is no temperature.
 - **Center:** the island pill.
 - **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. The default order is tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media stay in the catalog and start hidden, because the island already shows them. A saved order is kept.
-- The clock is a single `tr-TR` line. Click opens notification text and a month calendar. The bell sends `Win+N`.
+- The clock is a single line in the UI language (Settings → General → Language, or follow Windows when set to System). Click opens notification text and a month calendar. The bell sends `Win+N`.
 - Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined.
 
 ### Island

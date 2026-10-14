@@ -69,7 +69,11 @@ src/WharfBar/
  DockStrip.cs # strip `Panel`: live scale 1 (the math is in `DockStripLayout`)
  DockItemCell.xaml(.cs) # a single slot: button + glyph + hover fill + running pill
  Views/Pages/
- GeneralPage.xaml(.cs) # Settings: general (autostart)
+ GeneralPage.xaml(.cs) # Settings: general (autostart, language picker + restart note)
+ Resources/
+ Strings.resx # neutral English UI strings (fallback)
+ Strings.tr.resx # Turkish satellite; missing keys fall back to neutral
+ Strings.Designer.cs # generated accessors for XAML {x:Static} and C#
  AppearancePage.xaml(.cs) # Settings: appearance (theme, background, accent)
  DockPage.xaml(.cs) # Settings: dock (content list, auto-hide, icon size, background, position, running apps)
  TopBarPage.xaml(.cs) # Settings: top bar (status items)
@@ -112,6 +116,7 @@ src/WharfBar/
  WindowAppearance.cs # WPF-UI theme + backdrop; DWM fine-tuning
  AppThemePreference.cs # config theme → ApplicationTheme
  ConfigService.cs # read/write %AppData%/WharfBar/config.json
+ LocalizationService.cs # resolve config.language → CultureInfo; Apply at startup
  AppIconService.cs # ShellIcon → WPF ImageSource (DPI-sized)
  ProcessLauncherService.cs # Process.Start launcher
  WindowActivationService.cs # focusing / minimize toggle on a repeated click
@@ -229,7 +234,8 @@ The island (clipboard history + dropped files) is ADR-010.
 | `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema |
 | `AppThemePreference` | The `theme` field → `ApplicationTheme` |
 | `AutostartService` | Startup-folder `WharfBar.lnk`; create/delete with `autostart` true/false |
-| `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus` |
+| `LocalizationService` | Normalizes `config.language` (`system` \| `en` \| `tr`); `ResolveCulture` maps `system` → OS UI culture (`tr*` → `tr-TR`, else `en-US`); `Apply` sets `CurrentCulture` / `CurrentUICulture` and default thread cultures **before** the first window (beside theme). Changing language in Settings → General saves immediately and takes effect on the **next launch** (optional Quit now); there is no live UI rebuild |
+| `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus`; clock/date formatting uses `CurrentCulture` (follows UI language) |
 | `NetworkDetailsService` | Network-page "Properties" (`Özellikler`) (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
 | `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
 | `TrayIconService` / `NotifyIconHost` | Its own tray icon + Quit menu (`Shell_NotifyIcon`) |
@@ -330,7 +336,7 @@ action scans the `Drop` folder so it also covers orphans.
 Implemented (Phase 1–9):
 
 1. `App.OnStartup` → `SingleInstanceGuard.TryAcquire`; if the mutex cannot be acquired, `Shutdown`
-2. `ConfigService.LoadOrCreate` → `%AppData%/WharfBar/config.json`; `AppThemePreference` is applied
+2. `ConfigService.LoadOrCreate` → `%AppData%/WharfBar/config.json`; `LocalizationService.Apply(config.Language)` then `AppThemePreference` is applied
 3. `AutostartService.Apply(config.Autostart)` — syncs the Startup-folder shortcut
 4. `TaskbarVisibilityService.CaptureAndHide` — if a stale watchdog file exists, the tray is shown first
  (self-heal); `ABM_GETSTATE` + `Shell_TrayWnd` visibility baseline; the baseline is written to the watchdog
@@ -401,6 +407,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 {
  "schemaVersion": 2,
  "theme": "system",
+ "language": "system",
  "autostart": true,
  "dock": {
  "autoHide": true,
@@ -459,6 +466,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
+| `language` | `system` \| `en` \| `tr` (default `system`) | UI + formatting culture; applied at startup via `LocalizationService`. Soft field (`schemaVersion` stays 2). `system` uses `CultureInfo.InstalledUICulture` (`tr*` → Turkish, otherwise English). User strings come from `Resources/Strings.resx` + `Strings.tr.resx` (`{x:Static}` / `Strings.*` in C#). A change in Settings → General is saved immediately and applies after restart |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
 | `dock.autoHide` | `true` → edge-band proximity + animated hide; `false` → always visible |
 | `dock.iconSize` | DIP; 16–36 (default **24**). The old 48/72 and the previous default of 28 are pulled down to 24 on load |

@@ -37,7 +37,7 @@ Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitör�
 - **Sol:** çizilmiş Windows logosu menüsü (Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış) ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
 - **Orta:** ada hapı.
 - **Sağ:** sağ tık menüsünden veya Ayarlar → Üst Çubuk’tan gösterilip gizlenen ve sıralanan durum şeridi. Varsayılan sıra: tepsi aynası, gizli simgeler oku, saat, bildirimler, hızlı ayarlar, ağ, pil. Ses, parlaklık ve medya katalogdadır ve başta kapalıdır; ada bunları zaten gösterir. Kayıtlı sıra korunur.
-- Saat tek satır `tr-TR` biçimindedir. Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
+- Saat, seçilen arayüz diline göre tek satır biçimlenir (Ayarlar → Genel → Dil; Sistem seçiliyse Windows arayüz dili). Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
 - Arka plan Mica, saydam veya renkli olabilir; renkli modda opaklık kaydırıcısı vardır. Mica ile `AllowsTransparency` birlikte kullanılmaz.
 
 ### Ada

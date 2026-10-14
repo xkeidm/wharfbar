@@ -8,6 +8,7 @@
 - Code identifiers stay English. Comments may be English.
 - Commit messages may be English or Turkish, short and why-focused.
 - `.cursor` rules stay short pointers; do not paste long guides into them.
+- **In-app UI:** English + Turkish via `Resources/Strings.resx` + `Strings.tr.resx`; preference is soft top-level `config.language` (`system` \| `en` \| `tr`, default `system`). Applies at startup (`LocalizationService`); change requires restart. This is separate from docs/README language rules above.
 
 ## Documentation
 

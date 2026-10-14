@@ -22,7 +22,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  at most two satellites (during HUD, persistent music and clipboard together). Low-battery threshold
  `island.lowBatteryPercent` (default 20, accepted 5–50). Clipboard history is on the primary bar; the secondary pill is music and meters. The multi-line panel is a single
  popup; the AppBar stays 30 DIP (ADR-012, ADR-013). Background personalization: `mica` / `transparent` / `tint`
- + opacity slider (right-click menu). The clock is a single `tr-TR` line; a clock click is notification text + a month calendar; the bell → native `Win+N`;
+ + opacity slider (right-click menu). The clock is a single line formatted with the resolved UI culture (`config.language` → `LocalizationService`; e.g. `tr-TR` or `en-US`); a clock click is notification text + a month calendar; the bell → native `Win+N`;
  `controlCenter` → QS Main; volume → QS Mixer; brightness → `BrightnessFlyout` (Monitorian DDC/CI + WMI hybrid);
  media → `MediaFlyout` (SMTC; hidden when there is no session, ADR-008); network → QS Network (ADR-006); the energy-saver tile lights from the API/flag or from a read-back of `Her zaman enerji tasarrufu kullan` (Always use energy saver), and a click flips that switch (ADR-013); **AppBar** + tray hybrid.
 - **Dock:** bottom strip (overlay; Topmost ± auto-hide). On the left, taskbar pins are **read-only**
@@ -113,7 +113,7 @@ icon 24 / button 40 / gap 4 DIP, mica or layered tint background, drag-to-reorde
 submenu, live DPI, fullscreen hide, `WorkAreaChanged` reposition, auto-hide +
 hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup folder `WharfBar.lnk` (`AppConfig.autostart`), clock + network + battery
-(`StatusService`, top bar right strip; single-line `tr-TR` clock; **Segoe MDL2** glyphs + overflow +
+(`StatusService`, top bar right strip; single-line clock following UI culture; **Segoe MDL2** glyphs + overflow +
 `controlCenter`), WharfBar's own tray icon + Quit (`TrayIconService`),
 taskbar hide/restore (`TaskbarVisibilityService`; keep-hidden watch; restore on exit → `ABM_REMOVE`),
 live running apps (`RunningAppsSource`) + minimized windows (`MinimizedWindowsSource`)
