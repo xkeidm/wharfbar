@@ -56,8 +56,9 @@ appsettings.*.Local.json
 # The pattern above does not match the usual appsettings.Local.json filename.
 appsettings.Local.json
 
-## Superpowers / agent scratch (briefs, review diffs)
+## Superpowers / agent scratch (briefs, review diffs, local specs/plans)
 .superpowers/
+docs/superpowers/
 
 ## Claude Code local settings (CLAUDE.md is committed)
 .claude/settings.local.json
