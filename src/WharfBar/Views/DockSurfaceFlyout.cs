@@ -26,6 +26,13 @@ internal sealed class DockSurfaceFlyout : IDisposable
     private readonly List<string> _folderStack = [];
     private readonly DispatcherTimer _closeTimer;
     private bool _disposed;
+    private int _windowCount;
+
+    /// <summary>Raised after the popup is shown. The dock hides its tooltip so the two labels do not stack.</summary>
+    internal event Action<DockItemCell?>? Opened;
+
+    /// <summary>Raised when the popup closes. The dock shows its tooltip again.</summary>
+    internal event Action? Closed;
 
     internal DockSurfaceFlyout(Popup popup, Border card, StackPanel body, Action<IntPtr> activate)
     {
@@ -67,6 +74,16 @@ internal sealed class DockSurfaceFlyout : IDisposable
             return;
         }
 
+        // One window and no thumbnail: the tooltip already names the app. A title-only
+        // card is a second bubble, shifted off the icon.
+        if (windows.Count == 1 && !CanThumbnail(windows[0]))
+        {
+            Close();
+            return;
+        }
+
+        _windowCount = windows.Count;
+        bool caption = true;
         var row = new StackPanel { Orientation = Orientation.Horizontal };
         int shown = 0;
         foreach (AppWindowInfo window in windows)
@@ -77,7 +94,7 @@ internal sealed class DockSurfaceFlyout : IDisposable
             }
 
             shown++;
-            row.Children.Add(BuildWindowColumn(window));
+            row.Children.Add(BuildWindowColumn(window, caption));
         }
 
         _body.Children.Add(row);
@@ -104,9 +121,15 @@ internal sealed class DockSurfaceFlyout : IDisposable
         CloseThumbnails();
         _body.Children.Clear();
         _folderStack.Clear();
+        bool wasOpen = _popup.IsOpen || Anchor is not null;
         _popup.IsOpen = false;
         ShowingFolder = false;
         Anchor = null;
+        _windowCount = 0;
+        if (wasOpen)
+        {
+            Closed?.Invoke();
+        }
     }
 
     public void Dispose()
@@ -202,12 +225,12 @@ internal sealed class DockSurfaceFlyout : IDisposable
         return block;
     }
 
-    private Button MakeRow(string text, Action click)
+    private Button MakeRow(string text, Action click, bool center = false)
     {
         var button = new Button
         {
             Content = text,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
+            HorizontalContentAlignment = center ? HorizontalAlignment.Center : HorizontalAlignment.Left,
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Padding = new Thickness(8, 4, 8, 4),
@@ -219,11 +242,13 @@ internal sealed class DockSurfaceFlyout : IDisposable
         return button;
     }
 
-    private UIElement BuildWindowColumn(AppWindowInfo window)
+    private static bool CanThumbnail(AppWindowInfo window) =>
+        !window.IsMinimized && !DwmThumbnail.IsCloaked(window.Handle);
+
+    private UIElement BuildWindowColumn(AppWindowInfo window, bool caption)
     {
         var column = new StackPanel { Width = 168, Margin = new Thickness(4, 0, 4, 0) };
-        bool skipThumb = window.IsMinimized || DwmThumbnail.IsCloaked(window.Handle);
-        if (!skipThumb)
+        if (CanThumbnail(window))
         {
             var host = new DockThumbnailHost { Width = 160, Height = 90 };
             column.Children.Add(host);
@@ -232,12 +257,17 @@ internal sealed class DockSurfaceFlyout : IDisposable
             host.SizeChanged += (_, _) => UpdateHost(host);
         }
 
+        if (!caption && column.Children.Count > 0)
+        {
+            return column;
+        }
+
         string title = string.IsNullOrWhiteSpace(window.Title) ? "Başlıksız pencere" : window.Title;
         column.Children.Add(MakeRow(title, () =>
         {
             _activate(window.Handle);
             Close();
-        }));
+        }, center: true));
         return column;
     }
 
@@ -252,6 +282,12 @@ internal sealed class DockSurfaceFlyout : IDisposable
         {
             host.Visibility = Visibility.Collapsed;
             host.Height = 0;
+            // A single window with no picture is only a second copy of the tooltip.
+            if (_thumbnails.Count == 0 && _windowCount <= 1)
+            {
+                Close();
+            }
+
             return;
         }
 
@@ -290,9 +326,20 @@ internal sealed class DockSurfaceFlyout : IDisposable
     private void Open(DockItemCell anchor)
     {
         _popup.PlacementTarget = anchor;
-        _popup.Placement = PlacementMode.Top;
+        _popup.Placement = PlacementMode.Custom;
+        _popup.CustomPopupPlacementCallback = (tipSize, targetSize, _) =>
+        {
+            double scale = VisualTreeHelper.GetDpi(anchor).DpiScaleX;
+            (double x, double y) = DockTipPlacement.CenterAbove(
+                tipSize.Width, tipSize.Height, targetSize.Width, scale);
+            return
+            [
+                new CustomPopupPlacement(new Point(x, y), PopupPrimaryAxis.Horizontal),
+            ];
+        };
         _popup.IsOpen = true;
         CancelClose();
+        Opened?.Invoke(anchor);
     }
 
     private static void GetClientSize(IntPtr hwnd, out int width, out int height)

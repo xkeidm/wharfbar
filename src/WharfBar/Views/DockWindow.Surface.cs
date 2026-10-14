@@ -24,6 +24,7 @@ public partial class DockWindow
     private DispatcherTimer? _progressTimer;
     private DispatcherTimer? _thumbTimer;
     private DockItemCell? _thumbCell;
+    private DockItemCell? _tipHeld;
     private int _shellHookMessage;
     private bool _shellHookRegistered;
     private IntPtr _minimizeHook;
@@ -32,6 +33,8 @@ public partial class DockWindow
     private void AttachSurface(IntPtr hwnd)
     {
         _flyout = new DockSurfaceFlyout(SurfaceFlyout, SurfaceFlyoutCard, SurfaceFlyoutBody, ActivateFromFlyout);
+        _flyout.Opened += OnFlyoutOpened;
+        _flyout.Closed += ReleaseTip;
         _minimizeCue = new DockMinimizeCue(MinimizeCue, MinimizeShot, MinimizeScale);
 
         uint message = DockShellHook.RegisterMessage();
@@ -41,7 +44,7 @@ public partial class DockWindow
         _minimizeProc = OnMinimizeEvent;
         _minimizeHook = DockShellHook.TryHookMinimize(_minimizeProc);
 
-        _progressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(800) };
+        _progressTimer = new DispatcherTimer { Interval = DockTaskbarProgress.ActiveInterval };
         _progressTimer.Tick += OnProgressTick;
         _progressTimer.Start();
     }
@@ -52,7 +55,12 @@ public partial class DockWindow
         _progressTimer = null;
         _thumbTimer?.Stop();
         _thumbTimer = null;
-        _flyout?.Dispose();
+        if (_flyout is not null)
+        {
+            _flyout.Opened -= OnFlyoutOpened;
+            _flyout.Closed -= ReleaseTip;
+            _flyout.Dispose();
+        }
         _flyout = null;
         _minimizeCue?.Dispose();
         _minimizeCue = null;
@@ -131,6 +139,38 @@ public partial class DockWindow
         _flyout.ShowWindows(cell, windows);
     }
 
+    private void OnFlyoutOpened(DockItemCell? anchor)
+    {
+        if (anchor is null)
+        {
+            return;
+        }
+
+        if (_tipHeld is not null && !ReferenceEquals(_tipHeld, anchor))
+        {
+            ToolTipService.SetIsEnabled(_tipHeld, true);
+        }
+
+        if (anchor.ToolTip is ToolTip tip)
+        {
+            tip.IsOpen = false;
+        }
+
+        ToolTipService.SetIsEnabled(anchor, false);
+        _tipHeld = anchor;
+    }
+
+    private void ReleaseTip()
+    {
+        if (_tipHeld is null)
+        {
+            return;
+        }
+
+        ToolTipService.SetIsEnabled(_tipHeld, true);
+        _tipHeld = null;
+    }
+
     private bool TryHandleSpecialClick(DockItemCell cell, DockItemViewModel row)
     {
         if (row.Kind == DockTileKind.Launchpad)
@@ -204,12 +244,37 @@ public partial class DockWindow
 
     private void OnProgressTick(object? sender, EventArgs e)
     {
+        IReadOnlyList<DockAppItem> items = _composer?.Items ?? [];
+        bool anyRunning = false;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (items[i].Kind == DockTileKind.App && items[i].IsRunning)
+            {
+                anyRunning = true;
+                break;
+            }
+        }
+
+        if (!anyRunning)
+        {
+            SetProgressInterval(DockTaskbarProgress.QuietInterval);
+            if (_progressByKey.Count > 0)
+            {
+                _progressByKey.Clear();
+                ApplySurfaceChrome();
+            }
+
+            return;
+        }
+
         try
         {
-            IReadOnlyList<DockAppItem> items = _composer?.Items ?? [];
-            IReadOnlyDictionary<string, DockProgressState> map = DockTaskbarProgress.ForItems(
+            DockTaskbarProgress.Scan scan = DockTaskbarProgress.ReadButtons();
+            SetProgressInterval(DockTaskbarProgress.NextInterval(anyRunning, scan.Exposed));
+            IReadOnlyDictionary<string, DockProgressState> map = DockTaskbarProgress.Assign(
                 items,
-                _minimizedSource?.Windows ?? []);
+                _minimizedSource?.Windows ?? [],
+                scan);
             _progressByKey.Clear();
             foreach ((string key, DockProgressState state) in map)
             {
@@ -220,9 +285,18 @@ public partial class DockWindow
         {
             Debug.WriteLine($"WharfBar dock progress poll failed: {ex.Message}");
             _progressByKey.Clear();
+            SetProgressInterval(DockTaskbarProgress.QuietInterval);
         }
 
         ApplySurfaceChrome();
+    }
+
+    private void SetProgressInterval(TimeSpan interval)
+    {
+        if (_progressTimer is not null && _progressTimer.Interval != interval)
+        {
+            _progressTimer.Interval = interval;
+        }
     }
 
     private void ApplySurfaceChrome()
@@ -466,7 +540,11 @@ public partial class DockWindow
         var open = new MenuItem { Header = "Aç" };
         open.Click += (_, _) =>
         {
-            if (item.Kind == DockTileKind.Trash)
+            if (item.Kind == DockTileKind.Launchpad)
+            {
+                LaunchpadWindow.Toggle(_config);
+            }
+            else if (item.Kind == DockTileKind.Trash)
             {
                 _ = DockShellOpen.TryOpenRecycleBin();
             }

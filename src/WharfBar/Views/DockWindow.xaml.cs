@@ -596,7 +596,7 @@ public partial class DockWindow : Window
                 continue;
             }
 
-            cell.ToolTip = CreateDockTip(row.Tooltip, cell);
+            BindDockTip(cell, row.Tooltip);
 
             // Spec §6.3/§9: the user picked "sistem tooltip" as it behaves today, so these two
             // timings are part of the approved look, not incidental defaults.
@@ -786,8 +786,39 @@ public partial class DockWindow : Window
             return;
         }
 
-        ItemStore?.Move(dragged, Strip.ResolveInsertIndex(Strip.Axis(e.GetPosition(Strip))));
+        int slot = Strip.ResolveInsertIndex(Strip.Axis(e.GetPosition(Strip)));
+        ItemStore?.Move(dragged, StoreIndexForDropSlot(slot));
         e.Handled = true;
+    }
+
+    /// <summary>
+    /// Settled slots skip cells that are animating out, matching
+    /// <see cref="Controls.DockStrip.ResolveInsertIndex"/>. Launchpad and Downloads
+    /// occupy slots but are not store rows.
+    /// </summary>
+    private int StoreIndexForDropSlot(int slot)
+    {
+        DockItemStore? store = ItemStore;
+        if (store is null)
+        {
+            return 0;
+        }
+
+        var settled = new List<DockAppItem>();
+        foreach (DockItemCell cell in Strip.Cells)
+        {
+            if (cell.IsExiting || cell.Row is not { } row)
+            {
+                continue;
+            }
+
+            settled.Add(row.Item);
+        }
+
+        return DockReorder.StoreIndexBeforeSlot(
+            settled,
+            slot,
+            item => DockReorder.IsStoredPin(item, store.Items));
     }
 
     private void OnSurfaceDragOver(object sender, DragEventArgs e)
@@ -868,23 +899,47 @@ public partial class DockWindow : Window
 
     private void HideDropIndicator() => DropIndicator.Visibility = Visibility.Collapsed;
 
-    private static ToolTip CreateDockTip(string text, UIElement target) => new()
+    /// <summary>
+    /// Keeps the open tooltip instance. Replacing <c>ToolTip</c> on the composer's poll
+    /// leaves the previous popup on screen, so the same label appears twice.
+    /// </summary>
+    private static void BindDockTip(DockItemCell cell, string text)
     {
-        Content = text,
-        Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
-        PlacementTarget = target,
-        CustomPopupPlacementCallback = CenterAboveTarget,
-    };
+        if (cell.ToolTip is ToolTip tip)
+        {
+            if (!Equals(tip.Content, text))
+            {
+                tip.IsOpen = false;
+                tip.Content = text;
+            }
 
-    private static System.Windows.Controls.Primitives.CustomPopupPlacement[] CenterAboveTarget(
-        Size tipSize, Size targetSize, Point offset)
+            return;
+        }
+
+        cell.ToolTip = CreateDockTip(text, cell);
+    }
+
+    private static ToolTip CreateDockTip(string text, UIElement target)
     {
-        return
-        [
-            new System.Windows.Controls.Primitives.CustomPopupPlacement(
-                new Point((targetSize.Width - tipSize.Width) / 2, -tipSize.Height - 25),
-                System.Windows.Controls.Primitives.PopupPrimaryAxis.Horizontal),
-        ];
+        var tip = new ToolTip
+        {
+            Content = text,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Custom,
+            PlacementTarget = target,
+        };
+        tip.CustomPopupPlacementCallback = (tipSize, targetSize, _) =>
+        {
+            double scale = target is Visual visual ? VisualTreeHelper.GetDpi(visual).DpiScaleX : 1;
+            (double x, double y) = DockTipPlacement.CenterAbove(
+                tipSize.Width, tipSize.Height, targetSize.Width, scale);
+            return
+            [
+                new System.Windows.Controls.Primitives.CustomPopupPlacement(
+                    new Point(x, y),
+                    System.Windows.Controls.Primitives.PopupPrimaryAxis.Horizontal),
+            ];
+        };
+        return tip;
     }
 
     private void OnPlateContextMenuOpening(object sender, ContextMenuEventArgs e)
@@ -1134,17 +1189,24 @@ public partial class DockWindow : Window
         menu.Items.Add(closeItem);
 
         // 5. Additional actions if path exists
-        if (!string.IsNullOrWhiteSpace(item.Path) && File.Exists(item.Path))
+        bool fileExists = !string.IsNullOrWhiteSpace(item.Path) && File.Exists(item.Path);
+        bool directoryExists = !fileExists
+            && !string.IsNullOrWhiteSpace(item.Path)
+            && Directory.Exists(item.Path);
+        if (fileExists || directoryExists)
         {
             menu.Items.Add(new Separator());
 
-            var runAdminItem = new MenuItem
+            if (fileExists)
             {
-                Header = "Yönetici olarak çalıştır",
-                Icon = CreateMenuIcon(SymbolRegular.Shield24),
-            };
-            runAdminItem.Click += (_, _) => _launcher.LaunchAsAdmin(item.Path, item.Args);
-            menu.Items.Add(runAdminItem);
+                var runAdminItem = new MenuItem
+                {
+                    Header = "Yönetici olarak çalıştır",
+                    Icon = CreateMenuIcon(SymbolRegular.Shield24),
+                };
+                runAdminItem.Click += (_, _) => _launcher.LaunchAsAdmin(item.Path, item.Args);
+                menu.Items.Add(runAdminItem);
+            }
 
             var openFolderItem = new MenuItem
             {
@@ -1154,13 +1216,16 @@ public partial class DockWindow : Window
             openFolderItem.Click += (_, _) => OpenFileLocation(item.Path);
             menu.Items.Add(openFolderItem);
 
-            var newInstanceItem = new MenuItem
+            if (fileExists)
             {
-                Header = "Yeni pencere aç",
-                Icon = CreateMenuIcon(SymbolRegular.Add24),
-            };
-            newInstanceItem.Click += (_, _) => _launcher.Launch(item.Path, item.Args);
-            menu.Items.Add(newInstanceItem);
+                var newInstanceItem = new MenuItem
+                {
+                    Header = "Yeni pencere aç",
+                    Icon = CreateMenuIcon(SymbolRegular.Add24),
+                };
+                newInstanceItem.Click += (_, _) => _launcher.Launch(item.Path, item.Args);
+                menu.Items.Add(newInstanceItem);
+            }
         }
 
         // 6. Pencereler — the cached window table only. EnumWindows on the UI thread stalls on a
@@ -1528,8 +1593,9 @@ public partial class DockWindow : Window
         uint dpi = _monitorDpi;
         RECT monitor = Monitor.Bounds;
 
-        // Use last SetWindowPos geometry — Measure() on the 50 ms poll stalls the UI
-        // thread (laggy hover slide, delayed top-bar menus).
+        // Use last SetWindowPos geometry — Measure() on the cursor poll stalls the UI
+        // thread (laggy hover slide, delayed top-bar menus). Hidden docks poll at
+        // DockAutoHideController.IdlePollMs.
         int widthPx = _lastPlacementWidthPx > 0
             ? _lastPlacementWidthPx
             : 1;
