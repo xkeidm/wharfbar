@@ -272,6 +272,7 @@ internal sealed class ConfigService
     {
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.Theme = NormalizeTheme(config.Theme);
+        config.Language = LocalizationService.NormalizeLanguage(config.Language);
         config.Dock ??= new DockConfig();
         config.TopBar ??= new TopBarConfig();
         config.Veil ??= new VeilConfig();

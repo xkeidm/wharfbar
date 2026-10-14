@@ -15,10 +15,17 @@ internal sealed class AppConfig
     internal const string ThemeLight = "light";
     internal const string ThemeDark = "dark";
 
+    internal const string LanguageSystem = "system";
+    internal const string LanguageEn = "en";
+    internal const string LanguageTr = "tr";
+
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     /// <summary><c>system</c>, <c>light</c>, or <c>dark</c>.</summary>
     public string Theme { get; set; } = ThemeSystem;
+
+    /// <summary><c>system</c>, <c>en</c>, or <c>tr</c>.</summary>
+    public string Language { get; set; } = LanguageSystem;
 
     /// <summary>When true, applies Windows system accent color to application controls.</summary>
     public bool UseSystemAccentColor { get; set; } = true;
