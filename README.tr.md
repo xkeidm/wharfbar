@@ -12,6 +12,14 @@ WharfBar, Windows masaüstüne kendi üst çubuğunu ve dock’unu çizer.
 
 Her uygulama kendi menüsünü taşır. Üst çubukta saat, durum, tepsi ve kontroller vardır. Bir seçim çakışırsa sıra şöyledir: düşük kaynak kullanımı, sonra Windows’a özgü Fluent görünüm, sonra basitlik.
 
+## Ekran görüntüleri
+
+Fluent üst çubuk, dock ve ayarlar için örnek ürün görselleri. Canlı oturum burada AppBar şeridi ayıracağı için animasyonlu GIF yok; gerçek yakalamalar gelene kadar bu mock’lar duruyor.
+
+| Üst çubuk | Dock | Ayarlar |
+|:---------:|:----:|:-------:|
+| ![WharfBar üst çubuk](docs/media/wharfbar-topbar.jpg) | ![WharfBar dock](docs/media/wharfbar-dock.jpg) | ![WharfBar ayarlar](docs/media/wharfbar-settings.jpg) |
+
 ## Neden çalıştırılır
 
 - Saat, CPU / GPU / RAM, ağ, pil, bildirimler ve hızlı ayarlar tek şeritte durur; çalışma alanı gerçekten ayrılır.
@@ -147,15 +155,18 @@ Kod kökü `src/WharfBar/`. Arayüz `Views/` altındadır; klasör adı Win32 il
 - [docs/01-architecture.md](docs/01-architecture.md) — klasörler, servisler ve config
 - [docs/04-gotchas.md](docs/04-gotchas.md) — AppBar, Mica ve DPI tuzakları
 - [AGENTS.md](AGENTS.md) — derleme komutları ve ajan dizini
+- [CHANGELOG.md](CHANGELOG.md) — sürüm notları (Keep a Changelog; İngilizce)
+- [SECURITY.md](SECURITY.md) — güvenlik açığı bildirimi (İngilizce; özel kanal tercih edilir)
 
 ## Katkı
 
 Katkı rehberi ve davranış kuralları İngilizcedir: [CONTRIBUTING.md](CONTRIBUTING.md), [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 Hata ve özellik istekleri GitHub issue şablonlarını kullanır.
+Sürümleme kuralları CONTRIBUTING’dedir; güvenlik bildirimleri [SECURITY.md](SECURITY.md) üzerindendir.
 
 ## Durum
 
-Geliştirme aşamasında. Ürün bu çalışma ağacıdır; numaralı bir sürüm yoktur.
+**Beta (`1.0.0-beta`).** Ayrıntılar [CHANGELOG.md](CHANGELOG.md) dosyasındadır. Genel yol haritası [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones) üzerindedir: canlı iş Beta polish / Post-beta / Stable 1.0; geçmiş Shipped through 1.0.0-beta; bilerek ertelenenler Deferred / out of scope (açık park alanı).
 
 ## Lisans
 

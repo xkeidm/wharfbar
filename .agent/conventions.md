@@ -46,6 +46,14 @@
 - Dock: do taskbar pins not affect WharfBar, and does WharfBar not affect the taskbar?
   (ADR-005 revision: there must be no write or read in either direction)
 
+## Versioning
+
+- SemVer; current public line: **`1.0.0-beta`**.
+- During beta: `1.0.0-beta.N` → optional `1.0.0-rc.N` → first stable **`1.0.0`** (drops Beta in the app UI).
+- After stable: normal PATCH / MINOR / MAJOR.
+- About reads **`InformationalVersion`** from `WharfBar.csproj`; `AssemblyVersion` stays numeric.
+- User-facing notes go in root [`CHANGELOG.md`](../CHANGELOG.md); security process in [`SECURITY.md`](../SECURITY.md). Detail for contributors: [`CONTRIBUTING.md`](../CONTRIBUTING.md).
+
 ## Git
 
 - Commit only when the user asks.

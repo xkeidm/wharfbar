@@ -12,6 +12,14 @@ The top bar is a real AppBar (`ABE_TOP`, 30 DIP). Maximized windows stop under i
 
 Each Windows app keeps its own menu. The top bar carries the clock, status, tray, and controls. When a choice is in conflict, the order is low resource use, then a native Fluent look, then simplicity.
 
+## Screenshots
+
+Illustrative product stills of the Fluent top bar, dock, and settings. No animated GIF yet — capturing a live session here would reserve an AppBar strip, so these mocks stand in until real captures land.
+
+| Top bar | Dock | Settings |
+|:-------:|:----:|:--------:|
+| ![WharfBar top bar](docs/media/wharfbar-topbar.jpg) | ![WharfBar dock](docs/media/wharfbar-dock.jpg) | ![WharfBar settings](docs/media/wharfbar-settings.jpg) |
+
 ## Why run it
 
 - Clock, CPU / GPU / RAM, network, battery, notifications, and quick settings sit on one strip, and the work area is actually reserved.
@@ -147,15 +155,18 @@ The code root is `src/WharfBar/`. UI lives in `Views/`, so the folder name is no
 - [docs/01-architecture.md](docs/01-architecture.md) — folders, services, and config
 - [docs/04-gotchas.md](docs/04-gotchas.md) — AppBar, Mica, and DPI traps
 - [AGENTS.md](AGENTS.md) — build commands and the agent index
+- [CHANGELOG.md](CHANGELOG.md) — release notes (Keep a Changelog)
+- [SECURITY.md](SECURITY.md) — private vulnerability reporting
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 Bug reports and feature requests use the GitHub issue templates.
+Versioning rules are in CONTRIBUTING; security reports go through [SECURITY.md](SECURITY.md).
 
 ## Status
 
-In development. This tree is the product; there is no numbered release.
+**Beta (`1.0.0-beta`).** See [CHANGELOG.md](CHANGELOG.md). The public roadmap is [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones): live work under Beta polish / Post-beta / Stable 1.0; history under Shipped through 1.0.0-beta; consciously deferred work under Deferred / out of scope (open parking lot).
 
 ## License
 

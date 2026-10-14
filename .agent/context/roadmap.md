@@ -1,5 +1,21 @@
 # Roadmap
 
+## Public backlog (source of truth)
+
+**What’s next is tracked in [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones), not in this file.**
+
+| Milestone | Role |
+|-----------|------|
+| [Shipped through 1.0.0-beta](https://github.com/xkeidm/wharfbar/milestone/4) | Closed history of major work already in the tree |
+| [Beta polish](https://github.com/xkeidm/wharfbar/milestone/1) | Manual verification / stability before leaving beta |
+| [Post-beta / v1 candidates](https://github.com/xkeidm/wharfbar/milestone/2) | Feature candidates after beta polish |
+| [Stable 1.0](https://github.com/xkeidm/wharfbar/milestone/3) | Exit criteria for the first non-beta release |
+| [Deferred / out of scope](https://github.com/xkeidm/wharfbar/milestone/5) | Parking lot for deferred directions (open issues; not active sprint) |
+
+- Open work → issues under Beta polish, Post-beta, or Stable 1.0.
+- Agents: prefer milestone issues for planning; the completed-phase notes below are optional local context (GitHub Shipped issues are authoritative for history).
+- Deferred / forbidden detail also lives in [boundaries.md](../boundaries.md).
+
 ## Now (completed)
 
 - Documentation + agent skeleton (Approach B) ✓
@@ -82,51 +98,21 @@
  Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an
  on/off record only; an assembly is not loaded. Top bar and dock slots are not drawn.
 
-## To-do list (priority order)
+## Former to-do list (moved to milestones)
 
-### P0 — Next implementation
+The P0 / P1 / P2 open items below were filed as GitHub issues. Do not treat this section as the live backlog.
 
-1. **Phase 8 + Phase 9 manual verification** — UI checklist after commit
- - Phase 8: [`../../docs/03-development-order.md`](../../docs/03-development-order.md) Phase 8 (edge hover, click-through, fullscreen)
- - Phase 9: the same file, Phase 9; the plan's end-to-end section (9a/9b/9c)
-
-### P1 — Manual verification (human eye; without writing code)
-
-3. Bar / dock visual appearance, Mica texture, alignment
-4. Clock / network / battery strip + tray **Quit WharfBar**
-5. System light/dark runtime switch
-6. DPI / scale change and monitor plug/unplug
-7. `ABN_FULLSCREENAPP` z-order with a fullscreen app
-8. Intentional: `explorer.exe` restart → `TaskbarCreated`; force kill → awareness of a stuck work area / taskbar
-
-### P2 — Candidates after v1
-
-8b. **Top bar status-item customization** (show/hide + order; built-in catalog) —
- after QS + mixer have stabilized. Design approved.
- (code landed; manual UI checklist pending; no separate Control Center; tray mirror is in ADR-009; right-click menu)
-8c. **Top bar status-strip order + `controlCenter` + single-line clock** ✓ (code)
- (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manual UI checklist)
-9. Quick settings polish ✓ (code) — live Wi-Fi list + connect/disconnect (`WifiService` / wlanapi.dll;
- plaintext profile; QS Wifi page + password panel), classic+LE Bluetooth list (`BluetoothService`), real Night light
- state + toggle (`NightLightService` / CloudStore best-effort + session override), native
- project panel with 4 modes (`ProjectionService` / `SetDisplayConfig`), tile animations
- (in-place pop + color transition). Remaining: energy-saver toggle; session icons.
- (code is in the working tree; manual UI verification pending)
-10. UWP/Store icons (the full path)
-11. Optional "dock reserves space" (bottom AppBar — a separate ADR)
-12. A notification-center-like content mirror (ADR-005 still rejects it; separate approval is required)
+| Former priority | Now tracked under |
+|-----------------|-------------------|
+| Completed phase / feature history | [Shipped through 1.0.0-beta](https://github.com/xkeidm/wharfbar/milestone/4) (#11–#16, closed) |
+| P0 / P1 manual verification | [Beta polish](https://github.com/xkeidm/wharfbar/milestone/1) |
+| P2 candidates + later gaps (plugin slots, AppBar crash strip, multi-monitor parity) | [Post-beta / v1 candidates](https://github.com/xkeidm/wharfbar/milestone/2) |
+| Exit beta / first stable release | [Stable 1.0](https://github.com/xkeidm/wharfbar/milestone/3) |
+| Consciously deferred / parking lot | [Deferred / out of scope](https://github.com/xkeidm/wharfbar/milestone/5) (#17–#22, open) |
 
 ### Consciously deferred / forbidden
 
-- Reading, drawing, or click-forwarding foreign / system tray icons with `ReadProcessMemory` / injection / an undocumented API
- (ADR-009 allows only the documented `TB_*` message mirror;
- hidden/overflow icons are still forbidden — `Win+B` is used)
-- `ReadProcessMemory` / undocumented NotifyIcon enumeration
-- Breaking the taskbar **permanently** (without restore)
-- Registry `Run` autostart (the Startup folder is preferred)
-- Global application menu
-- Downloading plugin code or running it with `Assembly.Load` (ADR-017 allows the local manifest
- record; top bar/dock drawing is absent in this version)
+Tracked as open issues under [Deferred / out of scope](https://github.com/xkeidm/wharfbar/milestone/5). Hard safety rules still apply in [boundaries.md](../boundaries.md) until an issue is promoted and approved.
 
 ## Phase 1–3 verification status
 

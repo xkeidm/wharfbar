@@ -8,7 +8,8 @@ This folder **is the source of truth for WharfBar agents.** Cursor `.cursor/rule
 2. For code/style, [`conventions.md`](conventions.md).
 3. UI / user flows: [`screens/README.md`](screens/README.md) — a separate page
    per screen (top bar, dock, settings).
-4. Stack / roadmap: [`context/stack.md`](context/stack.md), [`context/roadmap.md`](context/roadmap.md).
+4. Stack / roadmap history: [`context/stack.md`](context/stack.md), [`context/roadmap.md`](context/roadmap.md).
+   Public planning backlog: [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones).
 5. For technical detail, the root [`docs/`](../docs/) — especially Win32 and gotchas.
 6. Root index: [`../AGENTS.md`](../AGENTS.md).
 

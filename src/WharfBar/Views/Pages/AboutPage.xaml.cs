@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Windows.Controls;
 using WharfBar.Services;
 
@@ -13,13 +12,9 @@ public partial class AboutPage : Page
     {
         InitializeComponent();
 
-        string version = Assembly.GetExecutingAssembly()
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
-            .InformationalVersion
-            ?? Assembly.GetExecutingAssembly().GetName().Version?.ToString()
-            ?? "—";
-
-        VersionText.Text = $"Sürüm {version}";
+        VersionText.Text = AppVersion.IsPrerelease
+            ? $"Sürüm {AppVersion.Current} · Beta"
+            : $"Sürüm {AppVersion.Current}";
 
         string os = SystemVersion.IsWindows11 ? "Windows 11" : "Windows 10";
         PlatformText.Text = $".NET {Environment.Version.Major} — {os}";

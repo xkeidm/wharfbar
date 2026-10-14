@@ -24,6 +24,7 @@
    - Development order → [`docs/03-development-order.md`](docs/03-development-order.md)
    - Gotchas → [`docs/04-gotchas.md`](docs/04-gotchas.md)
 7. Context: [`.agent/context/stack.md`](.agent/context/stack.md), [`.agent/context/roadmap.md`](.agent/context/roadmap.md)
+   (completed-phase history for agents; **public / what’s-next backlog** → [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones))
 8. UI tour (top bar, dock, settings): [`.agent/screens/README.md`](.agent/screens/README.md)
 
 ## Build / run

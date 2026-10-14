@@ -32,7 +32,8 @@ Recommended phases. Manual verification at the end of each phase; on phases that
 - [x] Repositioning with `WM_DPICHANGED` / `WM_DISPLAYCHANGE`
 - [x] **Verified (by script, 1920×1080 @ 100%):** work area `T=0` → `T=30`, on exit it returns
  exactly to the baseline, a maximized window stays under the bar, the second instance exits on its own.
- Detail and the remaining human-eye items: [`../.agent/context/roadmap.md`](../.agent/context/roadmap.md)
+ Remaining human-eye items live under [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones)
+ (see also [`../.agent/context/roadmap.md`](../.agent/context/roadmap.md) for completed-phase history).
 
 ## Phase 3 — Visuals ✓
 

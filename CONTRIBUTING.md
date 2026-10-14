@@ -9,6 +9,28 @@ The public docs are English. The only extra translation is [README.tr.md](README
 - Read [docs/00-overview.md](docs/00-overview.md) and [docs/04-gotchas.md](docs/04-gotchas.md).
 - Behavior and boundaries live in [docs/](docs/) and [.agent/](.agent/). A change to either belongs in the same pull request.
 
+## Planning and issues
+
+The public roadmap is [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones).
+New work should be an issue assigned to the right milestone (beta polish, post-beta candidates, or Stable 1.0).
+Use the bug and feature issue templates when they fit.
+
+## Versioning
+
+WharfBar uses [Semantic Versioning](https://semver.org/). The current public line is **`1.0.0-beta`**.
+
+| Stage | Version shape |
+|-------|----------------|
+| Current beta | `1.0.0-beta` |
+| Later betas | `1.0.0-beta.N` |
+| Optional release candidates | `1.0.0-rc.N` |
+| First stable | `1.0.0` (drops the Beta label in the app) |
+| After stable | PATCH / MINOR / MAJOR as usual |
+
+Set `<Version>` / `<InformationalVersion>` in `src/WharfBar/WharfBar.csproj`. **About shows `InformationalVersion`.** `AssemblyVersion` stays a numeric four-part value (SDK default from the major.minor.patch of `Version`).
+
+Record user-facing changes in [CHANGELOG.md](CHANGELOG.md). Report vulnerabilities per [SECURITY.md](SECURITY.md).
+
 ## Build
 
 You need Windows and the .NET SDK 8 or 9. The project targets `net8.0-windows10.0.19041.0`.
