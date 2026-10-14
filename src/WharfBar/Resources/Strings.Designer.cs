@@ -1801,6 +1801,30 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Launchpad_AgeNow {
+            get {
+                return ResourceManager.GetString("Launchpad_AgeNow", resourceCulture);
+            }
+        }
+
+        public static string Launchpad_AgeMinutes {
+            get {
+                return ResourceManager.GetString("Launchpad_AgeMinutes", resourceCulture);
+            }
+        }
+
+        public static string Launchpad_AgeHours {
+            get {
+                return ResourceManager.GetString("Launchpad_AgeHours", resourceCulture);
+            }
+        }
+
+        public static string Launchpad_AgeYesterday {
+            get {
+                return ResourceManager.GetString("Launchpad_AgeYesterday", resourceCulture);
+            }
+        }
+
         public static string Island_RelativeHours {
             get {
                 return ResourceManager.GetString("Island_RelativeHours", resourceCulture);

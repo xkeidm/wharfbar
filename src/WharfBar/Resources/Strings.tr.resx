@@ -725,6 +725,10 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Island_RelativeMinutes" xml:space="preserve"><value>{0} dk önce</value></data>
   <data name="Island_RelativeHours" xml:space="preserve"><value>{0} sa önce</value></data>
   <data name="Island_RelativeDays" xml:space="preserve"><value>{0} gün önce</value></data>
+  <data name="Launchpad_AgeNow" xml:space="preserve"><value>Az önce</value></data>
+  <data name="Launchpad_AgeMinutes" xml:space="preserve"><value>{0} dakika önce</value></data>
+  <data name="Launchpad_AgeHours" xml:space="preserve"><value>{0} saat önce</value></data>
+  <data name="Launchpad_AgeYesterday" xml:space="preserve"><value>Dün saat {0}</value></data>
   <data name="Island_VolumeMuted" xml:space="preserve"><value>Ses, sessiz</value></data>
   <data name="Island_VolumeFormat" xml:space="preserve"><value>Ses %{0}</value></data>
   <data name="Island_BrightnessFormat" xml:space="preserve"><value>Parlaklık %{0}</value></data>

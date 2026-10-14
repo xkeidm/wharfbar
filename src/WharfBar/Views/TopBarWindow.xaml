@@ -82,7 +82,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <!-- Single-line clock+date (tr-TR abbreviations); sits beside notification bell. -->
+        <!-- Single-line clock+date (current-culture abbreviations); sits beside notification bell. -->
         <Style x:Key="ClockCombinedLabel" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
             <Setter Property="FontSize" Value="12" />

@@ -722,6 +722,10 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Island_RelativeMinutes" xml:space="preserve"><value>{0} min ago</value></data>
   <data name="Island_RelativeHours" xml:space="preserve"><value>{0} hr ago</value></data>
   <data name="Island_RelativeDays" xml:space="preserve"><value>{0} days ago</value></data>
+  <data name="Launchpad_AgeNow" xml:space="preserve"><value>Just now</value></data>
+  <data name="Launchpad_AgeMinutes" xml:space="preserve"><value>{0} min ago</value></data>
+  <data name="Launchpad_AgeHours" xml:space="preserve"><value>{0} hr ago</value></data>
+  <data name="Launchpad_AgeYesterday" xml:space="preserve"><value>Yesterday at {0}</value></data>
   <data name="Island_VolumeMuted" xml:space="preserve"><value>Volume, muted</value></data>
   <data name="Island_VolumeFormat" xml:space="preserve"><value>Volume {0}%</value></data>
   <data name="Island_BrightnessFormat" xml:space="preserve"><value>Brightness {0}%</value></data>

@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using WharfBar.Resources;
 
 namespace WharfBar.Services;
 
@@ -70,22 +71,22 @@ internal static class LaunchpadRecent
 
         if (age.TotalMinutes < 1)
         {
-            return "Az önce";
+            return Strings.Launchpad_AgeNow;
         }
 
         if (age.TotalHours < 1)
         {
-            return $"{Math.Max(1, (int)age.TotalMinutes)} dakika önce";
+            return string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeMinutes, Math.Max(1, (int)age.TotalMinutes));
         }
 
         if (local.Date == now.Date || age.TotalHours < 24)
         {
-            return $"{Math.Max(1, (int)age.TotalHours)} saat önce";
+            return string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeHours, Math.Max(1, (int)age.TotalHours));
         }
 
         if (local.Date == now.Date.AddDays(-1))
         {
-            return $"Dün saat {local:HH:mm}";
+            return string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeYesterday, local.ToString("HH:mm", CultureInfo.CurrentCulture));
         }
 
         return local.ToString("d MMM HH:mm", CultureInfo.CurrentCulture);
