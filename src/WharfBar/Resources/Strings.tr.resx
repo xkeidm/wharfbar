@@ -710,4 +710,83 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI parlaklık kontrolü desteklenmiyor</value></data>
   <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>simge yok</value></data>
   <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Windows gizli simgelerini aç</value></data>
+  <data name="Island_Clipboard" xml:space="preserve"><value>Pano</value></data>
+  <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Pano ve bırakılan dosyalar</value></data>
+  <data name="Island_Music" xml:space="preserve"><value>Müzik</value></data>
+  <data name="Island_NowPlaying" xml:space="preserve"><value>Şimdi çalıyor</value></data>
+  <data name="Island_BackToMusic" xml:space="preserve"><value>Müziğe dön</value></data>
+  <data name="Island_ClipboardHistory" xml:space="preserve"><value>Pano geçmişi</value></data>
+  <data name="Island_EmptyHint" xml:space="preserve"><value>Kopyalanan metin ve bırakılan dosyalar burada durur.</value></data>
+  <data name="Island_SearchPlaceholder" xml:space="preserve"><value>Ara…</value></data>
+  <data name="Island_NoEntries" xml:space="preserve"><value>Kayıt yok.</value></data>
+  <data name="Island_NoMatchingEntries" xml:space="preserve"><value>Eşleşen kayıt yok.</value></data>
+  <data name="Island_MoreEntriesFormat" xml:space="preserve"><value>… {0} kayıt daha var (arama ile daralt)</value></data>
+  <data name="Island_RelativeNow" xml:space="preserve"><value>şimdi</value></data>
+  <data name="Island_RelativeMinutes" xml:space="preserve"><value>{0} dk önce</value></data>
+  <data name="Island_RelativeHours" xml:space="preserve"><value>{0} sa önce</value></data>
+  <data name="Island_RelativeDays" xml:space="preserve"><value>{0} gün önce</value></data>
+  <data name="Island_VolumeMuted" xml:space="preserve"><value>Ses, sessiz</value></data>
+  <data name="Island_VolumeFormat" xml:space="preserve"><value>Ses %{0}</value></data>
+  <data name="Island_BrightnessFormat" xml:space="preserve"><value>Parlaklık %{0}</value></data>
+  <data name="Island_BatteryFormat" xml:space="preserve"><value>Pil %{0}</value></data>
+  <data name="Island_BatteryChargingFormat" xml:space="preserve"><value>{0} · şarj oluyor</value></data>
+  <data name="Tray_Settings" xml:space="preserve"><value>WharfBar Ayarları</value></data>
+  <data name="Tray_Quit" xml:space="preserve"><value>WharfBar&apos;ı kapat</value></data>
+  <data name="Launchpad_Connected" xml:space="preserve"><value>Bağlı</value></data>
+  <data name="Launchpad_Messages" xml:space="preserve"><value>Mesajlar</value></data>
+  <data name="Launchpad_Calls" xml:space="preserve"><value>Aramalar</value></data>
+  <data name="Launchpad_Photos" xml:space="preserve"><value>Fotoğraflar</value></data>
+  <data name="Launchpad_SendFiles" xml:space="preserve"><value>Dosyaları gönder</value></data>
+  <data name="Launchpad_Recent" xml:space="preserve"><value>En son</value></data>
+  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Uygulama, ayar ve belge ara</value></data>
+  <data name="Launchpad_Pinned" xml:space="preserve"><value>Sabitlendi</value></data>
+  <data name="Launchpad_ShowLess" xml:space="preserve"><value>Daha az göster</value></data>
+  <data name="Launchpad_ShowAll" xml:space="preserve"><value>Tümünü göster</value></data>
+  <data name="Launchpad_Results" xml:space="preserve"><value>Sonuçlar</value></data>
+  <data name="Launchpad_All" xml:space="preserve"><value>Tümü</value></data>
+  <data name="Launchpad_ViewGrid" xml:space="preserve"><value>Görünüm: Kılavuz</value></data>
+  <data name="Launchpad_ViewList" xml:space="preserve"><value>Görünüm: Liste</value></data>
+  <data name="Launchpad_NoMatches" xml:space="preserve"><value>Eşleşen uygulama yok</value></data>
+  <data name="Launchpad_ToolDocuments" xml:space="preserve"><value>Belgeler</value></data>
+  <data name="Launchpad_ToolDownloads" xml:space="preserve"><value>İndirilenler</value></data>
+  <data name="Launchpad_ToolPictures" xml:space="preserve"><value>Resimler</value></data>
+  <data name="Launchpad_ToolSettings" xml:space="preserve"><value>Ayarlar</value></data>
+  <data name="Launchpad_ToolWidgets" xml:space="preserve"><value>Widget</value></data>
+  <data name="Launchpad_ToolPlugins" xml:space="preserve"><value>Eklenti</value></data>
+  <data name="Launchpad_ToolPower" xml:space="preserve"><value>Güç</value></data>
+  <data name="Gallery_Widgets" xml:space="preserve"><value>Widget&apos;lar</value></data>
+  <data name="Gallery_Plugins" xml:space="preserve"><value>Eklentiler</value></data>
+  <data name="Gallery_PluginsAndWidgets" xml:space="preserve"><value>Eklentiler ve widget&apos;lar</value></data>
+  <data name="Gallery_Intro" xml:space="preserve"><value>Yerleşik öğeler hemen çalışır. Yerel öğeler bir klasördeki manifest.json kaydıdır. Kartın yuvası, öğenin nerede duracağını söyler.</value></data>
+  <data name="Gallery_BuiltIn" xml:space="preserve"><value>Yerleşik</value></data>
+  <data name="Gallery_NoBuiltIn" xml:space="preserve"><value>Bu görünümde yerleşik öğe yok.</value></data>
+  <data name="Gallery_Local" xml:space="preserve"><value>Yerel</value></data>
+  <data name="Gallery_Slots" xml:space="preserve"><value>Yuvalar</value></data>
+  <data name="Gallery_SlotsExplanation" xml:space="preserve"><value>Üst çubuk (topBar) ve Dock (dock) v1&apos;de yalnız kayıttır; çubuğa veya dock&apos;a çizilmez. Masaüstü (desktop) yerleşik saat ve takvimi pencere olarak açar. Ada (island) görselleştirici, Bluetooth bildirimi ve kamera aynasını hapın içinde çalıştırır. İnternetten kod inmez, derleme yüklenmez.</value></data>
+  <data name="Gallery_OpenFolder" xml:space="preserve"><value>Klasörü aç</value></data>
+  <data name="Gallery_SlotTopBar" xml:space="preserve"><value>Üst çubuk</value></data>
+  <data name="Gallery_SlotDock" xml:space="preserve"><value>Dock</value></data>
+  <data name="Gallery_SlotDesktop" xml:space="preserve"><value>Masaüstü</value></data>
+  <data name="Gallery_SlotIsland" xml:space="preserve"><value>Ada</value></data>
+  <data name="Gallery_ChipDesktopDetail" xml:space="preserve"><value>saat, takvim</value></data>
+  <data name="Gallery_ChipIslandDetail" xml:space="preserve"><value>hap</value></data>
+  <data name="Gallery_EmptyLocalTitle" xml:space="preserve"><value>Henüz yerel kayıt yok</value></data>
+  <data name="Gallery_EmptyLocalBody" xml:space="preserve"><value>plugins klasörünün altında bir klasör açın ve içine manifest.json koyun. Kökteki dosya okunmaz; bağlantı (junction) klasörleri de atlanır.</value></data>
+  <data name="Gallery_ExampleId" xml:space="preserve"><value>hava</value></data>
+  <data name="Gallery_ExampleName" xml:space="preserve"><value>Hava</value></data>
+  <data name="Gallery_ExampleDescription" xml:space="preserve"><value>Kısa durum.</value></data>
+  <data name="Gallery_RecordOnly" xml:space="preserve"><value>yalnız kayıt</value></data>
+  <data name="Gallery_KindWidget" xml:space="preserve"><value>Widget</value></data>
+  <data name="Gallery_KindPlugin" xml:space="preserve"><value>Eklenti</value></data>
+  <data name="Gallery_CardVisualizerName" xml:space="preserve"><value>Görselleştirici</value></data>
+  <data name="Gallery_CardVisualizerSummary" xml:space="preserve"><value>Müzik çalarken ada hapında beş çubuk.</value></data>
+  <data name="Gallery_CardBluetoothName" xml:space="preserve"><value>Bluetooth bildirimi</value></data>
+  <data name="Gallery_CardBluetoothSummary" xml:space="preserve"><value>Bağlanan cihazın adı hapta kısa süre durur.</value></data>
+  <data name="Gallery_CardCameraName" xml:space="preserve"><value>Kamera aynası</value></data>
+  <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Hapta canlı önizleme. İzin yoksa görüntü yok.</value></data>
+  <data name="Gallery_CardClockName" xml:space="preserve"><value>Saat</value></data>
+  <data name="Gallery_CardClockSummary" xml:space="preserve"><value>Masaüstünde saat penceresi. Ada hapına girmez.</value></data>
+  <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Takvim</value></data>
+  <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>Bu ayın ızgarası. Ada hapına girmez.</value></data>
+  <data name="Island_Camera" xml:space="preserve"><value>Kamera</value></data>
 </root>

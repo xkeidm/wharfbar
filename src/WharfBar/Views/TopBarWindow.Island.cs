@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -6,8 +7,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WharfBar.Resources;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -524,15 +528,15 @@ public partial class TopBarWindow
         string tip = snap.Face switch
         {
             IslandPillFace.NowPlaying => BuildMediaTooltip(_engine.Media.Snapshot),
-            IslandPillFace.Volume => snap.MeterMuted ? "Ses (sessiz)" : $"Ses %{snap.MeterPercent}",
-            IslandPillFace.Brightness => $"Parlaklık %{snap.MeterPercent}",
+            IslandPillFace.Volume => snap.MeterMuted ? Strings.Island_VolumeMuted : string.Format(CultureInfo.CurrentCulture, Strings.Island_VolumeFormat, snap.MeterPercent),
+            IslandPillFace.Brightness => string.Format(CultureInfo.CurrentCulture, Strings.Island_BrightnessFormat, snap.MeterPercent),
             IslandPillFace.Battery => BatteryTip(snap.MeterPercent),
             IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title)
-                ? "Pano ve bırakılan dosyalar"
+                ? Strings.Island_ClipboardAndDrops
                 : snap.Title,
             IslandPillFace.Bluetooth => string.IsNullOrWhiteSpace(snap.Title) ? "Bluetooth" : snap.Title,
             IslandPillFace.Camera => snap.Title,
-            _ => string.IsNullOrWhiteSpace(snap.Title) ? "Pano ve bırakılan dosyalar" : snap.Title,
+            _ => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_ClipboardAndDrops : snap.Title,
         };
         if (!string.Equals(tip, _islandTip, StringComparison.Ordinal))
         {
@@ -1341,7 +1345,7 @@ public partial class TopBarWindow
         host.BorderBrush = selected
             ? TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue
             : Brushes.Transparent;
-        host.ToolTip = satellite == IslandSatellite.Music ? "Müzik" : "Pano";
+        host.ToolTip = satellite == IslandSatellite.Music ? Strings.Island_Music : Strings.Island_Clipboard;
         return IslandSatelliteDip;
     }
 
@@ -1476,22 +1480,22 @@ public partial class TopBarWindow
 
     private string BatteryTip(int percent)
     {
-        string tip = $"Pil %{percent}";
-        return _engine.Status.Snapshot.IsBatteryCharging ? $"{tip} · şarj oluyor" : tip;
+        string tip = string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryFormat, percent);
+        return _engine.Status.Snapshot.IsBatteryCharging ? string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryChargingFormat, tip) : tip;
     }
 
     private static string IslandAccessName(IslandPresenceView snap)
     {
         return snap.Face switch
         {
-            IslandPillFace.NowPlaying => string.IsNullOrWhiteSpace(snap.Title) ? "Müzik" : snap.Title,
-            IslandPillFace.Volume => snap.MeterMuted ? "Ses, sessiz" : $"Ses %{snap.MeterPercent}",
-            IslandPillFace.Brightness => $"Parlaklık %{snap.MeterPercent}",
-            IslandPillFace.Battery => $"Pil %{snap.MeterPercent}",
-            IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title) ? "Pano" : snap.Title,
+            IslandPillFace.NowPlaying => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Music : snap.Title,
+            IslandPillFace.Volume => snap.MeterMuted ? Strings.Island_VolumeMuted : string.Format(CultureInfo.CurrentCulture, Strings.Island_VolumeFormat, snap.MeterPercent),
+            IslandPillFace.Brightness => string.Format(CultureInfo.CurrentCulture, Strings.Island_BrightnessFormat, snap.MeterPercent),
+            IslandPillFace.Battery => string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryFormat, snap.MeterPercent),
+            IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Clipboard : snap.Title,
             IslandPillFace.Bluetooth => string.IsNullOrWhiteSpace(snap.Title) ? "Bluetooth" : snap.Title,
-            IslandPillFace.Camera => string.IsNullOrWhiteSpace(snap.Title) ? "Kamera" : snap.Title,
-            _ => string.IsNullOrWhiteSpace(snap.Title) ? "Pano" : snap.Title,
+            IslandPillFace.Camera => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Camera : snap.Title,
+            _ => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Clipboard : snap.Title,
         };
     }
 

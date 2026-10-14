@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using WharfBar.Resources;
 using WharfBar.Native;
 
 namespace WharfBar.Services;
@@ -90,9 +91,9 @@ internal sealed class TrayIconService : IDisposable
 
         try
         {
-            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)SettingsCommandId, "WharfBar Ayarları");
+            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)SettingsCommandId, Strings.Tray_Settings);
             _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_SEPARATOR, UIntPtr.Zero, string.Empty);
-            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)QuitCommandId, "WharfBar'ı kapat");
+            _ = NativeMethods.AppendMenu(menu, NativeMethods.MF_STRING, (UIntPtr)QuitCommandId, Strings.Tray_Quit);
 
             // Required so the menu dismisses correctly when clicking away.
             _ = NativeMethods.SetForegroundWindow(hwnd);

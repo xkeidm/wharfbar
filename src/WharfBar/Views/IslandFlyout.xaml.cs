@@ -9,7 +9,9 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WharfBar.Resources;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -572,7 +574,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         if (total == 0)
         {
-            HintText.Text = SearchBox.Text.Length == 0 ? "Kayıt yok." : "Eşleşen kayıt yok.";
+            HintText.Text = SearchBox.Text.Length == 0 ? Strings.Island_NoEntries : Strings.Island_NoMatchingEntries;
             HintText.Visibility = Visibility.Visible;
             return;
         }
@@ -581,7 +583,7 @@ public sealed partial class IslandFlyout : UserControl
         {
             HintText.Text = string.Format(
                 CultureInfo.CurrentCulture,
-                "… {0} kayıt daha var (arama ile daralt)",
+                Strings.Island_MoreEntriesFormat,
                 total - shown);
             HintText.Visibility = Visibility.Visible;
             return;

@@ -1,3 +1,5 @@
+using System.Globalization;
+using WharfBar.Resources;
 using System;
 using WharfBar.Models;
 using WharfBar.Services;
@@ -224,17 +226,17 @@ public class IslandPrunerTests
     [Fact]
     public void FormatRelativeTime_Formats_MinutesHoursDays()
     {
-        Assert.Equal("şimdi", IslandPruner.FormatRelativeTime(NowUtc, Now));
-        Assert.Equal("3 dk önce", IslandPruner.FormatRelativeTime(NowUtc.AddMinutes(-3), Now));
-        Assert.Equal("5 sa önce", IslandPruner.FormatRelativeTime(NowUtc.AddHours(-5), Now));
-        Assert.Equal("2 gün önce", IslandPruner.FormatRelativeTime(NowUtc.AddDays(-2), Now));
+        Assert.Equal(Strings.Island_RelativeNow, IslandPruner.FormatRelativeTime(NowUtc, Now));
+        Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeMinutes, 3), IslandPruner.FormatRelativeTime(NowUtc.AddMinutes(-3), Now));
+        Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeHours, 5), IslandPruner.FormatRelativeTime(NowUtc.AddHours(-5), Now));
+        Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeDays, 2), IslandPruner.FormatRelativeTime(NowUtc.AddDays(-2), Now));
     }
 
     [Fact]
     public void FormatRelativeTime_Clamps_FutureTimestamps_ToNow()
     {
-        Assert.Equal("şimdi", IslandPruner.FormatRelativeTime(NowUtc.AddMinutes(10), Now));
-        Assert.Equal("şimdi", IslandPruner.FormatRelativeTime(NowUtc.AddDays(3), Now));
+        Assert.Equal(Strings.Island_RelativeNow, IslandPruner.FormatRelativeTime(NowUtc.AddMinutes(10), Now));
+        Assert.Equal(Strings.Island_RelativeNow, IslandPruner.FormatRelativeTime(NowUtc.AddDays(3), Now));
     }
 
     [Theory]

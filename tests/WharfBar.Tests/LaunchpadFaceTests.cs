@@ -1,3 +1,4 @@
+using WharfBar.Resources;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -128,7 +129,7 @@ public class LaunchpadFaceTests
         Assert.DoesNotContain("Mac", Texts(win11));
         ClickApp(win11, "Uygulama 01");
         Assert.Equal("Uygulama 01", opened?.Name);
-        Assert.Contains("Belgeler", ToolTips(win11));
+        Assert.Contains(Strings.Launchpad_ToolDocuments, ToolTips(win11));
         Assert.Contains("Güç", ToolTips(win11));
         var card = Assert.IsType<Border>(win11);
         Assert.Equal(22, card.Padding.Left);
@@ -161,9 +162,9 @@ public class LaunchpadFaceTests
 
         UIElement all = LaunchpadWin11Face.Create(session);
         Assert.Equal(
-            ["Belgeler", "İndirilenler", "Resimler", "Ayarlar", "Widget", "Eklenti", "Güç"],
+            [Strings.Launchpad_ToolDocuments, Strings.Launchpad_ToolDownloads, Strings.Launchpad_ToolPictures, Strings.Launchpad_ToolSettings, Strings.Launchpad_ToolWidgets, Strings.Launchpad_ToolPlugins, Strings.Launchpad_ToolPower],
             ToolTips(all));
-        Button icon = FindButtons(all).First(button => Equals(button.ToolTip, "Belgeler"));
+        Button icon = FindButtons(all).First(button => Equals(button.ToolTip, Strings.Launchpad_ToolDocuments));
         Assert.Equal(40, icon.Width);
         Assert.Equal(40, icon.Height);
         Assert.True(icon.Padding.Left >= 4);
@@ -195,9 +196,9 @@ public class LaunchpadFaceTests
         power.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Assert.DoesNotContain(LaunchpadTools.Power, session.Config.Launchpad.Tools);
         Assert.DoesNotContain("Güç", ToolTips(host));
-        Assert.Contains("Belgeler", ToolTips(host));
+        Assert.Contains(Strings.Launchpad_ToolDocuments, ToolTips(host));
         Assert.Equal(1, UserChips(host));
-        Assert.Null(FindButtons(host).First(button => Equals(button.ToolTip, "Belgeler")).ContextMenu);
+        Assert.Null(FindButtons(host).First(button => Equals(button.ToolTip, Strings.Launchpad_ToolDocuments)).ContextMenu);
 
         foreach (MenuItem item in menu.Items.Cast<MenuItem>())
         {
