@@ -3,8 +3,8 @@
 `src/WharfBar/Views/SettingsWindow.xaml` + `Views/Pages/*`.
 
 Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü). WPF-UI
-`NavigationView`, Mica, sol gezinme: **Genel · Görünüm · Dock · Üst Çubuk** + alt
-**Hakkında**.
+`NavigationView`, Mica, sol gezinme: **Genel · Görünüm · Dock · Ekranlar · Üst Çubuk ·
+Kaplama · Ada · Eklentiler** + alt **Hakkında**.
 
 ## Genel (`GeneralPage`)
 
@@ -31,8 +31,22 @@ Açılış: top bar Windows logosu → "WharfBar Ayarları" (veya tepsi menüsü
 
 ## Üst Çubuk (`TopBarPage`)
 
-- **Durum öğeleri kartları** — her öğe için onay kutusu (göster/gizle) + ▲▼ sıralama
-  (yalnızca görünür öğelerde) + "Varsayılana Sıfırla" düğmesi (config `topBar.statusItems`)
+- **Durum öğeleri kartları** — katalogdaki her öğe (kapalı olanlar altta, "Kapalı" başlığıyla).
+  Onay kutusu göster/gizle; görünürlerde `⋮⋮` tutamacıyla sürükleyerek sırala.
+  **Tümünü göster** eksikleri açar (kayıtlı sırayı bozmaz). **Varsayılana Sıfırla**
+  `DefaultOrder`'a döner (config `topBar.statusItems`)
+
+## Eklentiler (`PluginsPage`)
+
+Launchpad'deki Widget ve Eklenti araçları aynı kataloğu ayrı pencerede açar (`GalleryWindow`).
+
+- **Yuvalar** — Üst çubuk (`topBar`), Dock (`dock`), Masaüstü (`desktop`), Ada (`island`).
+  Üst çubuk ve dock v1'de yalnız kayıttır; çizilmez.
+- **Yerleşik** — görselleştirici, Bluetooth bildirimi, kamera aynası (ada); saat ve takvim
+  (masaüstü penceresi). Anahtar `island.visualizer`, `island.bluetoothNotice`,
+  `island.cameraMirror`, `island.openWidgets`.
+- **Yerel** — `%AppData%/WharfBar/plugins/<klasör>/manifest.json`. Boşken örnek manifest
+  ve **Klasörü aç** görünür. Açık id `plugins.enabled` içine yazılır. Derleme yüklenmez.
 
 ## Hakkında (`AboutPage`)
 

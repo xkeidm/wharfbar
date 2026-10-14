@@ -43,6 +43,9 @@ Windows’ta macOS tarzı **top bar + dock**: .NET 8 WPF + WPF-UI + Win32 P/Invo
   monitöründeki pencereleri sayar. Launchpad, İndirilenler ve çöp yerleşik karodur
   (pin klasörüne yazılmaz). Launchpad dock karosunda açılır; Windows logosu menüyü açar.
   Yüz tektir: ortada, duvar kâğıdının üstünde; kutu tarama bitmeden açılır, Tümü harf başlığı altındadır (ADR-016).
+  Widget ve Eklenti araçları galeriyi açar; Ayarlar → Eklentiler aynı listeyi gösterir (ADR-017).
+  Yerleşik ada anahtarları ve masaüstü saat/takvim çalışır. Yerel `manifest.json` yalnız aç/kapa kaydıdır;
+  derleme yüklenmez. Üst çubuk ve dock yuvaları v1'de çizilmez.
   Telefon satırı yalnız bağlı cihaz varken: YourPhone başlangıç kartından ad, pil ve bildirim sayısı; eksik alan gizlenir.
   Klasör yığını, küçültme anlık görüntüsü ve Store logosu ADR-014.
 - **Görev çubuğu:** WharfBar çalışırken gizle/auto-hide; çıkışta geri yükle (ADR-005).
@@ -105,6 +108,7 @@ Tam yapı: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 | `docs/decisions/007-...` | Renk kaplaması (veil) — katmanlı pencere |
 | `docs/decisions/008-...` | Medya paneli (SMTC) — çalan medya + kontroller |
 | `docs/decisions/013-...` | Üst bar derinliği — iki uydu, saat paneli, kıvılcım, enerji tasarrufu anahtarı |
+| `docs/decisions/017-...` | Eklenti kataloğu — yerel manifest kaydı, yerleşik widget/eklenti, yuva metadata |
 
 ## Mevcut repo durumu
 
@@ -131,8 +135,9 @@ Sol menü: Hakkında + Kapat (`Application.Shutdown` → restore + `ABM_REMOVE`)
 (ADR-006): `controlCenter`/ses/ağ ikonundan paylaşılan flyout (Main / Mixer / Network);
 tek aygıt + dropdown + uygulama oturumları; ağ durumu / Settings. Açık panelde sayfa
 geçişi 220 ms kayma+solma (`QuickSettingsPageMotion`); ilk açılışta yok. Canlı ağ özellikleri
-tamamlandı: canlı Wi-Fi listesi + bağlanma (`WifiService`, wlanapi.dll; QS Wifi sayfası + şifre paneli),
-BT cihaz listesi (`BluetoothService`), gece ışığı gerçek durum + toggle (`NightLightService`,
+tamamlandı: canlı Wi-Fi listesi + bağlanma ve kopma (`WifiService`, wlanapi.dll; düz metin profil
+`protected=false`; radyo kapalıyken liste boş), BT klasik+LE cihaz listesi (`BluetoothService`),
+gece ışığı yazılamazsa Ayarlar'a düşer (`NightLightService`,
 CloudStore best-effort + oturum override), native yansıtma paneli 4 mod (`ProjectionService`,
 `QueryDisplayConfig`/`SetDisplayConfig`), tile animasyonları (in-place pop + renk geçişi).
 Spec: [`../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md`](../docs/superpowers/specs/2026-08-16-quick-settings-live-network-nightlight-project-design.md);
@@ -152,7 +157,7 @@ plan: [`../docs/superpowers/plans/2026-08-18-media-panel.md`](../docs/superpower
 karar: [`../docs/decisions/008-media-panel.md`](../docs/decisions/008-media-panel.md).
 **Tray aynası (ADR-009):** üst bar `trayMirror` öğesi (katalog **v5**) — gerçek tray
 toolbar'ından (TrayNotifyWnd/SysPager/ToolbarWindow32) üçüncü taraf ikonları okur,
-sistem ikonlarını filtreler, 1.5 sn poll, tıklama forward. **Windows 11 25H2+ UIA fallback:**
+sistem ikonlarını filtreler, 4 sn poll (ikon pikseli blip'te yenilenir), tıklama forward. **Windows 11 25H2+ UIA fallback:**
 klasik toolbar kaldırıldığı için `TrayUiaReader` (SystemTray.NormalButton) + `TrayCapture`
 (PrintWindow ile park+cloak'lı taskbar'dan gerçek ikon yakalama; başarısızsa harf glifi) + UIA
 `InvokePattern`/peek tıklama. Spec:
@@ -162,7 +167,7 @@ ADR: [`../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../docs/decisi
 Monitorian tarzı DDC/CI + WMI hibrit servisi (`MonitorBrightnessService`, `MonitorNative`) ve
 `BrightnessFlyout` (TopBar parlaklık simgesi `&#xE706;`, master "Tüm Ekranlar" slider'ı, bağımsız monitör kartları, 50ms debounced arka plan kuyruğu).
 **Sistem istatistikleri:** üst bar sol kümede Windows logosunun yanında
-`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, 2 sn poll; `topBar.showSystemStats`
+`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, 4 sn, UI iş parçacığı dışında; görünen metin değişmediyse yenilenmez; `topBar.showSystemStats`
 toggle Ayarlar → Üst Çubuk). GPU PDH `\GPU Engine(*)\Utilization Percentage`
 (`PdhAddEnglishCounterW`) — motor örnekleri LUID'e göre fiziksel adaptöre gruplanır;
 `topBar.showGpuPerAdapter` açıkken çoklu GPU'da `GPU0 x% · GPU1 y%` (kapalıyken tek

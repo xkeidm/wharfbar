@@ -13,7 +13,7 @@
 | Kaynak | Ana tray alanı: `Shell_TrayWnd` → `TrayNotifyWnd` → `SysPager` → `ToolbarWindow32` |
 | Enumeration | **Belgelenmiş comctl32 mesajları** (`TB_BUTTONCOUNT`, `TB_GETBUTTON` (index wParam; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` + `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id wParam)) — bunlar standart toolbar kontrol mesajlarıdır; tray bunları barındıran bir ToolbarWindow32 olduğundan aynı mesaj yüzeyi kullanılır |
 | Tıklama | Item rect → `SendMessage` mouse mesajları (WM_LBUTTONDOWN/UP, WM_RBUTTONDOWN/UP, çift tık) — explorer'ın kendi tray subclass'ı işler; `SendInput` / peek-show gerekmez |
-| Güncelleme | 1.5 sn arka plan `System.Threading.Timer` poll + snapshot diff (olay bildirimi yok; Windows böyle bir API sunmaz) |
+| Güncelleme | 4 sn arka plan `System.Threading.Timer` poll + snapshot diff (olay bildirimi yok; Windows böyle bir API sunmaz). İkon pikseli her turda `PrintWindow` ile çekilmez. Yenileme önce state'siz stealth peek (60 sn); bu okuma boşsa `ABM_SETSTATE` blip'i en fazla 3 dk'da bir (2026-10-13: state blip work area'yı zıplatıyordu) |
 | Filtre | Bilinen sistem ikonları tooltip adıyla düşülür; WharfBar kendi Quit ikonu düşülür; tanınmayanlar gösterilir |
 | Kapsam dışı | Gizli/overflow ikonlar (yalnızca açık popup'ta var; kalıcı okunamaz) → mevcut `trayOverflow` düğmesi korunur |
 
@@ -40,6 +40,18 @@
 - Config katalog v5 (`trayMirror`); `schemaVersion` 1 kalır.
 - Doküman: `docs/00-overview.md`, `docs/02-win32-appbar-dwm.md`, `docs/03-development-order.md`,
   `docs/04-gotchas.md`, `.agent/*` güncellenir.
+
+## WharfBar hapı (2026-10-13)
+
+Aynalanan simgeler kullanıcı tarafından chevron'un açtığı hapın içine bırakılabilir
+(`TrayOverflowFlyout`). Hap yatay bir kapsüldür: yalnız simge, ad tooltip'te, sekiz
+simgeden sonra alta sarılır. Görünür simgeler çubukta kalır; haptakiler çubuktan gizlenir.
+Kısa tıklama yine tepsi ikonuna iletilir; sürükleme sistem eşiğinden sonra başlar.
+Geri alma: hapın içinden sağ şeride bırakmak. Anahtarlar `topBar.trayOverflowIcons`
+(soft alan; `schemaVersion` artmaz; `statusItems` sırası bozulmaz). Listede olmayan
+simge görünürdür. Windows'un enumeration dışı gizli alanı hapın sonundaki chevron ile
+mevcut `TrayOverflowInvoker` (`Win+B`) yolunu kullanır. Okuma yolu değişmedi:
+belgelenmiş `TB_*` / UIA; `ReadProcessMemory` ve enjeksiyon yok.
 
 ## Alternatifler (reddedilen)
 

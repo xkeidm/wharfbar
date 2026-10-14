@@ -52,7 +52,7 @@ Windows görev çubuğu düzeni: uygulama başına **bir** ikon
   Cloak'lı küçültülmüş pencere çalışan kalır. Başka sanal masaüstünün cloak'ı sayılmaz.
   Pin listesi her monitörde aynıdır.
 - **Launchpad** şeridin en solundadır. Glif dört yuvarlak karedir. Sol tık, ekranın ortasında kutuyu açar; kutu tarama bitmeden görünür, uygulamalar harf başlığı altında gelir. Arkada duvar kâğıdı görünür. Telefon bağlıysa kutunun sağında dikey panel açılır. Ekran fotoğrafı telefon çerçevesinin içindedir. Bildirim satırında uygulama ikonu vardır. Windows logosu menüyü açar. Kutunun alt şeridinde hesap çipi her zaman durur. Belgeler, İndirilenler, Resimler, Ayarlar, Widget, Eklenti ve Güç `launchpad.tools` ile seçilir; şeride sağ tık işaretli menüyü açar ve seçim hemen kaydolur. Düğme 40 DIP’tir, glif ortadadır; kart payı köşe kıvrımının dışında kalır.
-  Erişilemeyen `Programlar` bağlantısı atlanır. Widget ve eklenti galerisi kutunun altındadır. `dock.items` ve User Pinned
+  Erişilemeyen `Programlar` bağlantısı atlanır. Widget ve Eklenti, galeriyi açar (ADR-017): yerleşik öğeler çalışır, yerel manifest yalnız kayıttır. `dock.items` ve User Pinned
   klasörüne yazılmaz.
 - **İndirilenler** pin grubunun hemen ardından, **Geri Dönüşüm Kutusu** şeridin en sağında
   durur. İkisi de `dock.items` ve User Pinned klasörüne yazılmaz.
@@ -83,7 +83,12 @@ bütün pencereler `IsIconic`): kare yok, altta **8×3 DIP** nötr mini çizgi
 (`TextFillColorPrimaryBrush`). Kapalı pinde çizgi yok; dolgu yalnız hover'da. Birden fazla pencere/süreçte çizginin
 yanında değil, glifin sağ üstünde accent sayı rozeti (`WindowCount`) durur. Tıklama alta
 alınmış pencereyi yine geri yükler. Tooltip sistem stili
-(250 ms gecikme, 8 sn); sayı 1'den büyükse `Ad (N)`. Kart çerçevesi ve üst ışık çizgisi yok.
+(250 ms gecikme, 8 sn); sayı 1'den büyükse `Ad (N)`. Ad, kısayolun kabuk görünen adıdır
+(`SHGFI_DISPLAYNAME` — `File Explorer.lnk` dosyası `Dosya Gezgini` olur). Kabuk adı yalnız
+dosya adını tekrarlıyorsa pencere başlığının uygulama parçası kullanılır
+(`wharfbar - Dosya Gezgini` → `Dosya Gezgini`). Balon hedefin yatay ortasındadır; aralık
+25 DIP'tir ve DPI ile ölçeklenir. Tek pencere ve küçük resim yokken yüzey kartı açılmaz
+(ikinci bir metin balonu olurdu). Kart açıkken tooltip kapanır. Kart çerçevesi ve üst ışık çizgisi yok.
 
 `DockMagnification` / `DockStripLayout` saf ve testli kalır; canlı şerit `MaxScale = 1` basar.
 Pencere `PlateWidth` / `PlateHeight` kadardır (boş dock bir düğme bütçeler). Hover'da `SetWindowPos` yok.

@@ -13,7 +13,12 @@ kullanılmaz — yalnızca düzen kavramı (üst bar + dock) ilham alınır.
 
 ## Öncelik sırası (çakışmada)
 
-1. **Düşük kaynak tüketimi** — RAM/CPU ayak izini büyüten kararlar sessizce kabul edilmez
+1. **Düşük kaynak tüketimi** — RAM/CPU ayak izini büyüten kararlar sessizce kabul edilmez.
+   Boşta WharfBar masaüstünün önüne geçmez: pencere sayımı tüm dock’larda tek geçiş (3 sn),
+   istatistik 4 sn ve UI iş parçacığının dışında (görünen metin değişmediyse bar yenilenmez;
+   istatistik kapalıysa örnekleme durur), tepsi aynası 4 sn (ikon pikseli her turda çekilmez),
+   gizli dock imleci 200 ms, ilerleme taraması tepsi düğmesi yokken 20 sn, Bluetooth bağlantı
+   bildirimi 10 sn. Ayrıntı: [`01-architecture.md`](01-architecture.md) boşta yük bölümü.
 2. **Windows’a native görünüm** — Fluent Design; “macOS klonu” değil
 3. **Basitlik** — kişisel proje; önce çalışan iskelet, sonra cila
 
@@ -46,7 +51,10 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
   Çalışma anında gizleme/auto-hide + restore **hedeftir** (ADR-005); blanket yasak değildir.
 - macOS tarzı **global uygulama menüsü** (File/Edit/View) — Windows’ta her pencere kendi menüsünü taşır; top bar yalnızca saat / durum / kontroller
 - Apple / macOS marka öğeleri (isim, logo, ikon dili)
-- Tema mağazası, eklenti sistemi, bulut senkronizasyonu
+- Tema mağazası ve bulut senkronizasyonu
+- Uzak eklenti indirmek veya derleme yüklemek. Yerel `manifest.json` kataloğu
+  (aç/kapa, yuva kaydı) v1 kapsamındadır ([ADR-017](decisions/017-plugin-catalog.md));
+  üst çubuk ve dock yuvaları çizilmez
 - Electron / Flutter gibi gömülü render motorları (kaynak önceliği; bkz. mimari)
 
 ## Başarı kriterleri (v1)
@@ -55,8 +63,9 @@ Kişisel kullanım için başladı; olgunlaştıkça private → public açılma
 - Uygulama temiz kapanınca rezerve alan geri geliyor; görev çubuğu önceki durumuna dönüyor (ADR-005).
 - Dock, kendi listesini ve çalışan uygulamaları gösteriyor; liste sırası config sırasıdır ve
   görev çubuğundan bağımsızdır.
-- Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward); gizli ikonlar için
-  `Win+B`/chevron düğmesi native overflow'u açar.
+- Üst bar: üçüncü taraf tepsi ikonları aynalanır (tıklama forward). Seçilenler yatay
+  hapta yalnız simge olarak durur; hapın sonundaki chevron `Win+B` ile Windows'un gizli
+  alanını açar.
 - İkinci örnek başlatılmıyor (Mutex).
 - DPI / ekran değişiminde üst bar pozisyonu bozulmuyor (temel handler’lar).
 

@@ -39,8 +39,9 @@
   `EndTrayPeek`'ten önce yakalar. `TrayCapture.IsBlankCapture` boş kırpımayı reddeder →
   harf glifi fallback. Yakalama peek dışına taşınırsa siyah kare geri gelir.
   Tray aynası parklı tray'de UIA ile okunamaz:
-  okumalar desktop-root'tan özel STA dispatcher thread'inde; tazeleme/tıklama
-  maximize-yokken ~0.5 sn'lik state blip'i ile; boş okuma aynayı temizlemez (son iyi
+  okumalar desktop-root'tan özel STA dispatcher thread'inde. Tazeleme önce state'siz
+  stealth peek; ikon gelirse `ABM_SETSTATE` çevrilmez (work area zıplaması). Boşsa
+  maximize-yokken state blip, aralık 3 dk. Boş okuma aynayı temizlemez (son iyi
   snapshot donuk kalır). Zorla kill sonrası stale watchdog dosyası baseline state'i
   geri yükler (zehirlenmiş baseline zinciri — 2026-08-30 canlı yaşandı).
 - Canlı dock: sol grup **görev çubuğu `User Pinned` kısayollarını okur** (kapalı pinler
@@ -57,8 +58,11 @@
   taraf tepsi ikonlarını **belgelenmiş comctl32 toolbar mesajlarıyla** (`TB_BUTTONCOUNT`,
   `TB_GETBUTTON` (index; `TBBUTTON` → `idCommand`/`iBitmap`), `TB_GETIMAGELIST` +
   `ImageList_GetIcon`, `TB_GETITEMRECT`, `TB_GETBUTTONTEXT` (command id)) salt-okunur okuyup üst
-  barda çizmek + `SendMessage` ile tıklama forward. Gizli/overflow ikonlar kapsam dışı (yalnızca
-  açık popup'ta var) → `Win+B` düğmesi korunur. **Ayna yalnızca birincil monitörün üst barında
+  barda çizmek + `SendMessage` ile tıklama forward. Aynadaki simgeler sürüklenerek WharfBar
+  hapına alınır (`topBar.trayOverflowIcons`); hap yataydır ve yalnız simge çizer, ad
+  tooltip'tedir. Listede olmayan simge çubukta kalır. Geri alma, hapın içinden sağ şeride
+  bırakmaktır. Windows'un enumeration dışı gizli alanı hapın sonundaki chevron ile `Win+B`
+  açılır. **Ayna yalnızca birincil monitörün üst barında
   görünür** (ikincil barlarda `trayMirror` bölümü hiç oluşmaz). **25H2+ UIA fallback:** klasik
   `ToolbarWindow32`
   kaldırıldığında ayna UI Automation'a düşer (`SystemTray.NormalButton` filtre); gerçek ikonlar
@@ -90,6 +94,10 @@
   - Raf (`CanOpenShelfFile`) yol saklar ve varsayılan uygulamayla açabilir. `Drop` klasörünün dışındaki bir dosyayı silmek yasaktır; silme yolu `Drop` önekini doğrular.
   - **Kompakt ada 30 DIP barın içinde kalır** (ADR-011, ADR-012, ADR-013): boşta / şimdi çalıyor / ses-parlaklık-pil sayacı / en fazla iki uydu hapı AppBar'ı büyütmez, ikinci bir `Topmost` pencere açmaz, iç içe `Popup` kurmaz. HUD sırasında kalıcı müzik ve pano uydusu birlikte durabilir. Hap odaklıyken Sol/Sağ uydu seçer. Düşük pil eşiği `lowBatteryPercent` (varsayılan 20, 5–50). Çok satırlı panel bugünkü tek `IslandPopup`'tır. Saat paneli (bildirim metni + ay) ve istatistik kıvılcımı ada hapında değildir; kıvılcım metnin üzerine gelince açılır, bar 30 DIP kalır. Enerji tasarrufu karosu API veya sistem bayrağı açıksa yanar; tıklama “Her zaman enerji tasarrufu kullan” anahtarını UI Automation ile çevirir, pencere ekranda kalmaz, belgelenmemiş COM/WNF yok (ADR-013).
   - **Yeni paket yok.**
+- **Yerel eklenti kataloğu (ADR-017):** `%AppData%/WharfBar/plugins/<klasör>/manifest.json`
+  okunur. `plugins.enabled` bir aç/kapa kaydıdır. Yerleşik ada anahtarları (görselleştirici,
+  Bluetooth bildirimi, kamera aynası) ve masaüstü saat/takvim çalışır. Üst çubuk ve dock
+  yuvaları v1'de çizilmez. Derleme yüklenmez, internetten kod inmez.
 
 
 ## Önce sor (kullanıcı onayı)
@@ -121,3 +129,4 @@
 - Gizli anahtar / kişisel config commit etmek
 - Dokümantasyonu güncellemeden mimari kararı sessizce tersine çevirmek
 - `Taskband` değerini yazmak. `User Pinned\TaskBar` dışına `.lnk` yazmak veya o klasörün dışındaki bir dosyayı pin kaldırma diye silmek (ADR-005)
+- Eklenti manifestinden derleme yüklemek, kod indirmek veya o kayıttan süreç başlatmak (ADR-017)

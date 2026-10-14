@@ -19,7 +19,7 @@ Arka plan modu config'den: `mica` (varsayılan, `AllowsTransparency=false`),
   - **WharfBar hakkında** → `AboutWindow`
   - **WharfBar'ı kapat** → düzgün çıkış (görev çubuğu restore + `ABM_REMOVE`)
 
-Sistem istatistikleri (`CPU · GPU · RAM`) aynı sol kümede, tek satırdır. Son örneklerin kıvılcımı ve ağ hızı (↓/↑ bayt/sn) metnin üzerine gelince açılan karttadır; çizgi metnin altına konursa 30 DIP bar büyür. GPU sayacı yoksa karttaki GPU satırı gizlenir. Sıcaklık yok. Ağ hızı `SystemStatsService` ile aynı 2 sn aralıktadır.
+Sistem istatistikleri (`CPU · GPU · RAM`) aynı sol kümede, tek satırdır. Son örneklerin kıvılcımı ve ağ hızı (↓/↑ bayt/sn) metnin üzerine gelince açılan karttadır; çizgi metnin altına konursa 30 DIP bar büyür. GPU sayacı yoksa karttaki GPU satırı gizlenir. Sıcaklık yok. Ağ hızı `SystemStatsService` ile aynı 4 sn aralıktadır; örnek UI dışında alınır ve metin değişmediyse bar yenilenmez. İstatistik kapalıysa örnekleme durur. Müzik görselleştiricisi yalnız şimdi çalıyor yüzündeyken çalışır. Bluetooth bağlantı bildirimi 10 sn'de bir bakar; liste aynıysa hap yenilenmez.
 
 ## Orta — ada hapı (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
 
@@ -95,13 +95,22 @@ Kurallar `IslandPresence` (süre, yüz, HUD önceliği, 150 ms hover). Pencere t
 ## Sağ küme — durum şeridi (`StatusStrip`)
 
 Varsayılan soldan sağa sıra `volume`, `brightness` ve `media` **içermez** (ada HUD ve
-şimdi çalanı taşır). Üçü katalogda durur: sağ tık menüsü ve Üst Çubuk ayarı onları
-yeniden açabilir. Kullanıcının kayıtlı `statusItems` listesi soyulmaz; görünürlerse
-aşağıdaki flyout'lar açılır.
+şimdi çalanı taşır). Katalogdaki her öğe (tepsi aynası, gizli simgeler, saat, bildirim,
+hızlı ayarlar, ses, parlaklık, medya, ağ, pil) sağ tık menüsünde ve Üst Çubuk ayarında
+listelenir; kapalı olan açılabilir. Kullanıcının kayıtlı `statusItems` sırası soyulmaz
+ve gizli öğe kendiliğinden geri açılmaz. **Tümünü göster** yalnız seçilince eksikleri
+katalog komşusunun yanına ekler.
+
+Görünür öğe, eşik (`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`)
+aşılınca barda sürüklenir: öğe solar, vurgu renginde bir çizgi bırakılacak aralığı
+gösterir, bırakınca `topBar.statusItems` yazılır ve bütün monitör barlarına uygulanır.
+Eşik altındaki tıklama flyout'u açar. Tepsi simgesinin kendi sürüklemesi durum şeridini sıralamaz.
+Çizgi şeridin çocuğu değildir; ölçüyü kaydırmaz. Sıralama OLE `DoDragDrop` kullanmaz
+(saydam/tint bar katmanlıdır).
 
 | id | Arayüz | Tıklama davranışı |
 |----|--------|-------------------|
-| `trayOverflow` | "Gizli simgeler" (glif `E70E`) | overflow bölgesi popup'ı (Win+B) |
+| `trayOverflow` | "Gizli simgeler" (glif `E70E`) | WharfBar hapı (yalnız simge); içinden Windows taşması (Win+B) |
 | `dateTime` | saat+tarih tek satır, `tr-TR` kısaltmaları | `ClockPanelFlyout`: bildirim metni + ay takvimi |
 | `notifications` | zil glifi `EA8F` | Win+N (bildirim merkezi) |
 | `controlCenter` | hızlı ayarlar glifi `E9CE` | `QuickSettingsFlyout` → **Main** sekmesi |
@@ -111,13 +120,30 @@ aşağıdaki flyout'lar açılır.
 | `network` | ağ glifi `E701` | `QuickSettingsFlyout` → **Network** sekmesi |
 | `battery` | pil glifi + yüzde metni | yok (gösterim) |
 
+## Tepsi hapı
+
+Birincil barda chevron (`trayOverflow`) WharfBar'ın kendi hapını açar. Hap, ada
+göstergesi gibi yatay bir kapsüldür (`FlyoutSurface`, köşe yarıçapı 18, dolgu 4).
+İçinde yalnız simgeler durur; uygulama adı yazılmaz, ad tooltip'tedir. Sekiz simgeden
+sonra alta sarılır, köşeler yuvarlak kalır. Aynadaki simgeler çubukta kalır. Bir simgeyi
+kısa tıklamak o tepsi ikonuna iletilir. İmleç
+`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance` eşiğini aşınca sürükleme
+başlar: simgeyi chevron'un veya açık hapın üzerine bırakmak onu çubuktan alır
+(fare yakalama; katmanlı barda OLE kullanılmaz). Hapın içinden sağ şeride geri bırakmak
+simgeyi yeniden çubuğa koyar. Boşken hap **simge yok** der. Sondaki chevron (`E70E`,
+tooltip **Windows gizli simgelerini aç**) Windows'un sayılamayan gizli alanını `Win+B`
+ile açar. Anahtarlar `topBar.trayOverflowIcons` listesindedir. Listede olmayan (yeni)
+simge görünür kalır. Kayıt `statusItems` sırasını değiştirmez.
+İkincil barda ayna yoktur; chevron orada doğrudan `Win+B` açar.
+
 ## Durum şeridi sağ tık menüsü
 
 `TopBarWindow.BuildStatusItemsMenu`:
-- **Öğe göster/gizle** — tüm katalog onay kutuları (checkable)
+- **Öğe göster/gizle** — tüm katalog onay kutuları (kapalı olanlar da listede)
 - **Arka plan** (alt menü): Mica / Transparent / Tint radio'ları + **Opaklık slider'ı**
   (yalnızca Tint'te etkin, 0–100, debounced kaydetme)
 - Tıklanan öğe varsa: **Sola taşı / Sağa taşı**
+- **Tümünü göster** — eksik katalog öğelerini açar; hepsi açıksa soluk
 - **Varsayılana sıfırla** — `TopBarStatusItemIds.DefaultOrder`
 
 ## Hızlı ayarlar flyout
@@ -153,20 +179,29 @@ animasyonu paneli zaten gösterir.
 ### Wi-Fi sayfası (ağ listesi + şifre paneli)
 
 `WifiService` (wlanapi.dll) canlı ağ listesi: SSID, sinyal çubukları (`WifiService.SignalBars`),
-güvenlik, bağlı / kayıtlı profilli işaretleme (2 sn poll; yalnızca sayfa açıkken).
+güvenlik, bağlı / kayıtlı profilli işaretleme (2 sn poll; yalnızca sayfa açıkken). Aynı SSID
+tek satırda birleşir. Radyo kapalıyken liste boştur ve özet “Wi-Fi kapalı” der.
 Korumalı ağa tık → aynı sayfada şifre paneli (SSID, şifre kutusu, Bağlan / İptal, hata metni);
-başarılı bağlantıda panel kapanır, liste yenilenir. "Wi-Fi ayarlarını aç" → Windows Settings.
+parola profili düz metindir (`protected=false`). `WlanConnect` kabulünden sonra SSID
+gerçekten bağlanana kadar (en fazla 8 sn) beklenir; olmazsa panel kapanmaz. Bağlı satıra
+tık `WlanDisconnect` çağırır.
+Hata metni şifre paneli kapalıyken de özetin altında durur. Gizli ve kurumsal ağlar buradan
+bağlanmaz. "Wi-Fi ayarlarını aç" → Windows Settings.
 
 ### Bluetooth sayfası (cihaz listesi)
 
-`BluetoothService` eşleşmiş cihazları listeler (`BluetoothDevice.GetDeviceSelector`);
-bağlı olanlar `ConnectionStatus` ile işaretlenir. Radyo açık/kapalı özet altta.
-"Bluetooth ayarlarını aç" → Windows Settings.
+`BluetoothService` eşleşmiş klasik ve LE cihazları listeler (`BluetoothDevice` +
+`BluetoothLEDevice` seçicileri; aynı adres tek satır). Sayfa açılınca mevcut liste hemen
+çizilir. Bağlı olanlar `Aep.IsConnected` veya `ConnectionStatus` ile işaretlenir. Satır
+tıklaması bağlanmaz; "Bluetooth ayarlarını aç" → Windows Settings. Radyo açık/kapalı özet
+sayfa açıkken karo değişince de güncellenir.
 
 ### Yansıt sayfası (4 mod)
 
-`ProjectionService` + `QueryDisplayConfig` ile mevcut topoloji seçili gösterilir;
-tıklama `SetDisplayConfig` ile uygular: **Yalnızca PC ekranı / Çoğalt / Genişlet / Yalnızca 2. ekran**.
+`ProjectionService` + `QueryDisplayConfig` (`QDC_DATABASE_CURRENT` = 0x4, `ref` sayım işaretçileri) ile mevcut topoloji
+seçili gösterilir; tıklama `SetDisplayConfig` ile uygular: **Yalnızca PC ekranı / Çoğalt /
+Genişlet / Yalnızca 2. ekran**. Tek ekranda diğer modlar soluktur ve “İkinci ekran yok” der;
+uygulama başarısızsa “Bu mod uygulanamadı”.
 
 ### Enerji tasarrufu karosu
 
@@ -175,7 +210,8 @@ tıklama `SetDisplayConfig` ile uygular: **Yalnızca PC ekranı / Çoğalt / Gen
 ### Gece ışığı tile (gerçek durum)
 
 `NightLightService` (CloudStore best-effort) gerçek durumu okur; tile aktiflik rengini ona
-göre çizer, tıklama gerçek toggle yapar (önce oturum override, sonra registry yazımı).
+göre çizer. Tıklama blob yazılabilirse toggle yapar. Blob tanınmazsa karo yalan söylemez ve
+`ms-settings:nightlight` açılır.
 
 ### Tile animasyonları
 

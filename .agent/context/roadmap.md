@@ -49,12 +49,12 @@
 - **Renk kaplaması (veil) ✓ (kod; manuel doğrulama bekliyor)** — tam ekran katmanlı kaplama (`VeilWindow`, click-through + 280 ms fade), `VeilService` (durum + fade + `RegisterHotKey` host + config kalıcılığı), QS `veil` karosu + global kısayol (varsayılan Ctrl+F11, config'te değiştirilebilir), Kaplama ayarlar sayfası (`VeilPage`; renk/opaklık/kısayol). Karar: [ADR-007](../../docs/decisions/007-veil-overlay.md); spec: [`../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md`](../../docs/superpowers/specs/2026-08-18-veil-overlay-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-veil-overlay.md`](../../docs/superpowers/plans/2026-08-18-veil-overlay.md). Manuel doğrulama listesi spec'in "Doğrulama (manuel)" bölümünde.
 - **Medya paneli (SMTC) ✓ (kod; manuel doğrulama bekliyor)** — üst bar `media` öğesi (yalnızca oturum varken görünür; `brightness` sonrası, katalog **v4** migration) + medya flyout'u (kapak, başlık/sanatçı, Oynat/Duraklat + İleri/Geri, çoklu oturumda chevron seçici). `MediaSessionService` (Windows SMTC izleme: snapshot + komutlar + `Changed`/`SessionsChanged` + 10 sn retry), `MediaSessionSelector` (en son aktif politikası + `MoveCurrent` halkası), `MediaSnapshot` modeli. Karar: [ADR-008](../../docs/decisions/008-media-panel.md); spec: [`../../docs/superpowers/specs/2026-08-18-media-panel-design.md`](../../docs/superpowers/specs/2026-08-18-media-panel-design.md); plan: [`../../docs/superpowers/plans/2026-08-18-media-panel.md`](../../docs/superpowers/plans/2026-08-18-media-panel.md). Manuel doğrulama listesi planın "Manuel doğrulama" bölümünde.
 - **Tray aynası (ADR-009) ✓** — üst bar `trayMirror` (belgelenmiş comctl32 `TB_*` mesajlarıyla
-  salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 1.5 sn poll; gizli
+  salt-okunur ayna + `SendMessage` click-forward; sistem ikonu filtresi; 4 sn poll; gizli
   ikonlar `Win+B`'de kalır). **25H2+ UIA fallback ✓ (manuel doğrulandı):** klasik toolbar
   kaldırıldığı için `TrayUiaReader` (`SystemTray.NormalButton` filtre) + `TrayCapture` (PrintWindow
   ile gerçek ikon yakalama) + UIA `InvokePattern`/peek tıklama. Spec: [`../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md`](../../docs/superpowers/specs/2026-08-19-tray-mirror-design.md); plan: [`../../docs/superpowers/plans/2026-08-19-tray-mirror.md`](../../docs/superpowers/plans/2026-08-19-tray-mirror.md); karar: [`../../docs/decisions/009-tray-mirror-toolbar-enumeration.md`](../../docs/decisions/009-tray-mirror-toolbar-enumeration.md)
 - **Sistem istatistikleri ✓ (kod; manuel doğrulama bekliyor)** — üst bar sol kümede Windows
-  logosunun yanında `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (2 sn poll;
+  logosunun yanında `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (4 sn, UI dışında;
   `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
   via `PdhAddEnglishCounterW`; GPU sayacı yoksa GPU bölümü gizlenir), saf hesap metotları
   unit testli (`SystemStatsTests`, 26 test), `topBar.showSystemStats` toggle
@@ -84,6 +84,9 @@
   sınırlı; bkz. `task-8-report.md`).
   Kompakt ada (ADR-011, 2026-10-07): hap AppBar'ın içinde kalır. Boşta pano; müzik
   `island.musicPresence` (`persistent` varsayılan); ses/parlaklık kısa sayaç. Panel tek popup.
+- **Eklenti kataloğu (ADR-017) ✓ (kod)** — Launchpad Widget/Eklenti ve Ayarlar → Eklentiler.
+  Yerleşik ada anahtarları ve masaüstü saat/takvim çalışır. Yerel `manifest.json` yalnız
+  aç/kapa kaydıdır; derleme yüklenmez. Üst çubuk ve dock yuvaları çizilmez.
 
 ## Yapılacaklar listesi (öncelikli)
 
@@ -114,8 +117,8 @@
     [`../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md`](../../docs/superpowers/specs/2026-08-09-topbar-status-strip-design.md);
     plan: [`../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md`](../../docs/superpowers/plans/2026-08-09-topbar-status-strip.md)
     (volume→Mixer, CC→Main; `statusCatalogVersion` soft migrate; manuel UI checklist)
-9. Hızlı ayarlar cila ✓ (kod) — canlı Wi-Fi listesi + bağlanma (`WifiService` / wlanapi.dll;
-   QS Wifi sayfası + şifre paneli), BT cihaz listesi (`BluetoothService`), gerçek Gece ışığı
+9. Hızlı ayarlar cila ✓ (kod) — canlı Wi-Fi listesi + bağlanma/kopma (`WifiService` / wlanapi.dll;
+   düz metin profil; QS Wifi sayfası + şifre paneli), BT klasik+LE listesi (`BluetoothService`), gerçek Gece ışığı
    durum + toggle (`NightLightService` / CloudStore best-effort + oturum override), native
    yansıtma paneli 4 mod (`ProjectionService` / `SetDisplayConfig`), tile animasyonları
    (in-place pop + renk geçişi). Kalan: Enerji tasarrufu toggle; oturum ikonları. Spec:
@@ -135,6 +138,8 @@
 - Görev çubuğunu **kalıcı** bozmak (restore’suz)
 - Registry `Run` autostart (Startup klasörü tercih)
 - Global uygulama menüsü
+- Eklenti kodunu indirmek veya `Assembly.Load` ile çalıştırmak (ADR-017 yerel manifest
+  kaydını serbest bırakır; üst çubuk/dock çizimi bu sürümde yok)
 
 ## Faz 1–3 doğrulama durumu
 

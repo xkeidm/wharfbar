@@ -109,7 +109,7 @@ Top bar göstergeleri için:
   üst barda aynalanır; tıklama `SendMessageTimeout` mouse mesajlarıyla forward edilir.
   `ReadProcessMemory` / enjeksiyon / belgelenmemiş enumeration yok. Gizli/overflow ikonlar
   aynalanamaz (yalnızca açık popup'ta var); `TrayOverflowInvoker` (`Win+B` / chevron) kalır.
-  Poll 1.5 sn; `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI'ı
+  Poll 4 sn; ikon pikseli her turda çekilmez (blip en fazla 60 sn). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) asılı explorer'da UI'ı
   kilitlemez.
 - **Windows 11 25H2+ UIA fallback:** klasik `ToolbarWindow32` tepsi bu sürümde kaldırıldı
   (25H2'de `TrayNotifyWnd` altında `SysPager`/`ToolbarWindow32` yok). `FindToolbarHwnd()` boş
@@ -152,8 +152,12 @@ filtreyle elenir. İkon bitmap'i UIA'da yok → `TrayCapture` `PrintWindow(PW_RE
    DEĞİL: 25H2 XAML butonlarının tümü explorer pid'i raporlar.
 
 **Uygulanan:** sol Windows logo (4 kare **Path/Rectangle**, font glifi değil — Mica’da görünürlük);
-sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ses · ağ · pil`
-(`topBar.statusItems`; özelleştirilebilir). Saat/tarih: tek satır `tr-TR` birleşik etiket
+sağ küme varsayılan LTR `trayMirror · gizli · tarih/saat · bildirim · controlCenter · ağ · pil`
+(`topBar.statusItems`; özelleştirilebilir). `volume` / `brightness` / `media` katalogdadır,
+varsayılan kapalıdır; sağ tık ve Üst Çubuk ayarı katalogdaki her öğeyi listeler.
+**Tümünü göster** eksikleri komşusunun yanına ekler, kayıtlı sırayı bozmaz. Görünür öğeler
+barda sürüklenerek sıralanır (eşik altı tıklama flyout açar; OLE değil, fare yakalama).
+Saat/tarih: tek satır `tr-TR` birleşik etiket
 (örn. `9 Ağu Paz 21:57`, Segoe UI) + zil glifi; ikisi de native Notification Center
 (`Win+N` — takvim + bildirimler; ayrı takvim `Popup` yok; ADR-005 aynası yok).
 `controlCenter` → QS **Main**; ses → QS **Mixer**; ağ → QS **Network** — paylaşılan
@@ -164,6 +168,13 @@ yasak; popup ayrı bir pencere olduğundan Mica'yı etkilemez.
 **Overflow + gizli görev çubuğu:** `Shell_TrayWnd` `SW_HIDE` iken düz `Win+B` no-op olur.
 `TrayOverflowInvoker` önce `BeginTrayPeek()` ile tepsiyi geçici gösterir, overflow açar,
 sonra `EndTrayPeek()`. Çıkışta tam `Restore`.
+
+**WharfBar hapı:** birincil barda chevron, aynadaki simgeler için yatay bir kapsül açar.
+Kapsülde yalnız simge vardır; ad tooltip'tedir. Kullanıcının bıraktığı anahtarlar
+`topBar.trayOverflowIcons` içindedir; listede olmayan simge çubukta kalır. Kısa tıklama
+iletime devam eder. Çubuğa geri alma, hapın içinden sağ şeride bırakmaktır. Windows'un
+sayılamayan gizli alanı hapın sonundaki chevron ile aynı `TrayOverflowInvoker` yolunu
+kullanır. İkincil barda chevron doğrudan `Win+B` açar.
 
 ---
 
@@ -189,6 +200,11 @@ UI `QuickSettingsFlyout` üzerinden.
 // Yedek:  SHGetFileInfo(SHGFI_SYSICONINDEX) + SHGetImageList(SHIL_JUMBO 256 / SHIL_EXTRALARGE 48)
 // Son:    SHGFI_ICON | LARGEICON / SMALLICON
 // HICON → CreateBitmapSourceFromHIcon; çizim UseLayoutRounding + SnapsToDevicePixels
+//
+// Uygulama adı: SHGetFileInfo(SHGFI_DISPLAYNAME) — kısayolun dosya adı değil, kabuğun
+// gösterdiği ad (File Explorer.lnk → Dosya Gezgini). szDisplayName ikon yolu değildir;
+// SHGFI_ICONLOCATION ile karıştırılmaz. Sonuç dosya adıyla aynıysa pencere başlığının
+// son " - " parçasındaki uygulama adı kullanılır.
 ```
 
 Masaüstünde açık pencere (`IsOpenOnDesktop`): kalıcı kare (`ControlFillColorSecondaryBrush`)
@@ -212,12 +228,12 @@ Yatay hizalama `dock.position` ile seçilir: `bottom-left` / `bottom-center` / `
 work-area rezervasyonu ve aşağı kayma gizleme değişmez — yalnızca X hizalanır). Kenar yaslama
 12 DIP iç payla.
 
-**Küçültülmüş pencereler:** `MinimizedWindowsSource.Scan()` **tek** `EnumWindows` geçişi yapar —
+**Küçültülmüş pencereler:** `WindowCensus` **tek** `EnumWindows` geçişi yapar —
 `WindowEnumeration.GetTopLevelCandidates()` tablosu alınır, küçültülmüş alt küme her pencere
 için ayrı `IsIconic(hwnd)` çağrısıyla ayrıştırılır. Küçültülmüş pencereler `WS_VISIBLE` korur,
 bu yüzden `IsCandidate` filtresi tek başına yetmez; ikinci bir `EnumWindows` geçişi de
 gereksizdir. UI iş parçacığında `EnumWindows` çağrırma (donmuş HWND'de kilitler) — pencere
-tablosu `MinimizedWindowsSource`'da arka iş parçacığında 800 ms'de bir kez taranır.
+tablosu `WindowCensus` ile arka iş parçacığında 3 sn'de bir, tüm dock'lar için bir kez taranır. `RunningAppsSource` ikinci bir `EnumWindows` geçişi çalıştırmaz.
 
 ---
 
@@ -262,8 +278,10 @@ WharfBar çalışırken birincil monitör görev çubuğu gizlenir; başlatmada 
 
    Tray aynası parklı tray'de
     okunamaz (XAML içeriği virtualize): desktop-root UIA okumaları özel STA dispatcher
-    thread'inden yapılır; tazeleme/tıklama maximize yokken ~0.5 sn'lik state blip'i
-    ister; boş okuma aynayı temizlemez (son iyi snapshot donuk kalır). Restore,
+    thread'inden yapılır. Tazeleme önce state'siz stealth peek dener; bu okuma ikon
+    döndürürse `ABM_SETSTATE` çevrilmez (o çevirme work area'yı açıp kapatır, masaüstü
+    ve pencereler zıplar). Boşsa maximize yokken state blip'i kalır, aralık 3 dk'dır.
+    Boş okuma aynayı temizlemez (son iyi snapshot donuk kalır). Restore,
     `SetState(baseline)` + `SetTrayVisible(true)`; zorla kill sonrası stale watchdog
     dosyası baseline state'i geri yükler.
 3. **AppBar `SETPOS` sonrası:** shell alt şeridi geri yazabiliyorsa
@@ -516,16 +534,26 @@ Başarısızlık `GetLastWin32Error` ile debug log'a yazılır; sessizce yutulma
   **Tuzak:** Struct native layout'a birebir uymalı (628 bayt, `strProfileName` ilk alan,
   `dwFlags`+`dwReserved` sonda, RSSI alanı yoktur) — `WlanStructLayoutTests` bunu kilitler.
   Sapması SSID metnini kaydırıp sinyali bozuyordu. Boş SSID = gizli ağ.
-- `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — kalıcı profil
+- `WlanSetProfile(handle, &guid, 0, xml, NULL, TRUE, NULL, &reason)` — kalıcı profil.
+  Düz metin parola profilinde `<protected>false</protected>` zorunludur; `true` şifreli
+  anahtar blob'u bekler ve `WlanSetProfile` düz metni reddeder. Kurumsal (802.1X) ağlara
+  profil yazılmaz.
 - `WlanConnect(handle, &guid, &params)` — WLAN_CONNECTION_PARAMETERS (mode=profile)
-- `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection, ...)` — mevcut SSID
+- `WlanDisconnect(handle, &guid, NULL)` — bağlı ağı keser (Wifi sayfasında bağlı satır)
+- `WlanQueryInterface(handle, &guid, wlan_intf_opcode_current_connection, ...)` — mevcut SSID.
+  `wlan_interface_state_connected` değeri **1**'dir (4 = disconnected).
+- `WlanEnumInterfaces` birden fazla adaptörde bağlı olanı seçer.
 - `WlanFreeMemory` / `WlanCloseHandle`
 
 ### user32.dll — display topology (Quick Settings / Yansıt)
 
-- `QueryDisplayConfig(QDC_DATABASE_CURRENT, 0, NULL, 0, NULL, &topologyId)` — mevcut topoloji.
-  **Tuzak:** Hibrit-GPU makinelerde (NVIDIA + AMD iGPU) ERROR_INVALID_PARAMETER (87) döner;
-  mod tahmini GetSystemMetrics geometrisinden yapılır (ProjectionService.GuessCurrentMode).
+- `GetDisplayConfigBufferSizes(QDC_DATABASE_CURRENT | QDC_VIRTUAL_MODE_AWARE, &paths, &modes)`
+  ardından `QueryDisplayConfig` gerçek path/mode tamponlarıyla — mevcut topoloji.
+  `QDC_DATABASE_CURRENT` **0x4**, `QDC_VIRTUAL_MODE_AWARE` **0x10**. Sıfır tampon bu
+  sistemde 87 döner. 0x2 `QDC_ONLY_ACTIVE_PATHS`'tir; topology işaretçisiyle birlikte
+  de 87 döner (eski kod bayrağı 0x2 sanıp hep tahmine düşüyordu).
+  **Tuzak:** Okuma yine başarısızsa mod tahmini GetSystemMetrics geometrisinden yapılır
+  (`ProjectionService.GuessCurrentMode`).
   DISPLAYCONFIG_TOPOLOGY_ID değerleri 1, 2, 4, 8'dir (ardışık değil — wingdi.h).
 - `SetDisplayConfig(0, NULL, 0, NULL, SDC_TOPOLOGY_x | SDC_APPLY)` — topoloji değiştirmenin
   kanıtlanmış tek güvenilir kombinasyonu. Ekstra flag'ler (SDC_USE_SUPPLIED_DISPLAY_CONFIG,

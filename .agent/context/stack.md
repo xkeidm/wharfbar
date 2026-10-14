@@ -32,7 +32,7 @@ RAM/başlangıç maliyeti içindir (gerekçe: [`../../docs/01-architecture.md`](
 
 ## Kalıcılık / OS entegrasyonu
 
-- Config: JSON under `%AppData%/WharfBar/`
+- Config: JSON under `%AppData%/WharfBar/` (`config.json`; yerel eklenti klasörü `plugins/`)
 - Autostart: **Startup klasörü** kısayolu
 - Single-instance: named **Mutex**
 
@@ -42,7 +42,8 @@ RAM/başlangıç maliyeti içindir (gerekçe: [`../../docs/01-architecture.md`](
 |-------|-----|
 | `Services/DockMagnification.cs` + `Services/DockStripLayout.cs` | Saf büyütme/yerleşim matematiği (WPF tipi yok, testli) |
 | `Services/DockItemStore.cs` | Bağımsız sabit liste (`dock.items`; `App` tek örneği) |
-| `Services/MinimizedWindowsSource.cs` | Küçültülmüş pencere tablosu (arka iş parçacığı, 800 ms) |
+| `Services/WindowCensus.cs` | Tüm dock'lar için tek pencere sayımı (3 sn, pid yol önbelleği) |
+| `Services/MinimizedWindowsSource.cs` | Küçültülmüş pencere tablosu (`WindowCensus` anlık görüntüsü) |
 | `Services/DockStripBuilder.cs` | Bölüm ayraç slotları (1 DIP) |
 | `Services/DockPlateMetrics.cs` | Levha geometrisi (düğme, aralık, pay, yükseklik/genişlik) |
 | `Views/Controls/DockStrip.cs` | Şerit `Panel` — canlı ölçek 1; matematik `DockStripLayout`'da |

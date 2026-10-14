@@ -11,7 +11,7 @@
 | Sol dock | `dock.position` = `left`. Plaka dik, `ABE_LEFT`, oto-gizleme sola kayar. Alt konumlar yatay kalır |
 | Launchpad | Dock’un en sol karosu. Başlat menüsü kısayolları, arama, tıklayınca açılır |
 | Widget | Saat ve takvim masaüstü pencereleridir. Ada hapına girmez |
-| Eklenti | Süreç içi anahtar: görselleştirici, Bluetooth bildirimi, kamera aynası. Dış derleme yüklenmez |
+| Eklenti | Süreç içi anahtar: görselleştirici, Bluetooth bildirimi, kamera aynası. Dış derleme yüklenmez. Galeri yüzeyi ve yerel manifest kaydı [ADR-017](017-plugin-catalog.md) |
 | Görselleştirici | Müzik çalarken hapta beş çubuk. Yükseklik varsayılan çıkışın tepe değeridir |
 | Bluetooth | Yeni bağlanan eşleşmiş cihazın adı hapta kısa süre durur. Hızlı ayar karosu durur |
 | Kamera | Galeriden açılır. Kare hapın içindedir. İzin yoksa veya kamera meşgulse yazı kalır, sahte kare yok |

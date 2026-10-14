@@ -19,6 +19,22 @@ Windows compositor’ını kullanır; tipik hafif dock/bar ~30–60 MB RAM band�
 Tam native (C++/Win32 + Direct2D) daha da hafif olurdu ama Fluent (Mica, tema) için hazır tasarım
 sistemi olmazdı — kişisel proje için WPF + WPF-UI dengeyi kuruyor.
 
+## Boşta yük
+
+Uygulama açıkken sürekli iş seyrektir. Panel kapalıyken Wi-Fi, karıştırıcı ve ağ ayrıntısı yoklamaz.
+
+| İş | Kadans | Not |
+|----|--------|-----|
+| Saat | 1 sn | Metin aynıysa UI yenilenmez |
+| Pencere sayımı | 3 sn, tek geçiş | `WindowCensus`. Her dock kendi `EnumWindows` turunu çalıştırmaz; süreç yolu pid önbelleğinde |
+| CPU / GPU / RAM / ağ hızı | 4 sn, UI dışı | `SystemStatsService`. PDH GPU joker sayacı pahalıdır. Görünen metin ve ağ etiketi değişmediyse `Changed` yok. `showSystemStats` kapalıysa zamanlayıcı durur |
+| Tepsi aynası | 4 sn | İkon bitmap'i önbellekte. Piksel yenileme en fazla 60 sn'de bir blip |
+| Dock otomatik gizleme | gizliyken 200 ms, görünürken 50 ms | Gizliyken hide zamanlayıcısı dönmez |
+| Dock ilerleme | 2 sn / 20 sn | UI Automation yalnız çalışan uygulama varken ve tepsi düğmesi açılmışsa 2 sn; aksi halde 20 sn |
+| Bluetooth bildirimi | 10 sn | Liste aynıysa ada yenilenmez. Hızlı ayarlar Bluetooth sayfası açıkken 2 sn |
+| Görselleştirici | 100 ms, yalnız müzik yüzündeyken | Tepe ölçer her karede yeniden kurulmaz |
+| Ses göstergesi | 1 sn | Tek Core Audio skaler okuma |
+
 > Erken proje notları her iki pencereyi de AppBar sanıyordu. Güncel karar: top bar AppBar,
 > dock overlay (ADR-001). Klasör adı `/Windows` değil **`Views/`**.
 
@@ -46,6 +62,8 @@ src/WharfBar/
     DockWindow.xaml(.cs)        # alt overlay; kendi listesinden 3 bölümlü dock şeridi; levha (Mica / saydam / renkli); tam ekran / work-area
     VeilWindow.xaml(.cs)        # tam ekran kaplama overlay (click-through, fade; ADR-007)
     SettingsWindow.xaml(.cs)     # Ayarlar ana penceresi (NavigationView)
+    GalleryWindow.xaml(.cs)      # Launchpad widget / eklenti galerisi (ADR-017)
+    PluginGalleryView.xaml(.cs)  # kart listesi: yerleşik + yerel manifest, yuva açıklaması
     DockItemViewModel.cs        # slotun çizime hazır anlık görüntüsü (ikon + tooltip + bölüm bayrakları)
   Views/Controls/
     DockStrip.cs                # şerit `Panel`: canlı ölçek 1 (matematik `DockStripLayout`'da)
@@ -57,6 +75,7 @@ src/WharfBar/
     TopBarPage.xaml(.cs)        # Ayarlar: üst çubuk (durum öğeleri)
     VeilPage.xaml(.cs)          # Ayarlar: Kaplama (renk/opaklık/kısayol; ADR-007)
     IslandPage.xaml(.cs)        # Ayarlar: Ada (görünürlük/kalıcılık/limitler/bakım; ADR-010)
+    PluginsPage.xaml(.cs)       # Ayarlar: eklenti ve widget kataloğu (ADR-017)
     AboutPage.xaml(.cs)         # Ayarlar: hakkında
   Native/
     NativeMethods.cs            # DllImport’lar, RECT / APPBARDATA / MONITORINFO / MARGINS
@@ -124,7 +143,8 @@ src/WharfBar/
     TaskbarWatchdog.cs          # --taskbar-watchdog modu: restore'suz ölümde görev çubuğunu dışarıdan geri getirir
     DockItemStore.cs            # dock'un sıralı, tekilleştirilmiş, kalıcı sabit listesi (App tek örneği)
     RunningAppsSource.cs        # EnumWindows arka plan; yol + AUMID + pid ile uygulama başına bir kimlik
-    MinimizedWindowsSource.cs   # tüm üst düzey pencere tablosu + küçültülmüş alt küme (arka iş parçacığı, 800 ms)
+    WindowCensus.cs             # tüm dock'lar için tek EnumWindows (3 sn) + pid yol önbelleği
+    MinimizedWindowsSource.cs   # WindowCensus tablosundan küçültülmüş alt küme
     DockAppsComposer.cs         # solda görev çubuğu pinleri (salt okunur) + dock.items, sağda sabitlenmemiş çalışanlar
     TaskbarPinnedAppsSource.cs # User Pinned\TaskBar *.lnk salt okunur tarama; yazma yok
     DockStripBuilder.cs         # bölüm değişimlerine 1 px ayraç slotu ekler
@@ -132,6 +152,7 @@ src/WharfBar/
     DockStripLayout.cs          # SAF yatay yerleşim: slot ölçekleri, reflow ofsetleri, pencere bütçesi (max genişlik/yükseklik)
     DockDropFormats.cs          # bırakılan dosya süzgeci (.lnk/.exe/.bat/.cmd) + yola çözümleme
     ShortcutResolver.cs         # .lnk → hedef yol / args / etiket (okuma yönü; `.lnk` **yazma** yolu 2026-10-04'te kaldırıldı)
+    PluginCatalog.cs           # yerel manifest kataloğu + yerleşik aç/kapa (ADR-017); derleme yüklenmez
     TrayOverflowInvoker.cs      # peek-show + native overflow + yeniden gizle
     TrayMirrorService.cs        # Tray toolbar'ı poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar (ADR-009)
     NotificationCenterInvoker.cs # Win+N
@@ -199,7 +220,8 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `TaskbarVisibilityService` | Başlatmada görev çubuğu baseline yakala; `Shell_TrayWnd` / secondary gizle; keep-hidden izleme (`ApplyPlacement` içinde `ReapplyHide` yok); çıkışta restore. Baseline watchdog state dosyasına yazılır, `--taskbar-watchdog` alt süreci spawn edilir; stale dosya varsa açılışta tray önce gösterilir (self-heal) |
 | `TaskbarWatchdog` | Headless mod (`Program.Main` dallanır, WPF başlamaz): PID + start-time izler, restore'suz ölümde baseline'ı uygular. PID reuse ve yeni-instance dosya yenilemesi güvenli |
 | `RunningAppsSource` | `EnumWindows` arka plan thread + `IsHungAppWindow`. Pencereler uygulama kimliğinde birleşir: kanonik exe yolu, AppUserModelId veya pid (geçişli). İkinci süreç düşmez; `WindowCount` pencereleri sayar |
-| `MinimizedWindowsSource` | Tüm üst düzey pencere tablosunu **arka iş parçacığında** 800 ms'de bir tarar (`GetTopLevelCandidates` + pencere başına `IsIconic`); `Windows` önbelleğinden `ForProcess(pid)` alt kümesi — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
+| `WindowCensus` | Tüm dock'lar için **tek** `EnumWindows` geçişi, 3 sn, arka iş parçacığı. Süreç yolu pid kaybolana kadar önbellekte. `RunningAppsSource` ve `MinimizedWindowsSource` bu anlık görüntüyü paylaşır |
+| `MinimizedWindowsSource` | `WindowCensus` tablosundan küçültülmüş alt kümeyi tutar; `Windows` önbelleğinden `ForProcess(pid)` — "Pencereler" menüsü UI thread'inde `EnumWindows` **çağırmaz** (donmuş HWND'de kilitler) |
 | `DockItemStore` | Dock'un yazma listesi: sıralı, normalize yola göre tekilleştirilmiş, kalıcı sabit liste (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. Liste çekirdeği `*Core` statiklerinde → diske dokunmadan testli. Anahtar **her zaman** normalize yoldur, `Id` değil (pinli-ve-çalışan kutucukta `Id` çalışan uygulamadan gelir) |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar\*.lnk` **salt okunur**. Sıra `Taskband\Favorites` blob'undaki dosya adıdır; yoksa dosya adı. Klasöre ve kayıt defterine yazmaz |
 | `DockAppsComposer` | Sol: görev çubuğu pin sırası, sonra yalnız `dock.items`'te olanlar (aynı hedef bir kez). Sağ: sabitlenmemiş çalışanlar. Eşleşme: tam yol (`\\?\` soyulur), AppUserModelId veya çözülmüş `.lnk`; klasör pinleri `explorer.exe` ile birleşmez. Kapalı pin `IsRunning` false. Aynı uygulama (yol / AUMID / pid) tek kutu; `WindowCount` > 1 iken sayı rozeti. Küçültülmüş veya arkadaki pencere ikinci kutu olmaz |
@@ -221,9 +243,9 @@ Ada (clipboard geçmişi + bırakılan dosyalar): [ADR-010](decisions/010-island
 | `AutostartService` | Startup klasörü `WharfBar.lnk`; `autostart` true/false ile oluştur/sil |
 | `StatusService` | Saat + ağ/pil; `.NET NetworkInformation` + `GetSystemPowerStatus` |
 | `NetworkDetailsService` | Ağ sayfası "Özellikler" (2 sn poll, sayfa açıkken): aktif adaptör (Wi-Fi > Ethernet önceliği) → IP/gateway/DNS/MAC/link hızı; canlı ↓/↑ Mbps `GetIPv4Statistics` byte-delta'sından, sayaç sıfırlaması/süre 0 → null ("—"). Saf hesap metotları unit testli |
-| `SystemStatsService` | Üst bar sol küme CPU/GPU/RAM okuması (2 sn poll); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, lokalizasyondan bağımsız). GPU motor örnekleri örnek adındaki LUID'e göre fiziksel adaptöre gruplanır (`ParseAdapterKey`/`GroupByAdapters`); yazılımsal adaptörler (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) dışlanır: Windows onları D3D adaptörü olarak sayar ama fiziksel GPU değildir ve Görev Yöneticisi de listelemez. `topBar.showGpuPerAdapter` açıkken `GPU0 x% · GPU1 y%`, kapalıyken tek toplam. Saf hesap metotları unit testli |
+| `SystemStatsService` | Üst bar sol küme CPU/GPU/RAM okuması (4 sn, UI iş parçacığı dışında); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, lokalizasyondan bağımsız). Görünen metin ve ağ etiketi değişmediyse UI yenilenmez. `showSystemStats` kapalıysa örnekleme durur. GPU motor örnekleri örnek adındaki LUID'e göre fiziksel adaptöre gruplanır (`ParseAdapterKey`/`GroupByAdapters`); yazılımsal adaptörler (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) dışlanır: Windows onları D3D adaptörü olarak sayar ama fiziksel GPU değildir ve Görev Yöneticisi de listelemez. `topBar.showGpuPerAdapter` açıkken `GPU0 x% · GPU1 y%`, kapalıyken tek toplam. Saf hesap metotları unit testli |
 | `TrayIconService` / `NotifyIconHost` | Kendi tepsi ikonu + Quit menüsü (`Shell_NotifyIcon`) |
-| `TrayMirrorService` | Tray toolbar'ı 1.5 sn poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar; tıklama forward (ADR-009) |
+| `TrayMirrorService` | Tray toolbar'ı 4 sn poll'lar, sistem ikonlarını filtreler, `TrayMirrorItem` snapshot yayınlar; ikon pikseli önbellekte kalır, blip yeniler; tıklama forward (ADR-009) |
 | `PowerStatus` | Pil / AC satırı (`GetSystemPowerStatus`) |
 
 ## Island (ADR-010)
@@ -434,7 +456,14 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
     "persistence": "session",
     "retentionDays": 30,
     "maxItems": 200,
-    "musicPresence": "persistent"
+    "musicPresence": "persistent",
+    "visualizer": true,
+    "bluetoothNotice": true,
+    "cameraMirror": false,
+    "openWidgets": []
+  },
+  "plugins": {
+    "enabled": []
   },
   "pinnedApps": [
     { "path": "C:\\\\...\\\\app.exe", "args": "", "label": "App" }
@@ -459,7 +488,7 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; bilinmeyen → `mica` (varsayılan). Mica ↔ translucent geçişi TopBar recreate gerektirir |
 | `topBar.tintOpacity` | 0–100; tint modunda alpha; varsayılan **40**; yüklemede clamp |
 | `topBar.statusCatalogVersion` | Soft katalog sürümü (`schemaVersion` 2'den bağımsız). Güncel **5**: eksik `controlCenter` `volume` önüne, eksik `brightness` `volume` sonrasına, eksik `media` `brightness` sonrasına eklenir (`Ensure*`; eski sürüm açılışta 5'e taşınır — ADR-008/009) |
-| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → `DefaultOrder`. **Varsayılan** `volume` / `brightness` / `media` içermez (ADR-011); üçü katalogda kalır, kayıtlı liste soyulmaz, `statusCatalogVersion` bu yüzden 5'te kalır. Soft alan (`schemaVersion` 2) |
+| `topBar.statusItems` | Görünür durum öğesi id’leri (sol→sağ sıra). Bilinmeyen id düşülür; boş/yok → `DefaultOrder`. **Varsayılan** `volume` / `brightness` / `media` içermez (ADR-011); katalogdaki her öğe sağ tık ve Üst Çubuk ayarında listelenir, kayıtlı liste soyulmaz, gizli öğe kendiliğinden açılmaz. **Tümünü göster** eksikleri katalog komşusunun yanına ekler. Barda sürükleme `MoveToInsertion` ile sırayı değiştirir. `statusCatalogVersion` 5'te kalır. Soft alan (`schemaVersion` 2) |
 | `topBar.showSystemStats` | Sol kümede Windows logosunun yanındaki `CPU x% · GPU y% · RAM z%` okuması (varsayılan **`true`**; soft bool — eksik alan varsayılana düşer). GPU sayacı yoksa GPU bölümü gösterilmez |
 | `topBar.showGpuPerAdapter` | Birden çok fiziksel GPU varsa GPU bölümlerini numaralandır (`GPU0 x% · GPU1 y%`); kapalıyken tek toplam segment (varsayılan **`true`**; soft bool). Tek GPU'da iki mod da aynı görünür |
 | `veil.enabled` | Kaplama açık/kapalı (kalıcı; QS karosu + kısayol + sayfa toggle'ı yazar). Varsayılan **`false`** |
@@ -472,6 +501,11 @@ Uygulama: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase JSON, g
 | `island.maxItems` | Kayıt sayısı sert tavanı (gün limitinden bağımsız); yüklemede `ClampMaxItems` ile 10–5000 (varsayılan **200**). Panel ayrıca en fazla 200 satır kurar (`IslandFlyout.MaxRenderedRows`); fazlası "N kayıt daha var (arama ile daralt)" notuyla bildirilir (ADR-010) |
 | `island.musicPresence` | `"persistent"` (varsayılan) \| `"transient"`. Müzik hapta nasıl durur (ADR-011). Soft string; `IslandNormalizer.NormalizeMusicPresence`, çözülemeyen → `persistent`. `schemaVersion` artmaz |
 | `island.idleLabel` | `"clipboard"` (varsayılan, hap **Pano**) \| `"lastClip"` (son metin önizlemesi). Soft string; `IslandNormalizer.NormalizeIdleLabel`, çözülemeyen → `clipboard`. `schemaVersion` artmaz (ADR-012) |
+| `island.visualizer` | Müzik çalarken ada hapında beş çubuk (varsayılan **`true`**). Galeri anahtarı. Soft bool (ADR-015, ADR-017) |
+| `island.bluetoothNotice` | Yeni bağlanan eşleşmiş cihazın adı hapta kısa süre durur (varsayılan **`true`**). Soft bool (ADR-015) |
+| `island.cameraMirror` | Hapta kamera önizlemesi. Varsayılan **`false`**; galeriden açılır. İzin yoksa yazı kalır (ADR-015) |
+| `island.openWidgets` | Masaüstünde açık widget id'leri: `clock`, `calendar`. Bilinmeyen id yüklemede düşer. Ada hapına girmez (ADR-015) |
+| `plugins.enabled` | Yerel manifest id'leri (`%AppData%/WharfBar/plugins/<klasör>/manifest.json`). Soft liste; `schemaVersion` **2** kalır. Yerleşik id'ler burada durmaz. Kayıt çizim değildir: derleme yüklenmez, üst çubuk ve dock yuvaları v1'de çizilmez (ADR-017) |
 | `pinnedApps` | **Legacy.** Yalnızca `ConfigService.MigrateDockItems` tarafından, `dock.items` boşken bir kez okunur ve sonra **boşaltılır**. Canlı görev çubuğu `.lnk` taraması 2026-10-04'te kaldırıldı (ADR-005 revizyonu) |
 
 İlk çalıştırmada dosya yoksa `DemoPinnedApps` ile varsayılan yazılır. Kayıt atomik
