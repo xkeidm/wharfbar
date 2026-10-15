@@ -13,27 +13,44 @@ namespace WharfBar.Tests;
 /// </summary>
 public class TrayMirrorEmptyReadTests
 {
-    /// <summary>Bir blip aralığına düşen okuma sayısı — grace'ın aşması gereken asgari pencere.</summary>
+    /// <summary>Grace penceresine düşen okuma sayısı — grace'ın aşması gereken asgari pencere.</summary>
     private static int PollsPerBlipInterval =>
-        (int)Math.Ceiling(TrayMirrorService.StateBlipMinInterval.TotalMilliseconds / TrayMirrorService.PollInterval.TotalMilliseconds);
+        (int)Math.Ceiling(TrayMirrorService.EmptyReadGraceWindow.TotalMilliseconds / TrayMirrorService.PollInterval.TotalMilliseconds);
 
     /// <summary>
-    /// Regresyonun asıl kilidi: grace penceresi bir blip aralığından <b>uzun</b> olmalı
+    /// Regresyonun asıl kilidi: grace penceresi yenileme boşluğundan <b>uzun</b> olmalı
     /// (<c>3 × 1.5 sn = 4.5 sn</c> iken ikonlar 60 sn'lik boşluğun %7.5'inde görünür
     /// kalıyordu) ama "bayat kalıcı donma" tarafına da kaymamalı — iki okumalık toleransı
     /// aşan bir değer yalnız ölü ikon penceresini uzatır.
     /// </summary>
     [Fact]
-    public void GraceWindow_CoversOneWholeBlipInterval_PlusTwoPolls()
+    public void GraceWindow_CoversTheWholeWindow_PlusTwoPolls()
     {
         TimeSpan grace = TrayMirrorService.PollInterval * TrayMirrorService.EmptyReadGraceReads;
 
         Assert.True(
-            grace > TrayMirrorService.StateBlipMinInterval,
-            $"grace {grace.TotalSeconds}s, bir state-blip aralığı ({TrayMirrorService.StateBlipMinInterval.TotalSeconds}s) boyunca sürmüyor — ayna her throttle boşluğunun ortasında temizlenir");
+            grace > TrayMirrorService.EmptyReadGraceWindow,
+            $"grace {grace.TotalSeconds}s, pencere ({TrayMirrorService.EmptyReadGraceWindow.TotalSeconds}s) boyunca sürmüyor");
         Assert.True(
-            grace <= TrayMirrorService.StateBlipMinInterval + (2 * TrayMirrorService.PollInterval),
+            grace <= TrayMirrorService.EmptyReadGraceWindow + (2 * TrayMirrorService.PollInterval),
             $"grace {grace.TotalSeconds}s, iki okumalık toleransı aşıyor — sınırsız donma yönünde kayıyor");
+        Assert.True(TrayMirrorService.EmptyReadGraceWindow > TrayMirrorService.BlipMinInterval);
+    }
+
+    /// <summary>
+    /// Sessiz yol yokken (show-only park halinde boş) tray'i yalnız bir work-area sarsıntısı
+    /// okuyabilir; o yüzden snapshot kanıt gelene kadar tutulur — bayat ikon zıplamadan iyidir.
+    /// </summary>
+    [Fact]
+    public void NoQuietRefresh_HoldsTheSnapshot_UntilEvidence()
+    {
+        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
+            TrayMirrorService.EmptyReadGraceReads + 10_000, heldItemCount: 3,
+            trayConfirmedEmptyByBlip: false, quietRefreshAvailable: false));
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
+            1, heldItemCount: 3, trayConfirmedEmptyByBlip: true, quietRefreshAvailable: false));
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
+            1, heldItemCount: 0, trayConfirmedEmptyByBlip: false, quietRefreshAvailable: false));
     }
 
     /// <summary>

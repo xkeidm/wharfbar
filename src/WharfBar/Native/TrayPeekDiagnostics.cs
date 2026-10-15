@@ -66,6 +66,21 @@ internal static class TrayPeekDiagnostics
         }
     }
 
+    private static int _stateChanges;
+
+    /// <summary>Session count of taskbar state flips (each one moves/resizes windows).</summary>
+    internal static int StateChangeCount => Volatile.Read(ref _stateChanges);
+
+    /// <summary>
+    /// Logs a tray-driven <c>ABM_SETSTATE</c> flip with a running count — the work-area-jump metric:
+    /// grep <c>state-change #</c> to see how many times the desktop was resized and why.
+    /// </summary>
+    internal static void LogStateChange(string reason)
+    {
+        int n = Interlocked.Increment(ref _stateChanges);
+        LogNote($"state-change #{n} reason={reason}");
+    }
+
     /// <summary>Appends a single free-form line (click-chain tracing).</summary>
     internal static void LogNote(string line)
     {

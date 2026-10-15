@@ -45,6 +45,11 @@ internal sealed class TrayOverflowInvoker
     {
         bool peeked = false;
         bool refreshHeld = false;
+        if (TaskbarNative.GetState() == NativeMethods.ABS_AUTOHIDE)
+        {
+            TrayPeekDiagnostics.LogStateChange("overflow");
+        }
+
         _taskbar.BeginIconRefresh();
         try
         {

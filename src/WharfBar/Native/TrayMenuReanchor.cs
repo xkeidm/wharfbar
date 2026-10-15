@@ -32,8 +32,29 @@ internal static class TrayMenuReanchor
     /// <summary>Full-screen overlays (IME hosts, vendor overlays) are never popups.</summary>
     private const double FullScreenAreaFraction = 0.9;
 
-    private const int WatchTimeoutMs = 2000;
+    /// <summary>
+    /// How long a click watches for its popup. Cold owners (Phone Link, first click after
+    /// start) open theirs well past 1 s; the old caller passed a 1 s budget and timed out.
+    /// </summary>
+    internal const int WatchTimeoutMs = 2500;
     private const int WatchPollMs = 40;
+
+    /// <summary>
+    /// After the move, some owners (EarTrumpet, XAML flyouts) re-position their own window once
+    /// their show animation or layout pass finishes. Watch that long and put it back.
+    /// </summary>
+    private const int ReassertWindowMs = 1500;
+    private const int ReassertPollMs = 50;
+    private const int ReassertMaxMoves = 4;
+    internal const int ReassertTolerancePx = 8;
+
+    /// <summary>
+    /// Pure: did the owner move the popup away from where it was re-anchored? A few pixels of
+    /// drift (DPI rounding, shadow frame) is not worth a fight.
+    /// </summary>
+    internal static bool ShouldReassert(RECT current, POINT target, int tolerancePx) =>
+        current.Width > 0
+        && (Math.Abs(current.Left - target.X) > tolerancePx || Math.Abs(current.Top - target.Y) > tolerancePx);
 
     /// <summary>
     /// A popup owned by <c>Shell_TrayWnd</c> is destroyed when the tray is hidden at the end of
@@ -116,13 +137,15 @@ internal static class TrayMenuReanchor
     /// <summary>
     /// Hwnds visible right now. Call this before the synthetic click so a menu that the
     /// owner creates synchronously is not already in the "existing" set when the watch starts.
+    /// Cloaked windows are left out: XAML/UWP flyouts are often pre-created visible-but-cloaked
+    /// and only uncloak on the click, so snapshotting them hid the very popup to move.
     /// </summary>
     internal static HashSet<IntPtr> CaptureVisibleWindows()
     {
         var existing = new HashSet<IntPtr>();
         NativeMethods.EnumWindows((hwnd, lParam) =>
         {
-            if (NativeMethods.IsWindowVisible(hwnd))
+            if (NativeMethods.IsWindowVisible(hwnd) && !IsCloaked(hwnd))
             {
                 existing.Add(hwnd);
             }
@@ -202,9 +225,7 @@ internal static class TrayMenuReanchor
                 return true;
             }
 
-            bool cloaked = NativeMethods.DwmGetWindowAttribute(
-                    hwnd, NativeMethods.DWMWA_CLOAKED, out int cloakedValue, sizeof(int)) == 0
-                && cloakedValue != 0;
+            bool cloaked = IsCloaked(hwnd);
             if (cloaked || !NativeMethods.GetWindowRect(hwnd, out RECT rect))
             {
                 return true;
@@ -258,8 +279,54 @@ internal static class TrayMenuReanchor
             0,
             0,
             flags);
-        TrayPeekDiagnostics.LogNote($"reanchor moved hwnd={found} rect={foundRect.Left},{foundRect.Top},{foundRect.Right},{foundRect.Bottom} to {pos.X},{pos.Y}");
+        string className = ClassNameOf(found);
+        TrayPeekDiagnostics.LogNote(
+            $"reanchor moved hwnd={found} class={className} rect={foundRect.Left},{foundRect.Top},{foundRect.Right},{foundRect.Bottom} to {pos.X},{pos.Y}");
+        _ = Task.Run(() => ReassertPosition(found, pos, anchor, workArea, flags | NativeMethods.SWP_NOZORDER));
         return true;
+    }
+
+    /// <summary>
+    /// Bounded follow-up: puts the popup back when its owner re-positions it after our move.
+    /// Stops when the window closes, the window expires, or after <see cref="ReassertMaxMoves"/>.
+    /// A size change (layout pass) re-centres against the new size.
+    /// </summary>
+    private static void ReassertPosition(IntPtr hwnd, POINT target, RECT anchor, RECT workArea, uint flags)
+    {
+        int moves = 0;
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < ReassertWindowMs && moves < ReassertMaxMoves)
+        {
+            Thread.Sleep(ReassertPollMs);
+            if (!NativeMethods.IsWindowVisible(hwnd) || !NativeMethods.GetWindowRect(hwnd, out RECT rect))
+            {
+                return;
+            }
+
+            POINT wanted = ComputeAnchoredPosition(rect, anchor, workArea);
+            if (!ShouldReassert(rect, wanted, ReassertTolerancePx))
+            {
+                target = wanted;
+                continue;
+            }
+
+            moves++;
+            _ = NativeMethods.SetWindowPos(hwnd, IntPtr.Zero, wanted.X, wanted.Y, 0, 0, flags);
+            TrayPeekDiagnostics.LogNote(
+                $"reanchor reassert #{moves} hwnd={hwnd} from {rect.Left},{rect.Top} to {wanted.X},{wanted.Y} (was {target.X},{target.Y})");
+            target = wanted;
+        }
+    }
+
+    private static bool IsCloaked(IntPtr hwnd) =>
+        NativeMethods.DwmGetWindowAttribute(hwnd, NativeMethods.DWMWA_CLOAKED, out int value, sizeof(int)) == 0
+        && value != 0;
+
+    private static string ClassNameOf(IntPtr hwnd)
+    {
+        var className = new StringBuilder(256);
+        _ = NativeMethods.GetClassName(hwnd, className, className.Capacity);
+        return className.ToString();
     }
 
     private static bool TryGetPrimaryFrame(out RECT monitorBounds, out RECT workArea)

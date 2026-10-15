@@ -75,6 +75,27 @@ internal static class SendInputMouse
         return (int)Math.Round(normalized);
     }
 
+    /// <summary>Moves the cursor with a real (absolute) move packet so hover tracking sees it.</summary>
+    internal static void MoveTo(int x, int y)
+    {
+        _ = SetCursorPos(x, y);
+        int ax = NormalizeAbsolute(x, GetSystemMetrics(SM_XVIRTUALSCREEN), GetSystemMetrics(SM_CXVIRTUALSCREEN));
+        int ay = NormalizeAbsolute(y, GetSystemMetrics(SM_YVIRTUALSCREEN), GetSystemMetrics(SM_CYVIRTUALSCREEN));
+        INPUT[] move = [Mouse(MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE | MOUSEEVENTF_VIRTUALDESK, ax, ay)];
+        _ = NativeMethods.SendInput(1, move, Marshal.SizeOf<INPUT>());
+    }
+
+    /// <summary>Remembers the cursor now; disposing the lease puts it back (idempotent).</summary>
+    internal static IDisposable HoldCursorHome()
+    {
+        if (!GetCursorPos(out POINT home))
+        {
+            home = default;
+        }
+
+        return new CursorLease(home.X, home.Y);
+    }
+
     /// <summary>
     /// Right-clicks at physical pixel (<paramref name="x"/>, <paramref name="y"/>) and leaves
     /// the cursor there until the returned lease is disposed. Tray owners read

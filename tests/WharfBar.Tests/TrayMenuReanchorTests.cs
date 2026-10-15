@@ -158,4 +158,31 @@ public class TrayMenuReanchorTests
         Assert.False(TrayMenuReanchor.ShouldDetachPopupFromTray(IntPtr.Zero, tray));
         Assert.False(TrayMenuReanchor.ShouldDetachPopupFromTray(tray, IntPtr.Zero));
     }
+
+    // --- ShouldReassert ---
+
+    [Fact]
+    public void Reassert_WhenTheOwnerMovesThePopupBack()
+    {
+        var target = new POINT { X = 1500, Y = 33 };
+
+        // EarTrumpet-style: the flyout snaps back to its bottom-edge slot after our move.
+        Assert.True(TrayMenuReanchor.ShouldReassert(Rect(1500, 700, 1860, 1032), target, TrayMenuReanchor.ReassertTolerancePx));
+    }
+
+    [Fact]
+    public void NoReassert_ForSmallDrift_OrAClosedWindow()
+    {
+        var target = new POINT { X = 1500, Y = 33 };
+
+        Assert.False(TrayMenuReanchor.ShouldReassert(Rect(1504, 30, 1864, 360), target, TrayMenuReanchor.ReassertTolerancePx));
+        Assert.False(TrayMenuReanchor.ShouldReassert(default, target, TrayMenuReanchor.ReassertTolerancePx));
+    }
+
+    [Fact]
+    public void WatchWindow_OutlastsColdOwners()
+    {
+        // Diag log: Phone Link's popup timed out under the old 1 s budget.
+        Assert.True(TrayMenuReanchor.WatchTimeoutMs >= 2000);
+    }
 }

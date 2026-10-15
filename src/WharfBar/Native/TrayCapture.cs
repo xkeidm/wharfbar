@@ -41,14 +41,16 @@ internal static class TrayCapture
     private static extern bool PrintWindow(IntPtr hWnd, IntPtr hdcBlt, uint nFlags);
 
     /// <summary>
-    /// Captures the real icon for a tray button: PrintWindow the (parked, cloaked) taskbar and
-    /// crop the button's screen rect (converted to window coords). Returns false on any failure —
-    /// the caller falls back to a letter glyph.
+    /// One <c>PrintWindow</c> of the tray, shared by every button crop of a refresh (it used to
+    /// be one full-taskbar capture per icon). False when the tray is not shown: PrintWindow then
+    /// returns TRUE with an unpainted DIB, so trying is pure cost.
     /// </summary>
-    internal static bool TryGetTrayIcon(IntPtr tray, RECT buttonRect, out ImageSource? icon)
+    internal static bool TryCaptureFrame(IntPtr tray, out TrayCaptureFrame? frame)
     {
-        icon = null;
-        if (tray == IntPtr.Zero || !NativeMethods.GetWindowRect(tray, out RECT windowRect))
+        frame = null;
+        if (tray == IntPtr.Zero
+            || !NativeMethods.IsWindowVisible(tray)
+            || !NativeMethods.GetWindowRect(tray, out RECT windowRect))
         {
             return false;
         }
@@ -58,29 +60,140 @@ internal static class TrayCapture
             return false;
         }
 
+        frame = new TrayCaptureFrame(capture, windowRect);
+        return true;
+    }
+
+    /// <summary>
+    /// Crops a button's screen rect out of <paramref name="frame"/> into a standalone bitmap (the
+    /// full-taskbar frame is not kept alive by the icon). Returns the raw pixels too so the
+    /// caller can fingerprint them. False for an invalid rect or a glyph-less crop — the caller
+    /// keeps its cached icon or falls back to a letter glyph.
+    /// </summary>
+    internal static bool TryCropIcon(TrayCaptureFrame frame, RECT buttonRect, out TrayIconCrop? crop)
+    {
+        crop = null;
+        BitmapSource capture = frame.Bitmap;
         if (!TryComputeCropRect(
-                windowRect,
+                frame.WindowRect,
                 buttonRect,
                 capture.PixelWidth,
                 capture.PixelHeight,
-                out Int32Rect crop))
+                out Int32Rect region))
         {
             return false;
         }
 
-        var cropped = new CroppedBitmap(capture, crop);
-        cropped.Freeze();
+        int bytesPerPixel = Math.Max(1, capture.Format.BitsPerPixel / 8);
+        if (bytesPerPixel != 4)
+        {
+            int rawStride = region.Width * bytesPerPixel;
+            var raw = new byte[rawStride * region.Height];
+            capture.CopyPixels(region, raw, rawStride, 0);
+            if (IsBlankPixels(raw, bytesPerPixel))
+            {
+                return false;
+            }
 
-        // PrintWindow reports success even when it painted nothing (taskbar not shown), which
-        // used to publish solid black squares. Reject a glyph-less crop so the caller falls
-        // back to a letter glyph instead.
-        if (IsBlankCapture(cropped, new Int32Rect(0, 0, cropped.PixelWidth, cropped.PixelHeight)))
+            BitmapSource plain = BitmapSource.Create(
+                region.Width, region.Height, capture.DpiX, capture.DpiY, capture.Format, capture.Palette, raw, rawStride);
+            plain.Freeze();
+            crop = new TrayIconCrop(plain, raw);
+            return true;
+        }
+
+        // Copy the icon rect plus a ring around it: the ring is plain taskbar paint (button
+        // padding) and gives the background colour to key out.
+        Int32Rect outer = InflateClamped(region, TrayIconMatte.RingPx, capture.PixelWidth, capture.PixelHeight);
+        int outerStride = outer.Width * 4;
+        var outerPixels = new byte[outerStride * outer.Height];
+        capture.CopyPixels(outer, outerPixels, outerStride, 0);
+        SplitRing(outerPixels, outer, region, out byte[] pixels, out List<BgrColor> ring);
+        if (IsBlankPixels(pixels, 4))
         {
             return false;
         }
 
-        icon = cropped;
+        if (ring.Count < 4)
+        {
+            ring = BorderSamples(pixels, region.Width, region.Height);
+        }
+
+        byte[] keyed = TrayIconMatte.RemoveBackground(pixels, TrayIconMatte.MedianColor(ring));
+        if (!TrayIconMatte.HasVisiblePixels(keyed))
+        {
+            return false;
+        }
+
+        BitmapSource icon = BitmapSource.Create(
+            region.Width,
+            region.Height,
+            capture.DpiX,
+            capture.DpiY,
+            PixelFormats.Bgra32,
+            null,
+            keyed,
+            region.Width * 4);
+        icon.Freeze();
+        crop = new TrayIconCrop(icon, keyed);
         return true;
+    }
+
+    /// <summary>Pure: <paramref name="rect"/> grown by <paramref name="by"/> on every side, clamped to the capture.</summary>
+    internal static Int32Rect InflateClamped(Int32Rect rect, int by, int width, int height)
+    {
+        int left = Math.Max(0, rect.X - by);
+        int top = Math.Max(0, rect.Y - by);
+        int right = Math.Min(width, rect.X + rect.Width + by);
+        int bottom = Math.Min(height, rect.Y + rect.Height + by);
+        return new Int32Rect(left, top, Math.Max(0, right - left), Math.Max(0, bottom - top));
+    }
+
+    /// <summary>Pure: splits an outer BGRA buffer into the inner rect's pixels and the ring colours.</summary>
+    internal static void SplitRing(byte[] outerPixels, Int32Rect outer, Int32Rect inner, out byte[] innerPixels, out List<BgrColor> ring)
+    {
+        innerPixels = new byte[inner.Width * inner.Height * 4];
+        ring = new List<BgrColor>();
+        for (int y = 0; y < outer.Height; y++)
+        {
+            int absY = outer.Y + y;
+            for (int x = 0; x < outer.Width; x++)
+            {
+                int absX = outer.X + x;
+                int src = ((y * outer.Width) + x) * 4;
+                bool inside = absX >= inner.X && absX < inner.X + inner.Width
+                    && absY >= inner.Y && absY < inner.Y + inner.Height;
+                if (inside)
+                {
+                    int dst = (((absY - inner.Y) * inner.Width) + (absX - inner.X)) * 4;
+                    Buffer.BlockCopy(outerPixels, src, innerPixels, dst, 4);
+                }
+                else
+                {
+                    ring.Add(new BgrColor(outerPixels[src], outerPixels[src + 1], outerPixels[src + 2]));
+                }
+            }
+        }
+    }
+
+    private static List<BgrColor> BorderSamples(byte[] pixels, int width, int height)
+    {
+        var samples = new List<BgrColor>();
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                if (x != 0 && y != 0 && x != width - 1 && y != height - 1)
+                {
+                    continue;
+                }
+
+                int i = ((y * width) + x) * 4;
+                samples.Add(new BgrColor(pixels[i], pixels[i + 1], pixels[i + 2]));
+            }
+        }
+
+        return samples;
     }
 
     /// <summary>
@@ -102,6 +215,15 @@ internal static class TrayCapture
         int stride = region.Width * bytesPerPixel;
         var buffer = new byte[stride * region.Height];
         source.CopyPixels(region, buffer, stride, 0);
+        return IsBlankPixels(buffer, bytesPerPixel);
+    }
+
+    private static bool IsBlankPixels(byte[] buffer, int bytesPerPixel)
+    {
+        if (buffer.Length == 0)
+        {
+            return true;
+        }
 
         if (bytesPerPixel < 4)
         {
@@ -243,3 +365,9 @@ internal static class TrayCapture
         }
     }
 }
+
+/// <summary>One tray capture plus the window rect it was taken at (crop origin).</summary>
+internal sealed record TrayCaptureFrame(BitmapSource Bitmap, RECT WindowRect);
+
+/// <summary>A cropped tray icon and its raw pixels (for <c>TrayIconSignature</c>).</summary>
+internal sealed record TrayIconCrop(BitmapSource Icon, byte[] Pixels);

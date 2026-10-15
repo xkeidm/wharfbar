@@ -22,16 +22,29 @@ internal sealed class TrayMirrorService : IDisposable
 {
     internal static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(4);
 
-    /// <summary>At most one show-only refresh per this interval (no app-bar state change).</summary>
+    /// <summary>
+    /// Show-only refresh interval while icons are stable (no app-bar state change); it tightens
+    /// to <see cref="TrayIconRefreshPolicy.ActiveShowOnlyInterval"/> while they change.
+    /// </summary>
     internal static readonly TimeSpan BlipMinInterval = TimeSpan.FromSeconds(60);
 
     /// <summary>
-    /// When a show-only read cannot see icons, the fallback drops <c>ABS_AUTOHIDE</c>. That
-    /// flaps the work area, so it runs much less often than a quiet refresh.
+    /// How long empty direct reads may keep the held snapshot while a quiet (show-only) refresh
+    /// is available to confirm or refill it. Without a quiet path the snapshot is held until
+    /// evidence (see <see cref="ShouldHoldSnapshotOnEmptyRead"/>).
     /// </summary>
-    internal static readonly TimeSpan StateBlipMinInterval = TimeSpan.FromMinutes(3);
+    internal static readonly TimeSpan EmptyReadGraceWindow = TimeSpan.FromMinutes(3);
 
     private const int PeekSettleMs = 160;
+
+    /// <summary>Hover-reveal budget for a click (auto-hide slide-in is ~0.3–0.6 s).</summary>
+    private const int RevealTimeoutMs = 1200;
+
+    /// <summary>Consecutive reveal misses after which clicks go straight to the state fallback.</summary>
+    private const int RevealFailureLimit = 2;
+
+    /// <summary>Taskbar strip height the state flip would reserve (physical px, 100–150 % DPI).</summary>
+    private const int ReservedStripPx = 72;
 
     /// <summary>
     /// How long a right-click keeps the real tray up and the cursor on the button. Slow owners
@@ -48,16 +61,14 @@ internal sealed class TrayMirrorService : IDisposable
     private const int LiveResolvePollMs = 100;
 
     /// <summary>
-    /// Kaç ardışık boş UIA okuması boyunca son iyi snapshot tutulur. Sabit <b>değil,
-    /// türetilir</b>: eşik bir <b>tam blip aralığını</b> aşmak zorunda, çünkü park
-    /// halinde (25H2'de explorer tray'i sanallaştırır) doğrudan okuma her
-    /// <see cref="PollInterval"/>'da boş döner ve yalnızca blip ikonları geri getirir; blip de
-    /// <see cref="StateBlipMinInterval"/> ile kısıtlıdır (show-only başarısızsa). Daha kısa bir
-    /// eşik, aynayı o boşluğun ortasında temizler. <c>+2</c> tolerans: tam aralık dolduğunda
-    /// yeni blip henüz bir sonraki zamanlayıcı dilimini bekler.
+    /// Kaç ardışık boş UIA okuması boyunca son iyi snapshot tutulur (yalnız sessiz bir yenileme
+    /// yolu varken). Sabit <b>değil, türetilir</b>: eşik <see cref="EmptyReadGraceWindow"/>
+    /// penceresini aşmak zorunda; daha kısa bir eşik aynayı yenilemeler arasındaki boşluğun
+    /// ortasında temizler. <c>+2</c> tolerans: pencere dolduğunda yeni yenileme henüz bir
+    /// sonraki zamanlayıcı dilimini bekler.
     /// </summary>
     internal static readonly int EmptyReadGraceReads =
-        (int)Math.Ceiling(StateBlipMinInterval.TotalMilliseconds / PollInterval.TotalMilliseconds) + 2;
+        (int)Math.Ceiling(EmptyReadGraceWindow.TotalMilliseconds / PollInterval.TotalMilliseconds) + 2;
 
     /// <summary>
     /// Bir blip neden ikon döndürmedi. Boş okuma grace'i tam olarak bu ayrımı ister:
@@ -94,9 +105,26 @@ internal sealed class TrayMirrorService : IDisposable
     // good snapshot for EmptyReadGraceReads consecutive empty reads before clearing the
     // mirror — the grace must stay BOUNDED but also outlast a whole blip interval, see
     // the empty branch in PollUia.
-    private readonly Dictionary<string, ImageSource> _iconCache = new(StringComparer.Ordinal);
+    private readonly TrayIconCache<ImageSource> _iconCache = new();
     private IReadOnlyList<TrayMirrorItem> _lastGoodUiaItems = [];
+    private IReadOnlyList<TrayMirrorItem> _lastPublished = [];
     private int _consecutiveEmptyUiaReads;
+    private int _lastDirectReadCount = int.MinValue;
+
+    // Out-of-band refresh request (UTC ticks, 0 = none): after a mirror click, a theme change,
+    // or an inconclusive refresh. Written from the UI / click threads, consumed on the STA.
+    private long _expediteDueTicks;
+    private bool _inconclusiveRetryUsed;
+    private bool _iconsRecentlyChanged;
+    private DateTime _lastPixelCapture;
+
+    // State-blip bookkeeping, per explorer instance (reset when Shell_TrayWnd changes).
+    private IntPtr _shellTray;
+    private bool _stateBlippedThisShell;
+    private bool _stateBlipConfirmedEmpty;
+    private DateTime _lastStateChange;
+    private int _revealFailures;
+    private DateTime _lastRevealFailure;
     // Once UIA has delivered icons, the mirror source is locked for the session: the
     // classic toolbar can transiently reappear during state blips (unpark windows) and
     // its differently-keyed items would wipe and re-add the whole mirror on every flip.
@@ -153,6 +181,16 @@ internal sealed class TrayMirrorService : IDisposable
     internal IReadOnlyList<TrayMirrorItem> Items { get; private set; } = [];
 
     internal void Reenumerate() => _ = _staDispatcher?.BeginInvoke(Poll, DispatcherPriority.Background);
+
+    /// <summary>
+    /// Windows theme / accent / colorization changed: tray apps swap their light/dark icon
+    /// variants and the captured crops carry the old taskbar paint. Asks for one pixel refresh
+    /// shortly after explorer has repainted (rate-limited; no new timer — the poll picks it up).
+    /// </summary>
+    internal void NotifyAppearanceChanged() => RequestExpeditedRefresh(TrayIconRefreshPolicy.AppearanceSettleDelay);
+
+    private void RequestExpeditedRefresh(TimeSpan delay) =>
+        Interlocked.Exchange(ref _expediteDueTicks, (DateTime.UtcNow + delay).Ticks);
 
     /// <summary>
     /// Replays a click on a mirrored tray icon. Routes to the source the item came from: the
@@ -255,6 +293,7 @@ internal sealed class TrayMirrorService : IDisposable
     {
         IReadOnlyList<TrayButtonInfo> buttons = TrayToolbar.ReadButtons(toolbar);
         var items = new List<TrayMirrorItem>(buttons.Count);
+        DateTime now = DateTime.UtcNow;
         for (int i = 0; i < buttons.Count; i++)
         {
             TrayButtonInfo b = buttons[i];
@@ -264,9 +303,10 @@ internal sealed class TrayMirrorService : IDisposable
                 continue;
             }
 
-            items.Add(BuildToolbarItem(toolbar, b, i));
+            items.Add(BuildToolbarItem(toolbar, b, i, now));
         }
 
+        _iconCache.Retain(items.Select(static item => item.Key));
         return items;
     }
 
@@ -277,18 +317,22 @@ internal sealed class TrayMirrorService : IDisposable
         // a state blip (see TryRefreshViaBlip) re-exposes it only when that is invisible.
         // Poll itself already runs on the STA worker (queued there by the timer), so a
         // direct call — RunOnSta here would deadlock on the queue it is blocking.
+        TrackShellInstance();
         IReadOnlyList<UiaTrayButton>? buttons = TrayUiaReader.TryGetTrayButtons();
-        TrayBlipOutcome blipOutcome = TrayBlipOutcome.Skipped;
-        if (buttons is null || buttons.Count == 0)
+        bool directHasButtons = buttons is { Count: > 0 };
+        LogDirectReadTransition(buttons?.Count ?? -1);
+
+        // Pixels exist only while the tray is shown, so the refresh peek runs on its own cadence
+        // even when the direct read has buttons — gating it on an EMPTY direct read froze every
+        // icon (Discord mute/call state) for the whole session on machines where it is not empty.
+        IReadOnlyList<TrayMirrorItem>? blip = TryRefreshViaBlip(directHasButtons, out TrayBlipOutcome blipOutcome);
+        if (blip is { Count: > 0 })
         {
-            IReadOnlyList<TrayMirrorItem>? blip = TryRefreshViaBlip(out blipOutcome);
-            if (blip is { Count: > 0 })
-            {
-                _consecutiveEmptyUiaReads = 0;
-                _lastGoodUiaItems = blip;
-                _uiaLocked = true;
-                return blip;
-            }
+            _consecutiveEmptyUiaReads = 0;
+            _lastGoodUiaItems = blip;
+            _uiaLocked = true;
+            _iconCache.Retain(blip.Select(static item => IconCacheKey(item.Key, item.Index)));
+            return blip;
         }
 
         // Null (walk failed), empty (virtualized parked tray) and a blip that proved nothing all
@@ -298,13 +342,38 @@ internal sealed class TrayMirrorService : IDisposable
 
         IntPtr tray = TrayUiaReader.FindTrayHwnd();
 
+        // Cached pixels for known keys; a new key gets one shared capture only if the tray is
+        // actually shown (outside a peek it never is — PrintWindow would paint nothing), else a
+        // placeholder glyph that the next refresh replaces.
         var items = new List<TrayMirrorItem>(buttons.Count);
+        DateTime now = DateTime.UtcNow;
+        TrayCaptureFrame? frame = null;
+        bool frameTried = false;
+        var stats = default(CaptureStats);
+        Dictionary<string, Rect> knownRects = RectsByKey(_lastGoodUiaItems);
         for (int i = 0; i < buttons.Count; i++)
         {
             UiaTrayButton b = buttons[i];
+            string cacheKey = IconCacheKey(b.Name, i);
+            Rect rect = knownRects.GetValueOrDefault(b.Name);
+            if (!_iconCache.TryGet(cacheKey, out ImageSource icon))
+            {
+                if (!frameTried)
+                {
+                    frameTried = true;
+                    _ = TrayCapture.TryCaptureFrame(tray, out frame);
+                }
+
+                icon = CaptureIcon(frame, b, cacheKey, now, captureAttempted: frame is not null, ref stats, out Rect captured);
+                if (captured.Width > 0)
+                {
+                    rect = captured;
+                }
+            }
+
             // Key by name: most tray apps keep a stable tooltip; state-bearing names
             // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
-            items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, CachedIcon(tray, b.Element, b.Name, refresh: false), b.Element));
+            items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, icon, b.Element, rect));
         }
 
         if (items.Count == 0)
@@ -321,11 +390,14 @@ internal sealed class TrayMirrorService : IDisposable
             // A blip that actually RAN and came back empty is the answer the grace was waiting
             // for — the tray was shown and still had nothing — so it clears at once. A
             // throttled / blocked / failed blip never looked at the tray and keeps holding.
+            // Without a quiet refresh path (show-only latched off) nothing but a work-area flap
+            // could confirm anything, so the snapshot is held until evidence arrives.
             _consecutiveEmptyUiaReads++;
             if (ShouldHoldSnapshotOnEmptyRead(
                     _consecutiveEmptyUiaReads,
                     _lastGoodUiaItems.Count,
-                    blipOutcome == TrayBlipOutcome.ConfirmedEmpty))
+                    blipOutcome == TrayBlipOutcome.ConfirmedEmpty,
+                    quietRefreshAvailable: _showOnlyReadWorks != false))
             {
                 return _lastGoodUiaItems;
             }
@@ -341,7 +413,7 @@ internal sealed class TrayMirrorService : IDisposable
 
         _consecutiveEmptyUiaReads = 0;
         _lastGoodUiaItems = items;
-        RetainIcons(items.Select(static item => item.Key));
+        _iconCache.Retain(items.Select(static item => IconCacheKey(item.Key, item.Index)));
         if (items.Count > 0)
         {
             _uiaLocked = true;
@@ -352,17 +424,20 @@ internal sealed class TrayMirrorService : IDisposable
 
     /// <summary>
     /// Pure: does an empty UIA read keep the held snapshot on the bar, or clear the mirror?
-    /// Clear the moment the grace is used up — a bounded freeze is a grace period, not a cache.
-    /// <paramref name="trayConfirmedEmptyByBlip"/> short-circuits the grace: a blip that really
-    /// ran already proved the tray has nothing, which is what the grace was waiting for.
+    /// With a quiet refresh path the grace is bounded — that path will confirm or refill within
+    /// the window. Without one (only a work-area flap could read the tray) the snapshot is held
+    /// until evidence: a stale icon is better than a blank mirror or a desktop that jumps.
+    /// <paramref name="trayConfirmedEmptyByBlip"/> short-circuits both: a blip that really ran
+    /// already proved the tray has nothing.
     /// </summary>
     internal static bool ShouldHoldSnapshotOnEmptyRead(
         int consecutiveEmptyReads,
         int heldItemCount,
-        bool trayConfirmedEmptyByBlip) =>
+        bool trayConfirmedEmptyByBlip,
+        bool quietRefreshAvailable = true) =>
         !trayConfirmedEmptyByBlip
-        && consecutiveEmptyReads < EmptyReadGraceReads
-        && heldItemCount > 0;
+        && heldItemCount > 0
+        && (!quietRefreshAvailable || consecutiveEmptyReads < EmptyReadGraceReads);
 
     /// <summary>
     /// A refresh may skip the app-bar state toggle once a show-only read has succeeded.
@@ -415,51 +490,150 @@ internal sealed class TrayMirrorService : IDisposable
     /// Neden ikon dönmedi — boş okuma grace'inin hammaddesi. Yalnız
     /// <see cref="TrayBlipOutcome.ConfirmedEmpty"/> kanıttır.
     /// </param>
-    private IReadOnlyList<TrayMirrorItem>? TryRefreshViaBlip(out TrayBlipOutcome outcome)
+    private IReadOnlyList<TrayMirrorItem>? TryRefreshViaBlip(bool directHasButtons, out TrayBlipOutcome outcome)
     {
-        // Cheap gates first: HasMaximizedWindowOnPrimary enumerates every top-level window and
-        // must not run on the (common) throttled poll.
-        TimeSpan minInterval = _showOnlyReadWorks == false ? StateBlipMinInterval : BlipMinInterval;
-        if ((DateTime.UtcNow - _lastBlip) < minInterval || _clickBusy != 0)
+        outcome = TrayBlipOutcome.Skipped;
+        if (_clickBusy != 0)
         {
-            outcome = TrayBlipOutcome.Skipped;
             return null;
         }
 
-        if (HasMaximizedWindowOnPrimary())
-        {
-            // Deliberately does NOT stamp _lastBlip: the blip flaps the work area, which a
-            // maximized window would visibly absorb — so it is skipped, and the next poll is
-            // free to blip the moment the window leaves the screen. That is what resolves the
-            // mirror (icons back, or proven empty) within one poll of the block lifting.
-            outcome = TrayBlipOutcome.Skipped;
-            return null;
-        }
+        DateTime now = DateTime.UtcNow;
 
-        _lastBlip = DateTime.UtcNow;
-
-        // ABM_SETSTATE(0) then ABS_AUTOHIDE resizes every window and the desktop. Prefer a
-        // stealth show that does not touch app-bar state. Latch the result: a working
-        // show-only read must not fall through into that flap on later polls, and a failed
-        // probe must not show the tray twice every interval.
+        // Quiet path: the stealth show-only peek touches no app-bar state and no work area, so
+        // it alone follows the refresh cadence and the out-of-band requests.
         if (ShouldTryShowOnly(_showOnlyReadWorks))
         {
+            long expediteTicks = Interlocked.Read(ref _expediteDueTicks);
+            bool expedite = TrayIconRefreshPolicy.IsExpediteDue(expediteTicks, now);
+            TimeSpan minGap = TrayIconRefreshPolicy.MinGap(expedite, _iconsRecentlyChanged);
+            if (!TrayIconRefreshPolicy.ShouldRefresh(now - _lastBlip, minGap, clickBusy: false))
+            {
+                return null;
+            }
+
+            _lastBlip = now;
+            if (expedite)
+            {
+                _ = Interlocked.CompareExchange(ref _expediteDueTicks, 0, expediteTicks);
+            }
+
             IReadOnlyList<TrayMirrorItem>? quiet = TryPeekIcons(stateBlip: false, out outcome);
             if (quiet is { Count: > 0 })
             {
                 _showOnlyReadWorks = LatchShowOnly(_showOnlyReadWorks, foundIcons: true);
-                return quiet;
+                return AfterRefresh(quiet, outcome);
+            }
+
+            if (directHasButtons)
+            {
+                // The direct read just saw buttons, so an empty show-only read contradicts it —
+                // a rebuild race, not a broken show-only path. Neither latch nor escalate.
+                outcome = TrayBlipOutcome.Inconclusive;
+                return AfterRefresh(null, outcome);
             }
 
             _showOnlyReadWorks = LatchShowOnly(_showOnlyReadWorks, foundIcons: false);
             if (_showOnlyReadWorks == true)
             {
                 outcome = TrayBlipOutcome.Inconclusive;
-                return null;
+                return AfterRefresh(null, outcome);
             }
+
+            TrayPeekDiagnostics.LogNote("show-only latched off: a parked auto-hide tray exposes no buttons");
         }
 
-        return TryPeekIcons(stateBlip: true, out outcome);
+        if (directHasButtons)
+        {
+            outcome = TrayBlipOutcome.Skipped;
+            return null;
+        }
+
+        // Loud path: ABM_SETSTATE(0) ↔ ABS_AUTOHIDE reserves and releases the taskbar strip, so
+        // every maximized/snapped/bottom-touching window jumps twice. Gated hard (bootstrap of
+        // an empty mirror, or rare upkeep while the user is away); never brought forward by
+        // clicks, theme changes or failed peeks. A blocked blip does not stamp the clock.
+        TrayStateBlipReason reason = TrayStateBlipGate.Decide(
+            hasSnapshot: _lastGoodUiaItems.Count > 0,
+            blippedThisShell: _stateBlippedThisShell,
+            trayConfirmedEmpty: _stateBlipConfirmedEmpty,
+            sinceLastStateChange: now - _lastStateChange,
+            userIdle: TrayAutoHideReveal.UserIdleTime());
+        if (reason == TrayStateBlipReason.None)
+        {
+            return null;
+        }
+
+        bool blocked = TrayStateBlipGate.ChecksAllAffectedWindows(reason)
+            ? TrayAutoHideReveal.HasWindowAffectedByWorkAreaChange(ReservedStripPx)
+            : HasMaximizedWindowOnPrimary();
+        if (blocked)
+        {
+            return null;
+        }
+
+        _lastBlip = now;
+        _lastStateChange = now;
+        _stateBlippedThisShell = true;
+        TrayPeekDiagnostics.LogStateChange($"refresh-{reason}");
+        IReadOnlyList<TrayMirrorItem>? result = TryPeekIcons(stateBlip: true, out outcome);
+        if (outcome == TrayBlipOutcome.ConfirmedEmpty)
+        {
+            _stateBlipConfirmedEmpty = true;
+        }
+        else if (outcome == TrayBlipOutcome.Refreshed)
+        {
+            _stateBlipConfirmedEmpty = false;
+        }
+
+        return AfterRefresh(result, outcome);
+    }
+
+    /// <summary>
+    /// A new <c>Shell_TrayWnd</c> means explorer restarted: its tray is a fresh unknown, so the
+    /// show-only probe and the bootstrap blip are re-armed for it.
+    /// </summary>
+    private void TrackShellInstance()
+    {
+        IntPtr tray = TrayUiaReader.FindTrayHwnd();
+        if (tray == IntPtr.Zero || tray == _shellTray)
+        {
+            return;
+        }
+
+        if (_shellTray != IntPtr.Zero)
+        {
+            TrayPeekDiagnostics.LogNote($"shell restarted tray={tray}");
+        }
+
+        _shellTray = tray;
+        _showOnlyReadWorks = null;
+        _stateBlippedThisShell = false;
+        _stateBlipConfirmedEmpty = false;
+        _revealFailures = 0;
+    }
+
+    /// <summary>
+    /// One quick retry after a refresh that never read the tray (peek refused, walk threw):
+    /// otherwise the next try is a whole interval away and the empty-read grace can run out.
+    /// A refresh that did read the tray re-arms the retry.
+    /// </summary>
+    private IReadOnlyList<TrayMirrorItem>? AfterRefresh(IReadOnlyList<TrayMirrorItem>? result, TrayBlipOutcome outcome)
+    {
+        if (outcome == TrayBlipOutcome.Inconclusive)
+        {
+            if (!_inconclusiveRetryUsed)
+            {
+                _inconclusiveRetryUsed = true;
+                RequestExpeditedRefresh(TrayIconRefreshPolicy.ExpediteMinGap);
+            }
+        }
+        else if (outcome is TrayBlipOutcome.Refreshed or TrayBlipOutcome.ConfirmedEmpty)
+        {
+            _inconclusiveRetryUsed = false;
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -507,17 +681,8 @@ internal sealed class TrayMirrorService : IDisposable
                 readCount = read?.Count ?? 0;
                 if (read is { Count: > 0 })
                 {
-                    var items = new List<TrayMirrorItem>(read.Count);
-                    for (int i = 0; i < read.Count; i++)
-                    {
-                        UiaTrayButton b = read[i];
-                        // Key by name: most tray apps keep a stable tooltip; state-bearing names
-                        // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
-                        items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, CachedIcon(tray, b.Element, b.Name, refresh: true), b.Element));
-                    }
-
                     outcome = TrayBlipOutcome.Refreshed;
-                    return items;
+                    return BuildCapturedItems(tray, read, skipCaptureIndex: -1, "refresh");
                 }
             }
         }
@@ -545,6 +710,75 @@ internal sealed class TrayMirrorService : IDisposable
         // evidence of an empty tray.
         outcome = ClassifyBlipRead(shown, readWalkFailed, readCount);
         return null;
+    }
+
+    /// <summary>
+    /// Builds a snapshot from a live read while the tray is shown: one <c>PrintWindow</c>, then
+    /// a crop per button. <paramref name="skipCaptureIndex"/> keeps the cached icon for a button
+    /// under the cursor (its hover plate would be captured as a "change"). Runs on the STA.
+    /// </summary>
+    private IReadOnlyList<TrayMirrorItem> BuildCapturedItems(
+        IntPtr tray,
+        IReadOnlyList<UiaTrayButton> read,
+        int skipCaptureIndex,
+        string source)
+    {
+        _ = TrayCapture.TryCaptureFrame(tray, out TrayCaptureFrame? frame);
+        DateTime now = DateTime.UtcNow;
+        var stats = default(CaptureStats);
+        Dictionary<string, Rect> knownRects = RectsByKey(_lastGoodUiaItems);
+        var items = new List<TrayMirrorItem>(read.Count);
+        for (int i = 0; i < read.Count; i++)
+        {
+            UiaTrayButton b = read[i];
+            string cacheKey = IconCacheKey(b.Name, i);
+            ImageSource icon;
+            Rect rect;
+            if (i == skipCaptureIndex)
+            {
+                rect = TrayUiaReader.GetIconRect(b.Element);
+                icon = _iconCache.TryGet(cacheKey, out ImageSource cached)
+                    ? cached
+                    : _iconCache.Fallback(cacheKey, () => TrayLetterGlyph.Build(b.Name), now, captureAttempted: false);
+            }
+            else
+            {
+                icon = CaptureIcon(frame, b, cacheKey, now, captureAttempted: true, ref stats, out rect);
+            }
+
+            if (rect.IsEmpty || rect.Width <= 0)
+            {
+                rect = knownRects.GetValueOrDefault(b.Name);
+            }
+
+            // Key by name: most tray apps keep a stable tooltip; state-bearing names
+            // (e.g. EarTrumpet percent) churn that one icon — acceptable UIA-path cost.
+            items.Add(new TrayMirrorItem(b.Name, i, i, b.Name, icon, b.Element, rect));
+        }
+
+        if (stats.Captured > 0)
+        {
+            _lastPixelCapture = now;
+        }
+
+        _iconsRecentlyChanged = stats.Changed > 0;
+        TrayPeekDiagnostics.LogNote(
+            $"{source} read={read.Count} frame={frame is not null} captured={stats.Captured} changed={stats.Changed}");
+        return items;
+    }
+
+    private static Dictionary<string, Rect> RectsByKey(IReadOnlyList<TrayMirrorItem> items)
+    {
+        var rects = new Dictionary<string, Rect>(StringComparer.Ordinal);
+        foreach (TrayMirrorItem item in items)
+        {
+            if (item.ScreenRect.Width > 0)
+            {
+                rects.TryAdd(item.Key, item.ScreenRect);
+            }
+        }
+
+        return rects;
     }
 
     /// <summary>True when a maximized top-level window sits on the primary monitor.</summary>
@@ -578,84 +812,58 @@ internal sealed class TrayMirrorService : IDisposable
         return maximized;
     }
 
-    /// <summary>
-    /// Reuses a captured bitmap until a blip asks for fresh pixels. A steady poll must not
-    /// <c>PrintWindow</c> the taskbar for icons that have not changed.
-    /// </summary>
-    private ImageSource CachedIcon(IntPtr tray, AutomationElement element, string name, bool refresh)
+    private struct CaptureStats
     {
-        if (!refresh && name.Length > 0 && _iconCache.TryGetValue(name, out ImageSource? cached))
-        {
-            return cached;
-        }
-
-        ImageSource icon = TryCaptureIcon(tray, element, name);
-        if (name.Length > 0)
-        {
-            _iconCache[name] = icon;
-        }
-
-        return icon;
+        internal int Captured;
+        internal int Changed;
     }
 
-    private void RetainIcons(IEnumerable<string> keys)
-    {
-        if (_iconCache.Count == 0)
-        {
-            return;
-        }
-
-        var keep = new HashSet<string>(keys, StringComparer.Ordinal);
-        List<string>? drop = null;
-        foreach (string key in _iconCache.Keys)
-        {
-            if (!keep.Contains(key))
-            {
-                (drop ??= []).Add(key);
-            }
-        }
-
-        if (drop is null)
-        {
-            return;
-        }
-
-        foreach (string key in drop)
-        {
-            _iconCache.Remove(key);
-        }
-    }
+    /// <summary>Unnamed buttons get an index key so two of them do not overwrite each other's pixels.</summary>
+    private static string IconCacheKey(string name, int index) =>
+        name.Length > 0 ? name : $"\0#{index}";
 
     /// <summary>
-    /// Real icon via PrintWindow of the parked taskbar; letter glyph fallback when capture fails.
+    /// Crops the button out of <paramref name="frame"/> and runs it through the signature cache:
+    /// unchanged pixels return the cached instance (no UI work), a failed crop keeps the last real
+    /// icon (bounded by <see cref="TrayIconCache{TIcon}.StaleIconLimit"/>) or a letter glyph.
     /// </summary>
-    private static ImageSource TryCaptureIcon(IntPtr tray, AutomationElement element, string name)
+    private ImageSource CaptureIcon(
+        TrayCaptureFrame? frame,
+        UiaTrayButton button,
+        string cacheKey,
+        DateTime now,
+        bool captureAttempted,
+        ref CaptureStats stats,
+        out Rect rect)
     {
-        if (tray != IntPtr.Zero)
+        rect = Rect.Empty;
+        if (frame is not null)
         {
-            Rect rect = TrayUiaReader.GetIconRect(element);
-            if (!rect.IsEmpty && rect.Width > 0 && rect.Height > 0)
+            rect = TrayUiaReader.GetIconRect(button.Element);
+            if (!rect.IsEmpty && rect.Width > 0 && rect.Height > 0
+                && TrayCapture.TryCropIcon(frame, ToNativeRect(rect), out TrayIconCrop? crop)
+                && crop is not null)
             {
-                var screen = new RECT
+                stats.Captured++;
+                ulong signature = TrayIconSignature.Compute(crop.Pixels, crop.Icon.PixelWidth, crop.Icon.PixelHeight);
+                ImageSource icon = _iconCache.Accept(cacheKey, crop.Icon, signature, now, out bool changed);
+                if (changed)
                 {
-                    Left = (int)Math.Round(rect.Left),
-                    Top = (int)Math.Round(rect.Top),
-                    Right = (int)Math.Round(rect.Right),
-                    Bottom = (int)Math.Round(rect.Bottom),
-                };
-                if (TrayCapture.TryGetTrayIcon(tray, screen, out ImageSource? icon) && icon is not null)
-                {
-                    return icon;
+                    stats.Changed++;
                 }
+
+                return icon;
             }
         }
 
-        return TrayLetterGlyph.Build(name);
+        string name = button.Name;
+        return _iconCache.Fallback(cacheKey, () => TrayLetterGlyph.Build(name), now, captureAttempted);
     }
 
-    private TrayMirrorItem BuildToolbarItem(IntPtr toolbar, TrayButtonInfo button, int index)
+    private TrayMirrorItem BuildToolbarItem(IntPtr toolbar, TrayButtonInfo button, int index, DateTime now)
     {
-        ImageSource icon = Fallback;
+        string key = $"{button.CommandId}\0{button.Tooltip}";
+        ImageSource? icon = null;
         if (TrayToolbar.TryGetIcon(toolbar, button.ImageIndex, out IntPtr hIcon))
         {
             try
@@ -665,7 +873,8 @@ internal sealed class TrayMirrorService : IDisposable
                     Int32Rect.Empty,
                     BitmapSizeOptions.FromEmptyOptions());
                 bmp.Freeze();
-                icon = bmp;
+                // Same pixels → the cached instance, so a steady 4 s poll publishes nothing.
+                icon = _iconCache.Accept(key, bmp, TrayIconSignature.Of(bmp), now, out _);
             }
             finally
             {
@@ -673,8 +882,21 @@ internal sealed class TrayMirrorService : IDisposable
             }
         }
 
-        string key = $"{button.CommandId}\0{button.Tooltip}";
+        icon ??= _iconCache.Fallback(key, () => Fallback, now, captureAttempted: true);
         return new TrayMirrorItem(key, button.CommandId, index, button.Tooltip, icon);
+    }
+
+    /// <summary>Diag only on a change of the direct read's shape (null / empty / count), not every poll.</summary>
+    private void LogDirectReadTransition(int count)
+    {
+        int shape = count <= 0 ? count : 1;
+        if (shape == _lastDirectReadCount)
+        {
+            return;
+        }
+
+        _lastDirectReadCount = shape;
+        TrayPeekDiagnostics.LogNote(count < 0 ? "direct read failed" : $"direct read buttons={count}");
     }
 
     private void ClickUia(TrayMirrorItem item, TrayClick kind, Rect anchorRect)
@@ -688,12 +910,14 @@ internal sealed class TrayMirrorService : IDisposable
         // visible peek has brought the tray back.
         AutomationElement stale = item.Tag as AutomationElement ?? throw new InvalidOperationException("UIA mirror click without an element.");
 
-        // State blip first: while ABS_AUTOHIDE is on, explorer parks the tray off-screen
-        // and clamps it, so forwarded clicks would land outside the monitor. BeginIconRefresh
-        // drops that state and keeps EnsureStripReleased from putting it back mid-click.
-        // EndIconRefresh always runs, including when the peek itself fails.
-        _taskbar.BeginIconRefresh();
+        // While ABS_AUTOHIDE is on, explorer parks the tray in a 2 px sliver and virtualizes its
+        // buttons. Hovering the bottom edge reveals it the way a user would — no work-area
+        // change. Only when that reveal fails does the click fall back to dropping the state
+        // (BeginIconRefresh), which reserves the strip and moves windows; that is logged as a
+        // state change. The cursor lease puts the pointer back after the whole session.
+        using IDisposable cursorHome = SendInputMouse.HoldCursorHome();
         bool peeked = false;
+        bool stateDropped = false;
         try
         {
             peeked = _taskbar.BeginTrayPeek(stealth: true);
@@ -708,30 +932,50 @@ internal sealed class TrayMirrorService : IDisposable
             TrayPeekDiagnostics.LogNote($"click begin kind={kind} key='{item.Key}'");
 
             TaskbarNative.BeginTrayClickInput();
+            stateDropped = !RevealTrayForClick(item);
 
             // The shell rebuilds its XAML content around show/hide; resolve-first, then retry
             // until the live tree is up — no fixed settle, so a fast rebuild clicks sooner.
-            // A failed resolve falls back to the stored element's rect, which sits at the same
-            // parked position anyway (tray layout is stable between peeks).
             AutomationElement? target = null;
-            int liveButtons = 0;
+            IReadOnlyList<UiaTrayButton>? live = null;
+            int targetIndex = -1;
             for (int attempt = 0; attempt < LiveResolveAttempts && target is null; attempt++)
             {
-                target = ResolveLiveButton(item, out liveButtons);
+                target = ResolveLiveButton(item, out live, out targetIndex);
                 if (target is null)
                 {
                     Thread.Sleep(LiveResolvePollMs);
                 }
             }
 
+            int liveButtons = live?.Count ?? 0;
             TrayPeekDiagnostics.LogNote(
                 target is not null
                     ? $"click live-found buttons={liveButtons}"
                     : $"click live-MISSING buttons={liveButtons}");
 
+            if (target is null && liveButtons > 0)
+            {
+                // The live tray is up and this key is not on it: the app is gone (held snapshot).
+                // Its old rect now belongs to a neighbour — clicking it would hit the wrong app.
+                TrayPeekDiagnostics.LogNote("click skipped: item no longer in the tray");
+                return;
+            }
+
+            if (live is { Count: > 0 })
+            {
+                CaptureDuringClick(live, targetIndex);
+            }
+
             Rect targetRect = target is not null
                 ? TrayUiaReader.GetScreenRect(target)
                 : Rect.Empty;
+            if (targetRect.IsEmpty && item.ScreenRect.Width > 0)
+            {
+                // Tree not exposed: the rect recorded on the unparked tray (layout is stable).
+                targetRect = item.ScreenRect;
+            }
+
             if (targetRect.IsEmpty)
             {
                 // Last resort: whatever rect the stored element still reports.
@@ -803,12 +1047,97 @@ internal sealed class TrayMirrorService : IDisposable
 
             TaskbarNative.EndTrayClickInput();
             _taskbar.EndTrayPeek();
+            // A tray click usually changes that app's icon (mute, pause, connect) — or removed a
+            // dead item; refresh once the owner's menu action has had time to land. Only the
+            // quiet show-only path honours this; it never brings a state blip forward.
+            RequestExpeditedRefresh(TrayIconRefreshPolicy.ClickFollowUpDelay);
             TrayPeekDiagnostics.LogNote("click end");
         }
         }
         finally
         {
-            _taskbar.EndIconRefresh();
+            if (stateDropped)
+            {
+                _taskbar.EndIconRefresh();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the parked tray on screen for a click. Hover reveal first (no work-area change);
+    /// after <see cref="RevealFailureLimit"/> consecutive misses the reveal is skipped for a
+    /// while. Returns false when it had to drop the app-bar state instead — the caller then owes
+    /// <see cref="TaskbarVisibilityService.EndIconRefresh"/>.
+    /// </summary>
+    private bool RevealTrayForClick(TrayMirrorItem item)
+    {
+        IntPtr tray = TrayUiaReader.FindTrayHwnd();
+        DateTime now = DateTime.UtcNow;
+        bool tryReveal = _revealFailures < RevealFailureLimit
+            || now - _lastRevealFailure >= TrayStateBlipGate.BootstrapRetryInterval;
+        if (tryReveal)
+        {
+            int x = item.ScreenRect.Width > 0
+                ? (int)Math.Round(item.ScreenRect.Left + (item.ScreenRect.Width / 2))
+                : DefaultRevealX(tray);
+            if (TrayAutoHideReveal.TryReveal(tray, x, RevealTimeoutMs, out int elapsedMs))
+            {
+                _revealFailures = 0;
+                TrayPeekDiagnostics.LogNote($"click reveal ok x={x} ms={elapsedMs}");
+                return true;
+            }
+
+            _revealFailures++;
+            _lastRevealFailure = now;
+            TrayPeekDiagnostics.LogNote($"click reveal FAILED x={x} ms={elapsedMs} misses={_revealFailures}");
+        }
+
+        // BeginIconRefresh drops ABS_AUTOHIDE and keeps EnsureStripReleased from putting it
+        // back mid-click: the tray unparks, the strip is reserved, windows move.
+        if (TaskbarNative.GetState() == NativeMethods.ABS_AUTOHIDE)
+        {
+            _lastStateChange = now;
+            TrayPeekDiagnostics.LogStateChange("click-fallback");
+        }
+
+        _taskbar.BeginIconRefresh();
+        return false;
+    }
+
+    private static int DefaultRevealX(IntPtr tray) =>
+        NativeMethods.GetWindowRect(tray, out RECT rect) && rect.Width > 0
+            ? rect.Right - 100
+            : 0;
+
+    /// <summary>
+    /// The click already has the tray shown — the only moment pixels exist on a machine where
+    /// background peeks cannot read the parked tray. Refresh the icons then (the hovered target
+    /// keeps its cached pixels), throttled by <see cref="TrayIconRefreshPolicy.ClickCaptureMinAge"/>.
+    /// </summary>
+    private void CaptureDuringClick(IReadOnlyList<UiaTrayButton> live, int targetIndex)
+    {
+        if (DateTime.UtcNow - _lastPixelCapture < TrayIconRefreshPolicy.ClickCaptureMinAge)
+        {
+            return;
+        }
+
+        try
+        {
+            RunOnSta(() =>
+            {
+                IntPtr tray = TrayUiaReader.FindTrayHwnd();
+                IReadOnlyList<TrayMirrorItem> items = BuildCapturedItems(tray, live, targetIndex, "click-capture");
+                _consecutiveEmptyUiaReads = 0;
+                _lastGoodUiaItems = items;
+                _uiaLocked = true;
+                _iconCache.Retain(items.Select(static i => IconCacheKey(i.Key, i.Index)));
+                Publish(items);
+                return true;
+            });
+        }
+        catch (Exception ex)
+        {
+            TrayPeekDiagnostics.LogNote($"click-capture error: {ex.Message}");
         }
     }
 
@@ -833,13 +1162,14 @@ internal sealed class TrayMirrorService : IDisposable
         }
 
         HashSet<IntPtr> snapshot = TrayMenuReanchor.CaptureVisibleWindows();
-        return Task.Run(() => TrayMenuReanchor.TryReanchor(buttonRect, anchor, snapshot, RightClickPeekHoldMs));
+        return Task.Run(() => TrayMenuReanchor.TryReanchor(buttonRect, anchor, snapshot, TrayMenuReanchor.WatchTimeoutMs));
     }
 
     /// <summary>
     /// Blocks until the menu watcher finishes, but never shorter than the cursor hold the
-    /// owner needs to read <c>GetCursorPos</c>. The watcher itself is capped at
-    /// <see cref="RightClickPeekHoldMs"/>.
+    /// owner needs to read <c>GetCursorPos</c>, and no longer than <see cref="RightClickPeekHoldMs"/>.
+    /// The watcher itself runs on for <see cref="TrayMenuReanchor.WatchTimeoutMs"/>, so a
+    /// popup that opens after the tray is hidden again is still moved.
     /// </summary>
     private static void WaitForMenu(Task<bool>? reanchor)
     {
@@ -865,25 +1195,28 @@ internal sealed class TrayMirrorService : IDisposable
     /// in <see cref="TrayButtonMatcher"/> (exact → containment for named keys; unnamed items
     /// resolve by their poll-time index — never containment, which would hit the wrong app).
     /// </summary>
-    private AutomationElement? ResolveLiveButton(TrayMirrorItem item, out int buttonCount)
+    private AutomationElement? ResolveLiveButton(
+        TrayMirrorItem item,
+        out IReadOnlyList<UiaTrayButton>? buttons,
+        out int index)
     {
-        buttonCount = 0;
+        buttons = null;
+        index = -1;
         try
         {
-            IReadOnlyList<UiaTrayButton>? buttons = RunOnSta(() => TrayUiaReader.TryGetTrayButtons());
+            buttons = RunOnSta(() => TrayUiaReader.TryGetTrayButtons());
             if (buttons is null)
             {
                 return null;
             }
 
-            buttonCount = buttons.Count;
             string?[] names = new string[buttons.Count];
             for (int i = 0; i < buttons.Count; i++)
             {
                 names[i] = buttons[i].Name;
             }
 
-            int index = TrayButtonMatcher.ResolveIndex(names, item.Key, item.Index);
+            index = TrayButtonMatcher.ResolveIndex(names, item.Key, item.Index);
             return index >= 0 ? buttons[index].Element : null;
         }
         catch (Exception ex)
@@ -959,6 +1292,14 @@ internal sealed class TrayMirrorService : IDisposable
 
     private void Publish(IReadOnlyList<TrayMirrorItem> items)
     {
+        // Steady polls hand back the same keys and cached icon instances: no Changed, so the bar
+        // skips ApplyTrayMirror + a status layout pass every 4 s.
+        if (TrayMirrorDiff.IsSameSnapshot(_lastPublished, items))
+        {
+            return;
+        }
+
+        _lastPublished = items;
         if (_dispatcher.CheckAccess())
         {
             Items = items;
