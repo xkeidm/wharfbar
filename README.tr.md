@@ -1,40 +1,60 @@
-# WharfBar
-
 <p align="center">
-  <img src="docs/brand/logo/wharfbar-icon-small.svg" alt="WharfBar" width="96" height="96" />
+  <img src="docs/brand/logo/wharfbar-icon-small.svg" alt="WharfBar" width="128" height="128" />
 </p>
 
-Windows’ta bir menü çubuğu ve bir dock: ekran alanını ayıran ince bir üst şerit, sabitlenmiş ve çalışan uygulamalar için bir dock. WharfBar, Windows, macOS ve Linux masaüstülerinden esinlenir. Görünüm Windows Fluent’tir; Apple markası ve ikon dili yoktur. Uygulama işareti **Dusk** iskele + güneştir (Ayarlar → Görünüm’den çubuk/dock glifi Windows logosuna alınabilir).
+<h1 align="center">WharfBar</h1>
 
-**English:** [README.md](README.md)
+<p align="center">
+  Windows için Fluent üst çubuk ve dock — gerçek AppBar alanı, sabitlenmiş ve çalışan uygulamalar, sakin bir durum şeridi.
+</p>
+
+<p align="center">
+  <img alt="Durum" src="https://img.shields.io/badge/status-1.0.0--beta-F2B66B?style=flat-square" />
+  <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%2F%2011-16324F?style=flat-square&logo=windows&logoColor=white" />
+  <img alt=".NET" src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square&logo=dotnet&logoColor=white" />
+  <img alt="Lisans" src="https://img.shields.io/badge/license-MIT-3D6A94?style=flat-square" />
+</p>
+
+<p align="center">
+  <a href="README.md">English</a>
+  ·
+  <a href="https://github.com/xkeidm/wharfbar/milestones">Yol haritası</a>
+  ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+---
 
 ## Nedir
 
-WharfBar, Windows masaüstüne kendi üst çubuğunu ve dock’unu çizer.
+WharfBar, Windows masaüstüne kendi üst çubuğunu ve dock’unu çizer — Windows, macOS ve Linux kabuklarından esinlenir; görünüm Windows Fluent’tir (Apple markası veya ikon dili yok). Uygulama işareti **Dusk** iskele + güneştir; Ayarlar → Görünüm’den çubuk/dock glifi Windows logosuna alınabilir.
 
-Üst çubuk gerçek bir AppBar’dır (`ABE_TOP`, 30 DIP). Büyütülmüş pencereler onun altında kalır. Dock her zaman üstte duran bir örtüdür. WharfBar açıkken Windows görev çubuğu gizlenir; normal çıkışta önceki haline döner.
+Üst çubuk gerçek bir AppBar’dır (`ABE_TOP`, 30 DIP): büyütülmüş pencereler onun altında kalır. Dock her zaman üstte duran bir örtüdür. WharfBar açıkken Windows görev çubuğu gizlenir; normal çıkışta önceki haline döner.
 
-Her uygulama kendi menüsünü taşır. Üst çubukta saat, durum, tepsi ve kontroller vardır. Bir seçim çakışırsa sıra şöyledir: düşük kaynak kullanımı, sonra Windows’a özgü Fluent görünüm, sonra basitlik.
+Her uygulama kendi menüsünü taşır. Üst çubukta saat, durum, tepsi ve kontroller vardır. Seçim çakışırsa sıra: düşük kaynak kullanımı, sonra Fluent görünüm, sonra basitlik.
 
 ## Ekran görüntüleri
-
-Fluent üst çubuk, dock ve ayarlar için örnek ürün görselleri. Canlı oturum burada AppBar şeridi ayıracağı için animasyonlu GIF yok; gerçek yakalamalar gelene kadar bu mock’lar duruyor.
 
 | Üst çubuk | Dock | Ayarlar |
 |:---------:|:----:|:-------:|
 | ![WharfBar üst çubuk](docs/media/wharfbar-topbar.jpg) | ![WharfBar dock](docs/media/wharfbar-dock.jpg) | ![WharfBar ayarlar](docs/media/wharfbar-settings.jpg) |
 
+<p align="center"><sub>Örnek ürün görselleri. Canlı oturum burada AppBar şeridi ayıracağı için gerçek yakalamalar gelene kadar bu mock’lar duruyor.</sub></p>
+
 ## Neden çalıştırılır
 
-- Saat, CPU / GPU / RAM, ağ, pil, bildirimler ve hızlı ayarlar tek şeritte durur; çalışma alanı gerçekten ayrılır.
-- Kapalı olanlar dahil sabitlenmiş uygulamalar ve çalışan uygulamalar aynı dock’ta, uygulama başına bir kutuda durur. Windows görev çubuğu o sırada görünmez.
-- Pano geçmişi, şimdi çalan parça ve kısa ses, parlaklık, pil okumaları ortadaki haptadır.
-- Wi-Fi, ekran yansıtma, monitör parlaklığı ve medya kontrolleri sık işleri çubuktan karşılar.
-- Boşta yapılan iş seyrektir. Bütün dock’lar tek bir pencere sayımını paylaşır (yaklaşık 3 saniyede bir). İstatistikler 4 saniyede bir, arayüz iş parçacığının dışında alınır ve kapatılınca durur. Tepsi aynası 4 saniyede bir okunur; ikon görüntüsü her turda yeniden çekilmez.
+- Saat, CPU / GPU / RAM, ağ, pil, bildirimler ve hızlı ayarlar tek ayrılmış şeritte
+- Kapalı olanlar dahil sabitlenmiş uygulamalar ve çalışan uygulamalar aynı dock’ta — uygulama başına bir kutu; görev çubuğu o sırada görünmez
+- Pano geçmişi, şimdi çalan ve kısa ses / parlaklık / pil okumaları ortadaki adada
+- Wi-Fi, ekran yansıtma, monitör parlaklığı ve medya kontrolleri çubuktan
+- Seyrek boşta iş: paylaşılan pencere sayımı (~3 sn), istatistikler 4 sn’de bir UI dışı, tepsi aynası 4 sn’de bir (her turda bitmap yeniden çekilmez)
 
 ## Özellikler
 
-### Üst çubuk
+<details>
+<summary><strong>Üst çubuk</strong></summary>
+
+<br>
 
 Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitöründe AppBar olarak kaydolur. Görünürlük `monitors` ayarındadır.
 
@@ -44,13 +64,23 @@ Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitör�
 - Saat, seçilen arayüz diline göre tek satır biçimlenir (Ayarlar → Genel → Dil; Sistem seçiliyse Windows arayüz dili). Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
 - Arka plan Mica, saydam veya renkli olabilir; renkli modda opaklık kaydırıcısı vardır. Mica ile `AllowsTransparency` birlikte kullanılmaz.
 
-### Ada
+</details>
+
+<details>
+<summary><strong>Ada</strong></summary>
+
+<br>
 
 Birincil çubukta hap boşta **Pano** yazar. `island.idleLabel` değeri `lastClip` ise son kaydı gösterir. Şimdi çalan parçada genişler (`island.musicPresence` varsayılanı `persistent`, diğer seçenek `transient`). Ses, parlaklık ve pil için kısa süre sayaç olur. Yanında en fazla iki uydu durur. Pano geçmişi ve dosya bırakma birincil hapa aittir. İkincil monitörün hapı yalnızca müziği ve bu sayaçları gösterir. Çubuk 30 DIP kalır; panel hapın altında açılır.
 
 Düşük pil eşiği `island.lowBatteryPercent` (varsayılan 20, kabul edilen aralık 5–50).
 
-### Dock
+</details>
+
+<details>
+<summary><strong>Dock</strong></summary>
+
+<br>
 
 Her zaman üstte duran bir örtü: alt-sol, alt-orta, alt-sağ veya sol kenar. Otomatik gizlenebilir; başka bir uygulama tam ekranken gizlenir.
 
@@ -62,11 +92,21 @@ Her zaman üstte duran bir örtü: alt-sol, alt-orta, alt-sağ veya sol kenar. O
 - Arka plan Mica, saydam veya renkli olabilir ve üst çubuktan bağımsız seçilir.
 - **Launchpad** (en solda), **İndirilenler** ve **Geri Dönüşüm Kutusu** (en sağda) yerleşik karolardır; pin klasörüne yazılmaz. Klasör pini yığın açar. Store paketinin simgesi çözülürse o simge, çözülmezse harf kullanılır. Rozet, çalışan işareti ve küçük resim yalnızca o dock’un monitöründeki pencereleri sayar.
 
-### Görev çubuğu
+</details>
 
-WharfBar çalışırken Windows görev çubuğu gizlidir. Normal çıkış, açılıştan önceki durumu geri yükler. Süreç zorla öldürülürse bir watchdog görev çubuğunu yaklaşık yarım saniyede geri getirir. Üstte ayrılan şerit ayrı bir konudur; aşağıdaki uyarıya bakın.
+<details>
+<summary><strong>Görev çubuğu</strong></summary>
 
-### Hızlı ayarlar
+<br>
+
+WharfBar çalışırken Windows görev çubuğu gizlidir. Normal çıkış, açılıştan önceki durumu geri yükler. Süreç zorla öldürülürse bir watchdog görev çubuğunu yaklaşık yarım saniyede geri getirir. Üstte ayrılan şerit ayrı bir konudur; [Derleme ve çalıştırma](#derleme-ve-çalıştırma) altındaki uyarıya bakın.
+
+</details>
+
+<details>
+<summary><strong>Hızlı ayarlar</strong></summary>
+
+<br>
 
 Hızlı ayarlar, ses veya ağ simgesinden açılan tek flyout: **Main**, **Mixer** ve **Network**.
 
@@ -77,40 +117,58 @@ Hızlı ayarlar, ses veya ağ simgesinden açılan tek flyout: **Main**, **Mixer
 - Enerji tasarrufu karosu sistem anahtarını izler ve onu çevirir.
 - Kaplama karosu renk örtüsünü açıp kapatır.
 
-### Parlaklık
+</details>
 
-Ayrı bir flyout: bütün ekranlar için bir ana kaydırıcı ve monitör başına bir kart. Masaüstü monitörler DDC/CI, dahili paneller WMI kullanır. Yazma, 50 ms gecikmeli bir arka plan kuyruğundan geçer.
+<details>
+<summary><strong>Parlaklık · Medya · Kaplama</strong></summary>
 
-### Medya
+<br>
 
-Windows SMTC. Durum şeridindeki medya simgesi yalnızca bir oturum varken görünür. Flyout kapak, başlık, sanatçı, oynat/duraklat, önceki ve sonraki düğmelerini gösterir. Birden fazla uygulama aktifse oturum seçici çıkar. Ada, şimdi çalanı hapta tutabilir.
+**Parlaklık** — ayrı bir flyout: bütün ekranlar için bir ana kaydırıcı ve monitör başına bir kart. Masaüstü monitörler DDC/CI, dahili paneller WMI kullanır. Yazma, 50 ms gecikmeli bir arka plan kuyruğundan geçer.
 
-### Kaplama
+**Medya** — Windows SMTC. Durum şeridindeki medya simgesi yalnızca bir oturum varken görünür. Flyout kapak, başlık, sanatçı, oynat/duraklat, önceki ve sonraki düğmelerini gösterir. Birden fazla uygulama aktifse oturum seçici çıkar. Ada, şimdi çalanı hapta tutabilir.
 
-Birincil monitörde tıklamayı geçiren tam ekran renk örtüsü. Hızlı ayarlardan veya kısayolla açılır (varsayılan `Ctrl+F11`). Renk, opaklık ve kısayol Kaplama ayar sayfasındadır.
+**Kaplama** — birincil monitörde tıklamayı geçiren tam ekran renk örtüsü. Hızlı ayarlardan veya kısayolla açılır (varsayılan `Ctrl+F11`). Renk, opaklık ve kısayol Kaplama ayar sayfasındadır.
 
-### Tepsi
+</details>
+
+<details>
+<summary><strong>Tepsi</strong></summary>
+
+<br>
 
 WharfBar’ın kendi bildirim simgesinde çıkış maddesi **WharfBar'ı kapat** vardır. Birincil çubukta üçüncü taraf tepsi ikonları belgelenmiş araç çubuğu mesajlarıyla okunur ve tıklama iletilir. Seçilen simgeler okun arkasındaki bir hapta durabilir; ok, Windows’un gizli simgelerini de `Win+B` ile açar. Sistem simgeleri elenir. Windows’un taşma alanında tuttuğu simgeler orada kalır. Bu araç çubuğunun kalktığı Windows 11 25H2 ve sonrasında ayna UI Automation kullanır. İkincil çubukta yalnız ok vardır. İkonlar başka sürecin belleğinden okunmaz.
 
-### Launchpad ve eklentiler
+</details>
+
+<details>
+<summary><strong>Launchpad ve eklentiler</strong></summary>
+
+<br>
 
 Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Üst çubuk logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
 
 Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan parçalar ada görselleştiricisi, Bluetooth bağlantı bildirimi, kamera aynası ve masaüstü saat ile takvimdir. `%AppData%/WharfBar/plugins/<klasör>/manifest.json` bir aç/kapa kaydıdır. Eklenti derlemeleri yüklenmez. Üst çubuk ve dock yuvaları kaydedilir, çizilmez.
 
-### Yapılandırma, başlangıç, tek örnek, DPI
+</details>
+
+<details>
+<summary><strong>Yapılandırma, başlangıç, tek örnek, DPI</strong></summary>
+
+<br>
 
 - Yapılandırma `%AppData%/WharfBar/config.json` dosyasındadır (`schemaVersion`). Ayar sayfaları: Genel, Görünüm, Dock, Ekranlar, Üst Çubuk, Kaplama, Ada, Eklentiler, Hakkında. Değişiklikler hemen uygulanır.
 - Otomatik başlatma, Startup klasöründeki `WharfBar.lnk` kısayoludur (`AppConfig.autostart`). Registry Run anahtarı kullanılmaz.
 - Adlandırılmış bir mutex ikinci örneğin çıkmasını sağlar.
 - DPI farkındalığı Per-Monitor V2’dir (`app.manifest`).
 
+</details>
+
 ## Gereksinimler
 
-- Windows 10 sürüm 19041 veya üstü. Proje hedefi `net8.0-windows10.0.19041.0`.
--.NET SDK 8 veya 9. SDK 9 kurulumu `net8.0` hedefini derleyebilir.
-- `global.json` bilinçli olarak yoktur. SDK’yı 8.x’e sabitlemek, makinede yalnız .NET 9 SDK varsa derlemeyi kırar.
+- Windows 10 sürüm 19041 veya üstü (`net8.0-windows10.0.19041.0`)
+- .NET SDK 8 veya 9 (SDK 9, `net8.0` hedefini derleyebilir)
+- `global.json` bilinçli olarak yok — SDK’yı 8.x’e sabitlemek, yalnız .NET 9 SDK olan makinelerde derlemeyi kırar
 
 ## Derleme ve çalıştırma
 
@@ -126,9 +184,7 @@ Depo kökündeki `run.bat` dosyasına da çift tıklanabilir. Derler, ardından 
 
 > **Uyarı.** Uygulama açıkken ekranın üstünde bir şerit ayırır ve Windows görev çubuğunu gizler. Zorla sonlandırma (`Stop-Process -Force`, hata ayıklayıcıyı koparma, ham `dotnet run` konsolunu kapatma) `ABM_REMOVE` yolunu atlar. Görev çubuğu watchdog’u çubuğu yaklaşık 0,5 saniyede geri getirir. Ayrılan şerit, `explorer.exe` yeniden başlatılana kadar asılı kalabilir. Normal çıkış (tepsi **WharfBar'ı kapat** veya Alt+F4) ikisini de geri yükler. `dotnet run` penceresini kapatmak yerine `run.bat` kullanın.
 
-İkinci örnek, adlandırılmış mutex yüzünden çıkar.
-
-`dotnet test`, `tests/WharfBar.Tests` projesini çalıştırır (xUnit).
+İkinci örnek, adlandırılmış mutex yüzünden çıkar. `dotnet test`, `tests/WharfBar.Tests` projesini çalıştırır (xUnit).
 
 ## Nasıl kapatılır
 
@@ -155,12 +211,14 @@ Kod kökü `src/WharfBar/`. Arayüz `Views/` altındadır; klasör adı Win32 il
 
 ## Dokümanlar
 
-- [docs/00-overview.md](docs/00-overview.md) — amaç, hedefler ve kapsam
-- [docs/01-architecture.md](docs/01-architecture.md) — klasörler, servisler ve config
-- [docs/04-gotchas.md](docs/04-gotchas.md) — AppBar, Mica ve DPI tuzakları
-- [AGENTS.md](AGENTS.md) — derleme komutları ve ajan dizini
-- [CHANGELOG.md](CHANGELOG.md) — sürüm notları (Keep a Changelog; İngilizce)
-- [SECURITY.md](SECURITY.md) — güvenlik açığı bildirimi (İngilizce; özel kanal tercih edilir)
+| Doküman | Konu |
+|---------|------|
+| [docs/00-overview.md](docs/00-overview.md) | Amaç, hedefler ve kapsam |
+| [docs/01-architecture.md](docs/01-architecture.md) | Klasörler, servisler ve config |
+| [docs/04-gotchas.md](docs/04-gotchas.md) | AppBar, Mica ve DPI tuzakları |
+| [AGENTS.md](AGENTS.md) | Derleme komutları ve ajan dizini |
+| [CHANGELOG.md](CHANGELOG.md) | Sürüm notları (Keep a Changelog; İngilizce) |
+| [SECURITY.md](SECURITY.md) | Güvenlik açığı bildirimi (İngilizce) |
 
 ## Katkı
 
@@ -170,7 +228,7 @@ Sürümleme kuralları CONTRIBUTING’dedir; güvenlik bildirimleri [SECURITY.md
 
 ## Durum
 
-**Beta (`1.0.0-beta`).** Ayrıntılar [CHANGELOG.md](CHANGELOG.md) dosyasındadır. Genel yol haritası [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones) üzerindedir: canlı iş Beta polish / Post-beta / Stable 1.0; geçmiş Shipped through 1.0.0-beta; bilerek ertelenenler Deferred / out of scope (açık park alanı).
+**Beta (`1.0.0-beta`).** Ayrıntılar [CHANGELOG.md](CHANGELOG.md) dosyasındadır. Genel yol haritası [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones) üzerindedir: canlı iş Beta polish / Post-beta / Stable 1.0; geçmiş Shipped through 1.0.0-beta; bilerek ertelenenler Deferred / out of scope.
 
 ## Lisans
 
