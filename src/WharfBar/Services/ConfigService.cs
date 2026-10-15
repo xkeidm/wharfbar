@@ -148,6 +148,7 @@ internal sealed class ConfigService
         {
             SchemaVersion = AppConfig.CurrentSchemaVersion,
             Theme = AppConfig.ThemeSystem,
+            Language = AppConfig.LanguageSystem,
             Autostart = true,
             Dock = new DockConfig
             {
@@ -272,6 +273,7 @@ internal sealed class ConfigService
     {
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.Theme = NormalizeTheme(config.Theme);
+        config.Language = LocalizationService.NormalizeLanguage(config.Language);
         config.Dock ??= new DockConfig();
         config.TopBar ??= new TopBarConfig();
         config.Veil ??= new VeilConfig();
@@ -287,6 +289,7 @@ internal sealed class ConfigService
         config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
         config.Island.IdleLabel = IslandNormalizer.NormalizeIdleLabel(config.Island.IdleLabel);
         config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
+        config.Island.ColorMode = IslandNormalizer.NormalizeColorMode(config.Island.ColorMode);
         config.Island.OpenWidgets = PluginCatalog.NormalizeOpenWidgets(config.Island.OpenWidgets);
         config.Plugins ??= new PluginsConfig();
         config.Plugins.Enabled = PluginCatalog.NormalizeEnabled(config.Plugins.Enabled);

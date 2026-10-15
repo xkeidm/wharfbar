@@ -29,6 +29,7 @@ public partial class IslandPage : Page
         EnabledToggle.Unchecked += OnEnabledChanged;
         PersistenceCombo.SelectionChanged += OnPersistenceChanged;
         MusicPresenceCombo.SelectionChanged += OnMusicPresenceChanged;
+        ColorModeCombo.SelectionChanged += OnColorModeChanged;
         IdleLabelCombo.SelectionChanged += OnIdleLabelChanged;
         RetentionBox.LostFocus += OnRetentionLostFocus;
         MaxItemsBox.LostFocus += OnMaxItemsLostFocus;
@@ -71,6 +72,12 @@ public partial class IslandPage : Page
         PersistenceCombo.SelectedIndex = IsPersistent(island.Persistence) ? 1 : 0;
         MusicPresenceCombo.SelectedIndex = IslandNormalizer.IsTransientMusic(island.MusicPresence) ? 1 : 0;
         IdleLabelCombo.SelectedIndex = IslandNormalizer.IsLastClipIdle(island.IdleLabel) ? 1 : 0;
+        ColorModeCombo.SelectedIndex = IslandNormalizer.NormalizeColorMode(island.ColorMode) switch
+        {
+            IslandConfig.ColorModeSystem => 1,
+            IslandConfig.ColorModeNeutral => 2,
+            _ => 0,
+        };
 
         // IslandNormalizer her zaman 1..3650 / 10..5000'e sıkıştırır; kutular da aynı değeri
         // gösterir (elle config.json'a yazılmış taşma değerler kullanıcıyı şaşırtmasın).
@@ -125,6 +132,22 @@ public partial class IslandPage : Page
         Cfg.Island.MusicPresence = MusicPresenceCombo.SelectedIndex == 1
             ? IslandConfig.MusicPresenceTransient
             : IslandConfig.MusicPresencePersistent;
+        SaveAndApply();
+    }
+
+    private void OnColorModeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading || ColorModeCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        Cfg.Island.ColorMode = ColorModeCombo.SelectedIndex switch
+        {
+            1 => IslandConfig.ColorModeSystem,
+            2 => IslandConfig.ColorModeNeutral,
+            _ => IslandConfig.ColorModeAlbum,
+        };
         SaveAndApply();
     }
 

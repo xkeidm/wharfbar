@@ -34,6 +34,9 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Pano metni kaydı.</summary>
     internal const string TextGlyph = "\u2261";
 
+    /// <summary>Satır silme düğmesi (MDL2 Delete).</summary>
+    private const string DeleteGlyph = "\uE74D";
+
     private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
 
     private IslandService? _service;
@@ -48,9 +51,23 @@ public sealed partial class IslandFlyout : UserControl
 
     internal event EventHandler? MusicRequested;
 
+    /// <summary>Transparent padding around the panel so the shadow is not clipped by the popup window.</summary>
+    internal const double ShadowPadDip = 24;
+
+    /// <summary>Height of the concave fillets above the panel top edge.</summary>
+    internal const double FilletDip = 10;
+
+    /// <summary>Panel corner radius.</summary>
+    internal const double CornerDip = 24;
+
+    private double _pillWidthDip;
+    private double _pillXDip;
+    private Brush _silhouetteFill = Brushes.Transparent;
+
     public IslandFlyout()
     {
         InitializeComponent();
+        FlyoutRoot.SizeChanged += (_, _) => RebuildSilhouette();
     }
 
     /// <summary>
@@ -116,7 +133,7 @@ public sealed partial class IslandFlyout : UserControl
     /// transformed corners, so a scale on <see cref="IslandFlyout"/> itself shifts the
     /// panel off the pill for the whole open.
     /// </summary>
-    internal FrameworkElement PanelSurface => FlyoutRoot;
+    internal FrameworkElement PanelSurface => SurfaceRoot;
 
     /// <summary>
     /// Arranged panel width in DIP. Zero until layout; the XAML <c>Width</c> is not a fallback.
@@ -125,21 +142,62 @@ public sealed partial class IslandFlyout : UserControl
     {
         get
         {
-            double arranged = FlyoutRoot.ActualWidth > 1 ? FlyoutRoot.ActualWidth : ActualWidth;
+            double arranged = FlyoutRoot.ActualWidth;
             return IslandPopupAlign.WidthForPlacement(arranged);
         }
     }
 
-    /// <summary>Hap ve panel aynı dolguyu paylaşsın diye boyun kapağı da boyanır.</summary>
+    /// <summary>Hap ve panel aynı dolguyu paylaşsın diye silüet bu dolguyla boyanır.</summary>
     internal void ApplySurface()
     {
-        var brush = FlyoutSurface.Create();
-        FlyoutRoot.Background = brush;
-        NeckCover.Background = brush;
+        _silhouetteFill = FlyoutSurface.Create();
+        SilhouetteFill.Fill = _silhouetteFill;
+        RebuildSilhouette();
     }
 
-    /// <summary>Panelin üst çizgisini hapın altında kapatan şerit. Genişlik hapla aynı.</summary>
-    internal void SetNeck(double pillDip) => NeckCover.Width = Math.Max(0, pillDip);
+    /// <summary>
+    /// Tells the silhouette where the pill sits: its width and the X of its left edge in panel
+    /// coordinates (negative when the pill starts left of the panel; the panel can be clamped
+    /// to the work area so this is not always (panel - pill) / 2).
+    /// </summary>
+    internal void SetJoin(double pillWidthDip, double pillXInPanelDip)
+    {
+        _pillWidthDip = Math.Max(0, pillWidthDip);
+        _pillXDip = pillXInPanelDip;
+        RebuildSilhouette();
+    }
+
+    private void RebuildSilhouette()
+    {
+        double w = FlyoutRoot.ActualWidth;
+        double h = FlyoutRoot.ActualHeight;
+        if (w <= 1 || h <= 1)
+        {
+            return;
+        }
+
+        IslandSilhouetteShape shape = IslandSilhouette.Build(w, h, _pillXDip, _pillWidthDip, CornerDip, FilletDip);
+        SilhouetteFill.Data = IslandSilhouetteGeometry.Create(shape.Fill, filled: true);
+        SilhouetteOutline.Data = IslandSilhouetteGeometry.Create(shape.Outline, filled: false);
+        if (SilhouetteFill.Fill is null)
+        {
+            SilhouetteFill.Fill = _silhouetteFill;
+        }
+
+        SilhouetteOutline.Stroke = HighlightOutline(_outlineTint);
+    }
+
+    private Color? _outlineTint;
+
+    /// <summary>Top-lit rim: bright at the top, fading toward the bottom; tinted when a color is active.</summary>
+    private static Brush HighlightOutline(Color? tint)
+    {
+        Color top = tint is Color c ? Color.FromArgb(0xA0, c.R, c.G, c.B) : Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF);
+        Color bottom = tint is Color d ? Color.FromArgb(0x30, d.R, d.G, d.B) : Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF);
+        var brush = new LinearGradientBrush(top, bottom, new Point(0, 0), new Point(0, 1));
+        brush.Freeze();
+        return brush;
+    }
 
     /// <summary>Aynı popup'ın müzik gövdesi. <paramref name="focus"/> yalnız sabitleyen tıklamada.</summary>
     internal void PresentMusic(bool focus, bool crossfade = false)
@@ -147,11 +205,17 @@ public sealed partial class IslandFlyout : UserControl
         ApplySurface();
         if (MusicCover.Clip is null)
         {
-            MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 56, 56), 8, 8);
+            MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 88, 88), 14, 14);
         }
 
+        _clipboardShown = false;
         ApplyMusic();
         RevealBody(MusicBody, ClipboardBody, crossfade);
+        if (!crossfade && MusicNow.Visibility == Visibility.Visible)
+        {
+            Stagger(MusicCover, (UIElement)MusicTitle.Parent, MusicTransport);
+        }
+
         ArmTimelinePoll();
         if (!focus)
         {
@@ -167,6 +231,8 @@ public sealed partial class IslandFlyout : UserControl
     {
         ApplySurface();
         StopTimelinePoll();
+        _clipboardShown = true;
+        ApplyTint(null);
         BackToMusicButton.Visibility = showBack ? Visibility.Visible : Visibility.Collapsed;
         SearchBox.Clear();
         _selectedIndex = 0;
@@ -265,9 +331,58 @@ public sealed partial class IslandFlyout : UserControl
         BodyHost.BeginAnimation(FrameworkElement.HeightProperty, null);
     }
 
+    /// <summary>
+    /// Fades and lifts each part in turn. With system animations off nothing runs and the
+    /// parts keep their final state.
+    /// </summary>
+    private static void Stagger(params UIElement[] parts)
+    {
+        bool animate = SystemParameters.ClientAreaAnimation;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            UIElement part = parts[i];
+            if (!animate)
+            {
+                part.BeginAnimation(UIElement.OpacityProperty, null);
+                part.ClearValue(UIElement.OpacityProperty);
+                part.RenderTransform = Transform.Identity;
+                continue;
+            }
+
+            var lift = new TranslateTransform(0, 6);
+            part.RenderTransform = lift;
+            TimeSpan begin = TimeSpan.FromMilliseconds(IslandMotion.StaggerDelayMs(i, animate));
+            TimeSpan length = TimeSpan.FromMilliseconds(IslandMotion.Gate(180, animate));
+            var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+            part.Opacity = 0;
+            var opacityAnim = new DoubleAnimation(0, 1, length)
+            {
+                BeginTime = begin,
+                EasingFunction = ease,
+                FillBehavior = FillBehavior.HoldEnd,
+            };
+            opacityAnim.Completed += (_, _) =>
+            {
+                if (!ReferenceEquals(part.RenderTransform, lift))
+                {
+                    return;
+                }
+
+                part.BeginAnimation(UIElement.OpacityProperty, null);
+                part.ClearValue(UIElement.OpacityProperty);
+                lift.BeginAnimation(TranslateTransform.YProperty, null);
+                part.RenderTransform = Transform.Identity;
+            };
+            part.BeginAnimation(UIElement.OpacityProperty, opacityAnim);
+            lift.BeginAnimation(
+                TranslateTransform.YProperty,
+                new DoubleAnimation(6, 0, length) { BeginTime = begin, EasingFunction = ease, FillBehavior = FillBehavior.HoldEnd });
+        }
+    }
+
     private void OnMediaSnapshotChanged(object? sender, EventArgs e)
     {
-        if (MusicBody.Visibility == Visibility.Visible)
+        if (MusicBody.Visibility == Visibility.Visible && !_clipboardShown)
         {
             ApplyMusic();
         }
@@ -291,6 +406,7 @@ public sealed partial class IslandFlyout : UserControl
             MusicArt.Visibility = Visibility.Collapsed;
             MusicPlaceholder.Visibility = Visibility.Visible;
             MusicTimeline.Visibility = Visibility.Collapsed;
+            ApplyTint(null);
             return;
         }
 
@@ -311,7 +427,63 @@ public sealed partial class IslandFlyout : UserControl
             MusicPlaceholder.Visibility = Visibility.Visible;
         }
 
+        ApplyTint(IslandTintSource.Resolve(ColorMode, snapshot.Thumbnail, snapshot.IsPlaying));
         ApplyTimeline(snapshot);
+    }
+
+    /// <summary>Canonical <c>island.colorMode</c>; set by the owning top bar from config.</summary>
+    internal string ColorMode
+    {
+        get => _colorMode;
+        set
+        {
+            if (_colorMode == value)
+            {
+                return;
+            }
+
+            _colorMode = value;
+            if (_clipboardShown)
+            {
+                return;
+            }
+
+            MediaSnapshot snapshot = _media?.Snapshot ?? MediaSnapshot.Idle;
+            ApplyTint(snapshot.HasSession
+                ? IslandTintSource.Resolve(_colorMode, snapshot.Thumbnail, snapshot.IsPlaying)
+                : null);
+        }
+    }
+
+    private string _colorMode = IslandConfig.DefaultColorMode;
+    private bool _clipboardShown;
+
+    /// <summary>Tints the ambient glow and the progress fill; null restores the neutral look.</summary>
+    internal void ApplyTint(Color? tint)
+    {
+        _outlineTint = tint;
+        SilhouetteOutline.Stroke = HighlightOutline(tint);
+        if (tint is not Color c)
+        {
+            AmbientGlow.Opacity = 0;
+            MusicProgressFill.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+            return;
+        }
+
+        var glow = new RadialGradientBrush(Color.FromArgb(0x59, c.R, c.G, c.B), Colors.Transparent)
+        {
+            Center = new Point(0.1, 0.0),
+            GradientOrigin = new Point(0.1, 0.0),
+            RadiusX = 0.9,
+            RadiusY = 0.55,
+        };
+        glow.Freeze();
+        AmbientGlow.Background = glow;
+        AmbientGlow.Opacity = 1;
+
+        var solid = new SolidColorBrush(c);
+        solid.Freeze();
+        MusicProgressFill.Background = solid;
     }
 
     private bool _writingSeek;
@@ -488,41 +660,81 @@ public sealed partial class IslandFlyout : UserControl
         Brush restingBrush = selected ? selectedBrush : Brushes.Transparent;
         var row = new Border
         {
-            Padding = new Thickness(8, 6, 8, 6),
-            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(8, 8, 8, 8),
+            Margin = new Thickness(0, 0, 0, 2),
+            CornerRadius = new CornerRadius(12),
             Background = restingBrush,
             Cursor = Cursors.Hand,
         };
 
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(22) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        grid.Children.Add(new TextBlock
-        {
-            Text = entry.Kind == IslandEntryKind.File ? FileGlyph : TextGlyph,
-            VerticalAlignment = VerticalAlignment.Center,
-        });
+        FontFamily iconFont = ResolveIconFont();
 
-        var text = new TextBlock
+        var tile = new Border
+        {
+            Width = 32,
+            Height = 32,
+            CornerRadius = new CornerRadius(8),
+            Background = ResolveTileBrush(),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = entry.Kind == IslandEntryKind.File ? FileGlyph : TextGlyph,
+                FontSize = 14,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        grid.Children.Add(tile);
+
+        var stack = new StackPanel { Margin = new Thickness(10, 0, 8, 0), VerticalAlignment = VerticalAlignment.Center };
+        stack.Children.Add(new TextBlock
         {
             Text = IslandPruner.FormatPreview(entry.Text),
             TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        Grid.SetColumn(text, 1);
-        grid.Children.Add(text);
-
-        var meta = new TextBlock
+        });
+        stack.Children.Add(new TextBlock
         {
             Text = BuildMeta(entry),
+            FontSize = 11,
             Opacity = 0.6,
-            Margin = new Thickness(8, 0, 0, 0),
+            Margin = new Thickness(0, 2, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        Grid.SetColumn(stack, 1);
+        grid.Children.Add(stack);
+
+        var delete = new Button
+        {
+            Content = new TextBlock
+            {
+                Text = DeleteGlyph,
+                FontFamily = iconFont,
+                FontSize = 12,
+            },
+            ToolTip = "Sil",
+            Focusable = false,
+            Visibility = Visibility.Hidden,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        Grid.SetColumn(meta, 2);
-        grid.Children.Add(meta);
+        System.Windows.Automation.AutomationProperties.SetName(delete, "Sil");
+        if (TryFindResource("IslandIconButton") is Style iconButtonStyle)
+        {
+            delete.Style = iconButtonStyle;
+        }
+
+        delete.Click += (_, e) =>
+        {
+            e.Handled = true;
+            // Rebuild() _selectedIndex'i kendisi kısaltır (Delete tuşu yoluyla aynı).
+            _service?.Remove(entry);
+        };
+        Grid.SetColumn(delete, 2);
+        grid.Children.Add(delete);
 
         row.Child = grid;
 
@@ -533,12 +745,50 @@ public sealed partial class IslandFlyout : UserControl
             row.ToolTip = path;
         }
 
-        row.MouseEnter += (_, _) => row.Background = selectedBrush;
-        row.MouseLeave += (_, _) => row.Background = restingBrush;
-        row.MouseLeftButtonUp += (_, _) => Activate(entry);
+        row.MouseEnter += (_, _) =>
+        {
+            row.Background = selectedBrush;
+            delete.Visibility = Visibility.Visible;
+        };
+        row.MouseLeave += (_, _) =>
+        {
+            row.Background = restingBrush;
+            delete.Visibility = Visibility.Hidden;
+        };
+        row.MouseLeftButtonUp += (_, e) =>
+        {
+            // Button zaten MouseLeftButtonUp'u işler; yine de silme düğmesinden gelen olay
+            // satırı etkinleştirmesin.
+            if (e.OriginalSource is DependencyObject source && IsInside(source, delete))
+            {
+                return;
+            }
+
+            Activate(entry);
+        };
         return row;
     }
 
+    private static bool IsInside(DependencyObject? node, DependencyObject ancestor)
+    {
+        while (node is not null)
+        {
+            if (ReferenceEquals(node, ancestor))
+            {
+                return true;
+            }
+
+            node = node is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(node)
+                : LogicalTreeHelper.GetParent(node);
+        }
+
+        return false;
+    }
+
+    private static FontFamily ResolveIconFont() =>
+        Application.Current.TryFindResource("AppIconFontFamily") as FontFamily
+        ?? new FontFamily("Segoe MDL2 Assets");
     /// <summary>Satır sağındaki "kaynak uygulama · göreli zaman" etiketi.</summary>
     private static string BuildMeta(IslandEntry entry)
     {
@@ -552,6 +802,18 @@ public sealed partial class IslandFlyout : UserControl
             ? entry.SourceApp[..IslandPruner.SourceAppMaxChars]
             : entry.SourceApp;
         return string.Format(CultureInfo.CurrentCulture, "{0} · {1}", app, relative);
+    }
+
+    private static Brush ResolveTileBrush()
+    {
+        if (Application.Current.TryFindResource("ControlFillColorSecondaryBrush") is Brush brush)
+        {
+            return brush;
+        }
+
+        var fallback = new SolidColorBrush(Color.FromArgb(0x14, 0xFF, 0xFF, 0xFF));
+        fallback.Freeze();
+        return fallback;
     }
 
     private static Brush ResolveSelectedBrush()

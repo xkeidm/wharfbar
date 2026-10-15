@@ -15,10 +15,17 @@ internal sealed class AppConfig
     internal const string ThemeLight = "light";
     internal const string ThemeDark = "dark";
 
+    internal const string LanguageSystem = "system";
+    internal const string LanguageEn = "en";
+    internal const string LanguageTr = "tr";
+
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     /// <summary><c>system</c>, <c>light</c>, or <c>dark</c>.</summary>
     public string Theme { get; set; } = ThemeSystem;
+
+    /// <summary><c>system</c>, <c>en</c>, or <c>tr</c>. Soft field; schemaVersion unchanged.</summary>
+    public string Language { get; set; } = LanguageSystem;
 
     /// <summary>When true, applies Windows system accent color to application controls.</summary>
     public bool UseSystemAccentColor { get; set; } = true;
@@ -343,6 +350,18 @@ internal sealed class IslandConfig
     /// <summary>Kabul edilen eşiğin üst sınırı.</summary>
     internal const int MaxLowBatteryPercent = 50;
 
+    /// <summary>Tint from the playing track's cover (default).</summary>
+    internal const string ColorModeAlbum = "album";
+
+    /// <summary>Tint is the system accent color.</summary>
+    internal const string ColorModeSystem = "system";
+
+    /// <summary>No tint; theme resources only.</summary>
+    internal const string ColorModeNeutral = "neutral";
+
+    /// <summary>Fallback for unresolvable <c>ColorMode</c> values. Schema does not change.</summary>
+    internal const string DefaultColorMode = ColorModeAlbum;
+
     public bool Enabled { get; set; } = DefaultEnabled;
 
     /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
@@ -373,6 +392,12 @@ internal sealed class IslandConfig
     /// 5–50 aralığına sıkıştırılır.
     /// </summary>
     public int LowBatteryPercent { get; set; } = DefaultLowBatteryPercent;
+
+    /// <summary>
+    /// Pill and panel tint: <c>album</c> (default), <c>system</c> or <c>neutral</c>.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public string ColorMode { get; set; } = DefaultColorMode;
 
     /// <summary>Bars beside the track title while music is playing. Soft field.</summary>
     public bool Visualizer { get; set; } = true;
@@ -439,6 +464,15 @@ internal static class IslandNormalizer
 
     internal static bool IsLastClipIdle(string? value)
         => NormalizeIdleLabel(value) == IslandConfig.IdleLabelLastClip;
+
+    /// <summary>Canonical lowercase color mode; unknown text falls back to <c>album</c>.</summary>
+    internal static string NormalizeColorMode(string? value)
+        => value?.Trim().ToLowerInvariant() switch
+        {
+            IslandConfig.ColorModeSystem => IslandConfig.ColorModeSystem,
+            IslandConfig.ColorModeNeutral => IslandConfig.ColorModeNeutral,
+            _ => IslandConfig.ColorModeAlbum,
+        };
 
     /// <summary>
     /// Loaded config. Values inside 5–50 stay. Unknown or out of range becomes 20.
