@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Side view of a pier with piles">
+  <title>v3.02 — Wharf Side View</title>
+  <defs>
+    <linearGradient id="s-bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EAF1F7"/>
+      <stop offset="55%" stop-color="#DCE7F1"/>
+      <stop offset="55%" stop-color="#C5D8EA"/>
+      <stop offset="100%" stop-color="#B3CCE2"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#s-bg)"/>
+  <!-- Long deck -->
+  <rect x="24" y="52" width="80" height="12" rx="2" fill="#16324F"/>
+  <!-- Piles (stilts) in water -->
+  <rect x="32" y="64" width="7" height="28" rx="2" fill="#2B4A6F"/>
+  <rect x="50" y="64" width="7" height="32" rx="2" fill="#2B4A6F"/>
+  <rect x="68" y="64" width="7" height="28" rx="2" fill="#2B4A6F"/>
+  <rect x="86" y="64" width="7" height="34" rx="2" fill="#2B4A6F"/>
+  <!-- Waterline reflection hint -->
+  <path d="M28 100 H100" stroke="#7BA3C9" stroke-width="3" stroke-linecap="round" opacity="0.5"/>
+</svg>

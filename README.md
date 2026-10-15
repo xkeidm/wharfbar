@@ -1,6 +1,10 @@
 # WharfBar
 
-A Windows menu bar and dock: a thin top strip that reserves screen space, and a dock for pinned and running apps. WharfBar is inspired by Windows, macOS, and Linux desktops. The look is Windows Fluent, with no Apple branding or icon language.
+<p align="center">
+  <img src="docs/brand/logo/wharfbar-icon-small.svg" alt="WharfBar" width="96" height="96" />
+</p>
+
+A Windows menu bar and dock: a thin top strip that reserves screen space, and a dock for pinned and running apps. WharfBar is inspired by Windows, macOS, and Linux desktops. The look is Windows Fluent, with no Apple branding or icon language. The app mark is the **Dusk** pier + sun (Settings → Appearance can switch the bar/dock glyph to the Windows logo).
 
 **Türkçe:** [README.tr.md](README.tr.md)
 
@@ -34,10 +38,10 @@ Illustrative product stills of the Fluent top bar, dock, and settings. No animat
 
 One bar per enabled monitor, each registered as an AppBar on that monitor. Visibility is the `monitors` config.
 
-- **Left:** a drawn Windows logo menu (Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, and quit) and a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). If the GPU counter is missing, that part is omitted. There is no temperature.
+- **Left:** the brand logo menu (default WharfBar Dusk mark; optional Windows logo via `logoStyle`) — Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, and quit — and a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). If the GPU counter is missing, that part is omitted. There is no temperature.
 - **Center:** the island pill.
 - **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. The default order is tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media stay in the catalog and start hidden, because the island already shows them. A saved order is kept.
-- The clock is a single `tr-TR` line. Click opens notification text and a month calendar. The bell sends `Win+N`.
+- The clock is a single line in the UI language (Settings → General → Language, or follow Windows when set to System). Click opens notification text and a month calendar. The bell sends `Win+N`.
 - Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined.
 
 ### Island
@@ -91,7 +95,7 @@ WharfBar’s own notification icon has a quit item, **WharfBar'ı kapat** (Quit 
 
 ### Launchpad and plugins
 
-The Launchpad tile opens one centered surface over the wallpaper. It can open before the app scan finishes. Apps are grouped under letter headings. The Windows logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
+The Launchpad tile opens one centered surface over the wallpaper. It can open before the app scan finishes. Apps are grouped under letter headings. The top-bar logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
 
 Widget and Plugin open the same catalog as Settings → Plugins. The pieces that run are the island visualizer, the Bluetooth connection notice, the camera mirror, and the desktop clock and calendar. A local `%AppData%/WharfBar/plugins/<folder>/manifest.json` is an on/off registration. Plugin assemblies are not loaded. Top bar and dock plugin slots are stored and not drawn.
 
@@ -128,7 +132,7 @@ A second instance exits because of the named mutex.
 
 ## How to quit
 
-Click the WharfBar notification icon and choose **WharfBar'ı kapat** (Quit WharfBar), or focus the bar and press **Alt+F4**. The Windows logo menu has the same quit item.
+Click the WharfBar notification icon and choose **WharfBar'ı kapat** (Quit WharfBar), or focus the bar and press **Alt+F4**. The top-bar logo menu has the same quit item.
 
 `Process.MainWindowHandle` is `0` for this process (`ShowInTaskbar=false` gives the window a hidden owner), so `CloseMainWindow` from a script does nothing. Find the window by PID and send `WM_CLOSE`.
 

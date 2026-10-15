@@ -1,3 +1,4 @@
+﻿using WharfBar.Resources;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -60,7 +61,7 @@ public class LaunchpadFaceTests
                     "builtin:trash",
                     "shell:RecycleBinFolder",
                     string.Empty,
-                    "Geri Dönüşüm Kutusu",
+                    Strings.Dock_RecycleBin,
                     false,
                     false,
                     IntPtr.Zero,
@@ -70,8 +71,9 @@ public class LaunchpadFaceTests
                 ImageSource pad = DockIconFactory.Load(icons, launchpad, 32);
                 ImageSource bin = DockIconFactory.Load(icons, trash, 32);
                 Assert.NotSame(pad, bin);
-                Assert.IsAssignableFrom<BitmapSource>(pad);
-                Assert.True(((BitmapSource)pad).PixelWidth >= 16);
+                var tile = Assert.IsType<DrawingImage>(pad);
+                Assert.True(tile.IsFrozen);
+                Assert.Equal(new Rect(0, 0, BrandLogo.Grid, BrandLogo.Grid), tile.Drawing.Bounds);
             }
             catch (Exception ex)
             {
@@ -99,7 +101,7 @@ public class LaunchpadFaceTests
         LaunchpadSession bare = Session(apps, LaunchpadStyles.Win11, _ => { }, app => opened = app);
         UIElement bareFace = LaunchpadWin11Face.Create(bare);
         Assert.DoesNotContain("Mesajlar", Texts(bareFace));
-        Assert.DoesNotContain("Sabitlendi", Texts(bareFace));
+        Assert.DoesNotContain(Strings.Launchpad_Pinned, Texts(bareFace));
 
         var pins = new List<LaunchpadApp> { new("Sabit Uygulama", @"C:\pin.lnk") };
         var recent = new List<LaunchpadRecentItem>
@@ -119,17 +121,17 @@ public class LaunchpadFaceTests
         Assert.Equal(680, ((FrameworkElement)win11).Width);
         Assert.Contains("Uygulama 01", Texts(win11));
         Assert.Contains("U", Texts(win11));
-        Assert.Contains("Tümü", Texts(win11));
-        Assert.Contains("Sabitlendi", Texts(win11));
-        Assert.Contains("En son", Texts(win11));
+        Assert.Contains(Strings.Launchpad_All, Texts(win11));
+        Assert.Contains(Strings.Launchpad_Pinned, Texts(win11));
+        Assert.Contains(Strings.Launchpad_Recent, Texts(win11));
         Assert.Contains("notlar", Texts(win11));
         Assert.DoesNotContain("Mesajlar", Texts(win11));
-        Assert.Contains("Uygulama, ayar ve belge ara", Texts(win11));
+        Assert.Contains(Strings.Launchpad_SearchPlaceholder, Texts(win11));
         Assert.DoesNotContain("Mac", Texts(win11));
         ClickApp(win11, "Uygulama 01");
         Assert.Equal("Uygulama 01", opened?.Name);
-        Assert.Contains("Belgeler", ToolTips(win11));
-        Assert.Contains("Güç", ToolTips(win11));
+        Assert.Contains(Strings.Launchpad_ToolDocuments, ToolTips(win11));
+        Assert.Contains(Strings.Launchpad_ToolPower, ToolTips(win11));
         var card = Assert.IsType<Border>(win11);
         Assert.Equal(22, card.Padding.Left);
         Assert.Equal(18, card.Padding.Bottom);
@@ -161,9 +163,9 @@ public class LaunchpadFaceTests
 
         UIElement all = LaunchpadWin11Face.Create(session);
         Assert.Equal(
-            ["Belgeler", "İndirilenler", "Resimler", "Ayarlar", "Widget", "Eklenti", "Güç"],
+            [Strings.Launchpad_ToolDocuments, Strings.Launchpad_ToolDownloads, Strings.Launchpad_ToolPictures, Strings.Launchpad_ToolSettings, Strings.Launchpad_ToolWidgets, Strings.Launchpad_ToolPlugins, Strings.Launchpad_ToolPower],
             ToolTips(all));
-        Button icon = FindButtons(all).First(button => Equals(button.ToolTip, "Belgeler"));
+        Button icon = FindButtons(all).First(button => Equals(button.ToolTip, Strings.Launchpad_ToolDocuments));
         Assert.Equal(40, icon.Width);
         Assert.Equal(40, icon.Height);
         Assert.True(icon.Padding.Left >= 4);
@@ -171,7 +173,7 @@ public class LaunchpadFaceTests
 
         session.Config.Launchpad.Tools = ["settings"];
         UIElement only = LaunchpadWin11Face.Create(session);
-        Assert.Equal(["Ayarlar"], ToolTips(only));
+        Assert.Equal([Strings.Launchpad_ToolSettings], ToolTips(only));
         Assert.Equal(1, UserChips(only));
 
         session.Config.Launchpad.Tools = [];
@@ -190,14 +192,14 @@ public class LaunchpadFaceTests
             Assert.True(choice.IsChecked);
         });
 
-        MenuItem power = menu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, "Güç"));
+        MenuItem power = menu.Items.Cast<MenuItem>().Single(item => Equals(item.Header, Strings.Launchpad_ToolPower));
         power.IsChecked = false;
         power.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         Assert.DoesNotContain(LaunchpadTools.Power, session.Config.Launchpad.Tools);
-        Assert.DoesNotContain("Güç", ToolTips(host));
-        Assert.Contains("Belgeler", ToolTips(host));
+        Assert.DoesNotContain(Strings.Launchpad_ToolPower, ToolTips(host));
+        Assert.Contains(Strings.Launchpad_ToolDocuments, ToolTips(host));
         Assert.Equal(1, UserChips(host));
-        Assert.Null(FindButtons(host).First(button => Equals(button.ToolTip, "Belgeler")).ContextMenu);
+        Assert.Null(FindButtons(host).First(button => Equals(button.ToolTip, Strings.Launchpad_ToolDocuments)).ContextMenu);
 
         foreach (MenuItem item in menu.Items.Cast<MenuItem>())
         {

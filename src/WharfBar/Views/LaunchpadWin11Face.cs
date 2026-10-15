@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using WharfBar.Resources;
 using WharfBar.Native;
 using WharfBar.Services;
 
@@ -41,7 +42,7 @@ internal static class LaunchpadWin11Face
         search.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
         search.SetResourceReference(TextBox.CaretBrushProperty, "TextFillColorPrimaryBrush");
 
-        var placeholder = Caption("Uygulama, ayar ve belge ara", 14);
+        var placeholder = Caption(Strings.Launchpad_SearchPlaceholder, 14);
         placeholder.Margin = new Thickness(36, 0, 12, 0);
         placeholder.VerticalAlignment = VerticalAlignment.Center;
         placeholder.IsHitTestVisible = false;
@@ -124,7 +125,7 @@ internal static class LaunchpadWin11Face
         List<LaunchpadApp> pins = Match(session.Pinned, needle).Take(PinnedCap).ToList();
         if (pins.Count > 0)
         {
-            body.Children.Add(Header("Sabitlendi"));
+            body.Children.Add(Header(Strings.Launchpad_Pinned));
             body.Children.Add(Wrap(pins.Select(app => AppTile(session, app, large: true))));
         }
 
@@ -144,12 +145,12 @@ internal static class LaunchpadWin11Face
             var row = new Grid { Margin = new Thickness(4, 14, 4, 4) };
             row.ColumnDefinitions.Add(new ColumnDefinition());
             row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var title = Header("En son");
+            var title = Header(Strings.Launchpad_Recent);
             title.Margin = new Thickness(0);
             row.Children.Add(title);
             if (!searching && recent.Count > RecentPreview)
             {
-                var more = TextButton(showAllRecent() ? "Daha az göster" : "Tümünü göster");
+                var more = TextButton(showAllRecent() ? Strings.Launchpad_ShowLess : Strings.Launchpad_ShowAll);
                 more.Click += (_, _) =>
                 {
                     setShowAllRecent(!showAllRecent());
@@ -173,10 +174,10 @@ internal static class LaunchpadWin11Face
         var allHeader = new Grid { Margin = new Thickness(4, 14, 4, 4) };
         allHeader.ColumnDefinitions.Add(new ColumnDefinition());
         allHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var allTitle = Header(searching ? "Sonuçlar" : "Tümü");
+        var allTitle = Header(searching ? Strings.Launchpad_Results : Strings.Launchpad_All);
         allTitle.Margin = new Thickness(0);
         allHeader.Children.Add(allTitle);
-        var view = TextButton(grid() ? "Görünüm: Kılavuz" : "Görünüm: Liste");
+        var view = TextButton(grid() ? Strings.Launchpad_ViewGrid : Strings.Launchpad_ViewList);
         view.Click += (_, _) =>
         {
             setGrid(!grid());
@@ -190,7 +191,7 @@ internal static class LaunchpadWin11Face
         {
             if (searching || !session.CatalogPending)
             {
-                body.Children.Add(Caption("Eşleşen uygulama yok", 13));
+                body.Children.Add(Caption(Strings.Launchpad_NoMatches, 13));
             }
 
             return;
@@ -446,18 +447,18 @@ internal static class LaunchpadWin11Face
             PlacementTarget = button,
             Placement = PlacementMode.Top,
         };
-        menu.Items.Add(PowerItem("Kilitle", () =>
+        menu.Items.Add(PowerItem(Strings.TopBar_Lock, () =>
         {
             PowerActions.TryLock();
             session.Close();
         }));
-        menu.Items.Add(PowerItem("Uyku", () => PowerActions.TrySleep()));
-        menu.Items.Add(PowerItem("Kapat", () =>
+        menu.Items.Add(PowerItem(Strings.TopBar_Sleep, () => PowerActions.TrySleep()));
+        menu.Items.Add(PowerItem(Strings.TopBar_Shutdown, () =>
         {
             PowerActions.TryShutdown();
             session.Close();
         }));
-        menu.Items.Add(PowerItem("Yeniden başlat", () =>
+        menu.Items.Add(PowerItem(Strings.TopBar_Restart, () =>
         {
             PowerActions.TryRestart();
             session.Close();

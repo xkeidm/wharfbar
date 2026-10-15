@@ -10,19 +10,24 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Dock glyph: package logo for an AppUserModelId, shell icon for a file or folder,
-/// stock recycle icon for Trash, letter glyph when the asset is missing.
+/// Dock glyph: themed brand tile for Launchpad, package logo for an AppUserModelId, shell icon
+/// for a file or folder, stock recycle icon for Trash, letter glyph when the asset is missing.
 /// </summary>
 internal static class DockIconFactory
 {
-    internal static ImageSource Load(AppIconService icons, DockAppItem item, int sizePx)
+    internal static ImageSource Load(
+        AppIconService icons,
+        DockAppItem item,
+        int sizePx,
+        string? logoStyle = LogoStyles.Default,
+        bool useSystemAccent = true)
     {
         ArgumentNullException.ThrowIfNull(icons);
         ArgumentNullException.ThrowIfNull(item);
 
         if (item.Kind == DockTileKind.Launchpad)
         {
-            return LaunchpadGlyph.Create();
+            return BrandLogo.DockTile(logoStyle, useSystemAccent, sizePx);
         }
 
         if (item.Kind == DockTileKind.Trash)

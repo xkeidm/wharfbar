@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace WharfBar.Native;
 
@@ -183,6 +184,7 @@ internal static class NativeMethods
     internal static readonly IntPtr HWND_BOTTOM = new(1);
     internal static readonly IntPtr HWND_TOPMOST = new(-1);
     internal static readonly IntPtr HWND_NOTOPMOST = new(-2);
+    internal static readonly IntPtr HWND_BROADCAST = new(0xffff);
 
     internal const uint SWP_NOSIZE = 0x0001;
     internal const uint SWP_NOMOVE = 0x0002;
@@ -205,6 +207,9 @@ internal static class NativeMethods
     /// <c>Shell_TrayWnd</c>, which does not release the taskbar AppBar reservation by itself.
     /// </summary>
     internal const uint SPI_SETWORKAREA = 0x002F;
+
+    internal const uint SPI_SETDESKWALLPAPER = 0x0014;
+    internal const uint SPI_GETDESKWALLPAPER = 0x0073;
 
     internal const uint SPIF_UPDATEINIFILE = 0x0001;
     internal const uint SPIF_SENDCHANGE = 0x0002;
@@ -275,7 +280,14 @@ internal static class NativeMethods
     internal const uint TB_GETIMAGELIST = (uint)WM_USER + 49;
     internal const uint TB_GETBUTTONTEXT = (uint)WM_USER + 75;
     internal const uint ILD_TRANSPARENT = 0x0001;
+    internal const uint SMTO_NORMAL = 0x0000;
     internal const uint SMTO_ABORTIFHUNG = 0x0002;
+
+    /// <summary>
+    /// Undocumented Progman message that creates a WorkerW behind the desktop icon host
+    /// so a layered window can paint under icons. Used only for wallpaper transition hosting.
+    /// </summary>
+    internal const uint WM_SPAWN_WORKERW = 0x052C;
     internal const ushort VK_SHIFT = 0x10;
     internal const ushort VK_CONTROL = 0x11;
 
@@ -490,6 +502,13 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    internal static extern IntPtr SetParent(IntPtr hWndChild, IntPtr hWndNewParent);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool GetWindowPlacement(IntPtr hWnd, ref WINDOWPLACEMENT lpwndpl);
 
     [DllImport("user32.dll")]
@@ -517,6 +536,22 @@ internal static class NativeMethods
         uint uiAction,
         uint uiParam,
         ref RECT pvParam,
+        uint fWinIni);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(
+        uint uiAction,
+        uint uiParam,
+        string? pvParam,
+        uint fWinIni);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SystemParametersInfo(
+        uint uiAction,
+        uint uiParam,
+        StringBuilder pvParam,
         uint fWinIni);
 
     [DllImport("user32.dll", SetLastError = true)]

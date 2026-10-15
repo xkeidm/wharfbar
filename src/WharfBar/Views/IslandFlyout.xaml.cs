@@ -10,6 +10,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -47,10 +48,6 @@ public sealed partial class IslandFlyout : UserControl
     private DispatcherTimer? _timelineTimer;
     private bool _timelineArmed;
 
-    internal event EventHandler? ClipboardRequested;
-
-    internal event EventHandler? MusicRequested;
-
     /// <summary>Transparent padding around the panel so the shadow is not clipped by the popup window.</summary>
     internal const double ShadowPadDip = 24;
 
@@ -71,9 +68,8 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Servisi bağlar; önceki bağlantıyı koparır (idempotent). Listeyi kurmaz: tek çağıran
-    /// <c>OnIslandPopupOpened</c> hemen ardından <see cref="OnPanelOpened"/>'ı çağırıyor,
-    /// kurulum zaten orada yapılıyor.
+    /// Servisi bağlar; önceki bağlantıyı koparır (idempotent). Listeyi kurmaz;
+    /// açılış kurulumu <see cref="PresentHub"/> ile yapılır.
     /// </summary>
     internal void Attach(IslandService service)
     {
@@ -94,9 +90,6 @@ public sealed partial class IslandFlyout : UserControl
         _selectedIndex = -1;
         EntryListPanel.Children.Clear();
     }
-
-    /// <summary>Panel açıldı: pano gövdesi. Müzik gövdesi <see cref="PresentMusic"/> ile gelir.</summary>
-    internal void OnPanelOpened() => PresentClipboard(showBack: false);
 
     internal void AttachMedia(MediaSessionService service)
     {
@@ -125,7 +118,8 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>İkincil monitörde pano düğmesi yok; liste de bağlanmaz.</summary>
     internal void SetClipboardChrome(bool available)
     {
-        ClipboardAffordance.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        TabClipboard.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        TabWallpaper.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -199,49 +193,154 @@ public sealed partial class IslandFlyout : UserControl
         return brush;
     }
 
-    /// <summary>Aynı popup'ın müzik gövdesi. <paramref name="focus"/> yalnız sabitleyen tıklamada.</summary>
-    internal void PresentMusic(bool focus, bool crossfade = false)
+    /// <summary>Currently shown hub tab.</summary>
+    internal IslandHubTab CurrentHubTab { get; private set; } = IslandHubTab.Clipboard;
+
+    /// <summary>Raised only when the user clicks a hub tab (not when a tab is restored on open).</summary>
+    internal event EventHandler<IslandHubTab>? HubTabChanged;
+
+    private WallpaperService? _wallpaper;
+
+    internal void AttachWallpaper(WallpaperService service)
+    {
+        _wallpaper = service;
+        WallpaperHost.Attach(service);
+    }
+
+    internal void DetachWallpaper() => _wallpaper = null;
+
+    /// <summary>Shows or hides the Music tab.</summary>
+    internal void SetMusicTabVisible(bool visible)
+    {
+        TabMusic.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private FrameworkElement BodyFor(IslandHubTab tab) => tab switch
+    {
+        IslandHubTab.Wallpaper => WallpaperBody,
+        IslandHubTab.Music => MusicBody,
+        _ => ClipboardBody,
+    };
+
+    /// <summary>Same popup, one of three bodies. <paramref name="focus"/> only on a pinning click.</summary>
+    internal void PresentHub(IslandHubTab tab, bool focus, bool crossfade = false)
     {
         ApplySurface();
-        if (MusicCover.Clip is null)
+        SetMusicTabVisible(_media?.Snapshot.HasSession ?? false);
+        CurrentHubTab = tab;
+        _clipboardShown = tab != IslandHubTab.Music;
+        UpdateTabChrome(tab);
+
+        switch (tab)
         {
-            MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 88, 88), 14, 14);
+            case IslandHubTab.Music:
+                if (MusicCover.Clip is null)
+                {
+                    MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 88, 88), 14, 14);
+                }
+
+                ApplyMusic();
+                break;
+            case IslandHubTab.Wallpaper:
+                StopTimelinePoll();
+                ApplyTint(null);
+                WallpaperHost.Refresh();
+                break;
+            default:
+                StopTimelinePoll();
+                ApplyTint(null);
+                SearchBox.Clear();
+                _selectedIndex = 0;
+                Rebuild();
+                break;
         }
 
-        _clipboardShown = false;
-        ApplyMusic();
-        RevealBody(MusicBody, ClipboardBody, crossfade);
-        if (!crossfade && MusicNow.Visibility == Visibility.Visible)
-        {
-            Stagger(MusicCover, (UIElement)MusicTitle.Parent, MusicTransport);
-        }
+        RevealHubBody(tab, crossfade);
 
-        ArmTimelinePoll();
-        if (!focus)
+        switch (tab)
+        {
+            case IslandHubTab.Music:
+                if (!crossfade && MusicNow.Visibility == Visibility.Visible)
+                {
+                    Stagger(MusicCover, (UIElement)MusicTitle.Parent, MusicTransport);
+                }
+
+                ArmTimelinePoll();
+                if (focus)
+                {
+                    Focusable = true;
+                    MusicPlayButton.Focus();
+                }
+
+                break;
+            case IslandHubTab.Clipboard:
+                if (focus)
+                {
+                    FocusClipboardSearch();
+                }
+
+                break;
+            default:
+                if (focus)
+                {
+                    Focusable = true;
+                    Focus();
+                }
+
+                break;
+        }
+    }
+
+    private void UpdateTabChrome(IslandHubTab tab)
+    {
+        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic })
+        {
+            if (b.Tag as string == IslandHub.ToConfig(tab))
+            {
+                b.SetResourceReference(BackgroundProperty, "ControlFillColorSecondaryBrush");
+            }
+            else
+            {
+                b.ClearValue(BackgroundProperty);
+            }
+        }
+    }
+
+    private void OnHubTabClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { Tag: string tag })
         {
             return;
         }
 
-        Focusable = true;
-        MusicPlayButton.Focus();
+        IslandHubTab tab = IslandHub.Normalize(tag);
+        PresentHub(tab, focus: true, crossfade: true);
+        HubTabChanged?.Invoke(this, tab);
     }
 
-    /// <summary>Aynı popup'ın pano gövdesi. Geri düğmesi yalnız müzikten geçildiyse durur.</summary>
-    internal void PresentClipboard(bool showBack, bool focus = true, bool crossfade = false)
+    private void RevealHubBody(IslandHubTab tab, bool crossfade)
     {
-        ApplySurface();
-        StopTimelinePoll();
-        _clipboardShown = true;
-        ApplyTint(null);
-        BackToMusicButton.Visibility = showBack ? Visibility.Visible : Visibility.Collapsed;
-        SearchBox.Clear();
-        _selectedIndex = 0;
-        Rebuild();
-        RevealBody(ClipboardBody, MusicBody, crossfade);
-        if (focus)
+        FrameworkElement show = BodyFor(tab);
+        FrameworkElement? hide = null;
+        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody })
         {
-            FocusClipboardSearch();
+            if (ReferenceEquals(body, show))
+            {
+                continue;
+            }
+
+            if (hide is null && body.Visibility == Visibility.Visible)
+            {
+                hide = body;
+            }
+            else
+            {
+                body.Visibility = Visibility.Collapsed;
+            }
         }
+
+        hide ??= ReferenceEquals(show, MusicBody) ? ClipboardBody : MusicBody;
+        RevealBody(show, hide, crossfade);
     }
 
     /// <summary>Hover ile açılmış panoyu sabitleyen tıklama arama kutusuna odaklar.</summary>
@@ -382,6 +481,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void OnMediaSnapshotChanged(object? sender, EventArgs e)
     {
+        SetMusicTabVisible(_media?.Snapshot.HasSession ?? false);
         if (MusicBody.Visibility == Visibility.Visible && !_clipboardShown)
         {
             ApplyMusic();
@@ -568,12 +668,6 @@ public sealed partial class IslandFlyout : UserControl
 
         _media?.RefreshTimeline();
     }
-
-    private void OnClipboardAffordanceClick(object sender, RoutedEventArgs e)
-        => ClipboardRequested?.Invoke(this, EventArgs.Empty);
-
-    private void OnBackToMusicClick(object sender, RoutedEventArgs e)
-        => MusicRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnPreviousTrackClick(object sender, RoutedEventArgs e) => _media?.Previous();
 
@@ -834,7 +928,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         if (total == 0)
         {
-            HintText.Text = SearchBox.Text.Length == 0 ? "Kayıt yok." : "Eşleşen kayıt yok.";
+            HintText.Text = SearchBox.Text.Length == 0 ? Strings.Island_NoEntries : Strings.Island_NoMatchingEntries;
             HintText.Visibility = Visibility.Visible;
             return;
         }
@@ -843,7 +937,7 @@ public sealed partial class IslandFlyout : UserControl
         {
             HintText.Text = string.Format(
                 CultureInfo.CurrentCulture,
-                "… {0} kayıt daha var (arama ile daralt)",
+                Strings.Island_MoreEntriesFormat,
                 total - shown);
             HintText.Visibility = Visibility.Visible;
             return;
@@ -942,6 +1036,11 @@ public sealed partial class IslandFlyout : UserControl
                 default:
                     return false;
             }
+        }
+
+        if (CurrentHubTab == IslandHubTab.Wallpaper)
+        {
+            return false;
         }
 
         switch (key)

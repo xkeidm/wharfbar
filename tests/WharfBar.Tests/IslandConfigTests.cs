@@ -67,6 +67,14 @@ public class IslandConfigTests
         Assert.Equal(200, config.MaxItems);
         Assert.Equal("persistent", config.MusicPresence);
         Assert.Equal("clipboard", config.IdleLabel);
+        Assert.Equal("clipboard", IslandConfig.DefaultHubTab);
+        Assert.Equal("clipboard", new IslandConfig().HubTab);
+        Assert.Equal("blurFade", IslandConfig.DefaultWallpaperTransition);
+        Assert.True(IslandConfig.DefaultWallpaperRespectSystemAnimation);
+        Assert.Equal("blurFade", new IslandConfig().WallpaperTransition);
+        Assert.True(new IslandConfig().WallpaperRespectSystemAnimation);
+        Assert.True(IslandConfig.DefaultWallpaperAccent);
+        Assert.True(new IslandConfig().WallpaperAccent);
         Assert.Equal(20, config.LowBatteryPercent);
         Assert.Equal(20, IslandConfig.DefaultLowBatteryPercent);
     }
@@ -124,5 +132,20 @@ public class IslandConfigTests
     public void NormalizeIdleLabel_FallsBackToClipboard(string? input, string expected)
     {
         Assert.Equal(expected, IslandNormalizer.NormalizeIdleLabel(input));
+    }
+
+    [Theory]
+    [InlineData("off", "off")]
+    [InlineData("Off", "off")]
+    [InlineData("fade", "fade")]
+    [InlineData("Fade", "fade")]
+    [InlineData("blurFade", "blurFade")]
+    [InlineData("BlurFade", "blurFade")]
+    [InlineData(null, "blurFade")]
+    [InlineData("", "blurFade")]
+    [InlineData("garbage", "blurFade")]
+    public void NormalizeWallpaperTransition_FallsBackToBlurFade(string? input, string expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizeWallpaperTransition(input));
     }
 }

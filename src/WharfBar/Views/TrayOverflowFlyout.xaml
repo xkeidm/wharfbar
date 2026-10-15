@@ -1,4 +1,4 @@
-<UserControl x:Class="WharfBar.Views.TrayOverflowFlyout"
+<UserControl xmlns:res="clr-namespace:WharfBar.Resources" x:Class="WharfBar.Views.TrayOverflowFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
@@ -62,7 +62,7 @@
                        VerticalAlignment="Center"
                        FontSize="12"
                        Opacity="0.65"
-                       Text="simge yok" />
+                       Text="{x:Static res:Strings.TrayOverflow_NoIcons}" />
             <WrapPanel x:Name="Icons"
                        MaxWidth="240"
                        Orientation="Horizontal"
@@ -75,7 +75,7 @@
                     Opacity="0.7" />
             <Button x:Name="NativeOverflowButton"
                     Style="{StaticResource TrayOverflowChevron}"
-                    ToolTip="Windows gizli simgelerini aç"
+                    ToolTip="{x:Static res:Strings.TrayOverflow_OpenHidden}"
                     Click="OnNativeOverflowClick">
                 <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
                            FontSize="12"

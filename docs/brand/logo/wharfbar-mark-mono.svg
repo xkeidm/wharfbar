@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="WharfBar mark - currentColor">
+  <title>WharfBar mark - currentColor</title>
+  <mask id="u13m"><rect width="128" height="128" fill="#fff"/><rect y="62" width="128" height="2.5" fill="#000"/><rect y="78" width="128" height="3.5" fill="#000"/><rect y="96" width="128" height="4.5" fill="#000"/></mask><path d="M43 39A21 21 0 0 1 85 39Z" fill="currentColor"/><g stroke="currentColor" stroke-width="2.5" stroke-linecap="round" fill="none"><path d="M14 52H44M84 52H114"/><path d="M12 62H40M88 62H116"/><path d="M10 74H34M94 74H118"/><path d="M12 88H28M100 88H116"/></g><path d="M57 44H71L104 110H24Z" fill="currentColor" mask="url(#u13m)"/>
+</svg>

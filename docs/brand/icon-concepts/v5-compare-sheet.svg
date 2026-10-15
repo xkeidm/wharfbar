@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 620 600" role="img" aria-label="WharfBar yeni ikon yönleri v5">
+  <title>WharfBar v5 — yeni yönler</title>
+  <defs>
+    <!-- 01 Tide Mark: bar + su + yansıma -->
+    <g id="i1">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="24" y="42" width="80" height="13" rx="6.5" fill="#16324F"/>
+      <path d="M18 70 q10 -7 20 0 t20 0 t20 0 t20 0" fill="none" stroke="#5B8FB8" stroke-width="5" stroke-linecap="round"/>
+      <path d="M26 84 q10 -6 20 0 t20 0 t20 0" fill="none" stroke="#6FA0C8" stroke-width="4" stroke-linecap="round" opacity="0.85"/>
+      <rect x="40" y="98" width="48" height="9" rx="4.5" fill="#5B8FB8" opacity="0.32"/>
+    </g>
+
+    <!-- 02 Mooring Loop: bara bağlı halka -->
+    <g id="i2">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="22" y="36" width="84" height="12" rx="6" fill="#16324F"/>
+      <rect x="60" y="44" width="8" height="22" rx="4" fill="#5B8FB8"/>
+      <circle cx="64" cy="84" r="21" fill="none" stroke="#5B8FB8" stroke-width="9"/>
+    </g>
+
+    <!-- 03 Boat & Bar: teknede iskele barı -->
+    <g id="i3">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="16" y="40" width="96" height="12" rx="6" fill="#16324F"/>
+      <rect x="24" y="52" width="7" height="52" rx="3" fill="#2B4A6F"/>
+      <rect x="97" y="52" width="7" height="52" rx="3" fill="#2B4A6F"/>
+      <rect x="62" y="50" width="4" height="26" rx="2" fill="#16324F"/>
+      <path d="M66 52 L82 74 L66 74 Z" fill="#5B8FB8"/>
+      <path d="M42 76 H86 L78 90 H50 Z" fill="#2B4A6F"/>
+      <path d="M30 104 q10 -5 20 0 t20 0 t20 0" fill="none" stroke="#5B8FB8" stroke-width="4" stroke-linecap="round" opacity="0.8"/>
+    </g>
+
+    <!-- 04 Dock Cleat: bar + ayaklar -->
+    <g id="i4">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="26" y="54" width="76" height="15" rx="7.5" fill="#16324F"/>
+      <rect x="32" y="69" width="13" height="26" rx="6" fill="#16324F"/>
+      <rect x="57" y="69" width="14" height="26" rx="6" fill="#16324F"/>
+      <rect x="83" y="69" width="13" height="26" rx="6" fill="#16324F"/>
+      <rect x="30" y="95" width="68" height="9" rx="4.5" fill="#5B8FB8"/>
+      <path d="M40 61 Q64 73 88 61" fill="none" stroke="#E8EEF5" stroke-width="4" stroke-linecap="round" opacity="0.9"/>
+    </g>
+
+    <!-- 05 Gantry Crane: liman vinci, bom = bar -->
+    <g id="i5">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="46" y="30" width="58" height="10" rx="5" fill="#5B8FB8"/>
+      <rect x="46" y="28" width="11" height="62" rx="4" fill="#16324F"/>
+      <rect x="34" y="88" width="36" height="10" rx="4" fill="#16324F"/>
+      <rect x="100" y="40" width="3" height="24" fill="#2B4A6F"/>
+      <path d="M96 64 a7 7 0 1 0 14 0" fill="none" stroke="#2B4A6F" stroke-width="3" stroke-linecap="round"/>
+    </g>
+
+    <!-- 06 Harbor Arch: kazıklar + bar -->
+    <g id="i6">
+      <rect width="128" height="128" rx="28" fill="#E8EEF5"/>
+      <rect x="34" y="48" width="15" height="52" rx="5" fill="#16324F"/>
+      <rect x="79" y="48" width="15" height="52" rx="5" fill="#16324F"/>
+      <rect x="24" y="34" width="80" height="15" rx="7.5" fill="#16324F"/>
+      <circle cx="64" cy="26" r="6" fill="#5B8FB8"/>
+      <path d="M22 106 q10 -5 20 0 t20 0 t20 0 t20 0" fill="none" stroke="#5B8FB8" stroke-width="4" stroke-linecap="round"/>
+    </g>
+  </defs>
+
+  <rect width="620" height="600" fill="#F4F7FB"/>
+  <text x="310" y="34" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600" fill="#16324F">WharfBar — v5 yeni yönler</text>
+  <text x="310" y="54" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="12" fill="#5B6B7C">her biri tek fikir · bar (üst çubuk) + rıhtım anlamı · altta 32 px testi</text>
+
+  <use xlink:href="#i1" href="#i1" transform="translate(28,76)"/>
+  <use xlink:href="#i2" href="#i2" transform="translate(172,76)"/>
+  <use xlink:href="#i3" href="#i3" transform="translate(316,76)"/>
+  <use xlink:href="#i4" href="#i4" transform="translate(28,300)"/>
+  <use xlink:href="#i5" href="#i5" transform="translate(172,300)"/>
+  <use xlink:href="#i6" href="#i6" transform="translate(316,300)"/>
+
+  <g font-family="Segoe UI, system-ui, sans-serif" fill="#16324F" text-anchor="middle">
+    <text x="92" y="232" font-size="13" font-weight="600">01 Tide Mark</text>
+    <text x="92" y="249" font-size="11" fill="#5B6B7C">bar + su + yansıma</text>
+    <text x="236" y="232" font-size="13" font-weight="600">02 Mooring Loop</text>
+    <text x="236" y="249" font-size="11" fill="#5B6B7C">bara bağlı halka</text>
+    <text x="380" y="232" font-size="13" font-weight="600">03 Boat &amp; Bar</text>
+    <text x="380" y="249" font-size="11" fill="#5B6B7C">limanda tekne</text>
+    <text x="92" y="456" font-size="13" font-weight="600">04 Dock Cleat</text>
+    <text x="92" y="473" font-size="11" fill="#5B6B7C">bar + babaya ayak</text>
+    <text x="236" y="456" font-size="13" font-weight="600">05 Gantry Crane</text>
+    <text x="236" y="473" font-size="11" fill="#5B6B7C">bom = bar</text>
+    <text x="380" y="456" font-size="13" font-weight="600">06 Harbor Arch</text>
+    <text x="380" y="473" font-size="11" fill="#5B6B7C">kazıklar + bar</text>
+  </g>
+
+  <!-- 32 px legibility row -->
+  <text x="120" y="546" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="11" fill="#7A8A9A">32 px</text>
+  <use xlink:href="#i1" href="#i1" transform="translate(160,516) scale(0.25)"/>
+  <use xlink:href="#i2" href="#i2" transform="translate(214,516) scale(0.25)"/>
+  <use xlink:href="#i3" href="#i3" transform="translate(268,516) scale(0.25)"/>
+  <use xlink:href="#i4" href="#i4" transform="translate(322,516) scale(0.25)"/>
+  <use xlink:href="#i5" href="#i5" transform="translate(376,516) scale(0.25)"/>
+  <use xlink:href="#i6" href="#i6" transform="translate(430,516) scale(0.25)"/>
+
+  <text x="310" y="586" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="11" fill="#7A8A9A">palet  ·  navy #16324F  ·  steel #5B8FB8  ·  zemin #E8EEF5  ·  docs/brand/icon-concepts/v5</text>
+</svg>

@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WharfBar.Resources;
 using WharfBar.Models;
 using WharfBar.Services;
 
@@ -41,12 +42,11 @@ internal partial class PluginGalleryView : UserControl
         _scope = scope;
         Heading.Text = scope switch
         {
-            PluginGalleryScope.Widgets => "Widget'lar",
-            PluginGalleryScope.Plugins => "Eklentiler",
-            _ => "Eklentiler ve widget'lar",
+            PluginGalleryScope.Widgets => Strings.Gallery_Widgets,
+            PluginGalleryScope.Plugins => Strings.Gallery_Plugins,
+            _ => Strings.Gallery_PluginsAndWidgets,
         };
-        Intro.Text = "Yerleşik öğeler hemen çalışır. Yerel öğeler bir klasördeki manifest.json kaydıdır. "
-            + "Kartın yuvası, öğenin nerede duracağını söyler.";
+        Intro.Text = Strings.Gallery_Intro;
         Refresh();
     }
 
@@ -90,10 +90,10 @@ internal partial class PluginGalleryView : UserControl
                 }
             }
 
-            Sections.Children.Add(SectionLabel("Yerleşik"));
+            Sections.Children.Add(SectionLabel(Strings.Gallery_BuiltIn));
             if (builtIn.Count == 0)
             {
-                Sections.Children.Add(Note("Bu görünümde yerleşik öğe yok."));
+                Sections.Children.Add(Note(Strings.Gallery_NoBuiltIn));
             }
             else
             {
@@ -103,7 +103,7 @@ internal partial class PluginGalleryView : UserControl
                 }
             }
 
-            Sections.Children.Add(SectionLabel("Yerel"));
+            Sections.Children.Add(SectionLabel(Strings.Gallery_Local));
             if (local.Count == 0)
             {
                 Sections.Children.Add(EmptyLocal());
@@ -125,18 +125,15 @@ internal partial class PluginGalleryView : UserControl
     private UIElement Explanation()
     {
         var stack = new StackPanel();
-        stack.Children.Add(Primary("Yuvalar", 14, FontWeights.Medium, default));
+        stack.Children.Add(Primary(Strings.Gallery_Slots, 14, FontWeights.Medium, default));
         stack.Children.Add(Chips());
         stack.Children.Add(Secondary(
-            "Üst çubuk (topBar) ve Dock (dock) v1'de yalnız kayıttır; çubuğa veya dock'a çizilmez. "
-            + "Masaüstü (desktop) yerleşik saat ve takvimi pencere olarak açar. "
-            + "Ada (island) görselleştirici, Bluetooth bildirimi ve kamera aynasını hapın içinde çalıştırır. "
-            + "İnternetten kod inmez, derleme yüklenmez.",
+            Strings.Gallery_SlotsExplanation,
             new Thickness(0, 10, 0, 0)));
 
         var open = new Wpf.Ui.Controls.Button
         {
-            Content = "Klasörü aç",
+            Content = Strings.Gallery_OpenFolder,
             Height = 32,
             Margin = new Thickness(0, 12, 0, 0),
             HorizontalAlignment = HorizontalAlignment.Left,
@@ -155,10 +152,10 @@ internal partial class PluginGalleryView : UserControl
     private UIElement Chips()
     {
         var wrap = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
-        wrap.Children.Add(Chip("Üst çubuk", "topBar"));
-        wrap.Children.Add(Chip("Dock", "dock"));
-        wrap.Children.Add(Chip("Masaüstü", "saat, takvim"));
-        wrap.Children.Add(Chip("Ada", "hap"));
+        wrap.Children.Add(Chip(Strings.Gallery_SlotTopBar, "topBar"));
+        wrap.Children.Add(Chip(Strings.Gallery_SlotDock, "dock"));
+        wrap.Children.Add(Chip(Strings.Gallery_SlotDesktop, Strings.Gallery_ChipDesktopDetail));
+        wrap.Children.Add(Chip(Strings.Gallery_SlotIsland, Strings.Gallery_ChipIslandDetail));
         return wrap;
     }
 
@@ -183,16 +180,15 @@ internal partial class PluginGalleryView : UserControl
     private UIElement EmptyLocal()
     {
         var stack = new StackPanel();
-        stack.Children.Add(Primary("Henüz yerel kayıt yok", 14, FontWeights.Medium, default));
+        stack.Children.Add(Primary(Strings.Gallery_EmptyLocalTitle, 14, FontWeights.Medium, default));
         stack.Children.Add(Secondary(
-            "plugins klasörünün altında bir klasör açın ve içine manifest.json koyun. "
-            + "Kökteki dosya okunmaz; bağlantı (junction) klasörleri de atlanır.",
+            Strings.Gallery_EmptyLocalBody,
             new Thickness(0, 4, 0, 0)));
         var sample = Primary(
             "{\n"
-                + "  \"id\": \"hava\",\n"
-                + "  \"name\": \"Hava\",\n"
-                + "  \"description\": \"Kısa durum.\",\n"
+                + "  \"id\": \"" + Strings.Gallery_ExampleId + "\",\n"
+                + "  \"name\": \"" + Strings.Gallery_ExampleName + "\",\n"
+                + "  \"description\": \"" + Strings.Gallery_ExampleDescription + "\",\n"
                 + "  \"kind\": \"widget\",\n"
                 + "  \"slot\": \"topBar\"\n"
                 + "}",
@@ -225,7 +221,7 @@ internal partial class PluginGalleryView : UserControl
         string meta = PluginKinds.Label(card.Kind) + " \u00b7 " + PluginSlots.Label(card.Slot);
         if (!card.BuiltIn)
         {
-            meta += " \u00b7 yalnız kayıt";
+            meta += " \u00b7 " + Strings.Gallery_RecordOnly;
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };

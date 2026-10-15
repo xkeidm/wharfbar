@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Three stacked planks">
+  <title>v2.05 — Plank Stack</title>
+  <defs>
+    <linearGradient id="s-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F0F4F8"/>
+      <stop offset="100%" stop-color="#DCE5EF"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#s-bg)"/>
+  <!-- Three rounded bars: topbar, island, dock — spacing like a logo -->
+  <rect x="28" y="36" width="72" height="12" rx="6" fill="#16324F"/>
+  <rect x="36" y="58" width="56" height="12" rx="6" fill="#3D6A94"/>
+  <rect x="44" y="80" width="40" height="12" rx="6" fill="#6FA0C8"/>
+</svg>

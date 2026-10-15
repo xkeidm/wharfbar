@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.IO;
+using WharfBar.Resources;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
@@ -59,14 +61,35 @@ public class LaunchpadBoxTests
     }
 
     [Fact]
-    public void FormatAge_UsesTurkishBuckets()
+    public void FormatAge_UsesLocalizedBuckets()
     {
         var now = new DateTime(2026, 10, 12, 13, 0, 0);
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        CultureInfo previousUi = CultureInfo.CurrentUICulture;
+        try
+        {
+            foreach (string name in new[] { "en-US", "tr-TR" })
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(name);
+                CultureInfo.CurrentUICulture = CultureInfo.CurrentCulture;
 
-        Assert.Equal("Az önce", LaunchpadRecent.FormatAge(now.AddSeconds(-20), now));
-        Assert.Equal("5 dakika önce", LaunchpadRecent.FormatAge(now.AddMinutes(-5), now));
-        Assert.Equal("2 saat önce", LaunchpadRecent.FormatAge(now.AddHours(-2), now));
-        Assert.Equal("Dün saat 13:00", LaunchpadRecent.FormatAge(now.AddDays(-1), now));
+                Assert.Equal(Strings.Launchpad_AgeNow, LaunchpadRecent.FormatAge(now.AddSeconds(-20), now));
+                Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeMinutes, 5), LaunchpadRecent.FormatAge(now.AddMinutes(-5), now));
+                Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeHours, 2), LaunchpadRecent.FormatAge(now.AddHours(-2), now));
+                Assert.Equal(string.Format(CultureInfo.CurrentCulture, Strings.Launchpad_AgeYesterday, "13:00"), LaunchpadRecent.FormatAge(now.AddDays(-1), now));
+            }
+
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("tr-TR");
+            Assert.Equal("Az önce", LaunchpadRecent.FormatAge(now.AddSeconds(-20), now));
+            Assert.Equal("Dün saat 13:00", LaunchpadRecent.FormatAge(now.AddDays(-1), now));
+            CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en-US");
+            Assert.Equal("Just now", LaunchpadRecent.FormatAge(now.AddSeconds(-20), now));
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+            CultureInfo.CurrentUICulture = previousUi;
+        }
     }
 
     [Fact]

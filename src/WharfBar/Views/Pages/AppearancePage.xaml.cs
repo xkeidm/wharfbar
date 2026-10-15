@@ -7,7 +7,7 @@ using Wpf.Ui.Appearance;
 namespace WharfBar.Views.Pages;
 
 /// <summary>
-/// Appearance settings: theme mode, accent style (system accent vs theme default), top bar background mode, tint opacity.
+/// Appearance settings: theme mode, accent style (system accent vs theme default), top bar background mode, tint opacity, logo style.
 /// </summary>
 public partial class AppearancePage : Page
 {
@@ -50,6 +50,26 @@ public partial class AppearancePage : Page
         OpacitySlider.Value = opacity;
         OpacityLabel.Text = $"{opacity}%";
         UpdateOpacityCardVisibility(mode);
+
+        LogoSectionHeader.Text = LocalizationService.Get("Appearance_Logo_Section");
+        LogoTitleText.Text = LocalizationService.Get("Appearance_Logo_Title");
+        LogoDescriptionText.Text = LocalizationService.Get("Appearance_Logo_Description");
+        ((ComboBoxItem)LogoStyleCombo.Items[0]).Content = LocalizationService.Get("Appearance_Logo_WharfBar");
+        ((ComboBoxItem)LogoStyleCombo.Items[1]).Content = LocalizationService.Get("Appearance_Logo_Windows");
+
+        // Combo: 0=WharfBar, 1=Windows
+        LogoStyleCombo.SelectedIndex = LogoStyles.IsWindows(Cfg.LogoStyle) ? 1 : 0;
+        LogoPreviewGlyph.Data = BrandLogo.BarGlyph(Cfg.LogoStyle);
+    }
+
+    private void OnLogoStyleChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading) return;
+
+        Cfg.LogoStyle = LogoStyleCombo.SelectedIndex == 1 ? LogoStyles.Windows : LogoStyles.WharfBar;
+        Config.Save(Cfg);
+        LogoPreviewGlyph.Data = BrandLogo.BarGlyph(Cfg.LogoStyle);
+        WharfApp.ApplyLogoChanges();
     }
 
     private void OnAccentStyleChanged(object sender, SelectionChangedEventArgs e)
@@ -71,7 +91,8 @@ public partial class AppearancePage : Page
 
         // Direct library applies retarget Application.MainWindow's backdrop/chrome
         // regardless of the configured top-bar background mode — re-assert every bar.
-        WharfApp.ApplyTopBarChanges();
+        // The dock launch tile is tinted from the accent and theme, so it follows too.
+        WharfApp.ApplyLogoChanges();
     }
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
@@ -97,7 +118,7 @@ public partial class AppearancePage : Page
         Config.Save(Cfg);
 
         // See OnAccentStyleChanged: library applies rewrite MainWindow chrome; re-assert bars.
-        WharfApp.ApplyTopBarChanges();
+        WharfApp.ApplyLogoChanges();
     }
 
     private void OnBackgroundModeChanged(object sender, SelectionChangedEventArgs e)

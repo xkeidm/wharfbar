@@ -49,6 +49,16 @@ public partial class App : Application
         _monitors?.ApplyTopBarChanges();
     }
 
+    /// <summary>
+    /// Logo style, theme or accent changed in settings: re-assert every bar (its glyph follows
+    /// <c>logoStyle</c>) and re-tint every dock launch tile.
+    /// </summary>
+    internal void ApplyLogoChanges()
+    {
+        _monitors?.ApplyTopBarChanges();
+        _monitors?.RefreshDockBrandTiles();
+    }
+
     /// <summary>Reconciles and applies dock settings to every per-monitor dock.</summary>
     internal void ApplyDockChanges()
     {

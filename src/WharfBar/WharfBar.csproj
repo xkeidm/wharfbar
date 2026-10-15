@@ -18,12 +18,28 @@
     <InformationalVersion>1.0.0-beta</InformationalVersion>
     <Product>WharfBar</Product>
     <Description>Windows üst bar + dock (Fluent)</Description>
+    <ApplicationIcon>Assets\WharfBar.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.WindowsDesktop.App" />
     <PackageReference Include="WPF-UI" Version="4.3.0" />
     <PackageReference Include="System.Management" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Resources\Strings.resx">
+      <Generator>PublicResXFileCodeGenerator</Generator>
+      <LastGenOutput>Strings.Designer.cs</LastGenOutput>
+      <CustomToolNamespace>WharfBar.Resources</CustomToolNamespace>
+    </EmbeddedResource>
+    <Compile Update="Resources\Strings.Designer.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>Strings.resx</DependentUpon>
+    </Compile>
+    <Resource Include="Assets\WharfBar.png" />
+    <Content Include="Wallpapers\**\*.*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

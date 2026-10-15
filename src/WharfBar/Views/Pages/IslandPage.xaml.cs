@@ -5,6 +5,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views.Pages;
@@ -31,6 +32,18 @@ public partial class IslandPage : Page
         MusicPresenceCombo.SelectionChanged += OnMusicPresenceChanged;
         ColorModeCombo.SelectionChanged += OnColorModeChanged;
         IdleLabelCombo.SelectionChanged += OnIdleLabelChanged;
+        WallpaperTransitionCombo.SelectionChanged += OnWallpaperTransitionChanged;
+        WallpaperRespectToggle.Checked += OnWallpaperRespectChanged;
+        WallpaperRespectToggle.Unchecked += OnWallpaperRespectChanged;
+        WallpaperAccentToggle.Checked += OnWallpaperAccentChanged;
+        WallpaperAccentToggle.Unchecked += OnWallpaperAccentChanged;
+        Loaded += (_, _) =>
+        {
+            SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
+            SystemParameters.StaticPropertyChanged += OnSystemParametersChanged;
+            UpdateWallpaperAnimationState();
+        };
+        Unloaded += (_, _) => SystemParameters.StaticPropertyChanged -= OnSystemParametersChanged;
         RetentionBox.LostFocus += OnRetentionLostFocus;
         MaxItemsBox.LostFocus += OnMaxItemsLostFocus;
         LowBatteryBox.LostFocus += OnLowBatteryLostFocus;
@@ -78,6 +91,18 @@ public partial class IslandPage : Page
             IslandConfig.ColorModeNeutral => 2,
             _ => 0,
         };
+
+        WallpaperTransitionCombo.SelectedIndex = IslandNormalizer.NormalizeWallpaperTransition(island.WallpaperTransition) switch
+        {
+            IslandConfig.TransitionOff => 0,
+            IslandConfig.TransitionFade => 1,
+            _ => 2,
+        };
+        WallpaperRespectToggle.IsChecked = island.WallpaperRespectSystemAnimation;
+        WallpaperAccentToggle.IsChecked = island.WallpaperAccent;
+        WallpaperAccentTitleText.Text = LocalizationService.Get("Island_WallpaperAccent_Title");
+        WallpaperAccentDescriptionText.Text = LocalizationService.Get("Island_WallpaperAccent_Description");
+        UpdateWallpaperAnimationState();
 
         // IslandNormalizer her zaman 1..3650 / 10..5000'e sıkıştırır; kutular da aynı değeri
         // gösterir (elle config.json'a yazılmış taşma değerler kullanıcıyı şaşırtmasın).
@@ -164,6 +189,61 @@ public partial class IslandPage : Page
         SaveAndApply();
     }
 
+    private void OnWallpaperTransitionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_isLoading || WallpaperTransitionCombo.SelectedIndex < 0)
+        {
+            return;
+        }
+
+        Cfg.Island.WallpaperTransition = WallpaperTransitionCombo.SelectedIndex switch
+        {
+            0 => IslandConfig.TransitionOff,
+            1 => IslandConfig.TransitionFade,
+            _ => IslandConfig.TransitionBlurFade,
+        };
+        SaveAndApply();
+    }
+
+    private void OnWallpaperRespectChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        Cfg.Island.WallpaperRespectSystemAnimation = WallpaperRespectToggle.IsChecked == true;
+        UpdateWallpaperAnimationState();
+        SaveAndApply();
+    }
+
+    private void OnWallpaperAccentChanged(object sender, RoutedEventArgs e)
+    {
+        if (_isLoading)
+        {
+            return;
+        }
+
+        Cfg.Island.WallpaperAccent = WallpaperAccentToggle.IsChecked == true;
+        SaveAndApply();
+    }
+
+    private void OnSystemParametersChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName is null or nameof(SystemParameters.ClientAreaAnimation))
+        {
+            Dispatcher.BeginInvoke(new Action(UpdateWallpaperAnimationState));
+        }
+    }
+
+    /// <summary>Respect on + Windows animations off: transition never runs, so lock the combo and explain.</summary>
+    private void UpdateWallpaperAnimationState()
+    {
+        bool blocked = WallpaperRespectToggle.IsChecked == true && !SystemParameters.ClientAreaAnimation;
+        WallpaperAnimationInfoText.Visibility = blocked ? Visibility.Visible : Visibility.Collapsed;
+        WallpaperTransitionCombo.IsEnabled = !blocked;
+    }
+
     private void OnRetentionLostFocus(object sender, RoutedEventArgs e)
     {
         if (_isLoading || _syncingLimits)
@@ -214,7 +294,7 @@ public partial class IslandPage : Page
 
         if (!int.TryParse(LowBatteryBox.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            LowBatteryErrorText.Text = $"{LowBatteryRangeText} aralığında bir tam sayı girin.";
+            LowBatteryErrorText.Text = string.Format(Strings.IslandPage_RangeError, LowBatteryRangeText);
             LowBatteryErrorText.Visibility = Visibility.Visible;
             return;
         }
@@ -235,7 +315,7 @@ public partial class IslandPage : Page
             // int.TryParse tasma girdide de false doner ("99999999999" gecerli bir tam sayidir ama
             // int'e sigmaz), o yuzden mesaj kutunun gercek araligini soylemeli — "gecerli bir tam
             // sayi girin" ile kutu altindaki aralik yazisi celisirdi.
-            LimitsErrorText.Text = $"{rangeText} aralığında bir tam sayı girin.";
+            LimitsErrorText.Text = string.Format(Strings.IslandPage_RangeError, rangeText);
             LimitsErrorText.Visibility = Visibility.Visible;
             return false;
         }
@@ -290,10 +370,8 @@ public partial class IslandPage : Page
         }
 
         if (!ConfirmDestructive(
-                "Bırakılan dosyalar silinsin mi?",
-                "%AppData%\\WharfBar\\Drop klasörü taranır ve içindeki TÜM kopyalar kalıcı "
-                    + "olarak silinir.\n\nOrijinal dosyalarınız silinmez, ama kopyaları geri "
-                    + "getirilemez."))
+                Strings.IslandPage_DeleteConfirmTitle,
+                Strings.IslandPage_DeleteConfirmMessage))
         {
             return;
         }
@@ -310,10 +388,8 @@ public partial class IslandPage : Page
         }
 
         if (!ConfirmDestructive(
-                "Tüm geçmiş temizlensin mi?",
-                "Pano geçmişi ve bırakılan dosya kayıtları listeden silinir.\n\nDiskteki dosya "
-                    + "kopyaları silinmez; onları ayrıca “Bırakılan dosyaları sil” ile "
-                    + "temizlemeniz gerekir."))
+                Strings.IslandPage_ClearConfirmTitle,
+                Strings.IslandPage_ClearConfirmMessage))
         {
             return;
         }

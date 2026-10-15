@@ -1,6 +1,7 @@
 <Window x:Class="WharfBar.Views.TopBarWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:res="clr-namespace:WharfBar.Resources"
         xmlns:local="clr-namespace:WharfBar.Views"
         Title="WharfBar"
         WindowStyle="None"
@@ -17,7 +18,7 @@
 
     <!-- AllowsTransparency is set in the ctor from TopBar.BackgroundMode (before
          InitializeComponent) — never put it in XAML. Mica requires false; translucent
-         modes require true; never pair AllowsTransparency=true with Mica. Windows logo
+         modes require true; never pair AllowsTransparency=true with Mica. The brand logo
          uses geometry (not a font glyph) so Mica / missing MDL2 faces cannot blank it.
          Quick Settings flyout Popup stays opaque Fluent (AllowsTransparency=False). -->
 
@@ -98,7 +99,7 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
-        <!-- Single-line clock+date (tr-TR abbreviations); sits beside notification bell. -->
+        <!-- Single-line clock+date (current-culture abbreviations); sits beside notification bell. -->
         <Style x:Key="ClockCombinedLabel" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
             <Setter Property="FontSize" Value="12" />
@@ -111,7 +112,7 @@
 
     <Border x:Name="Surface" Background="Transparent">
         <Grid x:Name="BarGrid" Margin="10,0">
-            <!-- Left cluster: Windows logo + System Stats monitor -->
+            <!-- Left cluster: brand logo (logoStyle) + System Stats monitor -->
             <StackPanel x:Name="LeftCluster"
                         Orientation="Horizontal"
                         HorizontalAlignment="Left"
@@ -124,36 +125,32 @@
                         Cursor="Hand"
                         ToolTipService.InitialShowDelay="800">
                     <Border.ToolTip>
-                        <ToolTip Content="Menü" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_Menu}" />
                     </Border.ToolTip>
                     <Border.ContextMenu>
                         <ContextMenu x:Name="AppMenu" Loaded="OnAppMenuLoaded">
-                            <MenuItem Header="Ayarlar (PC)" Click="OnOpenWindowsSettingsClick" />
-                            <MenuItem Header="Profil" Click="OnOpenProfileClick" />
-                            <MenuItem Header="Bilgisayar hakkında" Click="OnOpenAboutPcClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_PcSettings}" Click="OnOpenWindowsSettingsClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Profile}" Click="OnOpenProfileClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_AboutPc}" Click="OnOpenAboutPcClick" />
                             <Separator />
-                            <MenuItem Header="Bilgisayarı kilitle" Click="OnLockClick" />
-                            <MenuItem Header="Uyku" Click="OnSleepClick" />
-                            <MenuItem Header="Kapat" Click="OnShutdownClick" />
-                            <MenuItem Header="Yeniden başlat" Click="OnRestartClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Lock}" Click="OnLockClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Sleep}" Click="OnSleepClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Shutdown}" Click="OnShutdownClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Restart}" Click="OnRestartClick" />
                             <Separator />
-                            <MenuItem Header="WharfBar Ayarları" Click="OnSettingsClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_WharfBarSettings}" Click="OnSettingsClick" />
                             <Separator />
-                            <MenuItem Header="WharfBar hakkında" Click="OnAboutClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_About}" Click="OnAboutClick" />
                             <Separator />
-                            <MenuItem Header="WharfBar'ı kapat" Click="OnQuitClick" />
+                            <MenuItem Header="{x:Static res:Strings.TopBar_Quit}" Click="OnQuitClick" />
                         </ContextMenu>
                     </Border.ContextMenu>
-                    <Viewbox Width="14" Height="14" Stretch="Uniform">
-                        <Canvas Width="11" Height="11">
-                            <Rectangle Canvas.Left="0" Canvas.Top="0" Width="5" Height="5"
-                                       Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <Rectangle Canvas.Left="6" Canvas.Top="0" Width="5" Height="5"
-                                       Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <Rectangle Canvas.Left="0" Canvas.Top="6" Width="5" Height="5"
-                                       Fill="{DynamicResource TextFillColorPrimaryBrush}" />
-                            <Rectangle Canvas.Left="6" Canvas.Top="6" Width="5" Height="5"
-                                       Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                    <!-- 128 grid from BrandLogo.BarGlyph (logoStyle); the Canvas keeps the
+                         grid padding so both logos sit on the same optical box. -->
+                    <Viewbox Width="18" Height="18" Stretch="Uniform">
+                        <Canvas Width="128" Height="128">
+                            <Path x:Name="AppLogoGlyph"
+                                  Fill="{DynamicResource TextFillColorPrimaryBrush}" />
                         </Canvas>
                     </Viewbox>
                 </Border>
@@ -317,7 +314,7 @@
 
                 <Border x:Name="TrayOverflowButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
-                        <ToolTip Content="Gizli simgeler" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_TrayOverflow}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="TrayOverflowGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -330,7 +327,7 @@
                         Padding="8,2,4,2"
                         Margin="0">
                     <Border.ToolTip>
-                        <ToolTip Content="Tarih ve saat" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_DateTime}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="ClockText"
                                Style="{StaticResource ClockCombinedLabel}"
@@ -342,7 +339,7 @@
                         Padding="4,2,6,2"
                         Margin="0">
                     <Border.ToolTip>
-                        <ToolTip Content="Bildirimler" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_Notifications}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="NotificationsGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -352,7 +349,7 @@
 
                 <Border x:Name="ControlCenterButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
-                        <ToolTip Content="Hızlı ayarlar" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_ControlCenter}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="ControlCenterGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -361,7 +358,7 @@
 
                 <Border x:Name="VolumeButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
-                        <ToolTip Content="Ses" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_Volume}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="VolumeGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -370,7 +367,7 @@
 
                 <Border x:Name="BrightnessButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
-                        <ToolTip Content="Monitör Parlaklığı" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_MonitorBrightness}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="BrightnessGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -379,7 +376,7 @@
 
                 <Border x:Name="MediaButton" Style="{StaticResource StatusHit}" Visibility="Collapsed">
                     <Border.ToolTip>
-                        <ToolTip Content="Çalan medya" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_NowPlaying}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="MediaGlyph"
                                Style="{StaticResource StatusGlyph}"
@@ -388,7 +385,7 @@
 
                 <Border x:Name="NetworkButton" Style="{StaticResource StatusHit}">
                     <Border.ToolTip>
-                        <ToolTip Content="Ağ" />
+                        <ToolTip Content="{x:Static res:Strings.TopBar_Network}" />
                     </Border.ToolTip>
                     <TextBlock x:Name="NetworkGlyph"
                                Style="{StaticResource StatusGlyph}"

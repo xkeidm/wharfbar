@@ -1,3 +1,5 @@
+using WharfBar.Resources;
+
 namespace WharfBar.Services;
 
 /// <summary>
@@ -62,13 +64,13 @@ internal static class LaunchpadTools
 
     internal static string Label(string id) => id switch
     {
-        Documents => "Belgeler",
-        Downloads => "İndirilenler",
-        Pictures => "Resimler",
-        Settings => "Ayarlar",
-        Widgets => "Widget",
-        Plugins => "Eklenti",
-        Power => "Güç",
+        Documents => Strings.Launchpad_ToolDocuments,
+        Downloads => Strings.Launchpad_ToolDownloads,
+        Pictures => Strings.Launchpad_ToolPictures,
+        Settings => Strings.Launchpad_ToolSettings,
+        Widgets => Strings.Launchpad_ToolWidgets,
+        Plugins => Strings.Launchpad_ToolPlugins,
+        Power => Strings.Launchpad_ToolPower,
         _ => id,
     };
 

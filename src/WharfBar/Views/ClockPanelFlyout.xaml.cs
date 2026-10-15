@@ -6,6 +6,7 @@ using System.Windows.Media;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using WharfBar.Services;
+using WharfBar.Resources;
 
 namespace WharfBar.Views;
 
@@ -15,7 +16,7 @@ namespace WharfBar.Views;
 /// </summary>
 public partial class ClockPanelFlyout : UserControl
 {
-    private static readonly CultureInfo Turkish = CultureInfo.GetCultureInfo("tr-TR");
+    private static CultureInfo Culture => CultureInfo.CurrentCulture;
 
     private DateTime _today = DateTime.Now;
     private DateTime _month;
@@ -49,11 +50,11 @@ public partial class ClockPanelFlyout : UserControl
     private void ShowMonth(DateTime month)
     {
         _month = new DateTime(month.Year, month.Month, 1);
-        MonthTitle.Text = _month.ToString("MMMM yyyy", Turkish);
+        MonthTitle.Text = _month.ToString("MMMM yyyy", Culture);
         CalendarDays.Children.Clear();
 
-        string[] names = Turkish.DateTimeFormat.AbbreviatedDayNames;
-        DayOfWeek first = Turkish.DateTimeFormat.FirstDayOfWeek;
+        string[] names = Culture.DateTimeFormat.AbbreviatedDayNames;
+        DayOfWeek first = Culture.DateTimeFormat.FirstDayOfWeek;
         for (int i = 0; i < 7; i++)
         {
             int index = ((int)first + i) % 7;
@@ -91,7 +92,7 @@ public partial class ClockPanelFlyout : UserControl
     {
         var label = new TextBlock
         {
-            Text = day.ToString(Turkish),
+            Text = day.ToString(Culture),
             FontSize = 12,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
@@ -125,7 +126,7 @@ public partial class ClockPanelFlyout : UserControl
     {
         int generation = ++_notificationLoad;
         NotificationList.Children.Clear();
-        ShowNotificationMessage("Bildirimler okunuyor…");
+        ShowNotificationMessage(Strings.Clock_ReadingNotifications);
         try
         {
             UserNotificationListener listener = UserNotificationListener.Current;
@@ -142,7 +143,7 @@ public partial class ClockPanelFlyout : UserControl
 
             if (access != UserNotificationListenerAccessStatus.Allowed)
             {
-                ShowNotificationMessage("Bildirimlere erişim verilmedi.");
+                ShowNotificationMessage(Strings.Clock_AccessDenied);
                 return;
             }
 
@@ -163,7 +164,7 @@ public partial class ClockPanelFlyout : UserControl
             IReadOnlyList<NotificationText> recent = NotificationDigest.TakeRecent(rows);
             if (recent.Count == 0)
             {
-                ShowNotificationMessage("Bildirim yok.");
+                ShowNotificationMessage(Strings.Clock_NoNotifications);
                 return;
             }
 
@@ -178,7 +179,7 @@ public partial class ClockPanelFlyout : UserControl
             Debug.WriteLine($"[WharfBar] notifications failed: {ex.Message}");
             if (generation == _notificationLoad)
             {
-                ShowNotificationMessage("Bildirimler okunamadı.");
+                ShowNotificationMessage(Strings.Clock_ReadFailed);
             }
         }
     }

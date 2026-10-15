@@ -1,6 +1,10 @@
 # WharfBar
 
-Windows’ta bir menü çubuğu ve bir dock: ekran alanını ayıran ince bir üst şerit, sabitlenmiş ve çalışan uygulamalar için bir dock. WharfBar, Windows, macOS ve Linux masaüstülerinden esinlenir. Görünüm Windows Fluent’tir; Apple markası ve ikon dili yoktur.
+<p align="center">
+  <img src="docs/brand/logo/wharfbar-icon-small.svg" alt="WharfBar" width="96" height="96" />
+</p>
+
+Windows’ta bir menü çubuğu ve bir dock: ekran alanını ayıran ince bir üst şerit, sabitlenmiş ve çalışan uygulamalar için bir dock. WharfBar, Windows, macOS ve Linux masaüstülerinden esinlenir. Görünüm Windows Fluent’tir; Apple markası ve ikon dili yoktur. Uygulama işareti **Dusk** iskele + güneştir (Ayarlar → Görünüm’den çubuk/dock glifi Windows logosuna alınabilir).
 
 **English:** [README.md](README.md)
 
@@ -34,10 +38,10 @@ Fluent üst çubuk, dock ve ayarlar için örnek ürün görselleri. Canlı otur
 
 Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitöründe AppBar olarak kaydolur. Görünürlük `monitors` ayarındadır.
 
-- **Sol:** çizilmiş Windows logosu menüsü (Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış) ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
+- **Sol:** marka logosu menüsü (varsayılan WharfBar Dusk işareti; `logoStyle` ile isteğe bağlı Windows logosu) — Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış — ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
 - **Orta:** ada hapı.
 - **Sağ:** sağ tık menüsünden veya Ayarlar → Üst Çubuk’tan gösterilip gizlenen ve sıralanan durum şeridi. Varsayılan sıra: tepsi aynası, gizli simgeler oku, saat, bildirimler, hızlı ayarlar, ağ, pil. Ses, parlaklık ve medya katalogdadır ve başta kapalıdır; ada bunları zaten gösterir. Kayıtlı sıra korunur.
-- Saat tek satır `tr-TR` biçimindedir. Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
+- Saat, seçilen arayüz diline göre tek satır biçimlenir (Ayarlar → Genel → Dil; Sistem seçiliyse Windows arayüz dili). Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
 - Arka plan Mica, saydam veya renkli olabilir; renkli modda opaklık kaydırıcısı vardır. Mica ile `AllowsTransparency` birlikte kullanılmaz.
 
 ### Ada
@@ -91,7 +95,7 @@ WharfBar’ın kendi bildirim simgesinde çıkış maddesi **WharfBar'ı kapat**
 
 ### Launchpad ve eklentiler
 
-Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Windows logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
+Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Üst çubuk logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
 
 Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan parçalar ada görselleştiricisi, Bluetooth bağlantı bildirimi, kamera aynası ve masaüstü saat ile takvimdir. `%AppData%/WharfBar/plugins/<klasör>/manifest.json` bir aç/kapa kaydıdır. Eklenti derlemeleri yüklenmez. Üst çubuk ve dock yuvaları kaydedilir, çizilmez.
 
@@ -128,7 +132,7 @@ Depo kökündeki `run.bat` dosyasına da çift tıklanabilir. Derler, ardından 
 
 ## Nasıl kapatılır
 
-WharfBar bildirim simgesine tıklayıp **WharfBar'ı kapat** seçin veya çubuğa odaklanıp **Alt+F4** tuşlayın. Windows logosu menüsünde de aynı çıkış maddesi vardır.
+WharfBar bildirim simgesine tıklayıp **WharfBar'ı kapat** seçin veya çubuğa odaklanıp **Alt+F4** tuşlayın. Üst çubuk logo menüsünde de aynı çıkış maddesi vardır.
 
 Bu süreçte `Process.MainWindowHandle` `0` döner (`ShowInTaskbar=false` pencereye gizli bir sahip verir), bu yüzden bir betikten `CloseMainWindow` işe yaramaz. Pencereyi PID ile bulup `WM_CLOSE` gönderin.
 

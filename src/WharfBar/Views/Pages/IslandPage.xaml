@@ -1,8 +1,9 @@
 <Page x:Class="WharfBar.Views.Pages.IslandPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:res="clr-namespace:WharfBar.Resources"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      Title="Ada"
+      Title="{x:Static res:Strings.Settings_Island}"
       Background="Transparent"
       ScrollViewer.CanContentScroll="False">
 
@@ -25,10 +26,10 @@
         <StackPanel MaxWidth="850" HorizontalAlignment="Left">
 
             <!-- Page Title -->
-            <TextBlock Text="Ada" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+            <TextBlock Text="{x:Static res:Strings.Settings_Island}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
             <!-- Görünürlük -->
-            <TextBlock Text="Görünürlük" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_VisibilitySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -44,8 +45,8 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Adayı Göster" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="Kopyaladığınız metinleri ve adaya bıraktığınız dosyaları izleyin. Kapatırsanız pano dinleyicisi durur ve hiçbir kayıt alınmaz."
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_ShowTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_ShowDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
@@ -58,7 +59,7 @@
             </Border>
 
             <!-- Müzik -->
-            <TextBlock Text="Müzik" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_MusicSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -74,16 +75,16 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Müzik görünürlüğü" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="Çalarken göster: ada nota ve parça adını tutar, üzerine gelince kontroller açılır. Kısa süre göster: ada boşta kalır; parça değişince veya oynat/duraklat olunca kontroller bir süre görünür."
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_MusicVisibilityTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_MusicVisibilityDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
 
                     <ComboBox x:Name="MusicPresenceCombo" Grid.Column="2" Width="220"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ComboBoxItem Content="Çalarken göster" />
-                        <ComboBoxItem Content="Kısa süre göster" />
+                        <ComboBoxItem Content="{x:Static res:Strings.IslandPage_MusicWhilePlaying}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.IslandPage_MusicBrief}" />
                     </ComboBox>
                 </Grid>
             </Border>
@@ -119,8 +120,99 @@
                 </Grid>
             </Border>
 
+            <!-- Duvar kağıdı -->
+            <TextBlock Text="Duvar kağıdı" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Image24" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="Geçiş efekti" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Duvar kağıdı değişirken uygulanan animasyon."
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ComboBox x:Name="WallpaperTransitionCombo" Grid.Column="2" Width="220"
+                              HorizontalAlignment="Right" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Kapalı" />
+                        <ComboBoxItem Content="Fade" />
+                        <ComboBoxItem Content="Blur + fade" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Accessibility24" FontSize="20"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                            <TextBlock Text="Windows animasyonunu takip et" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="Açıkken, Windows'ta Erişilebilirlik → Görsel efektler → Animasyon efektleri kapalıysa geçiş uygulanmaz."
+                                       FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch x:Name="WallpaperRespectToggle"
+                                         Grid.Column="2"
+                                         HorizontalAlignment="Right"
+                                         VerticalAlignment="Center" />
+                    </Grid>
+
+                    <TextBlock x:Name="WallpaperAnimationInfoText"
+                               Text="Windows'ta animasyon efektleri kapalı — geçiş uygulanmıyor. Takibi kapatarak yine de efekt kullanabilirsin."
+                               FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               TextWrapping="Wrap" Margin="36,10,0,0" Visibility="Collapsed" />
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Color24" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock x:Name="WallpaperAccentTitleText" FontSize="14" FontWeight="Medium" />
+                        <TextBlock x:Name="WallpaperAccentDescriptionText"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ui:ToggleSwitch x:Name="WallpaperAccentToggle"
+                                     Grid.Column="2"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Center" />
+                </Grid>
+            </Border>
+
             <!-- Boşta yazı -->
-            <TextBlock Text="Boşta" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_IdleSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -136,22 +228,22 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Boşta yazı" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="Pano: hap sabit yazar. Son kayıt: hap son kopyalanan metnin kısa önizlemesini gösterir. O önizleme ekrandayken üst bar ekran görüntüsünden düşer."
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_IdleTextTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_IdleTextDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
 
                     <ComboBox x:Name="IdleLabelCombo" Grid.Column="2" Width="220"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ComboBoxItem Content="Pano" />
-                        <ComboBoxItem Content="Son kayıt" />
+                        <ComboBoxItem Content="{x:Static res:Strings.IslandPage_IdleClipboard}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.IslandPage_IdleLastEntry}" />
                     </ComboBox>
                 </Grid>
             </Border>
 
             <!-- Pil -->
-            <TextBlock Text="Pil" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_BatterySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -167,13 +259,13 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Düşük pil eşiği" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_LowBatteryTitle}" FontSize="14" FontWeight="Medium" />
                         <TextBlock x:Name="LowBatteryValueText"
                                    Text="20"
                                    FontSize="12"
                                    Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    Margin="0,2,0,0" />
-                        <TextBlock Text="5–50. Kayıtlı değer bu aralığın dışındaysa 20 olur; kutuya yazılan sayı 5–50 aralığına çekilir. Eşik değişince bir sonraki düşüş bir kez gösterilir."
+                        <TextBlock Text="{x:Static res:Strings.IslandPage_LowBatteryDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                         <TextBlock x:Name="LowBatteryErrorText" FontSize="12" Foreground="#E57373"
@@ -187,7 +279,7 @@
             </Border>
 
             <!-- Geçmiş -->
-            <TextBlock Text="Geçmiş" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_HistorySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -206,16 +298,16 @@
                                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Saklama" FontSize="14" FontWeight="Medium" />
-                            <TextBlock Text="Oturumluk: yalnız bellekte tutulur, WharfBar kapanınca silinir. Kalıcı: diske yazılır, yeniden açılışta geri gelir."
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_RetentionModeTitle}" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_RetentionModeDescription}"
                                        FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
 
                         <ComboBox x:Name="PersistenceCombo" Grid.Column="2" Width="220"
                                   HorizontalAlignment="Right" VerticalAlignment="Center">
-                            <ComboBoxItem Content="Oturumluk (kapanınca silinir)" />
-                            <ComboBoxItem Content="Kalıcı (diske yazılır)" />
+                            <ComboBoxItem Content="{x:Static res:Strings.IslandPage_RetentionSession}" />
+                            <ComboBoxItem Content="{x:Static res:Strings.IslandPage_RetentionPersistent}" />
                         </ComboBox>
                     </Grid>
 
@@ -232,8 +324,8 @@
                                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Saklama Süresi (gün)" FontSize="14" FontWeight="Medium" />
-                            <TextBlock Text="1–3650 arası. Yalnızca kalıcı modda uygulanır; oturumluk modda geçmiş zaten kapanınca silinir."
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_RetentionDaysTitle}" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_RetentionDaysDescription}"
                                        FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
@@ -256,8 +348,8 @@
                                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="En Fazla Kayıt" FontSize="14" FontWeight="Medium" />
-                            <TextBlock Text="10–5000 arası sert tavan. Her iki modda da uygulanır; aşan en eski kayıtlar düşer."
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_MaxItemsTitle}" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="{x:Static res:Strings.IslandPage_MaxItemsDescription}"
                                        FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
@@ -273,23 +365,23 @@
             </Border>
 
             <!-- Bakım -->
-            <TextBlock Text="Bakım" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.IslandPage_MaintenanceSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
                 <StackPanel>
                     <StackPanel Orientation="Horizontal">
-                        <Button x:Name="OpenDropFolderButton" Content="Drop klasörünü aç" Click="OnOpenDropFolderClick" />
-                        <Button x:Name="DeleteDroppedFilesButton" Content="Bırakılan dosyaları sil"
+                        <Button x:Name="OpenDropFolderButton" Content="{x:Static res:Strings.IslandPage_OpenDropFolder}" Click="OnOpenDropFolderClick" />
+                        <Button x:Name="DeleteDroppedFilesButton" Content="{x:Static res:Strings.IslandPage_DeleteDroppedFiles}"
                                 Margin="8,0,0,0" Click="OnDeleteDroppedFilesClick" />
-                        <Button x:Name="ClearHistoryButton" Content="Tüm geçmişi temizle"
+                        <Button x:Name="ClearHistoryButton" Content="{x:Static res:Strings.IslandPage_ClearHistory}"
                                 Margin="8,0,0,0" Click="OnClearHistoryClick" />
                     </StackPanel>
 
-                    <TextBlock Text="“Bırakılan dosyaları sil” %AppData%\WharfBar\Drop klasörünü tarayarak tamamen boşaltır — kayıt, MaxItems budamasıyla düşmüş ya da önceden temizlenmiş yetim kopyaları da kapsar. Dosya kayıtları listeden düşer, pano metinlerine dokunmaz. İşlem geri dönüşsüzdür, bu yüzden onay ister."
+                    <TextBlock Text="{x:Static res:Strings.IslandPage_DeleteDroppedFilesNote}"
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" Margin="0,10,0,0" />
-                    <TextBlock Text="“Tüm geçmişi temizle” listeyi boşaltır ama diskteki dosya kopyalarını silmez; onları ayrıca silmeniz gerekir. O da onay ister."
+                    <TextBlock Text="{x:Static res:Strings.IslandPage_ClearHistoryNote}"
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" Margin="0,4,0,0" />
                 </StackPanel>

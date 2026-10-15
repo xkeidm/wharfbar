@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 
 namespace WharfBar.Native;
 
-/// <summary>Oturum güç eylemleri (Windows logo menüsü): kilitle, uyku, kapat, yeniden başlat.</summary>
+/// <summary>Oturum güç eylemleri (üst çubuk logo menüsü): kilitle, uyku, kapat, yeniden başlat.</summary>
 internal static class PowerActions
 {
     [DllImport("user32.dll")]

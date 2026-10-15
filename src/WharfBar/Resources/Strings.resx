@@ -58,25 +58,761 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="General_PageTitle" xml:space="preserve">
+  <data name="Settings_General" xml:space="preserve">
     <value>General</value>
   </data>
-  <data name="General_Language_Title" xml:space="preserve">
+  <data name="General_LanguageSection" xml:space="preserve">
     <value>Language</value>
   </data>
-  <data name="General_Language_Description" xml:space="preserve">
-    <value>Choose the WharfBar interface language</value>
+  <data name="General_LanguageTitle" xml:space="preserve">
+    <value>Display language</value>
   </data>
-  <data name="General_Language_System" xml:space="preserve">
-    <value>System</value>
+  <data name="General_LanguageDescription" xml:space="preserve">
+    <value>Choose WharfBar's UI language. Changes apply after restart.</value>
   </data>
-  <data name="General_Language_English" xml:space="preserve">
+  <data name="General_LanguageSystem" xml:space="preserve">
+    <value>System language</value>
+  </data>
+  <data name="General_LanguageEnglish" xml:space="preserve">
     <value>English</value>
   </data>
-  <data name="General_Language_Turkish" xml:space="preserve">
-    <value>Turkish</value>
+  <data name="General_LanguageTurkish" xml:space="preserve">
+    <value>Türkçe</value>
   </data>
-  <data name="General_Language_RestartNote" xml:space="preserve">
-    <value>Restart WharfBar to apply the language</value>
+  <data name="General_LanguageRestartNote" xml:space="preserve">
+    <value>Restart WharfBar to apply the new language.</value>
+  </data>
+
+  <data name="General_AutostartTitle" xml:space="preserve">
+    <value>Start with Windows</value>
+  </data>
+  <data name="General_AutostartDescription" xml:space="preserve">
+    <value>Run WharfBar automatically when Windows starts</value>
+  </data>
+  <data name="General_StartupSection" xml:space="preserve">
+    <value>Startup</value>
+  </data>
+  <data name="General_QuitToApply" xml:space="preserve">
+    <value>Quit now</value>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Appearance_ThemeSection" xml:space="preserve">
+    <value>Theme and Colors</value>
+  </data>
+  <data name="Appearance_AccentStyleTitle" xml:space="preserve">
+    <value>Accent Color Style</value>
+  </data>
+  <data name="Appearance_AccentStyleDescription" xml:space="preserve">
+    <value>Should windows and controls use the Windows system accent color or a fixed theme mode?</value>
+  </data>
+  <data name="Appearance_AccentSystem" xml:space="preserve">
+    <value>System Accent Color</value>
+  </data>
+  <data name="Appearance_AccentFixed" xml:space="preserve">
+    <value>Fixed Theme Mode</value>
+  </data>
+  <data name="Appearance_ThemeTitle" xml:space="preserve">
+    <value>App Theme</value>
+  </data>
+  <data name="Appearance_ThemeDescription" xml:space="preserve">
+    <value>Use light, dark, or the Windows system default theme</value>
+  </data>
+  <data name="Appearance_ThemeSystem" xml:space="preserve">
+    <value>System default</value>
+  </data>
+  <data name="Appearance_ThemeLight" xml:space="preserve">
+    <value>Light mode</value>
+  </data>
+  <data name="Appearance_ThemeDark" xml:space="preserve">
+    <value>Dark mode</value>
+  </data>
+  <data name="Appearance_TopBarBackgroundSection" xml:space="preserve">
+    <value>Top Bar Background</value>
+  </data>
+  <data name="Appearance_BackdropModeTitle" xml:space="preserve">
+    <value>Background Mode</value>
+  </data>
+  <data name="Appearance_BackdropModeDescription" xml:space="preserve">
+    <value>Adjust the blur and transparency effect of the top bar</value>
+  </data>
+  <data name="Appearance_BackdropMica" xml:space="preserve">
+    <value>Mica (Blur)</value>
+  </data>
+  <data name="Appearance_BackdropTransparent" xml:space="preserve">
+    <value>Transparent</value>
+  </data>
+  <data name="Appearance_BackdropTint" xml:space="preserve">
+    <value>Tinted</value>
+  </data>
+  <data name="Appearance_OpacityTitle" xml:space="preserve">
+    <value>Background Opacity</value>
+  </data>
+  <data name="Settings_Dock" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="DockPage_ContentSection" xml:space="preserve">
+    <value>Content</value>
+  </data>
+  <data name="DockPage_ItemsTitle" xml:space="preserve">
+    <value>Dock Items</value>
+  </data>
+  <data name="DockPage_Add" xml:space="preserve">
+    <value>Add</value>
+  </data>
+  <data name="DockPage_EmptyHint" xml:space="preserve">
+    <value>The dock is empty. Drag an app from Explorer straight onto the dock, or add one above.</value>
+  </data>
+  <data name="DockPage_BehaviorSection" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="DockPage_AutoHideTitle" xml:space="preserve">
+    <value>Auto-hide</value>
+  </data>
+  <data name="DockPage_AutoHideDescription" xml:space="preserve">
+    <value>Automatically hide the dock at the bottom of the screen when the pointer is not near it</value>
+  </data>
+  <data name="DockPage_AppearanceSection" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="DockPage_IconSizeTitle" xml:space="preserve">
+    <value>Icon Size</value>
+  </data>
+  <data name="DockPage_BackgroundTitle" xml:space="preserve">
+    <value>Background</value>
+  </data>
+  <data name="DockPage_BackgroundDescription" xml:space="preserve">
+    <value>Mica is real system blur; transparent and tinted recreate the panel</value>
+  </data>
+  <data name="DockPage_BackdropMica" xml:space="preserve">
+    <value>Mica (Blur)</value>
+  </data>
+  <data name="DockPage_BackdropTransparent" xml:space="preserve">
+    <value>Transparent</value>
+  </data>
+  <data name="DockPage_BackdropTint" xml:space="preserve">
+    <value>Tinted</value>
+  </data>
+  <data name="DockPage_OpacityTitle" xml:space="preserve">
+    <value>Opacity</value>
+  </data>
+  <data name="DockPage_PositionTitle" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="DockPage_PositionCenter" xml:space="preserve">
+    <value>Center (default)</value>
+  </data>
+  <data name="DockPage_PositionLeft" xml:space="preserve">
+    <value>Left</value>
+  </data>
+  <data name="DockPage_PositionRight" xml:space="preserve">
+    <value>Right</value>
+  </data>
+  <data name="DockPage_PositionLeftEdge" xml:space="preserve">
+    <value>Left edge</value>
+  </data>
+  <data name="DockPage_ShowRunningTitle" xml:space="preserve">
+    <value>Show Running Apps</value>
+  </data>
+  <data name="DockPage_ShowRunningDescription" xml:space="preserve">
+    <value>Show unpinned running apps and minimized windows in the dock</value>
+  </data>
+  <data name="Settings_TopBar" xml:space="preserve">
+    <value>Top Bar</value>
+  </data>
+  <data name="TopBarPage_PreviewSection" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="TopBarPage_PreviewDescription" xml:space="preserve">
+    <value>Changes appear here once they are saved to the top bar</value>
+  </data>
+  <data name="TopBarPage_StatsSection" xml:space="preserve">
+    <value>System Statistics</value>
+  </data>
+  <data name="TopBarPage_StatsDescription" xml:space="preserve">
+    <value>Show CPU, GPU and memory usage next to the Windows logo</value>
+  </data>
+  <data name="TopBarPage_StatsToggle" xml:space="preserve">
+    <value>CPU · GPU · RAM indicator</value>
+  </data>
+  <data name="TopBarPage_SplitGpu" xml:space="preserve">
+    <value>Show graphics cards separately (GPU0 · GPU1)</value>
+  </data>
+  <data name="TopBarPage_SplitGpuHint" xml:space="preserve">
+    <value>When off, all graphics cards are combined into a single value</value>
+  </data>
+  <data name="TopBarPage_StatusItemsSection" xml:space="preserve">
+    <value>Status Items</value>
+  </data>
+  <data name="TopBarPage_StatusItemsDescription" xml:space="preserve">
+    <value>Every icon in the catalog is here. Disabled ones stay at the bottom and come back when enabled. Change the order by dragging on the top bar or with the ⋮⋮ handle</value>
+  </data>
+  <data name="TopBarPage_ShowAll" xml:space="preserve">
+    <value>Show all</value>
+  </data>
+  <data name="TopBarPage_ResetDefault" xml:space="preserve">
+    <value>Reset to Default</value>
+  </data>
+  <data name="Settings_Island" xml:space="preserve">
+    <value>Island</value>
+  </data>
+  <data name="IslandPage_VisibilitySection" xml:space="preserve">
+    <value>Visibility</value>
+  </data>
+  <data name="IslandPage_ShowTitle" xml:space="preserve">
+    <value>Show Island</value>
+  </data>
+  <data name="IslandPage_ShowDescription" xml:space="preserve">
+    <value>Track text you copy and files you drop on the island. If you turn it off, the clipboard listener stops and nothing is recorded.</value>
+  </data>
+  <data name="IslandPage_MusicSection" xml:space="preserve">
+    <value>Music</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityTitle" xml:space="preserve">
+    <value>Music visibility</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityDescription" xml:space="preserve">
+    <value>Show while playing: the island keeps the note and track name, and controls open on hover. Show briefly: the island stays idle; controls appear for a short time when the track changes or on play/pause.</value>
+  </data>
+  <data name="IslandPage_MusicWhilePlaying" xml:space="preserve">
+    <value>Show while playing</value>
+  </data>
+  <data name="IslandPage_MusicBrief" xml:space="preserve">
+    <value>Show briefly</value>
+  </data>
+  <data name="IslandPage_IdleSection" xml:space="preserve">
+    <value>Idle</value>
+  </data>
+  <data name="IslandPage_IdleTextTitle" xml:space="preserve">
+    <value>Idle text</value>
+  </data>
+  <data name="IslandPage_IdleTextDescription" xml:space="preserve">
+    <value>Clipboard: the pill shows fixed text. Last entry: the pill shows a short preview of the last copied text. While that preview is on screen, the top bar is excluded from screenshots.</value>
+  </data>
+  <data name="IslandPage_IdleClipboard" xml:space="preserve">
+    <value>Clipboard</value>
+  </data>
+  <data name="IslandPage_IdleLastEntry" xml:space="preserve">
+    <value>Last entry</value>
+  </data>
+  <data name="IslandPage_BatterySection" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="IslandPage_LowBatteryTitle" xml:space="preserve">
+    <value>Low battery threshold</value>
+  </data>
+  <data name="IslandPage_LowBatteryDescription" xml:space="preserve">
+    <value>5–50. If the saved value is outside this range it becomes 20; a number typed in the box is clamped to 5–50. When the threshold changes, the next drop is shown once.</value>
+  </data>
+  <data name="IslandPage_HistorySection" xml:space="preserve">
+    <value>History</value>
+  </data>
+  <data name="IslandPage_RetentionModeTitle" xml:space="preserve">
+    <value>Retention</value>
+  </data>
+  <data name="IslandPage_RetentionModeDescription" xml:space="preserve">
+    <value>Session: kept in memory only and deleted when WharfBar closes. Persistent: written to disk and restored on restart.</value>
+  </data>
+  <data name="IslandPage_RetentionSession" xml:space="preserve">
+    <value>Session (deleted on close)</value>
+  </data>
+  <data name="IslandPage_RetentionPersistent" xml:space="preserve">
+    <value>Persistent (written to disk)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysTitle" xml:space="preserve">
+    <value>Retention period (days)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysDescription" xml:space="preserve">
+    <value>1–3650. Applies only in persistent mode; in session mode history is deleted on close anyway.</value>
+  </data>
+  <data name="IslandPage_MaxItemsTitle" xml:space="preserve">
+    <value>Maximum entries</value>
+  </data>
+  <data name="IslandPage_MaxItemsDescription" xml:space="preserve">
+    <value>Hard cap of 10–5000. Applies in both modes; the oldest entries beyond it are dropped.</value>
+  </data>
+  <data name="IslandPage_MaintenanceSection" xml:space="preserve">
+    <value>Maintenance</value>
+  </data>
+  <data name="IslandPage_OpenDropFolder" xml:space="preserve">
+    <value>Open drop folder</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFiles" xml:space="preserve">
+    <value>Delete dropped files</value>
+  </data>
+  <data name="IslandPage_ClearHistory" xml:space="preserve">
+    <value>Clear all history</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFilesNote" xml:space="preserve">
+    <value>“Delete dropped files” scans the %AppData%\WharfBar\Drop folder and empties it completely — including orphaned copies that were dropped by MaxItems pruning or cleared earlier. File entries are removed from the list; clipboard texts are untouched. This cannot be undone, so it asks for confirmation.</value>
+  </data>
+  <data name="IslandPage_ClearHistoryNote" xml:space="preserve">
+    <value>“Clear all history” empties the list but does not delete the file copies on disk; you need to delete those separately. It also asks for confirmation.</value>
+  </data>
+  <data name="Settings_Monitors" xml:space="preserve">
+    <value>Displays</value>
+  </data>
+  <data name="MonitorsPage_Description" xml:space="preserve">
+    <value>Choose which monitors show the top bar and dock. Appearance settings are shared across all displays.</value>
+  </data>
+  <data name="MonitorsPage_Primary" xml:space="preserve">
+    <value>Primary</value>
+  </data>
+  <data name="MonitorsPage_TopBar" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Settings_Plugins" xml:space="preserve">
+    <value>Plugins</value>
+  </data>
+  <data name="Settings_Veil" xml:space="preserve">
+    <value>Overlay</value>
+  </data>
+  <data name="VeilPage_EnableTitle" xml:space="preserve">
+    <value>Enable</value>
+  </data>
+  <data name="VeilPage_EnableDescription" xml:space="preserve">
+    <value>Place a semi-transparent color overlay over the screen (dyslexia / visual stress / brightness reduction)</value>
+  </data>
+  <data name="VeilPage_ColorTitle" xml:space="preserve">
+    <value>Color</value>
+  </data>
+  <data name="VeilPage_CustomColor" xml:space="preserve">
+    <value>Custom color (#RRGGBB):</value>
+  </data>
+  <data name="VeilPage_PickColor" xml:space="preserve">
+    <value>Pick color…</value>
+  </data>
+  <data name="VeilPage_InvalidColor" xml:space="preserve">
+    <value>Invalid color code (#RRGGBB or #RGB)</value>
+  </data>
+  <data name="VeilPage_OpacityTitle" xml:space="preserve">
+    <value>Opacity</value>
+  </data>
+  <data name="VeilPage_HotkeyTitle" xml:space="preserve">
+    <value>Shortcut</value>
+  </data>
+  <data name="VeilPage_HotkeyDescription" xml:space="preserve">
+    <value>Global shortcut to toggle the overlay</value>
+  </data>
+  <data name="VeilPage_CurrentHotkey" xml:space="preserve">
+    <value>Current shortcut:</value>
+  </data>
+  <data name="VeilPage_ChangeHotkey" xml:space="preserve">
+    <value>Change shortcut</value>
+  </data>
+  <data name="VeilPage_RemoveHotkey" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="VeilPage_ResetHotkey" xml:space="preserve">
+    <value>Reset (Ctrl+F11)</value>
+  </data>
+  <data name="VeilPage_CaptureHint" xml:space="preserve">
+    <value>Press the new shortcut… (Esc: cancel)</value>
+  </data>
+  <data name="Settings_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="About_VersionPlaceholder" xml:space="preserve">
+    <value>Version —</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>License</value>
+  </data>
+  <data name="About_LicenseValue" xml:space="preserve">
+    <value>MIT License</value>
+  </data>
+  <data name="About_Platform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="Settings_WindowTitle" xml:space="preserve">
+    <value>WharfBar Settings</value>
+  </data>
+  <data name="DockPage_AddDialogTitle" xml:space="preserve">
+    <value>Add to Dock</value>
+  </data>
+  <data name="DockPage_AddDialogFilter" xml:space="preserve">
+    <value>Applications (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|All files (*.*)|*.*</value>
+  </data>
+  <data name="DockRow_DragTooltip" xml:space="preserve">
+    <value>Drag to reorder</value>
+  </data>
+  <data name="DockRow_RemoveTooltip" xml:space="preserve">
+    <value>Remove from Dock</value>
+  </data>
+  <data name="TopBarPage_DisabledHint" xml:space="preserve">
+    <value>Off — returns to the top bar when enabled</value>
+  </data>
+  <data name="TopBarItem_TrayMirror" xml:space="preserve">
+    <value>Tray icons</value>
+  </data>
+  <data name="TopBarItem_TrayOverflow" xml:space="preserve">
+    <value>Hidden icons</value>
+  </data>
+  <data name="TopBarItem_DateTime" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="TopBarItem_Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="TopBarItem_ControlCenter" xml:space="preserve">
+    <value>Quick settings</value>
+  </data>
+  <data name="TopBarItem_Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="TopBarItem_Brightness" xml:space="preserve">
+    <value>Brightness (Displays)</value>
+  </data>
+  <data name="TopBarItem_Media" xml:space="preserve">
+    <value>Media</value>
+  </data>
+  <data name="TopBarItem_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="TopBarItem_Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="IslandPage_RangeError" xml:space="preserve">
+    <value>Enter a whole number in the range {0}.</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmTitle" xml:space="preserve">
+    <value>Delete dropped files?</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmMessage" xml:space="preserve">
+    <value>The %AppData%\WharfBar\Drop folder is scanned and ALL copies in it are permanently deleted.
+
+Your original files are not deleted, but the copies cannot be restored.</value>
+  </data>
+  <data name="IslandPage_ClearConfirmTitle" xml:space="preserve">
+    <value>Clear all history?</value>
+  </data>
+  <data name="IslandPage_ClearConfirmMessage" xml:space="preserve">
+    <value>Clipboard history and dropped-file entries are removed from the list.
+
+File copies on disk are not deleted; you need to remove them separately with “Delete dropped files”.</value>
+  </data>
+  <data name="VeilPage_NoHotkey" xml:space="preserve">
+    <value>No shortcut</value>
+  </data>
+  <data name="VeilPage_Color_Blue" xml:space="preserve">
+    <value>Blue</value>
+  </data>
+  <data name="VeilPage_Color_Green" xml:space="preserve">
+    <value>Green</value>
+  </data>
+  <data name="VeilPage_Color_Pink" xml:space="preserve">
+    <value>Pink</value>
+  </data>
+  <data name="VeilPage_Color_Orange" xml:space="preserve">
+    <value>Orange</value>
+  </data>
+  <data name="VeilPage_Color_Yellow" xml:space="preserve">
+    <value>Yellow</value>
+  </data>
+  <data name="VeilPage_Color_Purple" xml:space="preserve">
+    <value>Purple</value>
+  </data>
+  <data name="VeilPage_Color_Gray" xml:space="preserve">
+    <value>Gray</value>
+  </data>
+  <data name="VeilPage_Color_Dark" xml:space="preserve">
+    <value>Dark</value>
+  </data>
+  <data name="About_VersionFormat" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="About_VersionBetaFormat" xml:space="preserve">
+    <value>Version {0} · Beta</value>
+  </data>
+  <data name="About_Description" xml:space="preserve">
+    <value>A top bar and dock inspired by Windows, macOS and Linux desktops. Fluent / Mica look; a hybrid tray that replaces the taskbar.</value>
+  </data>
+  <data name="TopBar_Menu" xml:space="preserve">
+    <value>Menu</value>
+  </data>
+  <data name="TopBar_PcSettings" xml:space="preserve">
+    <value>Settings (PC)</value>
+  </data>
+  <data name="TopBar_Profile" xml:space="preserve">
+    <value>Profile</value>
+  </data>
+  <data name="TopBar_AboutPc" xml:space="preserve">
+    <value>About this PC</value>
+  </data>
+  <data name="TopBar_Lock" xml:space="preserve">
+    <value>Lock PC</value>
+  </data>
+  <data name="TopBar_Sleep" xml:space="preserve">
+    <value>Sleep</value>
+  </data>
+  <data name="TopBar_Shutdown" xml:space="preserve">
+    <value>Shut down</value>
+  </data>
+  <data name="TopBar_Restart" xml:space="preserve">
+    <value>Restart</value>
+  </data>
+  <data name="TopBar_WharfBarSettings" xml:space="preserve">
+    <value>WharfBar Settings</value>
+  </data>
+  <data name="TopBar_About" xml:space="preserve">
+    <value>About WharfBar</value>
+  </data>
+  <data name="TopBar_Quit" xml:space="preserve">
+    <value>Quit WharfBar</value>
+  </data>
+  <data name="TopBar_TrayIcons" xml:space="preserve">
+    <value>Tray icons</value>
+  </data>
+  <data name="TopBar_TrayOverflow" xml:space="preserve">
+    <value>Hidden icons</value>
+  </data>
+  <data name="TopBar_DateTime" xml:space="preserve">
+    <value>Date and time</value>
+  </data>
+  <data name="TopBar_Notifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="TopBar_ControlCenter" xml:space="preserve">
+    <value>Quick settings</value>
+  </data>
+  <data name="TopBar_Volume" xml:space="preserve">
+    <value>Volume</value>
+  </data>
+  <data name="TopBar_Brightness" xml:space="preserve">
+    <value>Brightness</value>
+  </data>
+  <data name="TopBar_MonitorBrightness" xml:space="preserve">
+    <value>Monitor brightness</value>
+  </data>
+  <data name="TopBar_Network" xml:space="preserve">
+    <value>Network</value>
+  </data>
+  <data name="TopBar_Battery" xml:space="preserve">
+    <value>Battery</value>
+  </data>
+  <data name="TopBar_Media" xml:space="preserve">
+    <value>Media</value>
+  </data>
+  <data name="TopBar_NowPlaying" xml:space="preserve">
+    <value>Now playing</value>
+  </data>
+  <data name="TopBar_Background" xml:space="preserve">
+    <value>Background</value>
+  </data>
+  <data name="TopBar_OpacityFormat" xml:space="preserve">
+    <value>Opacity {0}%</value>
+  </data>
+  <data name="TopBar_MoveLeft" xml:space="preserve">
+    <value>Move left</value>
+  </data>
+  <data name="TopBar_MoveRight" xml:space="preserve">
+    <value>Move right</value>
+  </data>
+  <data name="TopBar_ShowAll" xml:space="preserve">
+    <value>Show all</value>
+  </data>
+  <data name="TopBar_ResetDefault" xml:space="preserve">
+    <value>Reset to default</value>
+  </data>
+  <data name="Dock_Pin" xml:space="preserve"><value>Pin to Dock</value></data>
+  <data name="Dock_Unpin" xml:space="preserve"><value>Unpin from Dock</value></data>
+  <data name="Dock_EndTask" xml:space="preserve"><value>End task</value></data>
+  <data name="Dock_CloseWindow" xml:space="preserve"><value>Close window</value></data>
+  <data name="Dock_Windows" xml:space="preserve"><value>Windows</value></data>
+  <data name="Dock_UntitledWindow" xml:space="preserve"><value>Untitled window</value></data>
+  <data name="Dock_RunAsAdmin" xml:space="preserve"><value>Run as administrator</value></data>
+  <data name="Dock_OpenFileLocation" xml:space="preserve"><value>Open file location</value></data>
+  <data name="Dock_NewWindow" xml:space="preserve"><value>New window</value></data>
+  <data name="Dock_Open" xml:space="preserve"><value>Open</value></data>
+  <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
+  <data name="Dock_Downloads" xml:space="preserve"><value>Downloads</value></data>
+  <data name="Dock_RecycleBin" xml:space="preserve"><value>Recycle Bin</value></data>
+  <data name="Qs_Title" xml:space="preserve"><value>Quick settings</value></data>
+  <data name="Qs_Mixer" xml:space="preserve"><value>Volume mixer</value></data>
+  <data name="Qs_Mute" xml:space="preserve"><value>Mute</value></data>
+  <data name="Qs_Unmute" xml:space="preserve"><value>Unmute</value></data>
+  <data name="Qs_NoAudioDevice" xml:space="preserve"><value>No audio device</value></data>
+  <data name="Qs_Settings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Qs_Back" xml:space="preserve"><value>Back</value></data>
+  <data name="Qs_OutputDevice" xml:space="preserve"><value>Output device</value></data>
+  <data name="Qs_NoOutputDevice" xml:space="preserve"><value>Output device not found</value></data>
+  <data name="Qs_DefaultSuffixFormat" xml:space="preserve"><value>{0} (default)</value></data>
+  <data name="Qs_NoAppSessions" xml:space="preserve"><value>No app sessions</value></data>
+  <data name="Qs_Network" xml:space="preserve"><value>Network</value></data>
+  <data name="Qs_LiveTraffic" xml:space="preserve"><value>Live traffic</value></data>
+  <data name="Qs_Properties" xml:space="preserve"><value>Properties</value></data>
+  <data name="Qs_Adapter" xml:space="preserve"><value>Adapter</value></data>
+  <data name="Qs_Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Qs_IPv4" xml:space="preserve"><value>IPv4 address</value></data>
+  <data name="Qs_IPv6" xml:space="preserve"><value>IPv6 address</value></data>
+  <data name="Qs_Gateway" xml:space="preserve"><value>Gateway</value></data>
+  <data name="Qs_MacAddress" xml:space="preserve"><value>MAC address</value></data>
+  <data name="Qs_LinkSpeed" xml:space="preserve"><value>Link speed</value></data>
+  <data name="Qs_OpenNetworkSettings" xml:space="preserve"><value>Open network settings</value></data>
+  <data name="Qs_WifiSettings" xml:space="preserve"><value>Wi-Fi settings</value></data>
+  <data name="Qs_EthernetSettings" xml:space="preserve"><value>Ethernet settings</value></data>
+  <data name="Qs_Connect" xml:space="preserve"><value>Connect</value></data>
+  <data name="Qs_Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Qs_OpenBluetoothSettings" xml:space="preserve"><value>Open Bluetooth settings</value></data>
+  <data name="Qs_Project" xml:space="preserve"><value>Project</value></data>
+  <data name="Qs_DisplaySettings" xml:space="preserve"><value>Display settings</value></data>
+  <data name="Qs_NoConnection" xml:space="preserve"><value>No connection</value></data>
+  <data name="Qs_Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Qs_Saved" xml:space="preserve"><value>Saved</value></data>
+  <data name="Qs_WifiOff" xml:space="preserve"><value>Wi-Fi off</value></data>
+  <data name="Qs_NoAdapter" xml:space="preserve"><value>No adapter found</value></data>
+  <data name="Qs_NotConnected" xml:space="preserve"><value>Not connected</value></data>
+  <data name="Qs_ScanningNetworks" xml:space="preserve"><value>Scanning for networks…</value></data>
+  <data name="Qs_DisconnectFailed" xml:space="preserve"><value>Could not disconnect</value></data>
+  <data name="Qs_Connecting" xml:space="preserve"><value>Connecting…</value></data>
+  <data name="Qs_ConnectFailed" xml:space="preserve"><value>Could not connect</value></data>
+  <data name="Qs_OtherNetwork" xml:space="preserve"><value>Other network</value></data>
+  <data name="Qs_On" xml:space="preserve"><value>On</value></data>
+  <data name="Qs_Off" xml:space="preserve"><value>Off</value></data>
+  <data name="Qs_BluetoothOffHint" xml:space="preserve"><value>Bluetooth is off — turn it on to see devices</value></data>
+  <data name="Qs_NoPairedDevices" xml:space="preserve"><value>No paired devices</value></data>
+  <data name="Qs_ProjectPcOnly" xml:space="preserve"><value>PC screen only</value></data>
+  <data name="Qs_ProjectDuplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="Qs_ProjectExtend" xml:space="preserve"><value>Extend</value></data>
+  <data name="Qs_ProjectSecondOnly" xml:space="preserve"><value>Second screen only</value></data>
+  <data name="Qs_NoSecondDisplay" xml:space="preserve"><value>No second display</value></data>
+  <data name="Qs_ProjectModeFailed" xml:space="preserve"><value>Could not apply this mode</value></data>
+  <data name="Qs_Airplane" xml:space="preserve"><value>Airplane mode</value></data>
+  <data name="Qs_NightLight" xml:space="preserve"><value>Night light</value></data>
+  <data name="Qs_Overlay" xml:space="preserve"><value>Overlay</value></data>
+  <data name="Qs_ColorOverlay" xml:space="preserve"><value>Color overlay</value></data>
+  <data name="Qs_EnergySaver" xml:space="preserve"><value>Energy saver</value></data>
+  <data name="Qs_EnergySaverOn" xml:space="preserve"><value>Energy saver on</value></data>
+  <data name="Qs_TurnOffAirplane" xml:space="preserve"><value>Turn off airplane mode</value></data>
+  <data name="Qs_NetworkUnavailable" xml:space="preserve"><value>Network unavailable</value></data>
+  <data name="Qs_NetworkConnected" xml:space="preserve"><value>Network connected</value></data>
+  <data name="Clock_Notifications" xml:space="preserve"><value>Notifications</value></data>
+  <data name="Clock_OpenNotificationCenter" xml:space="preserve"><value>Open notification center</value></data>
+  <data name="Clock_PreviousMonth" xml:space="preserve"><value>Previous month</value></data>
+  <data name="Clock_NextMonth" xml:space="preserve"><value>Next month</value></data>
+  <data name="Clock_ReadingNotifications" xml:space="preserve"><value>Reading notifications…</value></data>
+  <data name="Clock_AccessDenied" xml:space="preserve"><value>Notification access was not granted.</value></data>
+  <data name="Clock_NoNotifications" xml:space="preserve"><value>No notifications.</value></data>
+  <data name="Clock_ReadFailed" xml:space="preserve"><value>Could not read notifications.</value></data>
+  <data name="Media_NothingPlaying" xml:space="preserve"><value>Nothing playing</value></data>
+  <data name="Media_PreviousSession" xml:space="preserve"><value>Previous media session</value></data>
+  <data name="Media_NextSession" xml:space="preserve"><value>Next media session</value></data>
+  <data name="Media_PreviousTrack" xml:space="preserve"><value>Previous track</value></data>
+  <data name="Media_PlayPause" xml:space="preserve"><value>Play/Pause</value></data>
+  <data name="Media_NextTrack" xml:space="preserve"><value>Next track</value></data>
+  <data name="Brightness_Title" xml:space="preserve"><value>Display brightness</value></data>
+  <data name="Brightness_AllDisplays" xml:space="preserve"><value>All displays</value></data>
+  <data name="Brightness_RefreshMonitors" xml:space="preserve"><value>Refresh monitors</value></data>
+  <data name="Brightness_NoMonitors" xml:space="preserve"><value>No connected monitors found</value></data>
+  <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI brightness control is not supported</value></data>
+  <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>No icons</value></data>
+  <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Open Windows hidden icons</value></data>
+  <data name="Island_Clipboard" xml:space="preserve"><value>Clipboard</value></data>
+  <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Clipboard and dropped files</value></data>
+  <data name="Island_Music" xml:space="preserve"><value>Music</value></data>
+  <data name="Island_NowPlaying" xml:space="preserve"><value>Now playing</value></data>
+  <data name="Island_BackToMusic" xml:space="preserve"><value>Back to music</value></data>
+  <data name="Island_ClipboardHistory" xml:space="preserve"><value>Clipboard history</value></data>
+  <data name="Island_EmptyHint" xml:space="preserve"><value>Copied text and dropped files appear here.</value></data>
+  <data name="Island_SearchPlaceholder" xml:space="preserve"><value>Search…</value></data>
+  <data name="Island_NoEntries" xml:space="preserve"><value>No entries.</value></data>
+  <data name="Island_NoMatchingEntries" xml:space="preserve"><value>No matching entries.</value></data>
+  <data name="Island_MoreEntriesFormat" xml:space="preserve"><value>… {0} more entries (narrow with search)</value></data>
+  <data name="Island_RelativeNow" xml:space="preserve"><value>now</value></data>
+  <data name="Island_RelativeMinutes" xml:space="preserve"><value>{0} min ago</value></data>
+  <data name="Island_RelativeHours" xml:space="preserve"><value>{0} hr ago</value></data>
+  <data name="Island_RelativeDays" xml:space="preserve"><value>{0} days ago</value></data>
+  <data name="Launchpad_AgeNow" xml:space="preserve"><value>Just now</value></data>
+  <data name="Launchpad_AgeMinutes" xml:space="preserve"><value>{0} min ago</value></data>
+  <data name="Launchpad_AgeHours" xml:space="preserve"><value>{0} hr ago</value></data>
+  <data name="Launchpad_AgeYesterday" xml:space="preserve"><value>Yesterday at {0}</value></data>
+  <data name="Island_VolumeMuted" xml:space="preserve"><value>Volume, muted</value></data>
+  <data name="Island_VolumeFormat" xml:space="preserve"><value>Volume {0}%</value></data>
+  <data name="Island_BrightnessFormat" xml:space="preserve"><value>Brightness {0}%</value></data>
+  <data name="Island_BatteryFormat" xml:space="preserve"><value>Battery {0}%</value></data>
+  <data name="Island_BatteryChargingFormat" xml:space="preserve"><value>{0} · charging</value></data>
+  <data name="Tray_Settings" xml:space="preserve"><value>WharfBar Settings</value></data>
+  <data name="Tray_Quit" xml:space="preserve"><value>Quit WharfBar</value></data>
+  <data name="Launchpad_Connected" xml:space="preserve"><value>Connected</value></data>
+  <data name="Launchpad_Messages" xml:space="preserve"><value>Messages</value></data>
+  <data name="Launchpad_Calls" xml:space="preserve"><value>Calls</value></data>
+  <data name="Launchpad_Photos" xml:space="preserve"><value>Photos</value></data>
+  <data name="Launchpad_SendFiles" xml:space="preserve"><value>Send files</value></data>
+  <data name="Launchpad_Recent" xml:space="preserve"><value>Recent</value></data>
+  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Search apps, settings, and documents</value></data>
+  <data name="Launchpad_Pinned" xml:space="preserve"><value>Pinned</value></data>
+  <data name="Launchpad_ShowLess" xml:space="preserve"><value>Show less</value></data>
+  <data name="Launchpad_ShowAll" xml:space="preserve"><value>Show all</value></data>
+  <data name="Launchpad_Results" xml:space="preserve"><value>Results</value></data>
+  <data name="Launchpad_All" xml:space="preserve"><value>All</value></data>
+  <data name="Launchpad_ViewGrid" xml:space="preserve"><value>View: Grid</value></data>
+  <data name="Launchpad_ViewList" xml:space="preserve"><value>View: List</value></data>
+  <data name="Launchpad_NoMatches" xml:space="preserve"><value>No matching apps</value></data>
+  <data name="Launchpad_ToolDocuments" xml:space="preserve"><value>Documents</value></data>
+  <data name="Launchpad_ToolDownloads" xml:space="preserve"><value>Downloads</value></data>
+  <data name="Launchpad_ToolPictures" xml:space="preserve"><value>Pictures</value></data>
+  <data name="Launchpad_ToolSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="Launchpad_ToolWidgets" xml:space="preserve"><value>Widgets</value></data>
+  <data name="Launchpad_ToolPlugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="Launchpad_ToolPower" xml:space="preserve"><value>Power</value></data>
+  <data name="Gallery_Widgets" xml:space="preserve"><value>Widgets</value></data>
+  <data name="Gallery_Plugins" xml:space="preserve"><value>Plugins</value></data>
+  <data name="Gallery_PluginsAndWidgets" xml:space="preserve"><value>Plugins and widgets</value></data>
+  <data name="Gallery_Intro" xml:space="preserve"><value>Built-in items work right away. Local items are a manifest.json record in a folder. A card&apos;s slot says where the item will live.</value></data>
+  <data name="Gallery_BuiltIn" xml:space="preserve"><value>Built-in</value></data>
+  <data name="Gallery_NoBuiltIn" xml:space="preserve"><value>No built-in items in this view.</value></data>
+  <data name="Gallery_Local" xml:space="preserve"><value>Local</value></data>
+  <data name="Gallery_Slots" xml:space="preserve"><value>Slots</value></data>
+  <data name="Gallery_SlotsExplanation" xml:space="preserve"><value>Top bar (topBar) and Dock (dock) are record-only in v1; nothing is drawn on the bar or dock. Desktop (desktop) opens the built-in clock and calendar as windows. Island (island) runs the visualizer, Bluetooth notice, and camera mirror inside the pill. No code is downloaded from the internet and no assemblies are loaded.</value></data>
+  <data name="Gallery_OpenFolder" xml:space="preserve"><value>Open folder</value></data>
+  <data name="Gallery_SlotTopBar" xml:space="preserve"><value>Top bar</value></data>
+  <data name="Gallery_SlotDock" xml:space="preserve"><value>Dock</value></data>
+  <data name="Gallery_SlotDesktop" xml:space="preserve"><value>Desktop</value></data>
+  <data name="Gallery_SlotIsland" xml:space="preserve"><value>Island</value></data>
+  <data name="Gallery_ChipDesktopDetail" xml:space="preserve"><value>clock, calendar</value></data>
+  <data name="Gallery_ChipIslandDetail" xml:space="preserve"><value>pill</value></data>
+  <data name="Gallery_EmptyLocalTitle" xml:space="preserve"><value>No local items yet</value></data>
+  <data name="Gallery_EmptyLocalBody" xml:space="preserve"><value>Create a folder under the plugins folder and put a manifest.json in it. Files at the root are not read; junction folders are skipped too.</value></data>
+  <data name="Gallery_ExampleId" xml:space="preserve"><value>weather</value></data>
+  <data name="Gallery_ExampleName" xml:space="preserve"><value>Weather</value></data>
+  <data name="Gallery_ExampleDescription" xml:space="preserve"><value>Short status.</value></data>
+  <data name="Gallery_RecordOnly" xml:space="preserve"><value>record only</value></data>
+  <data name="Gallery_KindWidget" xml:space="preserve"><value>Widget</value></data>
+  <data name="Gallery_KindPlugin" xml:space="preserve"><value>Plugin</value></data>
+  <data name="Gallery_CardVisualizerName" xml:space="preserve"><value>Visualizer</value></data>
+  <data name="Gallery_CardVisualizerSummary" xml:space="preserve"><value>Five bars in the island pill while music plays.</value></data>
+  <data name="Gallery_CardBluetoothName" xml:space="preserve"><value>Bluetooth notice</value></data>
+  <data name="Gallery_CardBluetoothSummary" xml:space="preserve"><value>The connected device&apos;s name shows briefly in the pill.</value></data>
+  <data name="Gallery_CardCameraName" xml:space="preserve"><value>Camera mirror</value></data>
+  <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Live preview in the pill. No image without permission.</value></data>
+  <data name="Gallery_CardClockName" xml:space="preserve"><value>Clock</value></data>
+  <data name="Gallery_CardClockSummary" xml:space="preserve"><value>A clock window on the desktop. It does not go in the island pill.</value></data>
+  <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Calendar</value></data>
+  <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>This month&apos;s grid. It does not go in the island pill.</value></data>
+  <data name="Island_Camera" xml:space="preserve"><value>Camera</value></data>
+  <data name="Network_RateBytes" xml:space="preserve"><value>{0} B/s</value></data>
+  <data name="Network_RateKilobytes" xml:space="preserve"><value>{0} KB/s</value></data>
+  <data name="Network_RateMegabytes" xml:space="preserve"><value>{0} MB/s</value></data>
+<data name="Appearance_Logo_Section" xml:space="preserve">
+    <value>Logo</value>
+  </data>
+  <data name="Appearance_Logo_Title" xml:space="preserve">
+    <value>Logo style</value>
+  </data>
+  <data name="Appearance_Logo_Description" xml:space="preserve">
+    <value>Logo on the top bar and on the dock launch tile</value>
+  </data>
+  <data name="Appearance_Logo_WharfBar" xml:space="preserve">
+    <value>WharfBar</value>
+  </data>
+  <data name="Appearance_Logo_Windows" xml:space="preserve">
+    <value>Windows</value>
+  </data>
+  <data name="Island_WallpaperAccent_Title" xml:space="preserve">
+    <value>Match accent to wallpaper</value>
+  </data>
+  <data name="Island_WallpaperAccent_Description" xml:space="preserve">
+    <value>After applying a wallpaper from the island, update WharfBar and Windows accent colors from that image.</value>
   </data>
 </root>

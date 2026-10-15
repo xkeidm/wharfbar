@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 using Wpf.Ui.Controls;
 
@@ -60,7 +61,7 @@ public partial class TopBarPage : Page
                 anyHidden = true;
                 StatusItemsPanel.Children.Add(new System.Windows.Controls.TextBlock
                 {
-                    Text = "Kapalı — açınca üst çubuğa döner",
+                    Text = Strings.TopBarPage_DisabledHint,
                     FontSize = 12,
                     Margin = new Thickness(0, 4, 0, 8),
                     Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
@@ -129,7 +130,7 @@ public partial class TopBarPage : Page
                 Cursor = Cursors.SizeAll,
                 Padding = new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Stretch,
-                ToolTip = "Sürükleyerek sırayı değiştirin",
+                ToolTip = Strings.DockRow_DragTooltip,
                 Child = new SymbolIcon
                 {
                     Symbol = SymbolRegular.ReOrderDotsVertical24,
@@ -462,16 +463,16 @@ public partial class TopBarPage : Page
 
     private static string StatusItemName(string id) => id switch
     {
-        TopBarStatusItemIds.TrayMirror => "Tepsi simgeleri",
-        TopBarStatusItemIds.TrayOverflow => "Gizli simgeler",
-        TopBarStatusItemIds.DateTime => "Tarih ve saat",
-        TopBarStatusItemIds.Notifications => "Bildirimler",
-        TopBarStatusItemIds.ControlCenter => "Hızlı ayarlar",
-        TopBarStatusItemIds.Volume => "Ses",
-        TopBarStatusItemIds.Brightness => "Parlaklık (Monitörler)",
-        TopBarStatusItemIds.Media => "Medya",
-        TopBarStatusItemIds.Network => "Ağ",
-        TopBarStatusItemIds.Battery => "Pil",
+        TopBarStatusItemIds.TrayMirror => Strings.TopBarItem_TrayMirror,
+        TopBarStatusItemIds.TrayOverflow => Strings.TopBarItem_TrayOverflow,
+        TopBarStatusItemIds.DateTime => Strings.TopBarItem_DateTime,
+        TopBarStatusItemIds.Notifications => Strings.TopBarItem_Notifications,
+        TopBarStatusItemIds.ControlCenter => Strings.TopBarItem_ControlCenter,
+        TopBarStatusItemIds.Volume => Strings.TopBarItem_Volume,
+        TopBarStatusItemIds.Brightness => Strings.TopBarItem_Brightness,
+        TopBarStatusItemIds.Media => Strings.TopBarItem_Media,
+        TopBarStatusItemIds.Network => Strings.TopBarItem_Network,
+        TopBarStatusItemIds.Battery => Strings.TopBarItem_Battery,
         _ => id,
     };
 }

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 360" role="img" aria-label="WharfBar icon concepts on dark ground">
+  <title>WharfBar icon concepts — dark</title>
+  <rect width="600" height="360" fill="#0F1720"/>
+  <text x="300" y="36" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600" fill="#E8EEF5">WharfBar — dark ground</text>
+  <text x="300" y="56" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="12" fill="#7BA3C9">tray / dark wallpaper / about window</text>
+
+  <!-- A -->
+  <g transform="translate(36,84)">
+    <rect width="128" height="128" rx="28" fill="#1A2636"/>
+    <rect x="28" y="34" width="72" height="8" rx="4" fill="#E8EEF5"/>
+    <rect x="34" y="72" width="60" height="10" rx="2" fill="#A8C4DE"/>
+    <rect x="40" y="82" width="6" height="18" rx="1.5" fill="#7BA3C9"/>
+    <rect x="61" y="82" width="6" height="18" rx="1.5" fill="#7BA3C9"/>
+    <rect x="82" y="82" width="6" height="18" rx="1.5" fill="#7BA3C9"/>
+    <path d="M30 104 C46 98, 82 110, 98 104" fill="none" stroke="#5B8FB8" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+    <text x="64" y="158" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600" fill="#E8EEF5">A — Pier + Bar</text>
+  </g>
+
+  <!-- B -->
+  <g transform="translate(168,84)">
+    <rect width="128" height="128" rx="28" fill="#1A2636"/>
+    <path d="M28 40 L42 92 L54 58 L64 78 L74 58 L86 92 L100 40" fill="none" stroke="#E8EEF5" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <rect x="48" y="74" width="32" height="6" rx="3" fill="#5B8FB8"/>
+    <text x="64" y="158" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600" fill="#E8EEF5">B — W Monogram</text>
+  </g>
+
+  <!-- C -->
+  <g transform="translate(300,84)">
+    <rect width="128" height="128" rx="28" fill="#1A2636"/>
+    <rect x="44" y="28" width="40" height="5" rx="2.5" fill="#E8EEF5" opacity="0.55"/>
+    <rect x="52" y="48" width="24" height="44" rx="6" fill="#A8C4DE"/>
+    <ellipse cx="64" cy="48" rx="16" ry="8" fill="#E8EEF5"/>
+    <ellipse cx="64" cy="46" rx="12" ry="5" fill="#C5D6E8"/>
+    <circle cx="64" cy="72" r="10" fill="none" stroke="#5B8FB8" stroke-width="4"/>
+    <ellipse cx="64" cy="94" rx="22" ry="7" fill="#7BA3C9"/>
+    <ellipse cx="64" cy="92" rx="16" ry="4" fill="#A8C4DE"/>
+    <text x="64" y="158" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600" fill="#E8EEF5">C — Bollard</text>
+  </g>
+
+  <!-- D -->
+  <g transform="translate(432,84)">
+    <rect width="128" height="128" rx="28" fill="#1A2636"/>
+    <rect x="36" y="36" width="56" height="6" rx="3" fill="#5B8FB8"/>
+    <rect x="28" y="52" width="72" height="40" rx="14" fill="#A8C4DE"/>
+    <rect x="34" y="58" width="36" height="10" rx="5" fill="#E8EEF5" opacity="0.25"/>
+    <circle cx="48" cy="78" r="4" fill="#1A2636" opacity="0.9"/>
+    <circle cx="64" cy="78" r="4" fill="#1A2636" opacity="0.9"/>
+    <circle cx="80" cy="78" r="4" fill="#1A2636" opacity="0.9"/>
+    <text x="64" y="158" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="13" font-weight="600" fill="#E8EEF5">D — Dock Plate</text>
+  </g>
+</svg>

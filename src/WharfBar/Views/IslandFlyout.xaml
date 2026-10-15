@@ -1,6 +1,8 @@
-<UserControl x:Class="WharfBar.Views.IslandFlyout"
+﻿<UserControl x:Class="WharfBar.Views.IslandFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="clr-namespace:WharfBar.Resources"
+             xmlns:local="clr-namespace:WharfBar.Views"
              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <UserControl.Resources>
@@ -76,7 +78,41 @@
             Background="Transparent"
             Padding="16"
             SnapsToDevicePixels="True">
-        <Grid x:Name="BodyHost" ClipToBounds="True">
+        <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <StackPanel x:Name="HubTabs" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="TabClipboard" Tag="clipboard" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Pano" Margin="0,0,4,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE8C8;" />
+                    <TextBlock Text="Pano" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="TabWallpaper" Tag="wallpaper" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Duvar kağıdı" Margin="0,0,4,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE91B;" />
+                    <TextBlock Text="Duvar kağıdı" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="TabMusic" Tag="music" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Müzik">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE90C;" />
+                    <TextBlock Text="Müzik" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
+        </StackPanel>
+        <Grid x:Name="BodyHost" Grid.Row="1" ClipToBounds="True">
             <Border x:Name="AmbientGlow"
                     VerticalAlignment="Stretch"
                     Opacity="0"
@@ -100,7 +136,9 @@
                     <Button x:Name="ClipboardAffordance"
                             Style="{StaticResource IslandIconButton}"
                             HorizontalAlignment="Right"
-                            Click="OnClipboardAffordanceClick"
+                            Visibility="Collapsed"
+                            Click="OnHubTabClick"
+                            Tag="clipboard"
                             ToolTip="Pano geçmişi">
                         <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
                                    FontSize="14"
@@ -259,7 +297,8 @@
                         HorizontalAlignment="Left"
                         Margin="0,0,0,8"
                         Style="{StaticResource IslandIconButton}"
-                        Click="OnBackToMusicClick"
+                        Click="OnHubTabClick"
+                        Tag="music"
                         Visibility="Collapsed"
                         ToolTip="Müziğe dön">
                     <StackPanel Orientation="Horizontal">
@@ -317,6 +356,11 @@
                            TextWrapping="Wrap"
                            Visibility="Collapsed" />
             </Grid>
+
+            <Grid x:Name="WallpaperBody" Visibility="Collapsed">
+                <local:WallpaperGalleryView x:Name="WallpaperHost" />
+            </Grid>
+        </Grid>
         </Grid>
     </Border>
     </Grid>

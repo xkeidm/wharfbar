@@ -53,11 +53,13 @@ WharfBar.sln # at the repo root, a single project
 .gitignore
 src/WharfBar/
  Views/
- TopBarWindow.xaml(.cs) # top bar; AppBar; left Windows menu; CENTER island (IslandPill); right status/overflow; WndProc
+ TopBarWindow.xaml(.cs) # top bar; AppBar; left brand logo menu (logoStyle); CENTER island (IslandPill); right status/overflow; WndProc
  QuickSettingsFlyout.xaml(.cs) # Win11-style quick settings (volume/network; ADR-006)
  BrightnessFlyout.xaml(.cs) # Monitor brightness flyout (DDC/CI + WMI Monitorian)
  MediaFlyout.xaml(.cs) # Media flyout: cover/title/artist/controls + session picker (ADR-008)
- IslandFlyout.xaml(.cs) # Island panel: search + a single unified timeline (clipboard + dropped file; ADR-010)
+ IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik) + body host (clipboard, wallpaper, music; ADR-010)
+ WallpaperGalleryView.xaml(.cs) # Wallpaper hub body: thumbnail grid, click apply, Open folder
+ WallpaperTransitionWindow.xaml(.cs) # WorkerW wallpaper crossfade (SPI after fade; 1×1 then parent)
  AboutWindow.xaml(.cs) # About (`Hakkında`) dialog (no AppBar)
  DockWindow.xaml(.cs) # bottom overlay; a three-section dock strip from its own list; plate (Mica / transparent / tinted); fullscreen / work-area
  VeilWindow.xaml(.cs) # fullscreen overlay (click-through, fade; ADR-007)
@@ -69,8 +71,12 @@ src/WharfBar/
  DockStrip.cs # strip `Panel`: live scale 1 (the math is in `DockStripLayout`)
  DockItemCell.xaml(.cs) # a single slot: button + glyph + hover fill + running pill
  Views/Pages/
- GeneralPage.xaml(.cs) # Settings: general (autostart)
- AppearancePage.xaml(.cs) # Settings: appearance (theme, background, accent)
+ GeneralPage.xaml(.cs) # Settings: general (autostart, language picker + restart note)
+ Resources/
+ Strings.resx # neutral English UI strings (fallback)
+ Strings.tr.resx # Turkish satellite; missing keys fall back to neutral
+ Strings.Designer.cs # generated accessors for XAML {x:Static} and C#
+ AppearancePage.xaml(.cs) # Settings: appearance (theme, background, accent, logo style)
  DockPage.xaml(.cs) # Settings: dock (content list, auto-hide, icon size, background, position, running apps)
  TopBarPage.xaml(.cs) # Settings: top bar (status items)
  VeilPage.xaml(.cs) # Settings: Overlay (`Kaplama`) (color/opacity/shortcut; ADR-007)
@@ -98,6 +104,9 @@ src/WharfBar/
  CoreAudioDevices.cs # render device list + default selection
  CoreAudioSessions.cs # application session volumes
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
+ DesktopWallpaper.cs # SPI_SETDESKWALLPAPER / SPI_GETDESKWALLPAPER thin wrapper (island wallpaper gallery)
+ SystemAccentPack.cs # PURE: accent DWORD + palette bytes for HKCU write
+ SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorSet broadcast
  ClipboardNative.cs # clipboard P/Invokes (OpenClipboard/GlobalAlloc/listener) + opt-out read/write (ADR-010)
  Models/
  PinnedApp.cs # pin record (path, args, label)
@@ -111,7 +120,10 @@ src/WharfBar/
  SingleInstanceGuard.cs # named Mutex
  WindowAppearance.cs # WPF-UI theme + backdrop; DWM fine-tuning
  AppThemePreference.cs # config theme → ApplicationTheme
+ BrandPalette.cs # PURE: accent + dark/light → logo tile colours (HSL, per-role saturation caps; ADR-019)
+ BrandLogo.cs # Dusk mark + Windows logo geometry (128 grid, frozen); bar glyph + cached dock tile DrawingImage (ADR-019)
  ConfigService.cs # read/write %AppData%/WharfBar/config.json
+ LocalizationService.cs # resolve config.language → CultureInfo; Apply at startup
  AppIconService.cs # ShellIcon → WPF ImageSource (DPI-sized)
  ProcessLauncherService.cs # Process.Start launcher
  WindowActivationService.cs # focusing / minimize toggle on a repeated click
@@ -136,6 +148,13 @@ src/WharfBar/
  ClipboardMessageWindow.cs # clipboard-change listener (message-only HwndSource; WM_CLIPBOARDUPDATE) — ADR-010
  IslandPruner.cs # the island's PURE core: accept/dedupe/prune/search/preview/drop name — ADR-010
  IslandStore.cs # atomic write of %AppData%/WharfBar/island.json + %AppData%/WharfBar/Drop — ADR-010
+ IslandHub.cs # hub tab enum + config normalize/resolve (Music-unavailable → Clipboard) — unit tested
+ WallpaperCatalog.cs # PURE merge/list of bundled + AppData wallpaper paths (.jpg/.jpeg/.png/.webp)
+ WallpaperAccent.cs # PURE-ish: decode wallpaper → IslandPalette.Dominant → luminance window
+ WallpaperAccentApplier.cs # after SPI success: WPF-UI Apply + ApplyLogoChanges + SystemAccentWriter
+ WallpaperService.cs # SPI apply + current-path read; path guard; optional transition overlay; optional accent side effect
+ WallpaperTransitionPolicy.cs # PURE: ShouldAnimate(mode, respectSystem, clientAreaAnimation) + UsesBlur
+ WallpaperTransitionMotion.cs # PURE: fade ms, blur radius, decode width (~½ primary px)
  IslandService.cs # island lifecycle: STA read thread, a single timeline, debounced write — ADR-010
  TrayIconService.cs # Its own Shell_NotifyIcon + Quit menu
  TaskbarVisibilityService.cs # taskbar capture / hide / restore + watchdog spawn/self-heal
@@ -186,7 +205,18 @@ The island (clipboard history + dropped files) is ADR-010.
 | `IslandStore` | Atomic **replacement** of `%AppData%/WharfBar/island.json` (metadata) (tmp + `File.Replace`) + `%AppData%/WharfBar/Drop` (dropped files); a single `_ioGate` lock; a corrupt file becomes `.bak` (`.bak.1` on a second corruption), a 64 MB size cap, tolerant per-entry reading; **does not sort** (ADR-010) |
 | `ClipboardNative` | Documented clipboard P/Invokes; `CanIncludeInClipboardHistory` opt-out read **and** write; clipboard-owner process name (`GetClipboardOwner` → pid → `QueryFullProcessImageName`) (ADR-010) |
 | `ClipboardMessageWindow` | Message-only `HwndSource` (`ParentWindow = -3`) + `AddClipboardFormatListener`; `WM_CLIPBOARDUPDATE` → `ClipboardChanged`; `Dispose` removes the listener **once** (the API is not idempotent) (ADR-010) |
-| `IslandFlyout` | Panel content: a search box + a `ScrollViewer`/`StackPanel` list (no nested `Popup`); `↑`/`↓`/`Enter`/`Delete` keyboard routing; row rules (kind glyph, preview, source application, relative time); `MaxRenderedRows = 200` (ADR-010) |
+| `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars hide Pano and Duvar kağıdı tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; music body unchanged (ADR-010) |
+| `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Senin** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Klasörü aç`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
+| `WallpaperCatalog` | **Pure** file listing from two roots; extension filter; stable sort by file name — unit tested |
+| `WallpaperService` | `TryApply` / `TryGetCurrentPath`; rejects paths outside bundled `Wallpapers/` and `%AppData%/WharfBar/wallpapers/`. When `TransitionRequest` + policy allow: WorkerW crossfade first, **SPI on fade complete**; else instant SPI. Cancels/replaces an in-flight overlay on re-apply. After successful apply, if `island.wallpaperAccent`: `WallpaperAccentApplier` (SPI path unchanged) |
+| `WallpaperAccent` / `WallpaperAccentApplier` | Sample dominant color from the applied image (same luminance window as island album tint); WharfBar accent via `ApplicationAccentColorManager.Apply(..., systemAccentColor: false)` + `App.ApplyLogoChanges`; then `SystemAccentWriter.TryApply` (best-effort HKCU) |
+| `SystemAccentWriter` / `SystemAccentPack` | Undocumented `HKCU\...\Explorer\Accent` + `DWM` values + `WM_SETTINGCHANGE` (`ImmersiveColorSet`); silent failure; no explorer restart; no exit restore |
+| `WallpaperTransitionPolicy` | Pure matrix: `off` → never; `fade`/`blurFade` + `respectSystem` + `!ClientAreaAnimation` → no; `respectSystem=false` → yes for non-`off`. `UsesBlur` only for `blurFade` — unit tested |
+| `WallpaperTransitionMotion` | Pure timing/sizing: fade/blur durations, blur radius, decode width ≈ half primary monitor width (clamped) |
+| `WallpaperTransitionWindow` | WorkerW-hosted crossfade (behind icons); HWND starts 1×1 off-screen, parents under WorkerW, then fills the client — avoids top-level fullscreen → `ABN_FULLSCREENAPP` dock collapse; SPI runs from the completed callback |
+| `DesktopWallpaperHost` | Progman `0x052C` + enum to locate the wallpaper WorkerW behind `SHELLDLL_DefView` |
+| `DesktopWallpaper` | Documented `SystemParametersInfo` only; v1 does not change Windows wallpaper style (Fill/Fit/…) |
+| `IslandHub` | `IslandHubTab` + `Normalize` / `Resolve(saved, musicAvailable)`; maps to `island.hubTab` soft strings — unit tested |
 | `VeilService` | Overlay state + fade + hotkey host (message-only `HwndSource`); `SetEnabled` → `Config.Save`; `UnregisterHotKey` on exit (ADR-007) |
 | `VeilWindow` | Fullscreen layered overlay (solid color fill, `Topmost`, permanent `WS_EX_TRANSPARENT` passthrough, 280 ms fade); primary-monitor rect + re-placement on `WM_DISPLAYCHANGE` / `WM_DPICHANGED` |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
@@ -228,9 +258,11 @@ The island (clipboard history + dropped files) is ADR-010.
 | `AppConfig` / `DockConfig` | JSON schema (`schemaVersion` 2) |
 | `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema |
 | `AppThemePreference` | The `theme` field → `ApplicationTheme` |
+| `BrandPalette` | Pure: accent colour + `isDark` → tile background / pier / sea lines / sun (ADR-019) — unit tested |
+| `BrandLogo` | One home for the logo geometry: `BarGlyph(logoStyle)` (one-colour top bar shape) and `DockTile(logoStyle, …, sizePx)` (themed launch tile; solid small mark at every size). Accent: fresh `GetColorizationColor` with the system accent on, else the applied `SystemAccentColor` resource |
 | `AutostartService` | Startup-folder `WharfBar.lnk`; create/delete with `autostart` true/false |
-| `LocalizationService` | UI language (`language`: `system` / `en` / `tr`); `.resx` lookup; culture applied once at startup; change requires restart (Phase 0: General picker only) |
-| `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus` |
+| `LocalizationService` | Normalizes `config.language` (`system` \| `en` \| `tr`); `ResolveCulture` maps `system` → OS UI culture (`tr*` → `tr-TR`, else `en-US`); `Apply` sets `CurrentCulture` / `CurrentUICulture` and default thread cultures **before** the first window (beside theme). Changing language in Settings → General saves immediately and takes effect on the **next launch** (optional Quit now); there is no live UI rebuild |
+| `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus`; clock/date formatting uses `CurrentCulture` (follows UI language) |
 | `NetworkDetailsService` | Network-page "Properties" (`Özellikler`) (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
 | `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
 | `TrayIconService` / `NotifyIconHost` | Its own tray icon + Quit menu (`Shell_NotifyIcon`) |
@@ -251,13 +283,29 @@ TopBarWindow.xaml — root Grid (no columns; the three clusters share the same c
 
 Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
  AllowsTransparency=True, PopupAnimation=None)
- └─ local:IslandFlyout (search box + ScrollViewer/StackPanel list)
+ └─ local:IslandFlyout (hub tab strip + BodyHost: clipboard | WallpaperGalleryView | music)
 ```
 
 The island is only on the primary bar, a pill centered so the AppBar stays **30 DIP** (ADR-011).
 When idle, a clipboard glyph; in `persistent` music, a note + the track name; on a volume/brightness change, a short counter.
-The multi-line panel is the same `IslandPopup` (music ↔ clipboard). The rules are `IslandPresence`. Click and
+The multi-line panel is the same `IslandPopup` with an in-panel **hub** (`IslandFlyout`): three tabs on the primary bar, Music-only chrome on secondary bars. Last selected tab is persisted as `island.hubTab` (soft string; no `schemaVersion` bump). Wallpaper apply is primary-bar only (`AttachWallpaper`). The rules are `IslandPresence`. Click and
 file drop stay on the same control.
+
+### Wallpaper apply + transition
+
+```
+WallpaperGalleryView click
+  → WallpaperService.TryApply(path)
+       → read previous desktop path (SPI get)
+       → if policy + decode + WorkerW OK:
+            WallpaperTransitionWindow (1×1 → SetParent(WorkerW) → fill client)
+              → crossfade previous → next behind icons
+              → on complete: DesktopWallpaper.TrySet (SPI)
+         else: DesktopWallpaper.TrySet immediately
+       → if island.wallpaperAccent: WallpaperAccentApplier (WharfBar + best-effort system accent; not SPI)
+```
+
+SPI remains the only **wallpaper** apply path. Decode/WorkerW failure → instant SPI. A concurrent apply cancels the prior overlay. Accent sync is a post-success side effect; it does not run on exit restore.
 
 ### New files and their jobs
 
@@ -270,8 +318,13 @@ file drop stay on the same control.
 | `Services/IslandStore.cs` | A separate persistence file: `island.json` (tmp + `File.Replace`), the `Drop` folder; a single `_ioGate` lock; `.bak` / `.bak.1`; a 64 MB size cap; one corrupt field does not drop the whole history; **does not sort** (order is the consumer's job) |
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
 | `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
-| `Views/IslandFlyout.xaml(.cs)` | Panel: search box + list; `Attach(service)` only while the panel is open; row construction is in code-behind (`MaxRenderedRows = 200`) |
-| `Views/Pages/IslandPage.xaml(.cs)` | Settings page: visibility, persistence, days/limit, maintenance actions; every change is `Config.Save` **+** `IslandService.ApplyConfig` (if that is forgotten, the island does not update) |
+| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + three bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save) |
+| `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled content under `Wallpapers/` (copy-to-output beside the exe) |
+| `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
+| `Services/WallpaperService.cs` | Apply guard + SPI delegate |
+| `Native/DesktopWallpaper.cs` | `SPI_SETDESKWALLPAPER` / `SPI_GETDESKWALLPAPER` |
+| `Services/IslandHub.cs` | Tab enum + config normalization |
+| `Views/Pages/IslandPage.xaml(.cs)` | Settings page: visibility, persistence, days/limit, wallpaper transition ComboBox + **Windows animasyonunu takip et** + **Match accent to wallpaper** toggles, maintenance actions; island service fields need `Config.Save` **+** `IslandService.ApplyConfig` where applicable |
 
 ### Clipboard reading on the STA thread
 
@@ -319,6 +372,24 @@ action scans the `Drop` folder so it also covers orphans.
 - **Pin:** no pin action on clipboard rows (`IslandService` has no pin support).
 - **Code:** `Services/IslandPalette` (pure: `Dominant`, `Luminance`, `Tint`) + `Views/IslandTintSource` (32×32 `TransformedBitmap` copy, cached by bitmap reference, UI thread) → `TopBarWindow.ApplyIslandTint` (pill bars) and `IslandFlyout.ApplyTint` (ambient glow + progress fill). Motion numbers are in `Services/IslandMotion` (pure; `Gate` zeroes them when `ClientAreaAnimation` is off).
 
+## Brand logo and logo style (ADR-019)
+
+- **Decision:** WharfBar shows its own "Dusk" mark (solid pier to the horizon + low sun; no plank gaps, no sea lines; source SVGs in `docs/brand/logo/`) by default. `logoStyle` = `windows` brings back the Windows logo. One setting covers the top bar and the dock on every monitor.
+- **Top bar:** always one colour (`TextFillColorPrimaryBrush`), the solid small mark or four panes, 18 DIP box. Replaces the old drawn Windows logo; the menu and the 30 DIP bar are unchanged.
+- **Dock:** the Launchpad tile becomes a rounded brand tile at the normal icon size; click and menu unchanged. Themed colours (`BrandPalette.For(accent, isDark)`), with accent → HSL `(h, s, l)`:
+
+| Role | Dark | Light |
+|------|------|-------|
+| tile background | `hsl(h, min(s,0.45), 0.17)` | `hsl(h, min(s,0.40), 0.94)` |
+| pier (and Windows panes) | `hsl(h, min(s,0.35), 0.94)` | `hsl(h, min(s,0.55), 0.20)` |
+| sea lines | `hsl(h, min(s,0.50), 0.38)` | `hsl(h, min(s,0.40), 0.72)` |
+| sun | `#F2B66B` | `#E59A45` |
+
+  Rounded to the nearest byte; a grey accent has `h = 0`, `s = 0`. `#0078D4` → dark `#182E3F` / `#EAF0F5` / `#306791`, light `#EAF1F6` / `#17374F` / `#9BBBD4` (`BrandPaletteTests`).
+- **Geometry:** WPF vector geometry only (no SVG library, no new package), 128 grid, frozen; tiles are cached `DrawingImage`s keyed by style and palette. The WharfBar mark is the small solid pier + sun at every size (plank gaps and sea lines were dropped for clarity at dock scale).
+- **App identity:** `ApplicationIcon` = `Assets/WharfBar.ico` (multi-size dusk tile); Settings title bar, About, and window chrome use `Assets/WharfBar.png`. Tray falls back to the exe icon via `SHGetFileInfo`. Rebuild rasters with `python tools/render-app-icon.py`.
+- **Live update:** no timer. The dock's existing theme messages (`WM_THEMECHANGED`, `WM_SYSCOLORCHANGE`, `WM_DWMCOLORIZATIONCOLORCHANGED`, `WM_SETTINGCHANGE("ImmersiveColorSet")`) re-apply the surface and then swap the launch cell's glyph. Settings → Görünüm (logo, theme, accent) calls `App.ApplyLogoChanges`. With the system accent on, the tile reads `ApplicationAccentColorManager.GetColorizationColor()` fresh; other WPF-UI accent brushes still update only when `ApplySystemAccent` runs.
+
 ## Window model
 
 ```
@@ -339,7 +410,7 @@ action scans the `Drop` folder so it also covers orphans.
 Implemented (Phase 1–9):
 
 1. `App.OnStartup` → `SingleInstanceGuard.TryAcquire`; if the mutex cannot be acquired, `Shutdown`
-2. `ConfigService.LoadOrCreate` → `%AppData%/WharfBar/config.json`; `AppThemePreference` is applied
+2. `ConfigService.LoadOrCreate` → `%AppData%/WharfBar/config.json`; `LocalizationService.Apply(config.Language)` then `AppThemePreference` is applied
 3. `AutostartService.Apply(config.Autostart)` — syncs the Startup-folder shortcut
 4. `TaskbarVisibilityService.CaptureAndHide` — if a stale watchdog file exists, the tray is shown first
  (self-heal); `ABM_GETSTATE` + `Shell_TrayWnd` visibility baseline; the baseline is written to the watchdog
@@ -410,6 +481,8 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 {
  "schemaVersion": 2,
  "theme": "system",
+ "language": "system",
+ "logoStyle": "wharfbar",
  "autostart": true,
  "dock": {
  "autoHide": true,
@@ -453,7 +526,11 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "visualizer": true,
  "bluetoothNotice": true,
  "cameraMirror": false,
- "openWidgets": []
+ "openWidgets": [],
+ "hubTab": "clipboard",
+ "wallpaperTransition": "blurFade",
+ "wallpaperRespectSystemAnimation": true,
+ "wallpaperAccent": true
  },
  "plugins": {
  "enabled": []
@@ -468,8 +545,9 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
+| `language` | UI + formatting culture: `system` / `en` / `tr` (default `system`); applied at startup via `LocalizationService`. Soft field (`schemaVersion` stays 2). `system` uses `CultureInfo.InstalledUICulture` (`tr*` → Turkish, otherwise English). User strings come from `Resources/Strings.resx` + `Strings.tr.resx` (`{x:Static}` / `Strings.*` in C#). A change in Settings → General is saved immediately and applies after restart |
+| `logoStyle` | `wharfbar` (default) \| `windows` — the top bar logo and the dock launch tile on every monitor. Soft string; `LogoStyles.Normalize`, unknown/missing → `wharfbar`. `schemaVersion` stays **2** (ADR-019) |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
-| `language` | `system` \| `en` \| `tr` — UI culture via `LocalizationService.Apply` at startup; null/empty/unknown → `system`; soft field (`schemaVersion` stays **2**). Change requires restart (Phase 0) |
 | `dock.autoHide` | `true` → edge-band proximity + animated hide; `false` → always visible |
 | `dock.iconSize` | DIP; 16–36 (default **24**). The old 48/72 and the previous default of 28 are pulled down to 24 on load |
 | `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; unknown → `mica`. Independent of the top bar. Mica is real DWM (`AllowsTransparency=false`). Tint/transparent is a layered window; switching rebuilds the dock |
@@ -483,7 +561,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `topBar.tintOpacity` | 0–100; alpha in tint mode; default **40**; clamped on load |
 | `topBar.statusCatalogVersion` | Soft catalog version (independent of `schemaVersion` 2). Current **5**: a missing `controlCenter` is inserted before `volume`, a missing `brightness` after `volume`, a missing `media` after `brightness` (`Ensure*`; an old version is moved to 5 at startup — ADR-008/009) |
 | `topBar.statusItems` | Visible status-item ids (left→right order). Unknown ids are dropped; empty/missing → `DefaultOrder`. The **default** does not include `volume` / `brightness` / `media` (ADR-011); every catalog item is listed on right-click and in the Top Bar (`Üst Çubuk`) setting, the saved list is not stripped, and a hidden item does not turn itself on. **Show all** (`Tümünü göster`) inserts the missing ones next to their catalog neighbor. Dragging on the bar changes the order with `MoveToInsertion`. `statusCatalogVersion` stays at 5. A soft field (`schemaVersion` 2) |
-| `topBar.showSystemStats` | The `CPU x% · GPU y% · RAM z%` reading next to the Windows logo in the left cluster (default **`true`**; soft bool — a missing field falls back to the default). If there is no GPU counter, the GPU section is not shown |
+| `topBar.showSystemStats` | The `CPU x% · GPU y% · RAM z%` reading next to the brand logo in the left cluster (default **`true`**; soft bool — a missing field falls back to the default). If there is no GPU counter, the GPU section is not shown |
 | `topBar.showGpuPerAdapter` | If there is more than one physical GPU, number the GPU sections (`GPU0 x% · GPU1 y%`); when off, a single combined segment (default **`true`**; soft bool). With a single GPU both modes look the same |
 | `veil.enabled` | Overlay on/off (persistent; written by the QS tile + the shortcut + the page toggle). Default **`false`** |
 | `veil.color` | Overlay color `#RRGGBB` (soft; invalid/missing → the `VeilNormalizer` default **`#4A90D9`**, normalized to lowercase; `#RGB` is accepted) |
@@ -500,6 +578,10 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |
+| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** |
+| `island.wallpaperTransition` | Post-apply animation: `"off"` \| `"fade"` \| `"blurFade"` (default **`blurFade`**). Soft string; `IslandNormalizer.NormalizeWallpaperTransition`, unresolvable → **`blurFade`**. Primary monitor only; overlay shows the **previous** image fading out over the SPI-applied desktop. `schemaVersion` stays **2** |
+| `island.wallpaperRespectSystemAnimation` | When **`true`** (default), skip the overlay if `SystemParameters.ClientAreaAnimation` is false. When **`false`**, `fade`/`blurFade` run even when Windows animation effects are off. Soft bool; `schemaVersion` stays **2** |
+| `island.wallpaperAccent` | After a successful island hub wallpaper apply, sync WharfBar accent (and best-effort Windows HKCU accent) from the image dominant color (default **`true`**). Soft bool; `schemaVersion` stays **2**. Does not alter SPI wallpaper apply or restore accent/wallpaper on exit |
 | `plugins.enabled` | Local manifest ids (`%AppData%/WharfBar/plugins/<klasör>/manifest.json`; `<klasör>` = folder). A soft list; `schemaVersion` stays **2**. Built-in ids do not live here. Registration is not drawing: no assembly is loaded, and top-bar and dock slots are not drawn in v1 (ADR-017) |
 | `pinnedApps` | **Legacy.** Read only once, by `ConfigService.MigrateDockItems`, when `dock.items` is empty, and then **cleared**. The live taskbar `.lnk` scan was removed on 2026-10-04 (ADR-005 revision) |
 

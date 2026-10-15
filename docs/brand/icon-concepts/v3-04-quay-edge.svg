@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Quay edge meeting water">
+  <title>v3.04 — Quay Edge</title>
+  <rect width="128" height="128" rx="28" fill="#8EB6D4"/>
+  <!-- Solid quay / embankment -->
+  <path d="M0 0 H128 V58 H0 Z" fill="#16324F"/>
+  <!-- Fender strip (where ships touch the wharf) -->
+  <rect y="52" width="128" height="8" fill="#5B8FB8"/>
+  <!-- Mooring bollard on the quay -->
+  <rect x="58" y="28" width="12" height="24" rx="3" fill="#EAF1F7"/>
+  <ellipse cx="64" cy="28" rx="10" ry="5" fill="#D4E0EC"/>
+  <!-- Soft water ripple -->
+  <path d="M24 84 H104" stroke="#EAF1F7" stroke-width="3" stroke-linecap="round" opacity="0.35"/>
+  <path d="M32 96 H96" stroke="#EAF1F7" stroke-width="3" stroke-linecap="round" opacity="0.22"/>
+  <!-- Keep rounded tile corners clean -->
+  <path d="M0 28 A28 28 0 0 1 28 0 H0 Z" fill="#16324F"/>
+  <path d="M128 28 A28 28 0 0 0 100 0 H128 Z" fill="#16324F"/>
+</svg>

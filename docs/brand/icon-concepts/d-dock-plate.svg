@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="WharfBar icon concept D: abstract dock plate">
+  <title>D — Dock Plate</title>
+  <defs>
+    <linearGradient id="d-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E8EEF5"/>
+      <stop offset="100%" stop-color="#D5DEE9"/>
+    </linearGradient>
+    <linearGradient id="d-plate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#3D5F86"/>
+      <stop offset="100%" stop-color="#1F3A5F"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#d-bg)"/>
+  <!-- Accent top bar -->
+  <rect x="36" y="36" width="56" height="6" rx="3" fill="#5B8FB8"/>
+  <!-- Rounded dock plate -->
+  <rect x="28" y="52" width="72" height="40" rx="14" fill="url(#d-plate)"/>
+  <!-- Soft highlight (mica-ish) -->
+  <rect x="34" y="58" width="36" height="10" rx="5" fill="#7BA3C9" opacity="0.35"/>
+  <!-- Three app-slot dots -->
+  <circle cx="48" cy="78" r="4" fill="#E8EEF5" opacity="0.9"/>
+  <circle cx="64" cy="78" r="4" fill="#E8EEF5" opacity="0.9"/>
+  <circle cx="80" cy="78" r="4" fill="#E8EEF5" opacity="0.9"/>
+</svg>

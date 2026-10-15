@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
 using System.Windows.Automation;
@@ -6,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using WharfBar.Resources;
 using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Services;
@@ -39,6 +41,7 @@ public partial class TopBarWindow
     private bool _islandMeasuring;
     private bool _islandRevealPosted;
     private IslandPresence? _presence;
+    private WallpaperService? _wallpaper;
     private IReadOnlyList<BluetoothDeviceInfo>? _btPrevious;
     private bool _btSeeded;
     private DispatcherTimer? _vizTimer;
@@ -267,26 +270,44 @@ public partial class TopBarWindow
         ApplyIslandChrome(focus);
     }
 
-    private void OnIslandClipboardRequested(object? sender, EventArgs e)
+    /// <summary>Soft-saves the chosen hub tab (no schema bump). Primary monitor only.</summary>
+    private void OnIslandHubTabChanged(object? sender, IslandHubTab tab)
     {
-        if (_presence is null)
+        if (!Monitor.IsPrimary)
         {
             return;
         }
 
-        _presence.ShowClipboard(IslandNow());
-        ApplyIslandChrome(focusMusic: false);
+        IslandConfig cfg = _config.Current.Island;
+        string value = IslandHub.ToConfig(tab);
+        if (string.Equals(cfg.HubTab, value, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        cfg.HubTab = value;
+        _config.Save(_config.Current);
     }
 
-    private void OnIslandMusicRequested(object? sender, EventArgs e)
+    private IslandHubTab ResolveHubTab(bool musicAvailable)
+        => Monitor.IsPrimary
+            ? IslandHub.Resolve(_config.Current.Island.HubTab, musicAvailable)
+            : IslandHubTab.Music;
+
+    /// <summary>
+    /// Session ended while the Music tab is showing: fall back to the saved tab (Clipboard).
+    /// </summary>
+    private void FallBackFromMusicTab()
     {
-        if (_presence is null)
+        if (!IslandPopup.IsOpen
+            || IslandHost.CurrentHubTab != IslandHubTab.Music
+            || _engine.Media.Snapshot.HasSession
+            || !Monitor.IsPrimary)
         {
             return;
         }
 
-        _presence.BackToMusic(IslandNow());
-        ApplyIslandChrome(focusMusic: true);
+        IslandHost.PresentHub(ResolveHubTab(musicAvailable: false), focus: false, crossfade: true);
     }
 
     private void OnIslandBarSizeChanged(object sender, SizeChangedEventArgs e)
@@ -402,6 +423,7 @@ public partial class TopBarWindow
             ApplyIslandChrome(focusMusic: false);
         }
 
+        FallBackFromMusicTab();
         ApplyIslandTint(_presence.View.Face);
         SyncVisualizerTimer();
     }
@@ -602,15 +624,15 @@ public partial class TopBarWindow
         string tip = snap.Face switch
         {
             IslandPillFace.NowPlaying => BuildMediaTooltip(_engine.Media.Snapshot),
-            IslandPillFace.Volume => snap.MeterMuted ? "Ses (sessiz)" : $"Ses %{snap.MeterPercent}",
-            IslandPillFace.Brightness => $"Parlaklık %{snap.MeterPercent}",
+            IslandPillFace.Volume => snap.MeterMuted ? Strings.Island_VolumeMuted : string.Format(CultureInfo.CurrentCulture, Strings.Island_VolumeFormat, snap.MeterPercent),
+            IslandPillFace.Brightness => string.Format(CultureInfo.CurrentCulture, Strings.Island_BrightnessFormat, snap.MeterPercent),
             IslandPillFace.Battery => BatteryTip(snap.MeterPercent),
             IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title)
-                ? "Pano ve bırakılan dosyalar"
+                ? Strings.Island_ClipboardAndDrops
                 : snap.Title,
             IslandPillFace.Bluetooth => string.IsNullOrWhiteSpace(snap.Title) ? "Bluetooth" : snap.Title,
             IslandPillFace.Camera => snap.Title,
-            _ => string.IsNullOrWhiteSpace(snap.Title) ? "Pano ve bırakılan dosyalar" : snap.Title,
+            _ => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_ClipboardAndDrops : snap.Title,
         };
         if (!string.Equals(tip, _islandTip, StringComparison.Ordinal))
         {
@@ -953,13 +975,16 @@ public partial class TopBarWindow
 
         if (_shownPanel == snap.Panel && _shownBack == snap.ShowClipboardBack)
         {
-            if (focusMusic && snap.Panel == IslandPanelBody.Music)
+            if (focusMusic)
             {
-                IslandHost.PresentMusic(focus: true);
-            }
-            else if (focusMusic && snap.Panel == IslandPanelBody.Clipboard)
-            {
-                IslandHost.FocusClipboardSearch();
+                if (IslandHost.CurrentHubTab == IslandHubTab.Clipboard)
+                {
+                    IslandHost.FocusClipboardSearch();
+                }
+                else
+                {
+                    IslandHost.PresentHub(IslandHost.CurrentHubTab, focus: true);
+                }
             }
 
             return;
@@ -974,13 +999,8 @@ public partial class TopBarWindow
     {
         _shownPanel = snap.Panel;
         _shownBack = snap.ShowClipboardBack;
-        if (snap.Panel == IslandPanelBody.Music)
-        {
-            IslandHost.PresentMusic(focusMusic, crossfade);
-            return;
-        }
-
-        IslandHost.PresentClipboard(snap.ShowClipboardBack, focusMusic, crossfade);
+        bool music = _engine.Media.Snapshot.HasSession;
+        IslandHost.PresentHub(ResolveHubTab(music), focusMusic, crossfade);
     }
 
     private void CloseIsland(bool animate = true)
@@ -1247,6 +1267,29 @@ public partial class TopBarWindow
         _islandClock.Start();
     }
 
+    private WallpaperTransitionRequest? BuildWallpaperTransitionRequest()
+    {
+        IslandConfig? cfg = Island?.Config;
+        IntPtr hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+        if (cfg is null || hwnd == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        RECT rc = Display.GetPrimaryMonitorBounds(hwnd);
+        int widthPx = rc.Right - rc.Left;
+        if (widthPx <= 0)
+        {
+            return null;
+        }
+
+        return new WallpaperTransitionRequest(
+            cfg.WallpaperTransition,
+            cfg.WallpaperRespectSystemAnimation,
+            SystemParameters.ClientAreaAnimation,
+            widthPx);
+    }
+
     private void AttachIsland()
     {
         IslandService? island = Island;
@@ -1256,9 +1299,27 @@ public partial class TopBarWindow
         SizeChanged += OnIslandBarSizeChanged;
         IslandPill.SizeChanged += OnIslandPillSizeChanged;
         IslandHost.SizeChanged += OnIslandPopupSizeChanged;
-        IslandHost.ClipboardRequested += OnIslandClipboardRequested;
-        IslandHost.MusicRequested += OnIslandMusicRequested;
+        IslandHost.HubTabChanged += OnIslandHubTabChanged;
         IslandHost.AttachMedia(_engine.Media);
+        if (Monitor.IsPrimary)
+        {
+            _wallpaper ??= new WallpaperService(WallpaperPaths.BundledRoot, WallpaperPaths.UserRoot);
+            _wallpaper.TransitionRequest = BuildWallpaperTransitionRequest;
+            _wallpaper.AccentEnabled = () =>
+            {
+                try
+                {
+                    IslandConfig? cfg = Island?.Config;
+                    return cfg?.WallpaperAccent ?? IslandConfig.DefaultWallpaperAccent;
+                }
+                catch (Exception)
+                {
+                    return IslandConfig.DefaultWallpaperAccent;
+                }
+            };
+            IslandHost.AttachWallpaper(_wallpaper);
+        }
+
         IslandHost.SetClipboardChrome(Monitor.IsPrimary);
         IslandPill.AllowDrop = Monitor.IsPrimary;
         _engine.MonitorBrightness.BrightnessChanged += OnIslandBrightnessChanged;
@@ -1289,8 +1350,8 @@ public partial class TopBarWindow
         SizeChanged -= OnIslandBarSizeChanged;
         IslandPill.SizeChanged -= OnIslandPillSizeChanged;
         IslandHost.SizeChanged -= OnIslandPopupSizeChanged;
-        IslandHost.ClipboardRequested -= OnIslandClipboardRequested;
-        IslandHost.MusicRequested -= OnIslandMusicRequested;
+        IslandHost.HubTabChanged -= OnIslandHubTabChanged;
+        IslandHost.DetachWallpaper();
         IslandHost.DetachMedia();
         _engine.MonitorBrightness.BrightnessChanged -= OnIslandBrightnessChanged;
 
@@ -1556,7 +1617,7 @@ public partial class TopBarWindow
         host.BorderBrush = selected
             ? TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue
             : Brushes.Transparent;
-        host.ToolTip = satellite == IslandSatellite.Music ? "Müzik" : "Pano";
+        host.ToolTip = satellite == IslandSatellite.Music ? Strings.Island_Music : Strings.Island_Clipboard;
         return IslandSatelliteDip;
     }
 
@@ -1800,22 +1861,22 @@ public partial class TopBarWindow
 
     private string BatteryTip(int percent)
     {
-        string tip = $"Pil %{percent}";
-        return _engine.Status.Snapshot.IsBatteryCharging ? $"{tip} · şarj oluyor" : tip;
+        string tip = string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryFormat, percent);
+        return _engine.Status.Snapshot.IsBatteryCharging ? string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryChargingFormat, tip) : tip;
     }
 
     private static string IslandAccessName(IslandPresenceView snap)
     {
         return snap.Face switch
         {
-            IslandPillFace.NowPlaying => string.IsNullOrWhiteSpace(snap.Title) ? "Müzik" : snap.Title,
-            IslandPillFace.Volume => snap.MeterMuted ? "Ses, sessiz" : $"Ses %{snap.MeterPercent}",
-            IslandPillFace.Brightness => $"Parlaklık %{snap.MeterPercent}",
-            IslandPillFace.Battery => $"Pil %{snap.MeterPercent}",
-            IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title) ? "Pano" : snap.Title,
+            IslandPillFace.NowPlaying => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Music : snap.Title,
+            IslandPillFace.Volume => snap.MeterMuted ? Strings.Island_VolumeMuted : string.Format(CultureInfo.CurrentCulture, Strings.Island_VolumeFormat, snap.MeterPercent),
+            IslandPillFace.Brightness => string.Format(CultureInfo.CurrentCulture, Strings.Island_BrightnessFormat, snap.MeterPercent),
+            IslandPillFace.Battery => string.Format(CultureInfo.CurrentCulture, Strings.Island_BatteryFormat, snap.MeterPercent),
+            IslandPillFace.Clip or IslandPillFace.Drop => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Clipboard : snap.Title,
             IslandPillFace.Bluetooth => string.IsNullOrWhiteSpace(snap.Title) ? "Bluetooth" : snap.Title,
-            IslandPillFace.Camera => string.IsNullOrWhiteSpace(snap.Title) ? "Kamera" : snap.Title,
-            _ => string.IsNullOrWhiteSpace(snap.Title) ? "Pano" : snap.Title,
+            IslandPillFace.Camera => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Camera : snap.Title,
+            _ => string.IsNullOrWhiteSpace(snap.Title) ? Strings.Island_Clipboard : snap.Title,
         };
     }
 

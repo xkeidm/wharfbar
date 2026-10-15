@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -58,25 +58,764 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="General_PageTitle" xml:space="preserve">
+  <resheader name="culture">
+    <value>tr</value>
+  </resheader>
+  <data name="Settings_General" xml:space="preserve">
     <value>Genel</value>
   </data>
-  <data name="General_Language_Title" xml:space="preserve">
+  <data name="General_LanguageSection" xml:space="preserve">
     <value>Dil</value>
   </data>
-  <data name="General_Language_Description" xml:space="preserve">
-    <value>WharfBar arayüz dilini seçin</value>
+  <data name="General_LanguageTitle" xml:space="preserve">
+    <value>Görüntü dili</value>
   </data>
-  <data name="General_Language_System" xml:space="preserve">
-    <value>Sistem</value>
+  <data name="General_LanguageDescription" xml:space="preserve">
+    <value>WharfBar arayüz dilini seçin. Değişiklik yeniden başlattıktan sonra uygulanır.</value>
   </data>
-  <data name="General_Language_English" xml:space="preserve">
+  <data name="General_LanguageSystem" xml:space="preserve">
+    <value>Sistem dili</value>
+  </data>
+  <data name="General_LanguageEnglish" xml:space="preserve">
     <value>English</value>
   </data>
-  <data name="General_Language_Turkish" xml:space="preserve">
+  <data name="General_LanguageTurkish" xml:space="preserve">
     <value>Türkçe</value>
   </data>
-  <data name="General_Language_RestartNote" xml:space="preserve">
-    <value>Dili uygulamak için WharfBar'ı yeniden başlatın</value>
+  <data name="General_LanguageRestartNote" xml:space="preserve">
+    <value>Yeni dili uygulamak için WharfBar'ı yeniden başlatın.</value>
+  </data>
+
+  <data name="General_AutostartTitle" xml:space="preserve">
+    <value>Windows ile Başlat</value>
+  </data>
+  <data name="General_AutostartDescription" xml:space="preserve">
+    <value>WharfBar'ı Windows açılışında otomatik olarak çalıştırın</value>
+  </data>
+  <data name="General_StartupSection" xml:space="preserve">
+    <value>Başlangıç</value>
+  </data>
+  <data name="General_QuitToApply" xml:space="preserve">
+    <value>Şimdi kapat</value>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>Görünüm</value>
+  </data>
+  <data name="Appearance_ThemeSection" xml:space="preserve">
+    <value>Tema ve Renkler</value>
+  </data>
+  <data name="Appearance_AccentStyleTitle" xml:space="preserve">
+    <value>Vurgu Rengi Stili</value>
+  </data>
+  <data name="Appearance_AccentStyleDescription" xml:space="preserve">
+    <value>Pencere ve kontrollerde Windows sistem vurgu rengi mi yoksa sabit tema modu mu kullanılsın?</value>
+  </data>
+  <data name="Appearance_AccentSystem" xml:space="preserve">
+    <value>Sistem Vurgu Rengi</value>
+  </data>
+  <data name="Appearance_AccentFixed" xml:space="preserve">
+    <value>Sabit Tema Modu</value>
+  </data>
+  <data name="Appearance_ThemeTitle" xml:space="preserve">
+    <value>Uygulama Teması</value>
+  </data>
+  <data name="Appearance_ThemeDescription" xml:space="preserve">
+    <value>Açık, koyu veya Windows sistem varsayılan temasını kullanın</value>
+  </data>
+  <data name="Appearance_ThemeSystem" xml:space="preserve">
+    <value>Sistem varsayılanı</value>
+  </data>
+  <data name="Appearance_ThemeLight" xml:space="preserve">
+    <value>Açık Mod</value>
+  </data>
+  <data name="Appearance_ThemeDark" xml:space="preserve">
+    <value>Koyu Mod</value>
+  </data>
+  <data name="Appearance_TopBarBackgroundSection" xml:space="preserve">
+    <value>Üst Çubuk Arka Planı</value>
+  </data>
+  <data name="Appearance_BackdropModeTitle" xml:space="preserve">
+    <value>Arka Plan Modu</value>
+  </data>
+  <data name="Appearance_BackdropModeDescription" xml:space="preserve">
+    <value>Üst barın bulanıklık ve saydamlık efektini ayarlayın</value>
+  </data>
+  <data name="Appearance_BackdropMica" xml:space="preserve">
+    <value>Mica (Bulanık)</value>
+  </data>
+  <data name="Appearance_BackdropTransparent" xml:space="preserve">
+    <value>Saydam (Transparent)</value>
+  </data>
+  <data name="Appearance_BackdropTint" xml:space="preserve">
+    <value>Renkli (Tint)</value>
+  </data>
+  <data name="Appearance_OpacityTitle" xml:space="preserve">
+    <value>Arka Plan Opaklığı</value>
+  </data>
+  <data name="Settings_Dock" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="DockPage_ContentSection" xml:space="preserve">
+    <value>İçerik</value>
+  </data>
+  <data name="DockPage_ItemsTitle" xml:space="preserve">
+    <value>Dock Öğeleri</value>
+  </data>
+  <data name="DockPage_Add" xml:space="preserve">
+    <value>Ekle</value>
+  </data>
+  <data name="DockPage_EmptyHint" xml:space="preserve">
+    <value>Dock boş. Bir uygulamayı Explorer'dan doğrudan dock'a sürükleyebilir veya yukarıdan ekleyebilirsin.</value>
+  </data>
+  <data name="DockPage_BehaviorSection" xml:space="preserve">
+    <value>Davranış</value>
+  </data>
+  <data name="DockPage_AutoHideTitle" xml:space="preserve">
+    <value>Otomatik Gizle</value>
+  </data>
+  <data name="DockPage_AutoHideDescription" xml:space="preserve">
+    <value>Dock'u fare imleci yaklaşmadığında otomatik olarak ekran altından gizleyin</value>
+  </data>
+  <data name="DockPage_AppearanceSection" xml:space="preserve">
+    <value>Görünüm</value>
+  </data>
+  <data name="DockPage_IconSizeTitle" xml:space="preserve">
+    <value>Simge Boyutu</value>
+  </data>
+  <data name="DockPage_BackgroundTitle" xml:space="preserve">
+    <value>Arka Plan</value>
+  </data>
+  <data name="DockPage_BackgroundDescription" xml:space="preserve">
+    <value>Mica gerçek sistem bulanıklığıdır; saydam ve renkli levhayı yeniden oluşturur</value>
+  </data>
+  <data name="DockPage_BackdropMica" xml:space="preserve">
+    <value>Mica (Bulanık)</value>
+  </data>
+  <data name="DockPage_BackdropTransparent" xml:space="preserve">
+    <value>Saydam (Transparent)</value>
+  </data>
+  <data name="DockPage_BackdropTint" xml:space="preserve">
+    <value>Renkli (Tint)</value>
+  </data>
+  <data name="DockPage_OpacityTitle" xml:space="preserve">
+    <value>Opaklık</value>
+  </data>
+  <data name="DockPage_PositionTitle" xml:space="preserve">
+    <value>Konum</value>
+  </data>
+  <data name="DockPage_PositionCenter" xml:space="preserve">
+    <value>Orta (varsayılan)</value>
+  </data>
+  <data name="DockPage_PositionLeft" xml:space="preserve">
+    <value>Sol</value>
+  </data>
+  <data name="DockPage_PositionRight" xml:space="preserve">
+    <value>Sağ</value>
+  </data>
+  <data name="DockPage_PositionLeftEdge" xml:space="preserve">
+    <value>Sol kenar</value>
+  </data>
+  <data name="DockPage_ShowRunningTitle" xml:space="preserve">
+    <value>Çalışan Uygulamaları Göster</value>
+  </data>
+  <data name="DockPage_ShowRunningDescription" xml:space="preserve">
+    <value>Sabitlenmemiş çalışan uygulamaları ve küçültülmüş pencereleri dock'ta göster</value>
+  </data>
+  <data name="Settings_TopBar" xml:space="preserve">
+    <value>Üst Çubuk</value>
+  </data>
+  <data name="TopBarPage_PreviewSection" xml:space="preserve">
+    <value>Önizleme</value>
+  </data>
+  <data name="TopBarPage_PreviewDescription" xml:space="preserve">
+    <value>Değişiklikler üst çubuğa kaydedilince burada da görünür</value>
+  </data>
+  <data name="TopBarPage_StatsSection" xml:space="preserve">
+    <value>Sistem İstatistikleri</value>
+  </data>
+  <data name="TopBarPage_StatsDescription" xml:space="preserve">
+    <value>Windows logosunun yanında işlemci, ekran kartı ve bellek kullanımını göster</value>
+  </data>
+  <data name="TopBarPage_StatsToggle" xml:space="preserve">
+    <value>CPU · GPU · RAM göstergesi</value>
+  </data>
+  <data name="TopBarPage_SplitGpu" xml:space="preserve">
+    <value>Ekran kartlarını ayrı göster (GPU0 · GPU1)</value>
+  </data>
+  <data name="TopBarPage_SplitGpuHint" xml:space="preserve">
+    <value>Kapalıyken tüm ekran kartları tek değerde birleşir</value>
+  </data>
+  <data name="TopBarPage_StatusItemsSection" xml:space="preserve">
+    <value>Durum Öğeleri</value>
+  </data>
+  <data name="TopBarPage_StatusItemsDescription" xml:space="preserve">
+    <value>Katalogdaki her simge burada. Kapalı olanlar altta durur; açınca geri gelir. Sırayı üst çubukta sürükleyerek veya ⋮⋮ tutamacından değiştirin</value>
+  </data>
+  <data name="TopBarPage_ShowAll" xml:space="preserve">
+    <value>Tümünü göster</value>
+  </data>
+  <data name="TopBarPage_ResetDefault" xml:space="preserve">
+    <value>Varsayılana Sıfırla</value>
+  </data>
+  <data name="Settings_Island" xml:space="preserve">
+    <value>Ada</value>
+  </data>
+  <data name="IslandPage_VisibilitySection" xml:space="preserve">
+    <value>Görünürlük</value>
+  </data>
+  <data name="IslandPage_ShowTitle" xml:space="preserve">
+    <value>Adayı Göster</value>
+  </data>
+  <data name="IslandPage_ShowDescription" xml:space="preserve">
+    <value>Kopyaladığınız metinleri ve adaya bıraktığınız dosyaları izleyin. Kapatırsanız pano dinleyicisi durur ve hiçbir kayıt alınmaz.</value>
+  </data>
+  <data name="IslandPage_MusicSection" xml:space="preserve">
+    <value>Müzik</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityTitle" xml:space="preserve">
+    <value>Müzik görünürlüğü</value>
+  </data>
+  <data name="IslandPage_MusicVisibilityDescription" xml:space="preserve">
+    <value>Çalarken göster: ada nota ve parça adını tutar, üzerine gelince kontroller açılır. Kısa süre göster: ada boşta kalır; parça değişince veya oynat/duraklat olunca kontroller bir süre görünür.</value>
+  </data>
+  <data name="IslandPage_MusicWhilePlaying" xml:space="preserve">
+    <value>Çalarken göster</value>
+  </data>
+  <data name="IslandPage_MusicBrief" xml:space="preserve">
+    <value>Kısa süre göster</value>
+  </data>
+  <data name="IslandPage_IdleSection" xml:space="preserve">
+    <value>Boşta</value>
+  </data>
+  <data name="IslandPage_IdleTextTitle" xml:space="preserve">
+    <value>Boşta yazı</value>
+  </data>
+  <data name="IslandPage_IdleTextDescription" xml:space="preserve">
+    <value>Pano: hap sabit yazar. Son kayıt: hap son kopyalanan metnin kısa önizlemesini gösterir. O önizleme ekrandayken üst bar ekran görüntüsünden düşer.</value>
+  </data>
+  <data name="IslandPage_IdleClipboard" xml:space="preserve">
+    <value>Pano</value>
+  </data>
+  <data name="IslandPage_IdleLastEntry" xml:space="preserve">
+    <value>Son kayıt</value>
+  </data>
+  <data name="IslandPage_BatterySection" xml:space="preserve">
+    <value>Pil</value>
+  </data>
+  <data name="IslandPage_LowBatteryTitle" xml:space="preserve">
+    <value>Düşük pil eşiği</value>
+  </data>
+  <data name="IslandPage_LowBatteryDescription" xml:space="preserve">
+    <value>5–50. Kayıtlı değer bu aralığın dışındaysa 20 olur; kutuya yazılan sayı 5–50 aralığına çekilir. Eşik değişince bir sonraki düşüş bir kez gösterilir.</value>
+  </data>
+  <data name="IslandPage_HistorySection" xml:space="preserve">
+    <value>Geçmiş</value>
+  </data>
+  <data name="IslandPage_RetentionModeTitle" xml:space="preserve">
+    <value>Saklama</value>
+  </data>
+  <data name="IslandPage_RetentionModeDescription" xml:space="preserve">
+    <value>Oturumluk: yalnız bellekte tutulur, WharfBar kapanınca silinir. Kalıcı: diske yazılır, yeniden açılışta geri gelir.</value>
+  </data>
+  <data name="IslandPage_RetentionSession" xml:space="preserve">
+    <value>Oturumluk (kapanınca silinir)</value>
+  </data>
+  <data name="IslandPage_RetentionPersistent" xml:space="preserve">
+    <value>Kalıcı (diske yazılır)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysTitle" xml:space="preserve">
+    <value>Saklama Süresi (gün)</value>
+  </data>
+  <data name="IslandPage_RetentionDaysDescription" xml:space="preserve">
+    <value>1–3650 arası. Yalnızca kalıcı modda uygulanır; oturumluk modda geçmiş zaten kapanınca silinir.</value>
+  </data>
+  <data name="IslandPage_MaxItemsTitle" xml:space="preserve">
+    <value>En Fazla Kayıt</value>
+  </data>
+  <data name="IslandPage_MaxItemsDescription" xml:space="preserve">
+    <value>10–5000 arası sert tavan. Her iki modda da uygulanır; aşan en eski kayıtlar düşer.</value>
+  </data>
+  <data name="IslandPage_MaintenanceSection" xml:space="preserve">
+    <value>Bakım</value>
+  </data>
+  <data name="IslandPage_OpenDropFolder" xml:space="preserve">
+    <value>Drop klasörünü aç</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFiles" xml:space="preserve">
+    <value>Bırakılan dosyaları sil</value>
+  </data>
+  <data name="IslandPage_ClearHistory" xml:space="preserve">
+    <value>Tüm geçmişi temizle</value>
+  </data>
+  <data name="IslandPage_DeleteDroppedFilesNote" xml:space="preserve">
+    <value>“Bırakılan dosyaları sil” %AppData%\WharfBar\Drop klasörünü tarayarak tamamen boşaltır — kayıt, MaxItems budamasıyla düşmüş ya da önceden temizlenmiş yetim kopyaları da kapsar. Dosya kayıtları listeden düşer, pano metinlerine dokunmaz. İşlem geri dönüşsüzdür, bu yüzden onay ister.</value>
+  </data>
+  <data name="IslandPage_ClearHistoryNote" xml:space="preserve">
+    <value>“Tüm geçmişi temizle” listeyi boşaltır ama diskteki dosya kopyalarını silmez; onları ayrıca silmeniz gerekir. O da onay ister.</value>
+  </data>
+  <data name="Settings_Monitors" xml:space="preserve">
+    <value>Ekranlar</value>
+  </data>
+  <data name="MonitorsPage_Description" xml:space="preserve">
+    <value>Top bar ve dock'u hangi monitörlerde göstereceğinizi seçin. Görünüm ayarları tüm ekranlarda ortaktır.</value>
+  </data>
+  <data name="MonitorsPage_Primary" xml:space="preserve">
+    <value>Birincil</value>
+  </data>
+  <data name="MonitorsPage_TopBar" xml:space="preserve">
+    <value>Üst bar</value>
+  </data>
+  <data name="Settings_Plugins" xml:space="preserve">
+    <value>Eklentiler</value>
+  </data>
+  <data name="Settings_Veil" xml:space="preserve">
+    <value>Kaplama</value>
+  </data>
+  <data name="VeilPage_EnableTitle" xml:space="preserve">
+    <value>Etkinleştir</value>
+  </data>
+  <data name="VeilPage_EnableDescription" xml:space="preserve">
+    <value>Ekranın üzerine yarı saydam renk kaplaması koy (disleksi / görsel stres / parlaklık azaltma)</value>
+  </data>
+  <data name="VeilPage_ColorTitle" xml:space="preserve">
+    <value>Renk</value>
+  </data>
+  <data name="VeilPage_CustomColor" xml:space="preserve">
+    <value>Özel renk (#RRGGBB):</value>
+  </data>
+  <data name="VeilPage_PickColor" xml:space="preserve">
+    <value>Renk seç…</value>
+  </data>
+  <data name="VeilPage_InvalidColor" xml:space="preserve">
+    <value>Geçersiz renk kodu (#RRGGBB veya #RGB)</value>
+  </data>
+  <data name="VeilPage_OpacityTitle" xml:space="preserve">
+    <value>Opaklık</value>
+  </data>
+  <data name="VeilPage_HotkeyTitle" xml:space="preserve">
+    <value>Kısayol</value>
+  </data>
+  <data name="VeilPage_HotkeyDescription" xml:space="preserve">
+    <value>Kaplamayı açıp kapatmak için global kısayol</value>
+  </data>
+  <data name="VeilPage_CurrentHotkey" xml:space="preserve">
+    <value>Geçerli kısayol:</value>
+  </data>
+  <data name="VeilPage_ChangeHotkey" xml:space="preserve">
+    <value>Kısayolu değiştir</value>
+  </data>
+  <data name="VeilPage_RemoveHotkey" xml:space="preserve">
+    <value>Kaldır</value>
+  </data>
+  <data name="VeilPage_ResetHotkey" xml:space="preserve">
+    <value>Sıfırla (Ctrl+F11)</value>
+  </data>
+  <data name="VeilPage_CaptureHint" xml:space="preserve">
+    <value>Yeni kısayola basın… (Esc: iptal)</value>
+  </data>
+  <data name="Settings_About" xml:space="preserve">
+    <value>Hakkında</value>
+  </data>
+  <data name="About_VersionPlaceholder" xml:space="preserve">
+    <value>Sürüm —</value>
+  </data>
+  <data name="About_License" xml:space="preserve">
+    <value>Lisans</value>
+  </data>
+  <data name="About_LicenseValue" xml:space="preserve">
+    <value>MIT Lisans</value>
+  </data>
+  <data name="About_Platform" xml:space="preserve">
+    <value>Platform</value>
+  </data>
+  <data name="Settings_WindowTitle" xml:space="preserve">
+    <value>WharfBar Ayarları</value>
+  </data>
+  <data name="DockPage_AddDialogTitle" xml:space="preserve">
+    <value>Dock'a ekle</value>
+  </data>
+  <data name="DockPage_AddDialogFilter" xml:space="preserve">
+    <value>Uygulamalar (*.exe;*.lnk;*.bat;*.cmd)|*.exe;*.lnk;*.bat;*.cmd|Tüm dosyalar (*.*)|*.*</value>
+  </data>
+  <data name="DockRow_DragTooltip" xml:space="preserve">
+    <value>Sürükleyerek sırayı değiştirin</value>
+  </data>
+  <data name="DockRow_RemoveTooltip" xml:space="preserve">
+    <value>Dock'tan kaldır</value>
+  </data>
+  <data name="TopBarPage_DisabledHint" xml:space="preserve">
+    <value>Kapalı — açınca üst çubuğa döner</value>
+  </data>
+  <data name="TopBarItem_TrayMirror" xml:space="preserve">
+    <value>Tepsi simgeleri</value>
+  </data>
+  <data name="TopBarItem_TrayOverflow" xml:space="preserve">
+    <value>Gizli simgeler</value>
+  </data>
+  <data name="TopBarItem_DateTime" xml:space="preserve">
+    <value>Tarih ve saat</value>
+  </data>
+  <data name="TopBarItem_Notifications" xml:space="preserve">
+    <value>Bildirimler</value>
+  </data>
+  <data name="TopBarItem_ControlCenter" xml:space="preserve">
+    <value>Hızlı ayarlar</value>
+  </data>
+  <data name="TopBarItem_Volume" xml:space="preserve">
+    <value>Ses</value>
+  </data>
+  <data name="TopBarItem_Brightness" xml:space="preserve">
+    <value>Parlaklık (Monitörler)</value>
+  </data>
+  <data name="TopBarItem_Media" xml:space="preserve">
+    <value>Medya</value>
+  </data>
+  <data name="TopBarItem_Network" xml:space="preserve">
+    <value>Ağ</value>
+  </data>
+  <data name="TopBarItem_Battery" xml:space="preserve">
+    <value>Pil</value>
+  </data>
+  <data name="IslandPage_RangeError" xml:space="preserve">
+    <value>{0} aralığında bir tam sayı girin.</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmTitle" xml:space="preserve">
+    <value>Bırakılan dosyalar silinsin mi?</value>
+  </data>
+  <data name="IslandPage_DeleteConfirmMessage" xml:space="preserve">
+    <value>%AppData%\WharfBar\Drop klasörü taranır ve içindeki TÜM kopyalar kalıcı olarak silinir.
+
+Orijinal dosyalarınız silinmez, ama kopyaları geri getirilemez.</value>
+  </data>
+  <data name="IslandPage_ClearConfirmTitle" xml:space="preserve">
+    <value>Tüm geçmiş temizlensin mi?</value>
+  </data>
+  <data name="IslandPage_ClearConfirmMessage" xml:space="preserve">
+    <value>Pano geçmişi ve bırakılan dosya kayıtları listeden silinir.
+
+Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları sil” ile temizlemeniz gerekir.</value>
+  </data>
+  <data name="VeilPage_NoHotkey" xml:space="preserve">
+    <value>Kısayol yok</value>
+  </data>
+  <data name="VeilPage_Color_Blue" xml:space="preserve">
+    <value>Mavi</value>
+  </data>
+  <data name="VeilPage_Color_Green" xml:space="preserve">
+    <value>Yeşil</value>
+  </data>
+  <data name="VeilPage_Color_Pink" xml:space="preserve">
+    <value>Pembe</value>
+  </data>
+  <data name="VeilPage_Color_Orange" xml:space="preserve">
+    <value>Turuncu</value>
+  </data>
+  <data name="VeilPage_Color_Yellow" xml:space="preserve">
+    <value>Sarı</value>
+  </data>
+  <data name="VeilPage_Color_Purple" xml:space="preserve">
+    <value>Mor</value>
+  </data>
+  <data name="VeilPage_Color_Gray" xml:space="preserve">
+    <value>Gri</value>
+  </data>
+  <data name="VeilPage_Color_Dark" xml:space="preserve">
+    <value>Koyu</value>
+  </data>
+  <data name="About_VersionFormat" xml:space="preserve">
+    <value>Sürüm {0}</value>
+  </data>
+  <data name="About_VersionBetaFormat" xml:space="preserve">
+    <value>Sürüm {0} · Beta</value>
+  </data>
+  <data name="About_Description" xml:space="preserve">
+    <value>Windows, macOS ve Linux masaüstülerinden esinlenen üst çubuk ve dock. Fluent / Mica görünüm; görev çubuğu yerine geçen hibrit tepsi.</value>
+  </data>
+  <data name="TopBar_Menu" xml:space="preserve">
+    <value>Menü</value>
+  </data>
+  <data name="TopBar_PcSettings" xml:space="preserve">
+    <value>Ayarlar (PC)</value>
+  </data>
+  <data name="TopBar_Profile" xml:space="preserve">
+    <value>Profil</value>
+  </data>
+  <data name="TopBar_AboutPc" xml:space="preserve">
+    <value>Bilgisayar hakkında</value>
+  </data>
+  <data name="TopBar_Lock" xml:space="preserve">
+    <value>Bilgisayarı kilitle</value>
+  </data>
+  <data name="TopBar_Sleep" xml:space="preserve">
+    <value>Uyku</value>
+  </data>
+  <data name="TopBar_Shutdown" xml:space="preserve">
+    <value>Kapat</value>
+  </data>
+  <data name="TopBar_Restart" xml:space="preserve">
+    <value>Yeniden başlat</value>
+  </data>
+  <data name="TopBar_WharfBarSettings" xml:space="preserve">
+    <value>WharfBar Ayarları</value>
+  </data>
+  <data name="TopBar_About" xml:space="preserve">
+    <value>WharfBar hakkında</value>
+  </data>
+  <data name="TopBar_Quit" xml:space="preserve">
+    <value>WharfBar'ı kapat</value>
+  </data>
+  <data name="TopBar_TrayIcons" xml:space="preserve">
+    <value>Tepsi simgeleri</value>
+  </data>
+  <data name="TopBar_TrayOverflow" xml:space="preserve">
+    <value>Gizli simgeler</value>
+  </data>
+  <data name="TopBar_DateTime" xml:space="preserve">
+    <value>Tarih ve saat</value>
+  </data>
+  <data name="TopBar_Notifications" xml:space="preserve">
+    <value>Bildirimler</value>
+  </data>
+  <data name="TopBar_ControlCenter" xml:space="preserve">
+    <value>Hızlı ayarlar</value>
+  </data>
+  <data name="TopBar_Volume" xml:space="preserve">
+    <value>Ses</value>
+  </data>
+  <data name="TopBar_Brightness" xml:space="preserve">
+    <value>Parlaklık</value>
+  </data>
+  <data name="TopBar_MonitorBrightness" xml:space="preserve">
+    <value>Monitör Parlaklığı</value>
+  </data>
+  <data name="TopBar_Network" xml:space="preserve">
+    <value>Ağ</value>
+  </data>
+  <data name="TopBar_Battery" xml:space="preserve">
+    <value>Pil</value>
+  </data>
+  <data name="TopBar_Media" xml:space="preserve">
+    <value>Medya</value>
+  </data>
+  <data name="TopBar_NowPlaying" xml:space="preserve">
+    <value>Çalan medya</value>
+  </data>
+  <data name="TopBar_Background" xml:space="preserve">
+    <value>Arka plan</value>
+  </data>
+  <data name="TopBar_OpacityFormat" xml:space="preserve">
+    <value>Opaklık {0}%</value>
+  </data>
+  <data name="TopBar_MoveLeft" xml:space="preserve">
+    <value>Sola taşı</value>
+  </data>
+  <data name="TopBar_MoveRight" xml:space="preserve">
+    <value>Sağa taşı</value>
+  </data>
+  <data name="TopBar_ShowAll" xml:space="preserve">
+    <value>Tümünü göster</value>
+  </data>
+  <data name="TopBar_ResetDefault" xml:space="preserve">
+    <value>Varsayılana sıfırla</value>
+  </data>
+  <data name="Dock_Pin" xml:space="preserve"><value>Dock'a sabitle</value></data>
+  <data name="Dock_Unpin" xml:space="preserve"><value>Dock'tan kaldır</value></data>
+  <data name="Dock_EndTask" xml:space="preserve"><value>Görevi sonlandır</value></data>
+  <data name="Dock_CloseWindow" xml:space="preserve"><value>Pencereyi kapat</value></data>
+  <data name="Dock_Windows" xml:space="preserve"><value>Pencereler</value></data>
+  <data name="Dock_UntitledWindow" xml:space="preserve"><value>Başlıksız pencere</value></data>
+  <data name="Dock_RunAsAdmin" xml:space="preserve"><value>Yönetici olarak çalıştır</value></data>
+  <data name="Dock_OpenFileLocation" xml:space="preserve"><value>Dosya konumunu aç</value></data>
+  <data name="Dock_NewWindow" xml:space="preserve"><value>Yeni pencere</value></data>
+  <data name="Dock_Open" xml:space="preserve"><value>Aç</value></data>
+  <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
+  <data name="Dock_Downloads" xml:space="preserve"><value>İndirilenler</value></data>
+  <data name="Dock_RecycleBin" xml:space="preserve"><value>Geri Dönüşüm Kutusu</value></data>
+  <data name="Qs_Title" xml:space="preserve"><value>Hızlı ayarlar</value></data>
+  <data name="Qs_Mixer" xml:space="preserve"><value>Ses karıştırıcı</value></data>
+  <data name="Qs_Mute" xml:space="preserve"><value>Sessiz</value></data>
+  <data name="Qs_Unmute" xml:space="preserve"><value>Sesi aç</value></data>
+  <data name="Qs_NoAudioDevice" xml:space="preserve"><value>Ses aygıtı yok</value></data>
+  <data name="Qs_Settings" xml:space="preserve"><value>Ayarlar</value></data>
+  <data name="Qs_Back" xml:space="preserve"><value>Geri</value></data>
+  <data name="Qs_OutputDevice" xml:space="preserve"><value>Çıkış cihazı</value></data>
+  <data name="Qs_NoOutputDevice" xml:space="preserve"><value>Çıkış aygıtı bulunamadı</value></data>
+  <data name="Qs_DefaultSuffixFormat" xml:space="preserve"><value>{0} (varsayılan)</value></data>
+  <data name="Qs_NoAppSessions" xml:space="preserve"><value>Uygulama oturumu yok</value></data>
+  <data name="Qs_Network" xml:space="preserve"><value>Ağ</value></data>
+  <data name="Qs_LiveTraffic" xml:space="preserve"><value>Anlık trafik</value></data>
+  <data name="Qs_Properties" xml:space="preserve"><value>Özellikler</value></data>
+  <data name="Qs_Adapter" xml:space="preserve"><value>Adaptör</value></data>
+  <data name="Qs_Type" xml:space="preserve"><value>Tür</value></data>
+  <data name="Qs_IPv4" xml:space="preserve"><value>IPv4 adresi</value></data>
+  <data name="Qs_IPv6" xml:space="preserve"><value>IPv6 adresi</value></data>
+  <data name="Qs_Gateway" xml:space="preserve"><value>Ağ geçidi</value></data>
+  <data name="Qs_MacAddress" xml:space="preserve"><value>MAC adresi</value></data>
+  <data name="Qs_LinkSpeed" xml:space="preserve"><value>Bağlantı hızı</value></data>
+  <data name="Qs_OpenNetworkSettings" xml:space="preserve"><value>Ağ ayarlarını aç</value></data>
+  <data name="Qs_WifiSettings" xml:space="preserve"><value>Wi-Fi ayarları</value></data>
+  <data name="Qs_EthernetSettings" xml:space="preserve"><value>Ethernet ayarları</value></data>
+  <data name="Qs_Connect" xml:space="preserve"><value>Bağlan</value></data>
+  <data name="Qs_Cancel" xml:space="preserve"><value>İptal</value></data>
+  <data name="Qs_OpenBluetoothSettings" xml:space="preserve"><value>Bluetooth ayarlarını aç</value></data>
+  <data name="Qs_Project" xml:space="preserve"><value>Yansıt</value></data>
+  <data name="Qs_DisplaySettings" xml:space="preserve"><value>Ekran ayarları</value></data>
+  <data name="Qs_NoConnection" xml:space="preserve"><value>Bağlantı yok</value></data>
+  <data name="Qs_Connected" xml:space="preserve"><value>Bağlı</value></data>
+  <data name="Qs_Saved" xml:space="preserve"><value>Kayıtlı</value></data>
+  <data name="Qs_WifiOff" xml:space="preserve"><value>Wi-Fi kapalı</value></data>
+  <data name="Qs_NoAdapter" xml:space="preserve"><value>Adaptör bulunamadı</value></data>
+  <data name="Qs_NotConnected" xml:space="preserve"><value>Bağlı değil</value></data>
+  <data name="Qs_ScanningNetworks" xml:space="preserve"><value>Ağlar aranıyor…</value></data>
+  <data name="Qs_DisconnectFailed" xml:space="preserve"><value>Bağlantı kesilemedi</value></data>
+  <data name="Qs_Connecting" xml:space="preserve"><value>Bağlanıyor…</value></data>
+  <data name="Qs_ConnectFailed" xml:space="preserve"><value>Bağlanılamadı</value></data>
+  <data name="Qs_OtherNetwork" xml:space="preserve"><value>Diğer ağ</value></data>
+  <data name="Qs_On" xml:space="preserve"><value>Açık</value></data>
+  <data name="Qs_Off" xml:space="preserve"><value>Kapalı</value></data>
+  <data name="Qs_BluetoothOffHint" xml:space="preserve"><value>Bluetooth kapalı — cihazları görmek için açın</value></data>
+  <data name="Qs_NoPairedDevices" xml:space="preserve"><value>Eşleşmiş cihaz yok</value></data>
+  <data name="Qs_ProjectPcOnly" xml:space="preserve"><value>Yalnızca PC ekranı</value></data>
+  <data name="Qs_ProjectDuplicate" xml:space="preserve"><value>Çoğalt</value></data>
+  <data name="Qs_ProjectExtend" xml:space="preserve"><value>Genişlet</value></data>
+  <data name="Qs_ProjectSecondOnly" xml:space="preserve"><value>Yalnızca 2. ekran</value></data>
+  <data name="Qs_NoSecondDisplay" xml:space="preserve"><value>İkinci ekran yok</value></data>
+  <data name="Qs_ProjectModeFailed" xml:space="preserve"><value>Bu mod uygulanamadı</value></data>
+  <data name="Qs_Airplane" xml:space="preserve"><value>Uçak modu</value></data>
+  <data name="Qs_NightLight" xml:space="preserve"><value>Gece ışığı</value></data>
+  <data name="Qs_Overlay" xml:space="preserve"><value>Kaplama</value></data>
+  <data name="Qs_ColorOverlay" xml:space="preserve"><value>Renk kaplaması</value></data>
+  <data name="Qs_EnergySaver" xml:space="preserve"><value>Enerji tasarrufu</value></data>
+  <data name="Qs_EnergySaverOn" xml:space="preserve"><value>Enerji tasarrufu açık</value></data>
+  <data name="Qs_TurnOffAirplane" xml:space="preserve"><value>Uçak modunu kapatın</value></data>
+  <data name="Qs_NetworkUnavailable" xml:space="preserve"><value>Ağ kullanılamıyor</value></data>
+  <data name="Qs_NetworkConnected" xml:space="preserve"><value>Ağ bağlı</value></data>
+  <data name="Clock_Notifications" xml:space="preserve"><value>Bildirimler</value></data>
+  <data name="Clock_OpenNotificationCenter" xml:space="preserve"><value>Bildirim merkezini aç</value></data>
+  <data name="Clock_PreviousMonth" xml:space="preserve"><value>Önceki ay</value></data>
+  <data name="Clock_NextMonth" xml:space="preserve"><value>Sonraki ay</value></data>
+  <data name="Clock_ReadingNotifications" xml:space="preserve"><value>Bildirimler okunuyor…</value></data>
+  <data name="Clock_AccessDenied" xml:space="preserve"><value>Bildirimlere erişim verilmedi.</value></data>
+  <data name="Clock_NoNotifications" xml:space="preserve"><value>Bildirim yok.</value></data>
+  <data name="Clock_ReadFailed" xml:space="preserve"><value>Bildirimler okunamadı.</value></data>
+  <data name="Media_NothingPlaying" xml:space="preserve"><value>Çalan medya yok</value></data>
+  <data name="Media_PreviousSession" xml:space="preserve"><value>Önceki medya oturumu</value></data>
+  <data name="Media_NextSession" xml:space="preserve"><value>Sonraki medya oturumu</value></data>
+  <data name="Media_PreviousTrack" xml:space="preserve"><value>Önceki parça</value></data>
+  <data name="Media_PlayPause" xml:space="preserve"><value>Oynat/Duraklat</value></data>
+  <data name="Media_NextTrack" xml:space="preserve"><value>Sonraki parça</value></data>
+  <data name="Brightness_Title" xml:space="preserve"><value>Monitör Parlaklığı</value></data>
+  <data name="Brightness_AllDisplays" xml:space="preserve"><value>Tüm Ekranlar</value></data>
+  <data name="Brightness_RefreshMonitors" xml:space="preserve"><value>Monitörleri Yenile</value></data>
+  <data name="Brightness_NoMonitors" xml:space="preserve"><value>Bağlı monitör bulunamadı</value></data>
+  <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI parlaklık kontrolü desteklenmiyor</value></data>
+  <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>simge yok</value></data>
+  <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Windows gizli simgelerini aç</value></data>
+  <data name="Island_Clipboard" xml:space="preserve"><value>Pano</value></data>
+  <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Pano ve bırakılan dosyalar</value></data>
+  <data name="Island_Music" xml:space="preserve"><value>Müzik</value></data>
+  <data name="Island_NowPlaying" xml:space="preserve"><value>Şimdi çalıyor</value></data>
+  <data name="Island_BackToMusic" xml:space="preserve"><value>Müziğe dön</value></data>
+  <data name="Island_ClipboardHistory" xml:space="preserve"><value>Pano geçmişi</value></data>
+  <data name="Island_EmptyHint" xml:space="preserve"><value>Kopyalanan metin ve bırakılan dosyalar burada durur.</value></data>
+  <data name="Island_SearchPlaceholder" xml:space="preserve"><value>Ara…</value></data>
+  <data name="Island_NoEntries" xml:space="preserve"><value>Kayıt yok.</value></data>
+  <data name="Island_NoMatchingEntries" xml:space="preserve"><value>Eşleşen kayıt yok.</value></data>
+  <data name="Island_MoreEntriesFormat" xml:space="preserve"><value>… {0} kayıt daha var (arama ile daralt)</value></data>
+  <data name="Island_RelativeNow" xml:space="preserve"><value>şimdi</value></data>
+  <data name="Island_RelativeMinutes" xml:space="preserve"><value>{0} dk önce</value></data>
+  <data name="Island_RelativeHours" xml:space="preserve"><value>{0} sa önce</value></data>
+  <data name="Island_RelativeDays" xml:space="preserve"><value>{0} gün önce</value></data>
+  <data name="Launchpad_AgeNow" xml:space="preserve"><value>Az önce</value></data>
+  <data name="Launchpad_AgeMinutes" xml:space="preserve"><value>{0} dakika önce</value></data>
+  <data name="Launchpad_AgeHours" xml:space="preserve"><value>{0} saat önce</value></data>
+  <data name="Launchpad_AgeYesterday" xml:space="preserve"><value>Dün saat {0}</value></data>
+  <data name="Island_VolumeMuted" xml:space="preserve"><value>Ses, sessiz</value></data>
+  <data name="Island_VolumeFormat" xml:space="preserve"><value>Ses %{0}</value></data>
+  <data name="Island_BrightnessFormat" xml:space="preserve"><value>Parlaklık %{0}</value></data>
+  <data name="Island_BatteryFormat" xml:space="preserve"><value>Pil %{0}</value></data>
+  <data name="Island_BatteryChargingFormat" xml:space="preserve"><value>{0} · şarj oluyor</value></data>
+  <data name="Tray_Settings" xml:space="preserve"><value>WharfBar Ayarları</value></data>
+  <data name="Tray_Quit" xml:space="preserve"><value>WharfBar&apos;ı kapat</value></data>
+  <data name="Launchpad_Connected" xml:space="preserve"><value>Bağlı</value></data>
+  <data name="Launchpad_Messages" xml:space="preserve"><value>Mesajlar</value></data>
+  <data name="Launchpad_Calls" xml:space="preserve"><value>Aramalar</value></data>
+  <data name="Launchpad_Photos" xml:space="preserve"><value>Fotoğraflar</value></data>
+  <data name="Launchpad_SendFiles" xml:space="preserve"><value>Dosyaları gönder</value></data>
+  <data name="Launchpad_Recent" xml:space="preserve"><value>En son</value></data>
+  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Uygulama, ayar ve belge ara</value></data>
+  <data name="Launchpad_Pinned" xml:space="preserve"><value>Sabitlendi</value></data>
+  <data name="Launchpad_ShowLess" xml:space="preserve"><value>Daha az göster</value></data>
+  <data name="Launchpad_ShowAll" xml:space="preserve"><value>Tümünü göster</value></data>
+  <data name="Launchpad_Results" xml:space="preserve"><value>Sonuçlar</value></data>
+  <data name="Launchpad_All" xml:space="preserve"><value>Tümü</value></data>
+  <data name="Launchpad_ViewGrid" xml:space="preserve"><value>Görünüm: Kılavuz</value></data>
+  <data name="Launchpad_ViewList" xml:space="preserve"><value>Görünüm: Liste</value></data>
+  <data name="Launchpad_NoMatches" xml:space="preserve"><value>Eşleşen uygulama yok</value></data>
+  <data name="Launchpad_ToolDocuments" xml:space="preserve"><value>Belgeler</value></data>
+  <data name="Launchpad_ToolDownloads" xml:space="preserve"><value>İndirilenler</value></data>
+  <data name="Launchpad_ToolPictures" xml:space="preserve"><value>Resimler</value></data>
+  <data name="Launchpad_ToolSettings" xml:space="preserve"><value>Ayarlar</value></data>
+  <data name="Launchpad_ToolWidgets" xml:space="preserve"><value>Widget</value></data>
+  <data name="Launchpad_ToolPlugins" xml:space="preserve"><value>Eklenti</value></data>
+  <data name="Launchpad_ToolPower" xml:space="preserve"><value>Güç</value></data>
+  <data name="Gallery_Widgets" xml:space="preserve"><value>Widget&apos;lar</value></data>
+  <data name="Gallery_Plugins" xml:space="preserve"><value>Eklentiler</value></data>
+  <data name="Gallery_PluginsAndWidgets" xml:space="preserve"><value>Eklentiler ve widget&apos;lar</value></data>
+  <data name="Gallery_Intro" xml:space="preserve"><value>Yerleşik öğeler hemen çalışır. Yerel öğeler bir klasördeki manifest.json kaydıdır. Kartın yuvası, öğenin nerede duracağını söyler.</value></data>
+  <data name="Gallery_BuiltIn" xml:space="preserve"><value>Yerleşik</value></data>
+  <data name="Gallery_NoBuiltIn" xml:space="preserve"><value>Bu görünümde yerleşik öğe yok.</value></data>
+  <data name="Gallery_Local" xml:space="preserve"><value>Yerel</value></data>
+  <data name="Gallery_Slots" xml:space="preserve"><value>Yuvalar</value></data>
+  <data name="Gallery_SlotsExplanation" xml:space="preserve"><value>Üst çubuk (topBar) ve Dock (dock) v1&apos;de yalnız kayıttır; çubuğa veya dock&apos;a çizilmez. Masaüstü (desktop) yerleşik saat ve takvimi pencere olarak açar. Ada (island) görselleştirici, Bluetooth bildirimi ve kamera aynasını hapın içinde çalıştırır. İnternetten kod inmez, derleme yüklenmez.</value></data>
+  <data name="Gallery_OpenFolder" xml:space="preserve"><value>Klasörü aç</value></data>
+  <data name="Gallery_SlotTopBar" xml:space="preserve"><value>Üst çubuk</value></data>
+  <data name="Gallery_SlotDock" xml:space="preserve"><value>Dock</value></data>
+  <data name="Gallery_SlotDesktop" xml:space="preserve"><value>Masaüstü</value></data>
+  <data name="Gallery_SlotIsland" xml:space="preserve"><value>Ada</value></data>
+  <data name="Gallery_ChipDesktopDetail" xml:space="preserve"><value>saat, takvim</value></data>
+  <data name="Gallery_ChipIslandDetail" xml:space="preserve"><value>hap</value></data>
+  <data name="Gallery_EmptyLocalTitle" xml:space="preserve"><value>Henüz yerel kayıt yok</value></data>
+  <data name="Gallery_EmptyLocalBody" xml:space="preserve"><value>plugins klasörünün altında bir klasör açın ve içine manifest.json koyun. Kökteki dosya okunmaz; bağlantı (junction) klasörleri de atlanır.</value></data>
+  <data name="Gallery_ExampleId" xml:space="preserve"><value>weather</value></data>
+  <data name="Gallery_ExampleName" xml:space="preserve"><value>Hava</value></data>
+  <data name="Gallery_ExampleDescription" xml:space="preserve"><value>Kısa durum.</value></data>
+  <data name="Gallery_RecordOnly" xml:space="preserve"><value>yalnız kayıt</value></data>
+  <data name="Gallery_KindWidget" xml:space="preserve"><value>Widget</value></data>
+  <data name="Gallery_KindPlugin" xml:space="preserve"><value>Eklenti</value></data>
+  <data name="Gallery_CardVisualizerName" xml:space="preserve"><value>Görselleştirici</value></data>
+  <data name="Gallery_CardVisualizerSummary" xml:space="preserve"><value>Müzik çalarken ada hapında beş çubuk.</value></data>
+  <data name="Gallery_CardBluetoothName" xml:space="preserve"><value>Bluetooth bildirimi</value></data>
+  <data name="Gallery_CardBluetoothSummary" xml:space="preserve"><value>Bağlanan cihazın adı hapta kısa süre durur.</value></data>
+  <data name="Gallery_CardCameraName" xml:space="preserve"><value>Kamera aynası</value></data>
+  <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Hapta canlı önizleme. İzin yoksa görüntü yok.</value></data>
+  <data name="Gallery_CardClockName" xml:space="preserve"><value>Saat</value></data>
+  <data name="Gallery_CardClockSummary" xml:space="preserve"><value>Masaüstünde saat penceresi. Ada hapına girmez.</value></data>
+  <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Takvim</value></data>
+  <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>Bu ayın ızgarası. Ada hapına girmez.</value></data>
+  <data name="Island_Camera" xml:space="preserve"><value>Kamera</value></data>
+  <data name="Network_RateBytes" xml:space="preserve"><value>{0} B/sn</value></data>
+  <data name="Network_RateKilobytes" xml:space="preserve"><value>{0} KB/sn</value></data>
+  <data name="Network_RateMegabytes" xml:space="preserve"><value>{0} MB/sn</value></data>
+<data name="Appearance_Logo_Section" xml:space="preserve">
+    <value>Logo</value>
+  </data>
+  <data name="Appearance_Logo_Title" xml:space="preserve">
+    <value>Logo stili</value>
+  </data>
+  <data name="Appearance_Logo_Description" xml:space="preserve">
+    <value>&#220;st &#231;ubukta ve dock ba&#351;latma kutucu&#287;unda g&#246;r&#252;nen logo</value>
+  </data>
+  <data name="Appearance_Logo_WharfBar" xml:space="preserve">
+    <value>WharfBar</value>
+  </data>
+  <data name="Appearance_Logo_Windows" xml:space="preserve">
+    <value>Windows</value>
+  </data>
+  <data name="Island_WallpaperAccent_Title" xml:space="preserve">
+    <value>Vurguyu duvar kağıdına uydur</value>
+  </data>
+  <data name="Island_WallpaperAccent_Description" xml:space="preserve">
+    <value>Ada üzerinden duvar kağıdı uygulandıktan sonra WharfBar ve Windows vurgu renklerini görselden günceller.</value>
   </data>
 </root>

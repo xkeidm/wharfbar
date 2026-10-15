@@ -274,6 +274,7 @@ internal sealed class ConfigService
         config.SchemaVersion = AppConfig.CurrentSchemaVersion;
         config.Theme = NormalizeTheme(config.Theme);
         config.Language = LocalizationService.NormalizeLanguage(config.Language);
+        config.LogoStyle = LogoStyles.Normalize(config.LogoStyle);
         config.Dock ??= new DockConfig();
         config.TopBar ??= new TopBarConfig();
         config.Veil ??= new VeilConfig();
@@ -288,6 +289,9 @@ internal sealed class ConfigService
         config.Island.MaxItems = IslandNormalizer.ClampMaxItems(config.Island.MaxItems);
         config.Island.MusicPresence = IslandNormalizer.NormalizeMusicPresence(config.Island.MusicPresence);
         config.Island.IdleLabel = IslandNormalizer.NormalizeIdleLabel(config.Island.IdleLabel);
+        config.Island.HubTab = IslandNormalizer.NormalizeHubTab(config.Island.HubTab);
+        config.Island.WallpaperTransition =
+            IslandNormalizer.NormalizeWallpaperTransition(config.Island.WallpaperTransition);
         config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
         config.Island.ColorMode = IslandNormalizer.NormalizeColorMode(config.Island.ColorMode);
         config.Island.OpenWidgets = PluginCatalog.NormalizeOpenWidgets(config.Island.OpenWidgets);

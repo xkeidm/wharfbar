@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 668 680" role="img" aria-label="WharfBar minimalist marks v4">
+  <title>WharfBar v4 - minimalist marks</title>
+  <defs>
+    <!-- 01 Perspective Pier: boardwalk running out to the horizon -->
+    <g id="i1">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <mask id="m1">
+        <rect width="128" height="128" fill="#fff"/>
+        <rect y="41" width="128" height="2.5" fill="#000"/>
+        <rect y="53" width="128" height="3" fill="#000"/>
+        <rect y="67" width="128" height="4" fill="#000"/>
+        <rect y="84" width="128" height="5" fill="#000"/>
+      </mask>
+      <path d="M52 28H76L106 102H22Z" fill="#16324F" mask="url(#m1)"/>
+    </g>
+
+    <!-- 02 Moored Pile: a pile with a mooring loop around it -->
+    <g id="i2">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <path d="M34 62A30 13 0 0 1 94 62" fill="none" stroke="#5B8FB8" stroke-width="7" stroke-linecap="round"/>
+      <rect x="56" y="24" width="16" height="80" rx="8" fill="#16324F" stroke="#EAF1F7" stroke-width="5" paint-order="stroke"/>
+      <path d="M34 62A30 13 0 0 0 94 62" fill="none" stroke="#EAF1F7" stroke-width="13" stroke-linecap="round"/>
+      <path d="M34 62A30 13 0 0 0 94 62" fill="none" stroke="#5B8FB8" stroke-width="7" stroke-linecap="round"/>
+    </g>
+
+    <!-- 03 Cleat: dock cleat silhouette -->
+    <g id="i3">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <path d="M18 46C26 50 40 55 64 55C88 55 102 50 110 46C113 60 102 69 86 69H72V80H86V93H42V80H56V69H42C26 69 15 60 18 46Z" fill="#16324F"/>
+    </g>
+
+    <!-- 04 Bollard: mooring bollard with rope -->
+    <g id="i4">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <path d="M44 26H84A9 9 0 0 1 93 35V40A9 9 0 0 1 84 49H75V60C75 72 82 82 88 92H92A4 4 0 0 1 96 96V100A4 4 0 0 1 92 104H36A4 4 0 0 1 32 100V96A4 4 0 0 1 36 92H40C46 82 53 72 53 60V49H44A9 9 0 0 1 35 40V35A9 9 0 0 1 44 26Z" fill="#16324F"/>
+      <path d="M50 55Q64 66 78 55" fill="none" stroke="#5B8FB8" stroke-width="5" stroke-linecap="round"/>
+    </g>
+
+    <!-- 05 Waterline W: W rising out of the water -->
+    <g id="i5">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <clipPath id="cu"><rect width="128" height="68"/></clipPath>
+      <clipPath id="cl"><rect y="75" width="128" height="53"/></clipPath>
+      <path d="M24 32L43 94L64 48L85 94L104 32" fill="none" stroke="#16324F" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#cu)"/>
+      <path d="M24 32L43 94L64 48L85 94L104 32" fill="none" stroke="#6FA0C8" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#cl)" opacity="0.85"/>
+    </g>
+
+    <!-- 06 Wharf at Dusk: pier to the horizon with a low sun -->
+    <g id="i6">
+      <rect width="128" height="128" rx="28" fill="#16324F"/>
+      <clipPath id="sun"><rect x="0" y="0" width="128" height="44"/></clipPath>
+      <circle cx="64" cy="44" r="19" fill="#F2B66B" clip-path="url(#sun)"/>
+      <mask id="m6">
+        <rect width="128" height="128" fill="#fff"/>
+        <rect y="55" width="128" height="2.5" fill="#000"/>
+        <rect y="67" width="128" height="3" fill="#000"/>
+        <rect y="80" width="128" height="4" fill="#000"/>
+        <rect y="94" width="128" height="5" fill="#000"/>
+      </mask>
+      <path d="M56 44H72L106 108H22Z" fill="#EAF1F7" mask="url(#m6)"/>
+    </g>
+  </defs>
+
+  <rect width="668" height="680" fill="#F4F7FB"/>
+  <text x="334" y="34" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="18" font-weight="600" fill="#16324F">WharfBar &#8212; tek hareketli, minimalist i&#351;aretler</text>
+  <text x="334" y="54" text-anchor="middle" font-family="Segoe UI, system-ui, sans-serif" font-size="12" fill="#5B6B7C">her biri tek fikir &#183; alt s&#305;rada 32 px testi</text>
+
+  <use xlink:href="#i1" href="#i1" transform="translate(30,76) scale(1.5)"/>
+  <use xlink:href="#i2" href="#i2" transform="translate(238,76) scale(1.5)"/>
+  <use xlink:href="#i3" href="#i3" transform="translate(446,76) scale(1.5)"/>
+  <use xlink:href="#i4" href="#i4" transform="translate(30,330) scale(1.5)"/>
+  <use xlink:href="#i5" href="#i5" transform="translate(238,330) scale(1.5)"/>
+  <use xlink:href="#i6" href="#i6" transform="translate(446,330) scale(1.5)"/>
+
+  <g font-family="Segoe UI, system-ui, sans-serif" fill="#16324F" text-anchor="middle">
+    <text x="126" y="288" font-size="13" font-weight="600">01 Perspective Pier</text>
+    <text x="126" y="305" font-size="11" fill="#5B6B7C">ufka uzanan r&#305;ht&#305;m</text>
+    <text x="334" y="288" font-size="13" font-weight="600">02 Moored Pile</text>
+    <text x="334" y="305" font-size="11" fill="#5B6B7C">kaz&#305;k + ba&#287;lama halkas&#305;</text>
+    <text x="542" y="288" font-size="13" font-weight="600">03 Cleat</text>
+    <text x="542" y="305" font-size="11" fill="#5B6B7C">r&#305;ht&#305;m ba&#287;lama kancas&#305;</text>
+    <text x="126" y="542" font-size="13" font-weight="600">04 Bollard</text>
+    <text x="126" y="559" font-size="11" fill="#5B6B7C">ba&#287;lama babas&#305; + halat</text>
+    <text x="334" y="542" font-size="13" font-weight="600">05 Waterline W</text>
+    <text x="334" y="559" font-size="11" fill="#5B6B7C">sudan &#231;&#305;kan W</text>
+    <text x="542" y="542" font-size="13" font-weight="600">06 Wharf at Dusk</text>
+    <text x="542" y="559" font-size="11" fill="#5B6B7C">ufuk + al&#231;ak g&#252;ne&#351;</text>
+  </g>
+
+  <!-- 32 px legibility row -->
+  <use xlink:href="#i1" href="#i1" transform="translate(70,606) scale(0.25)"/>
+  <use xlink:href="#i2" href="#i2" transform="translate(170,606) scale(0.25)"/>
+  <use xlink:href="#i3" href="#i3" transform="translate(270,606) scale(0.25)"/>
+  <use xlink:href="#i4" href="#i4" transform="translate(370,606) scale(0.25)"/>
+  <use xlink:href="#i5" href="#i5" transform="translate(470,606) scale(0.25)"/>
+  <use xlink:href="#i6" href="#i6" transform="translate(570,606) scale(0.25)"/>
+</svg>

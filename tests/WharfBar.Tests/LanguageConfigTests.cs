@@ -33,7 +33,7 @@ public class LanguageConfigTests : IDisposable
         service.Save(config);
 
         AppConfig loaded = new ConfigService(_root).LoadOrCreate();
-        Assert.Equal(LocalizationService.LanguageEn, loaded.Language);
+        Assert.Equal(AppConfig.LanguageEn, loaded.Language);
     }
 
     [Theory]
@@ -53,6 +53,6 @@ public class LanguageConfigTests : IDisposable
     [Fact]
     public void CreateDefault_LanguageIsSystem()
     {
-        Assert.Equal(LocalizationService.LanguageSystem, ConfigService.CreateDefault().Language);
+        Assert.Equal(AppConfig.LanguageSystem, ConfigService.CreateDefault().Language);
     }
 }

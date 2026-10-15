@@ -1,6 +1,7 @@
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
 using WharfBar.Models;
+using WharfBar.Resources;
 
 namespace WharfBar.Views;
 
@@ -13,8 +14,8 @@ internal static class WidgetHost
     {
         ArgumentNullException.ThrowIfNull(config);
         config.Island.OpenWidgets ??= [];
-        Sync("clock", config.Island.OpenWidgets.Contains("clock"), () => Build("Saat", ClockBody()));
-        Sync("calendar", config.Island.OpenWidgets.Contains("calendar"), () => Build("Takvim", CalendarBody()));
+        Sync("clock", config.Island.OpenWidgets.Contains("clock"), () => Build(Strings.Gallery_CardClockName, ClockBody()));
+        Sync("calendar", config.Island.OpenWidgets.Contains("calendar"), () => Build(Strings.Gallery_CardCalendarName, CalendarBody()));
     }
 
     private static void Sync(string id, bool wanted, Func<Window> create)

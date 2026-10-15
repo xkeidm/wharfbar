@@ -3,6 +3,7 @@ using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WharfBar.Native;
+using WharfBar.Resources;
 
 namespace WharfBar.Services;
 
@@ -270,7 +271,7 @@ internal sealed class QuickSettingsService : IDisposable
                 IsEnabled: !_airplaneOn,
                 IsActive: _wifiOn && !_airplaneOn,
                 HasChevron: true,
-                Tooltip: _airplaneOn ? "Uçak modunu kapatın" : "Wi-Fi"),
+                Tooltip: _airplaneOn ? Strings.Qs_TurnOffAirplane : "Wi-Fi"),
             new QuickTileState(
                 "bluetooth",
                 "Bluetooth",
@@ -278,47 +279,47 @@ internal sealed class QuickSettingsService : IDisposable
                 IsEnabled: !_airplaneOn,
                 IsActive: _bluetoothOn && !_airplaneOn,
                 HasChevron: true,
-                Tooltip: _airplaneOn ? "Uçak modunu kapatın" : "Bluetooth"),
+                Tooltip: _airplaneOn ? Strings.Qs_TurnOffAirplane : "Bluetooth"),
             new QuickTileState(
                 "airplane",
-                "Uçak modu",
+                Strings.Qs_Airplane,
                 "\uE709",
                 IsEnabled: true,
                 IsActive: _airplaneOn,
                 HasChevron: false,
-                Tooltip: "Uçak modu"),
+                Tooltip: Strings.Qs_Airplane),
             new QuickTileState(
                 "project",
-                "Yansıt",
+                Strings.Qs_Project,
                 "\uE7F4",
                 IsEnabled: true,
                 IsActive: false,
                 HasChevron: true,
-                Tooltip: "Yansıt"),
+                Tooltip: Strings.Qs_Project),
             new QuickTileState(
                 "nightlight",
-                "Gece ışığı",
+                Strings.Qs_NightLight,
                 "\uE708",
                 IsEnabled: true,
                 IsActive: _nightLight.IsEnabled,
                 HasChevron: false,
-                Tooltip: "Gece ışığı"),
+                Tooltip: Strings.Qs_NightLight),
             new QuickTileState(
                 "veil",
-                "Kaplama",
+                Strings.Qs_Overlay,
                 "\uE790",
                 IsEnabled: true,
                 IsActive: _veil.IsEnabled,
                 HasChevron: false,
-                Tooltip: "Renk kaplaması"),
+                Tooltip: Strings.Qs_ColorOverlay),
             new QuickTileState(
                 "batterysaver",
-                "Enerji tasarrufu",
+                Strings.Qs_EnergySaver,
                 "\uEBC0",
                 IsEnabled: true,
                 IsActive: _energySaverOn,
                 HasChevron: false,
-                Tooltip: _energySaverOn ? "Enerji tasarrufu açık" : "Enerji tasarrufu"),
+                Tooltip: _energySaverOn ? Strings.Qs_EnergySaverOn : Strings.Qs_EnergySaver),
         ];
     }
 
@@ -609,8 +610,8 @@ internal sealed class QuickSettingsService : IDisposable
             return new NetworkDetails(
                 false,
                 NetworkKind.Offline,
-                "Bağlantı yok",
-                "Ağ kullanılamıyor",
+                Strings.Qs_NoConnection,
+                Strings.Qs_NetworkUnavailable,
                 string.Empty,
                 null);
         }
@@ -670,18 +671,18 @@ internal sealed class QuickSettingsService : IDisposable
         }
         catch (NetworkInformationException)
         {
-            return new NetworkDetails(true, NetworkKind.Other, "Bağlı", "Ağ bağlı", string.Empty, null);
+            return new NetworkDetails(true, NetworkKind.Other, Strings.Qs_Connected, Strings.Qs_NetworkConnected, string.Empty, null);
         }
 
         string title = kind switch
         {
             NetworkKind.WiFi => "Wi-Fi",
             NetworkKind.Ethernet => "Ethernet",
-            _ => "Ağ",
+            _ => Strings.Qs_Network,
         };
 
         string subtitle = string.IsNullOrEmpty(adapter)
-            ? "Bağlı"
+            ? Strings.Qs_Connected
             : string.IsNullOrEmpty(ipv4)
                 ? adapter
                 : $"{adapter} · {ipv4}";

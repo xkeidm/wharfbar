@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Dictionary-style wharf pictogram">
+  <title>v3.08 — Dictionary Pictogram</title>
+  <defs>
+    <linearGradient id="d-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EAF1F7"/>
+      <stop offset="100%" stop-color="#D4E0EC"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#d-bg)"/>
+  <!-- Circular seal like a lexicon glyph -->
+  <circle cx="64" cy="64" r="42" fill="none" stroke="#16324F" stroke-width="5"/>
+  <!-- Inside: pier from left shore into water -->
+  <rect x="34" y="40" width="10" height="48" rx="2" fill="#16324F"/>
+  <rect x="44" y="56" width="40" height="9" rx="2" fill="#16324F"/>
+  <rect x="52" y="65" width="5" height="16" rx="1" fill="#3D5F86"/>
+  <rect x="66" y="65" width="5" height="16" rx="1" fill="#3D5F86"/>
+  <!-- Tiny wave marks -->
+  <path d="M50 90 C56 86, 62 94, 68 90" fill="none" stroke="#6FA0C8" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

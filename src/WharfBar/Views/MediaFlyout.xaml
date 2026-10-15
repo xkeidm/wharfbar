@@ -1,4 +1,4 @@
-<UserControl x:Class="WharfBar.Views.MediaFlyout"
+<UserControl xmlns:res="clr-namespace:WharfBar.Resources" x:Class="WharfBar.Views.MediaFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              MinWidth="340"
@@ -48,7 +48,7 @@
                     <Button x:Name="PreviousSessionButton"
                             Style="{StaticResource MediaIconButton}"
                             Click="OnPreviousSessionClick"
-                            ToolTip="Önceki medya oturumu">
+                            ToolTip="{x:Static res:Strings.Media_PreviousSession}">
                         <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
                                    FontSize="12"
                                    Text="&#xE76B;" />
@@ -62,7 +62,7 @@
                     <Button x:Name="NextSessionButton"
                             Style="{StaticResource MediaIconButton}"
                             Click="OnNextSessionClick"
-                            ToolTip="Sonraki medya oturumu">
+                            ToolTip="{x:Static res:Strings.Media_NextSession}">
                         <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
                                    FontSize="12"
                                    Text="&#xE76C;" />
@@ -111,7 +111,7 @@
 
             <!-- Boş durum -->
             <TextBlock x:Name="EmptyText"
-                       Text="Çalan medya yok"
+                       Text="{x:Static res:Strings.Media_NothingPlaying}"
                        FontSize="12"
                        Opacity="0.6"
                        HorizontalAlignment="Center"
@@ -126,7 +126,7 @@
                 <Button x:Name="PreviousButton"
                         Style="{StaticResource MediaIconButton}"
                         Click="OnPreviousClick"
-                        ToolTip="Önceki parça">
+                        ToolTip="{x:Static res:Strings.Media_PreviousTrack}">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE892;" />
                 </Button>
                 <Button x:Name="PlayPauseButton"
@@ -134,7 +134,7 @@
                         FontSize="24"
                         Padding="10,6"
                         Click="OnPlayPauseClick"
-                        ToolTip="Oynat/Duraklat">
+                        ToolTip="{x:Static res:Strings.Media_PlayPause}">
                     <TextBlock x:Name="PlayPauseGlyph"
                                FontFamily="{DynamicResource AppIconFontFamily}"
                                Text="&#xE768;" />
@@ -142,7 +142,7 @@
                 <Button x:Name="NextButton"
                         Style="{StaticResource MediaIconButton}"
                         Click="OnNextClick"
-                        ToolTip="Sonraki parça">
+                        ToolTip="{x:Static res:Strings.Media_NextTrack}">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE893;" />
                 </Button>
             </StackPanel>

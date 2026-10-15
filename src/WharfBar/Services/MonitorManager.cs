@@ -210,6 +210,14 @@ internal sealed class MonitorManager : IDisposable
         }
     }
 
+    internal void RefreshDockBrandTiles()
+    {
+        foreach (DockWindow dock in _docks)
+        {
+            dock.RefreshBrandTile();
+        }
+    }
+
     /// <summary>
     /// Rebuilds every top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
     /// Removes old AppBars only — does <strong>not</strong> restore the Windows taskbar.

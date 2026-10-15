@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text.Json;
+using WharfBar.Resources;
 using WharfBar.Models;
 
 namespace WharfBar.Services;
@@ -30,7 +31,7 @@ internal static class PluginKinds
     }
 
     internal static string Label(string kind) =>
-        kind == Widget ? "Widget" : "Eklenti";
+        kind == Widget ? Strings.Gallery_KindWidget : Strings.Gallery_KindPlugin;
 }
 
 /// <summary>Where a plugin or widget is meant to appear. v1 draws only the built-ins.</summary>
@@ -79,10 +80,10 @@ internal static class PluginSlots
 
     internal static string Label(string slot) => slot switch
     {
-        TopBar => "Üst çubuk",
-        Dock => "Dock",
-        Desktop => "Masaüstü",
-        _ => "Ada",
+        TopBar => Strings.Gallery_SlotTopBar,
+        Dock => Strings.Gallery_SlotDock,
+        Desktop => Strings.Gallery_SlotDesktop,
+        _ => Strings.Gallery_SlotIsland,
     };
 }
 
@@ -305,36 +306,36 @@ internal static class PluginCatalog
         {
             BuiltIn(
                 Visualizer,
-                "Görselleştirici",
-                "Müzik çalarken ada hapında beş çubuk.",
+                Strings.Gallery_CardVisualizerName,
+                Strings.Gallery_CardVisualizerSummary,
                 PluginKinds.Plugin,
                 PluginSlots.Island,
                 config.Island.Visualizer),
             BuiltIn(
                 BluetoothNotice,
-                "Bluetooth bildirimi",
-                "Bağlanan cihazın adı hapta kısa süre durur.",
+                Strings.Gallery_CardBluetoothName,
+                Strings.Gallery_CardBluetoothSummary,
                 PluginKinds.Plugin,
                 PluginSlots.Island,
                 config.Island.BluetoothNotice),
             BuiltIn(
                 CameraMirror,
-                "Kamera aynası",
-                "Hapta canlı önizleme. İzin yoksa görüntü yok.",
+                Strings.Gallery_CardCameraName,
+                Strings.Gallery_CardCameraSummary,
                 PluginKinds.Plugin,
                 PluginSlots.Island,
                 config.Island.CameraMirror),
             BuiltIn(
                 Clock,
-                "Saat",
-                "Masaüstünde saat penceresi. Ada hapına girmez.",
+                Strings.Gallery_CardClockName,
+                Strings.Gallery_CardClockSummary,
                 PluginKinds.Widget,
                 PluginSlots.Desktop,
                 open.Contains(Clock)),
             BuiltIn(
                 Calendar,
-                "Takvim",
-                "Bu ayın ızgarası. Ada hapına girmez.",
+                Strings.Gallery_CardCalendarName,
+                Strings.Gallery_CardCalendarSummary,
                 PluginKinds.Widget,
                 PluginSlots.Desktop,
                 open.Contains(Calendar)),

@@ -2,7 +2,8 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-      Title="Genel"
+      xmlns:res="clr-namespace:WharfBar.Resources"
+      Title="{x:Static res:Strings.Settings_General}"
       Background="Transparent"
       ScrollViewer.CanContentScroll="False">
 
@@ -29,11 +30,9 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32,24,32,32">
         <StackPanel MaxWidth="850" HorizontalAlignment="Left">
 
-            <!-- Page Title -->
-            <TextBlock x:Name="PageTitleText" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+            <TextBlock Text="{x:Static res:Strings.Settings_General}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
-            <!-- Başlangıç Section -->
-            <TextBlock Text="Başlangıç" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.General_StartupSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -43,18 +42,18 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    
+
                     <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="20"
                                    Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
-                                   
+
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Windows ile Başlat" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="WharfBar'ı Windows açılışında otomatik olarak çalıştırın"
+                        <TextBlock Text="{x:Static res:Strings.General_AutostartTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.General_AutostartDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
-                    
+
                     <ui:ToggleSwitch x:Name="AutostartToggle"
                                     Grid.Column="2"
                                     HorizontalAlignment="Right"
@@ -62,8 +61,7 @@
                 </Grid>
             </Border>
 
-            <!-- Language Section -->
-            <TextBlock x:Name="LanguageSectionHeader" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="{x:Static res:Strings.General_LanguageSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -73,36 +71,33 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-
-                    <ui:SymbolIcon Grid.Column="0" Symbol="LocalLanguage24" FontSize="20"
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Globe24" FontSize="20"
                                    Foreground="{DynamicResource AccentFillColorDefaultBrush}"
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
-
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock x:Name="LanguageTitleText" FontSize="14" FontWeight="Medium" />
-                        <TextBlock x:Name="LanguageDescriptionText"
+                        <TextBlock Text="{x:Static res:Strings.General_LanguageTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.General_LanguageDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
-
-                    <ComboBox x:Name="LanguageCombo"
-                              Grid.Column="2"
-                              HorizontalAlignment="Right"
-                              VerticalAlignment="Center"
-                              Width="190"
+                    <ComboBox x:Name="LanguageCombo" Grid.Column="2" Width="190"
                               SelectionChanged="OnLanguageChanged">
-                        <ComboBoxItem />
-                        <ComboBoxItem />
-                        <ComboBoxItem />
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageSystem}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageEnglish}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageTurkish}" />
                     </ComboBox>
                 </Grid>
             </Border>
 
             <TextBlock x:Name="LanguageRestartNote"
-                       FontSize="12"
-                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,8" />
+                       Text="{x:Static res:Strings.General_LanguageRestartNote}"
+                       FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap" Margin="0,4,0,8" Visibility="Collapsed" />
+
+            <Button x:Name="QuitToApplyButton"
+                    Content="{x:Static res:Strings.General_QuitToApply}"
+                    HorizontalAlignment="Left" Margin="0,0,0,8"
+                    Visibility="Collapsed" Click="OnQuitToApplyClick" />
 
         </StackPanel>
     </ScrollViewer>

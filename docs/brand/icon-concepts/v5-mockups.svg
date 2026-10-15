@@ -1,0 +1,215 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 1290" role="img" aria-label="WharfBar mark mockups">
+  <title>WharfBar v5 - bollard and dusk marks in context</title>
+  <defs>
+    <!-- Bollard glyph: body only, rope groove is cut out so it works as a one-color mark -->
+    <symbol id="bol" viewBox="0 0 128 128">
+      <mask id="grv">
+        <rect width="128" height="128" fill="#fff"/>
+        <path d="M46 64Q64 78 82 64" fill="none" stroke="#000" stroke-width="6" stroke-linecap="round"/>
+      </mask>
+      <g mask="url(#grv)" fill="currentColor">
+        <rect x="40" y="26" width="48" height="16" rx="8"/>
+        <rect x="50" y="38" width="28" height="60"/>
+        <rect x="34" y="92" width="60" height="14" rx="5"/>
+      </g>
+    </symbol>
+    <!-- Rope accent that sits in the groove -->
+    <symbol id="rope" viewBox="0 0 128 128">
+      <path d="M47 64Q64 77 81 64" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round"/>
+    </symbol>
+
+    <!-- App tiles -->
+    <g id="t-light">
+      <rect width="128" height="128" rx="28" fill="#EAF1F7"/>
+      <use href="#bol" width="128" height="128" color="#16324F"/>
+      <use href="#rope" width="128" height="128" color="#E59A45"/>
+    </g>
+    <g id="t-dark">
+      <rect width="128" height="128" rx="28" fill="#16324F"/>
+      <use href="#bol" width="128" height="128" color="#EAF1F7"/>
+      <use href="#rope" width="128" height="128" color="#F2B66B"/>
+    </g>
+    <g id="t-dusk">
+      <rect width="128" height="128" rx="28" fill="#16324F"/>
+      <clipPath id="dsun"><rect width="128" height="44"/></clipPath>
+      <circle cx="64" cy="44" r="21" fill="#F2B66B" clip-path="url(#dsun)"/>
+      <g stroke="#3D6A94" stroke-width="2.5" stroke-linecap="round">
+        <path d="M14 52H44M84 52H114"/>
+        <path d="M12 62H40M88 62H116"/>
+        <path d="M10 74H34M94 74H118"/>
+        <path d="M12 88H28M100 88H116"/>
+      </g>
+      <mask id="dm">
+        <rect width="128" height="128" fill="#fff"/>
+        <rect y="62" width="128" height="2.5" fill="#000"/>
+        <rect y="78" width="128" height="3.5" fill="#000"/>
+        <rect y="96" width="128" height="4.5" fill="#000"/>
+      </mask>
+      <path d="M57 44H71L104 110H24Z" fill="#EAF1F7" mask="url(#dm)"/>
+    </g>
+
+    <!-- Backgrounds -->
+    <linearGradient id="gDusk" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A1626"/><stop offset="0.6" stop-color="#25496F"/><stop offset="1" stop-color="#E0A15A"/>
+    </linearGradient>
+    <linearGradient id="gPale" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4F8FC"/><stop offset="1" stop-color="#CFE0EE"/>
+    </linearGradient>
+    <linearGradient id="gSkyD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#08121F"/><stop offset="1" stop-color="#2A5079"/>
+    </linearGradient>
+    <linearGradient id="gSeaD" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1E3F63"/><stop offset="1" stop-color="#08121F"/>
+    </linearGradient>
+    <linearGradient id="gSkyL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEF4FA"/><stop offset="1" stop-color="#D3E3F0"/>
+    </linearGradient>
+    <linearGradient id="gSeaL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#BBD1E4"/><stop offset="1" stop-color="#E4EEF6"/>
+    </linearGradient>
+    <radialGradient id="glowD" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F2B66B" stop-opacity="0.9"/><stop offset="0.45" stop-color="#E0875A" stop-opacity="0.35"/><stop offset="1" stop-color="#E0875A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowL" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F7D9A8" stop-opacity="0.95"/><stop offset="1" stop-color="#F7D9A8" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="clipWp"><rect width="580" height="326" rx="14"/></clipPath>
+  </defs>
+
+  <rect width="1280" height="1290" fill="#F4F7FB"/>
+  <g font-family="Segoe UI, system-ui, sans-serif">
+    <text x="40" y="44" font-size="22" font-weight="600" fill="#16324F">WharfBar &#8212; i&#231;erik i&#231;inde i&#351;aretler</text>
+    <text x="40" y="66" font-size="13" fill="#5B6B7C">Bollard (ba&#287;lama babas&#305;) = ana i&#351;aret &#183; Dusk = &#246;zel/sezonluk ama&#231;l&#305; ikinci i&#351;aret</text>
+
+    <!-- A: app icon -->
+    <text x="40" y="104" font-size="15" font-weight="600" fill="#16324F">1 &#183; Uygulama ikonu</text>
+    <use href="#t-light" transform="translate(40,120) scale(1.25)"/>
+    <use href="#t-dark" transform="translate(220,120) scale(1.25)"/>
+    <use href="#t-dusk" transform="translate(400,120) scale(1.25)"/>
+    <text x="120" y="302" font-size="12" fill="#5B6B7C" text-anchor="middle">Bollard &#183; a&#231;&#305;k</text>
+    <text x="300" y="302" font-size="12" fill="#5B6B7C" text-anchor="middle">Bollard &#183; koyu</text>
+    <text x="480" y="302" font-size="12" fill="#5B6B7C" text-anchor="middle">Dusk</text>
+
+    <!-- size ladders -->
+    <g transform="translate(620,140)">
+      <use href="#t-light" transform="scale(0.5)"/>
+      <use href="#t-light" transform="translate(80,16) scale(0.25)"/>
+      <use href="#t-light" transform="translate(126,24) scale(0.125)"/>
+      <use href="#t-dark" transform="translate(180,0) scale(0.5)"/>
+      <use href="#t-dark" transform="translate(260,16) scale(0.25)"/>
+      <use href="#t-dark" transform="translate(306,24) scale(0.125)"/>
+      <use href="#t-dusk" transform="translate(360,0) scale(0.5)"/>
+      <use href="#t-dusk" transform="translate(440,16) scale(0.25)"/>
+      <use href="#t-dusk" transform="translate(486,24) scale(0.125)"/>
+      <text x="0" y="96" font-size="12" fill="#5B6B7C">64 &#183; 32 &#183; 16 px (g&#246;rev &#231;ubu&#287;u, dock, tepsi)</text>
+    </g>
+
+    <!-- B: top bar -->
+    <text x="40" y="350" font-size="15" font-weight="600" fill="#16324F">2 &#183; &#220;st &#231;ubuk (30 DIP, 2&#215; b&#252;y&#252;t&#252;ld&#252;) &#8212; tek renk i&#351;aret, Windows logosunun yerinde</text>
+    <rect x="40" y="366" width="1200" height="86" rx="14" fill="url(#gSkyD)"/>
+    <rect x="40" y="366" width="1200" height="60" rx="14" fill="#0E1822" fill-opacity="0.82"/>
+    <use href="#bol" x="48" y="372" width="44" height="44" color="#EAF1F7"/>
+    <text x="104" y="402" font-size="16" fill="#C9D6E4">CPU 12% &#183; GPU 8% &#183; RAM 41%</text>
+    <text x="400" y="402" font-size="16" fill="#C9D6E4">Hakk&#305;nda</text>
+    <text x="490" y="402" font-size="16" fill="#C9D6E4">Kapat</text>
+    <rect x="1000" y="380" width="1" height="1" fill="none"/>
+    <rect x="545" y="378" width="190" height="36" rx="18" fill="#000" fill-opacity="0.55"/>
+    <circle cx="570" cy="396" r="7" fill="#F2B66B"/>
+    <text x="590" y="402" font-size="14" fill="#EAF1F7">Pano</text>
+    <g fill="#C9D6E4">
+      <circle cx="1020" cy="396" r="8"/><circle cx="1054" cy="396" r="8"/><circle cx="1088" cy="396" r="8"/>
+    </g>
+    <text x="1220" y="402" font-size="16" fill="#C9D6E4" text-anchor="end">Per 15 Eki 20:21</text>
+
+    <rect x="40" y="474" width="1200" height="86" rx="14" fill="url(#gPale)"/>
+    <rect x="40" y="474" width="1200" height="60" rx="14" fill="#F8FAFC" fill-opacity="0.86"/>
+    <use href="#bol" x="48" y="480" width="44" height="44" color="#16324F"/>
+    <text x="104" y="510" font-size="16" fill="#2B4A6F">CPU 12% &#183; GPU 8% &#183; RAM 41%</text>
+    <text x="400" y="510" font-size="16" fill="#2B4A6F">Hakk&#305;nda</text>
+    <text x="490" y="510" font-size="16" fill="#2B4A6F">Kapat</text>
+    <rect x="545" y="486" width="190" height="36" rx="18" fill="#16324F" fill-opacity="0.9"/>
+    <circle cx="570" cy="504" r="7" fill="#F2B66B"/>
+    <text x="590" y="510" font-size="14" fill="#EAF1F7">Pano</text>
+    <g fill="#5B6B7C">
+      <circle cx="1020" cy="504" r="8"/><circle cx="1054" cy="504" r="8"/><circle cx="1088" cy="504" r="8"/>
+    </g>
+    <text x="1220" y="510" font-size="16" fill="#2B4A6F" text-anchor="end">Per 15 Eki 20:21</text>
+
+    <!-- C: dock -->
+    <text x="40" y="598" font-size="15" font-weight="600" fill="#16324F">3 &#183; Dock</text>
+    <rect x="40" y="612" width="1200" height="120" rx="14" fill="url(#gSkyD)"/>
+    <rect x="300" y="628" width="680" height="88" rx="28" fill="#fff" fill-opacity="0.14"/>
+    <rect x="300" y="628" width="680" height="88" rx="28" fill="none" stroke="#fff" stroke-opacity="0.22"/>
+    <use href="#t-dusk" transform="translate(324,642) scale(0.5)"/>
+    <g>
+      <rect x="402" y="642" width="64" height="64" rx="15" fill="#3D6A94"/>
+      <rect x="478" y="642" width="64" height="64" rx="15" fill="#5B8FB8"/>
+      <rect x="554" y="642" width="64" height="64" rx="15" fill="#2B4A6F"/>
+      <rect x="630" y="642" width="64" height="64" rx="15" fill="#6FA0C8"/>
+      <rect x="706" y="642" width="64" height="64" rx="15" fill="#3D5F86"/>
+      <rect x="782" y="642" width="64" height="64" rx="15" fill="#4F7FA8"/>
+      <rect x="858" y="642" width="64" height="64" rx="15" fill="#2F5379"/>
+    </g>
+    <circle cx="356" cy="711" r="2.5" fill="#EAF1F7"/>
+    <circle cx="510" cy="711" r="2.5" fill="#EAF1F7"/>
+    <circle cx="662" cy="711" r="2.5" fill="#EAF1F7"/>
+
+    <rect x="40" y="748" width="1200" height="120" rx="14" fill="url(#gSkyL)"/>
+    <rect x="300" y="764" width="680" height="88" rx="28" fill="#fff" fill-opacity="0.7"/>
+    <rect x="300" y="764" width="680" height="88" rx="28" fill="none" stroke="#16324F" stroke-opacity="0.12"/>
+    <use href="#t-light" transform="translate(324,778) scale(0.5)"/>
+    <g>
+      <rect x="402" y="778" width="64" height="64" rx="15" fill="#9DBAD4"/>
+      <rect x="478" y="778" width="64" height="64" rx="15" fill="#7BA3C9"/>
+      <rect x="554" y="778" width="64" height="64" rx="15" fill="#B5CCE0"/>
+      <rect x="630" y="778" width="64" height="64" rx="15" fill="#6FA0C8"/>
+      <rect x="706" y="778" width="64" height="64" rx="15" fill="#A8C4DE"/>
+      <rect x="782" y="778" width="64" height="64" rx="15" fill="#8DB1D1"/>
+      <rect x="858" y="778" width="64" height="64" rx="15" fill="#C5D6E8"/>
+    </g>
+    <circle cx="356" cy="847" r="2.5" fill="#16324F"/>
+    <circle cx="510" cy="847" r="2.5" fill="#16324F"/>
+
+    <!-- D: wallpapers -->
+    <text x="40" y="902" font-size="15" font-weight="600" fill="#16324F">4 &#183; Wallpaper amblemi &#8212; bollard ufukta, g&#252;ne&#351; arkas&#305;nda</text>
+
+    <!-- dark -->
+    <g transform="translate(40,918)">
+      <g clip-path="url(#clipWp)">
+        <rect width="580" height="326" fill="url(#gSkyD)"/>
+        <rect y="200" width="580" height="126" fill="url(#gSeaD)"/>
+        <circle cx="290" cy="200" r="190" fill="url(#glowD)"/>
+        <clipPath id="skyOnly"><rect width="580" height="200"/></clipPath>
+        <circle cx="290" cy="200" r="46" fill="#F2B66B" clip-path="url(#skyOnly)"/>
+        <g stroke="#F2B66B" stroke-linecap="round" stroke-opacity="0.55">
+          <path d="M250 212H330" stroke-width="3"/>
+          <path d="M262 224H318" stroke-width="3"/>
+          <path d="M274 238H306" stroke-width="3"/>
+        </g>
+        <g stroke="#3D6A94" stroke-linecap="round" stroke-opacity="0.6" stroke-width="2">
+          <path d="M40 216H150M430 216H540M80 236H190M390 236H500M30 262H120M470 262H550"/>
+        </g>
+        <use href="#bol" x="205" y="62" width="170" height="170" color="#EAF1F7"/>
+        <use href="#rope" x="205" y="62" width="170" height="170" color="#F2B66B"/>
+        <text x="290" y="296" font-size="15" letter-spacing="7" fill="#EAF1F7" fill-opacity="0.7" text-anchor="middle">WHARFBAR</text>
+      </g>
+      <text x="0" y="346" font-size="12" fill="#5B6B7C">Koyu &#8212; alacakaranl&#305;k</text>
+    </g>
+
+    <!-- light -->
+    <g transform="translate(660,918)">
+      <g clip-path="url(#clipWp)">
+        <rect width="580" height="326" fill="url(#gSkyL)"/>
+        <rect y="200" width="580" height="126" fill="url(#gSeaL)"/>
+        <circle cx="290" cy="200" r="170" fill="url(#glowL)"/>
+        <g stroke="#7BA3C9" stroke-linecap="round" stroke-opacity="0.55" stroke-width="2">
+          <path d="M40 216H150M430 216H540M80 236H190M390 236H500M30 262H120M470 262H550"/>
+        </g>
+        <use href="#bol" x="205" y="62" width="170" height="170" color="#16324F"/>
+        <use href="#rope" x="205" y="62" width="170" height="170" color="#E59A45"/>
+        <text x="290" y="296" font-size="15" letter-spacing="7" fill="#16324F" fill-opacity="0.65" text-anchor="middle">WHARFBAR</text>
+      </g>
+      <text x="0" y="346" font-size="12" fill="#5B6B7C">A&#231;&#305;k &#8212; sabah</text>
+    </g>
+  </g>
+</svg>

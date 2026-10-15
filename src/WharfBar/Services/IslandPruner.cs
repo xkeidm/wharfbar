@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using WharfBar.Resources;
 using WharfBar.Models;
 
 namespace WharfBar.Services;
@@ -176,20 +177,20 @@ internal static class IslandPruner
 
         if (delta.TotalMinutes < 1)
         {
-            return "şimdi";
+            return Strings.Island_RelativeNow;
         }
 
         if (delta.TotalHours < 1)
         {
-            return string.Format(CultureInfo.CurrentCulture, "{0} dk önce", (int)delta.TotalMinutes);
+            return string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeMinutes, (int)delta.TotalMinutes);
         }
 
         if (delta.TotalDays < 1)
         {
-            return string.Format(CultureInfo.CurrentCulture, "{0} sa önce", (int)delta.TotalHours);
+            return string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeHours, (int)delta.TotalHours);
         }
 
-        return string.Format(CultureInfo.CurrentCulture, "{0} gün önce", (int)delta.TotalDays);
+        return string.Format(CultureInfo.CurrentCulture, Strings.Island_RelativeDays, (int)delta.TotalDays);
     }
 
     /// <summary>

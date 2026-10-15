@@ -1,0 +1,34 @@
+<UserControl x:Class="WharfBar.Views.WallpaperGalleryView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Foreground="{DynamicResource TextFillColorPrimaryBrush}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel x:Name="ContentHost" />
+        </ScrollViewer>
+
+        <Button x:Name="OpenFolderButton"
+                Grid.Row="1"
+                Margin="0,8,0,0"
+                Padding="10,6"
+                HorizontalAlignment="Left"
+                Cursor="Hand"
+                Click="OpenFolderButton_Click">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                           VerticalAlignment="Center"
+                           Text="&#xE838;" />
+                <TextBlock Margin="8,0,0,0"
+                           VerticalAlignment="Center"
+                           Text="Klasörü aç" />
+            </StackPanel>
+        </Button>
+    </Grid>
+</UserControl>

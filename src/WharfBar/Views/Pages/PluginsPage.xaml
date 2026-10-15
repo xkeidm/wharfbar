@@ -1,8 +1,9 @@
 <Page x:Class="WharfBar.Views.Pages.PluginsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:res="clr-namespace:WharfBar.Resources"
       xmlns:views="clr-namespace:WharfBar.Views"
-      Title="Eklentiler"
+      Title="{x:Static res:Strings.Settings_Plugins}"
       Background="Transparent"
       ScrollViewer.CanContentScroll="False">
 

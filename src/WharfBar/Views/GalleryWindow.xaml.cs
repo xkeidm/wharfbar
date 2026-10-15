@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using WharfBar.Models;
+using WharfBar.Resources;
 using WharfBar.Services;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
@@ -57,7 +58,7 @@ internal partial class GalleryWindow : FluentWindow
 
     private void Open(AppConfig config, bool widgets)
     {
-        string title = widgets ? "Widget'lar" : "Eklentiler";
+        string title = widgets ? Strings.Gallery_Widgets : Strings.Gallery_Plugins;
         Title = title;
         Bar.Title = title;
         Gallery.Bind(config, ResolvePluginsDirectory(), widgets ? PluginGalleryScope.Widgets : PluginGalleryScope.Plugins);

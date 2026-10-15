@@ -30,6 +30,12 @@ internal sealed class AppConfig
     /// <summary>When true, applies Windows system accent color to application controls.</summary>
     public bool UseSystemAccentColor { get; set; } = true;
 
+    /// <summary>
+    /// Logo on the top bar and the dock launch tile: <c>wharfbar</c> (default) or <c>windows</c>.
+    /// Soft field; schemaVersion unchanged. See <see cref="LogoStyles"/>.
+    /// </summary>
+    public string LogoStyle { get; set; } = LogoStyles.Default;
+
     /// <summary>When true, <see cref="Services.AutostartService"/> keeps a Startup-folder shortcut.</summary>
     public bool Autostart { get; set; } = true;
 
@@ -82,6 +88,24 @@ internal sealed record MonitorConfig
     public bool TopBar { get; set; }
 
     public bool Dock { get; set; }
+}
+
+/// <summary>Brand logo choice (<see cref="AppConfig.LogoStyle"/>), shared by every bar and dock.</summary>
+internal static class LogoStyles
+{
+    internal const string WharfBar = "wharfbar";
+
+    internal const string Windows = "windows";
+
+    internal const string Default = WharfBar;
+
+    /// <summary>Canonical lowercase style; unknown text falls back to <see cref="Default"/>.</summary>
+    internal static string Normalize(string? style) =>
+        string.Equals(style?.Trim(), Windows, StringComparison.OrdinalIgnoreCase)
+            ? Windows
+            : Default;
+
+    internal static bool IsWindows(string? style) => Normalize(style) == Windows;
 }
 
 /// <summary>Dock surface backdrop styles (<see cref="DockConfig.Surface"/>).</summary>
@@ -215,7 +239,7 @@ internal sealed class TopBarConfig
     /// <summary>0–100; used only when <see cref="BackgroundMode"/> is <c>tint</c>.</summary>
     public int TintOpacity { get; set; } = TopBarBackgroundModes.DefaultOpacity;
 
-    /// <summary>CPU/GPU/RAM readout beside the Windows logo (left cluster).</summary>
+    /// <summary>CPU/GPU/RAM readout beside the brand logo (left cluster).</summary>
     public bool ShowSystemStats { get; set; } = true;
 
     /// <summary>
@@ -341,6 +365,23 @@ internal sealed class IslandConfig
     /// <summary>Çözülemeyen <c>IdleLabel</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
     internal const string DefaultIdleLabel = IdleLabelClipboard;
 
+    internal const string HubTabClipboard = "clipboard";
+    internal const string HubTabWallpaper = "wallpaper";
+    internal const string HubTabMusic = "music";
+    internal const string DefaultHubTab = HubTabClipboard;
+
+    internal const string TransitionOff = "off";
+
+    internal const string TransitionFade = "fade";
+
+    internal const string TransitionBlurFade = "blurFade";
+
+    internal const string DefaultWallpaperTransition = TransitionBlurFade;
+
+    internal const bool DefaultWallpaperRespectSystemAnimation = true;
+
+    internal const bool DefaultWallpaperAccent = true;
+
     /// <summary>Düşük pil HUD eşiği. Aralık dışı yükleme buna döner.</summary>
     internal const int DefaultLowBatteryPercent = 20;
 
@@ -384,6 +425,30 @@ internal sealed class IslandConfig
     /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
     /// </summary>
     public string IdleLabel { get; set; } = DefaultIdleLabel;
+
+    /// <summary>
+    /// Last island hub page: <c>clipboard</c> (default), <c>wallpaper</c>, or <c>music</c>.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public string HubTab { get; set; } = DefaultHubTab;
+
+    /// <summary>
+    /// Wallpaper change animation: <c>off</c>, <c>fade</c>, or <c>blurFade</c> (default).
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public string WallpaperTransition { get; set; } = DefaultWallpaperTransition;
+
+    /// <summary>
+    /// When true, skip animation if Windows client-area animations are disabled.
+    /// Soft field — schema unchanged.
+    /// </summary>
+    public bool WallpaperRespectSystemAnimation { get; set; } = DefaultWallpaperRespectSystemAnimation;
+
+    /// <summary>
+    /// After a hub wallpaper apply, sync WharfBar (+ best-effort Windows) accent from the image.
+    /// Soft field — schema unchanged. Default true.
+    /// </summary>
+    public bool WallpaperAccent { get; set; } = DefaultWallpaperAccent;
 
     /// <summary>
     /// Pil sayacının eşiği (yüzde). Soft alan <c>lowBatteryPercent</c> —
@@ -465,6 +530,32 @@ internal static class IslandNormalizer
     internal static bool IsLastClipIdle(string? value)
         => NormalizeIdleLabel(value) == IslandConfig.IdleLabelLastClip;
 
+    internal static string NormalizeHubTab(string? value) => IslandHub.ToConfig(IslandHub.Normalize(value));
+
+    /// <summary>
+    /// Returns <see cref="IslandConfig.TransitionOff"/>, <see cref="IslandConfig.TransitionFade"/>,
+    /// or <see cref="IslandConfig.TransitionBlurFade"/>. Unknown text falls back to blurFade.
+    /// </summary>
+    internal static string NormalizeWallpaperTransition(string? value)
+    {
+        if (string.Equals(value, IslandConfig.TransitionOff, StringComparison.OrdinalIgnoreCase))
+        {
+            return IslandConfig.TransitionOff;
+        }
+
+        if (string.Equals(value, IslandConfig.TransitionFade, StringComparison.OrdinalIgnoreCase))
+        {
+            return IslandConfig.TransitionFade;
+        }
+
+        if (string.Equals(value, IslandConfig.TransitionBlurFade, StringComparison.OrdinalIgnoreCase))
+        {
+            return IslandConfig.TransitionBlurFade;
+        }
+
+        return IslandConfig.DefaultWallpaperTransition;
+    }
+
     /// <summary>Canonical lowercase color mode; unknown text falls back to <c>album</c>.</summary>
     internal static string NormalizeColorMode(string? value)
         => value?.Trim().ToLowerInvariant() switch
@@ -487,7 +578,7 @@ internal static class IslandNormalizer
         => Math.Clamp(value, IslandConfig.MinLowBatteryPercent, IslandConfig.MaxLowBatteryPercent);
 }
 
-/// <summary>Which launchpad face opens from the Windows logo and the dock tile.</summary>
+/// <summary>Which launchpad face opens from the dock Launchpad tile.</summary>
 internal sealed class LaunchpadConfig
 {
     /// <summary><c>win11</c>, <c>mac</c>, or <c>win8</c>. See <see cref="Services.LaunchpadStyles"/>.</summary>

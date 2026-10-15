@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="WharfBar icon concept A: pier and top bar">
+  <title>A — Pier + Bar</title>
+  <defs>
+    <linearGradient id="a-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E8EEF5"/>
+      <stop offset="100%" stop-color="#D5DEE9"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#a-bg)"/>
+  <!-- Top bar -->
+  <rect x="28" y="34" width="72" height="8" rx="4" fill="#1F3A5F"/>
+  <!-- Pier deck -->
+  <rect x="34" y="72" width="60" height="10" rx="2" fill="#2B4A6F"/>
+  <!-- Pier posts -->
+  <rect x="40" y="82" width="6" height="18" rx="1.5" fill="#3D5F86"/>
+  <rect x="61" y="82" width="6" height="18" rx="1.5" fill="#3D5F86"/>
+  <rect x="82" y="82" width="6" height="18" rx="1.5" fill="#3D5F86"/>
+  <!-- Soft water hint -->
+  <path d="M30 104 C46 98, 82 110, 98 104" fill="none" stroke="#7BA3C9" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+</svg>

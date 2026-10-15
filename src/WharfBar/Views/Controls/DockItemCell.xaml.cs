@@ -164,6 +164,15 @@ internal sealed partial class DockItemCell : UserControl
         ApplyChrome();
     }
 
+    /// <summary>Swaps the glyph only. Setting <see cref="Row"/> would also drop the menu and tooltip.</summary>
+    internal void ReplaceIcon(ImageSource icon)
+    {
+        if (Row is not null && !ReferenceEquals(IconGlyph.Source, icon))
+        {
+            IconGlyph.Source = icon;
+        }
+    }
+
     internal void SetMagnification(double scale)
     {
         // The plate no longer grows under the pointer. The argument stays so DockStrip's

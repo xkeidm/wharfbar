@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -89,7 +90,7 @@ internal static class LaunchpadPhoneRow
             var check = Glyph("\uE73E", 12);
             check.Foreground = ConnectedBrush;
             check.Margin = new Thickness(0, 0, 8, 0);
-            check.ToolTip = "Bağlı";
+            check.ToolTip = Strings.Launchpad_Connected;
             status.Children.Add(check);
         }
 
@@ -360,12 +361,12 @@ internal static class LaunchpadPhoneRow
     private static UIElement Actions(LaunchpadPhoneSnapshot phone, Action<string> openPath)
     {
         var actions = new StackPanel { Margin = new Thickness(0, 12, 0, 0) };
-        actions.Children.Add(Link("\uE8BD", "Mesajlar", LaunchpadPhoneLink.MessagesUri, openPath));
-        actions.Children.Add(Link("\uE717", "Aramalar", LaunchpadPhoneLink.CallsUri, openPath));
-        actions.Children.Add(Link("\uE91B", "Fotoğraflar", LaunchpadPhoneLink.PhotosUri, openPath));
+        actions.Children.Add(Link("\uE8BD", Strings.Launchpad_Messages, LaunchpadPhoneLink.MessagesUri, openPath));
+        actions.Children.Add(Link("\uE717", Strings.Launchpad_Calls, LaunchpadPhoneLink.CallsUri, openPath));
+        actions.Children.Add(Link("\uE91B", Strings.Launchpad_Photos, LaunchpadPhoneLink.PhotosUri, openPath));
         if (phone.SendFiles)
         {
-            actions.Children.Add(Link("\uE898", "Dosyaları gönder", LaunchpadPhoneLink.FilesUri, openPath));
+            actions.Children.Add(Link("\uE898", Strings.Launchpad_SendFiles, LaunchpadPhoneLink.FilesUri, openPath));
         }
 
         return actions;
@@ -374,7 +375,7 @@ internal static class LaunchpadPhoneRow
     private static UIElement Recent(IReadOnlyList<LaunchpadPhoneNotice> notices)
     {
         var block = new StackPanel { Margin = new Thickness(0, 8, 0, 0) };
-        var header = Caption("En son", 11);
+        var header = Caption(Strings.Launchpad_Recent, 11);
         header.FontWeight = FontWeights.SemiBold;
         header.Opacity = 0.7;
         header.Margin = new Thickness(0, 0, 0, 2);

@@ -151,14 +151,13 @@ For top-bar indicators:
    pre-click snapshot, and a 1.5 s re-assert counters owners that move their flyout back). Matching is NOT by pid:
    every 25H2 XAML button reports the explorer pid.
 
-**Implemented:** the left Windows logo (4 squares of **Path/Rectangle**, not a font glyph — visible on Mica);
+**Implemented:** the left brand logo (`BrandLogo.BarGlyph` / `logoStyle`; geometry, not a font glyph — visible on Mica); the exe/tray icon is `Assets/WharfBar.ico` (Dusk solid mark);
 the right cluster's default LTR is `trayMirror · hidden · date/time · notification · controlCenter · network · battery`
 (`topBar.statusItems`; customizable). `volume` / `brightness` / `media` are in the catalog and
 off by default; right-click and the Top Bar (`Üst Çubuk`) setting list every item in the catalog.
 **Show all** (`Tümünü göster`) inserts the missing ones next to their neighbor and does not disturb the saved order. Visible items
 are ordered by dragging on the bar (a click under the threshold opens the flyout; mouse capture, not OLE).
-Clock/date: a single-line `tr-TR` combined label
-(e.g. `9 Ağu Paz 21:57`, Segoe UI; 9 Aug Sun 21:57) + a bell glyph; both open the native Notification Center
+Clock/date: a single-line combined label in the **resolved UI culture** (`LocalizationService` / `config.language`; e.g. `tr-TR` → `9 Ağu Paz 21:57`, `en-US` → `9 Aug Sun 21:57`, Segoe UI) + a bell glyph; both open the native Notification Center
 (`Win+N` — calendar + notifications; there is no separate calendar `Popup`; there is no ADR-005 mirror).
 `controlCenter` → QS **Main**; volume → QS **Mixer**; network → QS **Network** — a shared
 **Quick settings** (`Hızlı ayarlar`) flyout (ADR-006); a layered `Popup`
@@ -573,7 +572,7 @@ Failure is written to the debug log with `GetLastWin32Error`; it is not swallowe
   SDC_ALLOW_CHANGES, SDC_SAVE_TO_DATABASE) return 87 on a hybrid GPU; SDC_APPLY +
   SDC_VALIDATE together is also invalid.
 
-### user32.dll / powrprof.dll — power actions (the Windows logo menu)
+### user32.dll / powrprof.dll — power actions (the top-bar logo menu)
 
 - `LockWorkStation` (user32) — lock the session
 - `SetSuspendState(FALSE, FALSE, FALSE)` (powrprof) — sleep

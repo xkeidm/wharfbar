@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Island pill over pier">
+  <title>v2.04 — Island Pier</title>
+  <defs>
+    <linearGradient id="i-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#F0F4F8"/>
+      <stop offset="100%" stop-color="#DCE5EF"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="url(#i-bg)"/>
+  <!-- Dynamic Island-like pill (product nod) -->
+  <rect x="34" y="40" width="60" height="22" rx="11" fill="#16324F"/>
+  <circle cx="50" cy="51" r="5" fill="#6FA0C8"/>
+  <rect x="60" y="48" width="24" height="6" rx="3" fill="#E8EEF5" opacity="0.85"/>
+  <!-- Pier below -->
+  <rect x="44" y="78" width="40" height="8" rx="2" fill="#16324F"/>
+  <rect x="48" y="86" width="4" height="12" rx="1" fill="#3D5F86"/>
+  <rect x="62" y="86" width="4" height="12" rx="1" fill="#3D5F86"/>
+  <rect x="76" y="86" width="4" height="12" rx="1" fill="#3D5F86"/>
+</svg>

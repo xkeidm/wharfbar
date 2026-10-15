@@ -1,89 +1,61 @@
 using System.Globalization;
 using System.Resources;
+using WharfBar.Models;
 
 namespace WharfBar.Services;
 
-/// <summary>
-/// UI language normalize / culture resolve / resource lookup.
-/// </summary>
 internal static class LocalizationService
 {
     private static readonly ResourceManager Resources =
         new("WharfBar.Resources.Strings", typeof(LocalizationService).Assembly);
 
-    internal const string LanguageSystem = "system";
-    internal const string LanguageEn = "en";
-    internal const string LanguageTr = "tr";
-
-    internal static string NormalizeLanguage(string? language)
+    internal static string NormalizeLanguage(string? value)
     {
-        if (string.IsNullOrWhiteSpace(language))
+        if (string.Equals(value, AppConfig.LanguageEn, StringComparison.OrdinalIgnoreCase))
         {
-            return LanguageSystem;
+            return AppConfig.LanguageEn;
         }
 
-        if (string.Equals(language.Trim(), LanguageEn, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(value, AppConfig.LanguageTr, StringComparison.OrdinalIgnoreCase))
         {
-            return LanguageEn;
+            return AppConfig.LanguageTr;
         }
 
-        if (string.Equals(language.Trim(), LanguageTr, StringComparison.OrdinalIgnoreCase))
-        {
-            return LanguageTr;
-        }
-
-        if (string.Equals(language.Trim(), LanguageSystem, StringComparison.OrdinalIgnoreCase))
-        {
-            return LanguageSystem;
-        }
-
-        return LanguageSystem;
+        return AppConfig.LanguageSystem;
     }
 
-    /// <summary>
-    /// Resolves the culture for <paramref name="language"/>.
-    /// For <c>system</c>, uses <paramref name="systemUiCulture"/> when provided;
-    /// otherwise <see cref="CultureInfo.CurrentUICulture"/>.
-    /// </summary>
-    internal static CultureInfo ResolveCulture(string language, CultureInfo? systemUiCulture = null)
+    internal static CultureInfo ResolveCulture(string languageToken, CultureInfo? installedUiCulture = null)
     {
-        string normalized = NormalizeLanguage(language);
-        if (normalized == LanguageEn)
+        string token = NormalizeLanguage(languageToken);
+        if (token == AppConfig.LanguageEn)
         {
-            return CultureInfo.GetCultureInfo("en");
+            return CultureInfo.GetCultureInfo("en-US");
         }
 
-        if (normalized == LanguageTr)
+        if (token == AppConfig.LanguageTr)
         {
             return CultureInfo.GetCultureInfo("tr-TR");
         }
 
-        CultureInfo ui = systemUiCulture ?? CultureInfo.CurrentUICulture;
-        if (ui.Name.StartsWith("tr", StringComparison.OrdinalIgnoreCase)
-            || ui.TwoLetterISOLanguageName.Equals("tr", StringComparison.OrdinalIgnoreCase))
+        CultureInfo os = installedUiCulture ?? CultureInfo.InstalledUICulture;
+        if (os.Name.StartsWith("tr", StringComparison.OrdinalIgnoreCase)
+            || os.TwoLetterISOLanguageName.Equals("tr", StringComparison.OrdinalIgnoreCase))
         {
             return CultureInfo.GetCultureInfo("tr-TR");
         }
 
-        return CultureInfo.GetCultureInfo("en");
+        return CultureInfo.GetCultureInfo("en-US");
     }
 
-    internal static void Apply(string language)
+    internal static void Apply(string languageToken)
     {
-        CultureInfo culture = ResolveCulture(language);
-        CultureInfo.CurrentCulture = culture;
-        CultureInfo.CurrentUICulture = culture;
+        CultureInfo culture = ResolveCulture(languageToken);
         CultureInfo.DefaultThreadCurrentCulture = culture;
         CultureInfo.DefaultThreadCurrentUICulture = culture;
+        CultureInfo.CurrentCulture = culture;
+        CultureInfo.CurrentUICulture = culture;
     }
 
-    internal static string Get(string key)
-    {
-        if (string.IsNullOrEmpty(key))
-        {
-            return string.Empty;
-        }
-
-        return Resources.GetString(key) ?? key;
-    }
+    /// <summary>Looks up a UI string; returns <paramref name="key"/> when missing.</summary>
+    internal static string Get(string key) => Resources.GetString(key) ?? key;
 }

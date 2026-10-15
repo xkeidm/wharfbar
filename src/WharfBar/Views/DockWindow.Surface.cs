@@ -8,6 +8,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 using WharfBar.Views.Controls;
 
@@ -687,7 +688,7 @@ public partial class DockWindow
             Focusable = false,
         };
         menu.Items.Add(header);
-        var open = new MenuItem { Header = "Aç" };
+        var open = new MenuItem { Header = Strings.Dock_Open };
         open.Click += (_, _) =>
         {
             if (item.Kind == DockTileKind.Launchpad)
