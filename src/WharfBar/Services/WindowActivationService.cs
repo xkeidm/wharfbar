@@ -22,6 +22,9 @@ internal sealed class WindowActivationService
         _foregroundAtClick = NativeMethods.GetForegroundWindow();
     }
 
+    /// <summary>Keeps toggle-minimize state coherent after a cued restore activated the window.</summary>
+    internal void NoteDockActivated(IntPtr hwnd) => _lastActivatedHwnd = hwnd;
+
     internal bool TryActivate(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)

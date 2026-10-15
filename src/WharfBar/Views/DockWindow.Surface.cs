@@ -19,6 +19,9 @@ public partial class DockWindow
 {
     private DockSurfaceFlyout? _flyout;
     private DockMinimizeCue? _minimizeCue;
+    private readonly DockRestoreSnapshotCache _restoreCache = new();
+    private DockWindowCloak? _restoreCloak;
+    private IntPtr _restoreCueHwnd;
     private readonly DockAttentionTracker _attention = new();
     private readonly Dictionary<string, DockProgressState> _progressByKey = new(StringComparer.OrdinalIgnoreCase);
     private DispatcherTimer? _progressTimer;
@@ -62,6 +65,8 @@ public partial class DockWindow
             _flyout.Dispose();
         }
         _flyout = null;
+        CancelRestoreCue();
+        _restoreCache.Clear();
         _minimizeCue?.Dispose();
         _minimizeCue = null;
 
@@ -414,6 +419,8 @@ public partial class DockWindow
                 return;
             }
 
+            _restoreCache.Put(hwnd, shot, rect);
+
             DockItemCell? cell = CellForWindow(hwnd);
             if (cell is null || _minimizeCue is null)
             {
@@ -433,8 +440,151 @@ public partial class DockWindow
         });
     }
 
+    private bool IsRestorePendingOrIconic(IntPtr hwnd) =>
+        hwnd != IntPtr.Zero && (_restoreCueHwnd == hwnd || NativeMethods.IsIconic(hwnd));
+
+    /// <summary>Aborts any in-flight restore cue. Never leaves the window cloaked.</summary>
+    private void CancelRestoreCue()
+    {
+        _minimizeCue?.Cancel();
+        _restoreCloak?.Dispose();
+        _restoreCloak = null;
+        if (_restoreCueHwnd != IntPtr.Zero)
+        {
+            _restoreCache.Remove(_restoreCueHwnd);
+            _restoreCueHwnd = IntPtr.Zero;
+        }
+    }
+
+    /// <summary>
+    /// Dock/flyout path for iconic windows. Returns true when this call handled the click
+    /// (cue started, immediate cloaked fallback finished, or an in-flight cue was aborted).
+    /// </summary>
+    private bool TryBeginRestoreCue(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (_restoreCueHwnd == hwnd)
+        {
+            // Second click during the cue: window is already restored underneath the cloak.
+            CancelRestoreCue();
+            ActivateRestored(hwnd);
+            return true;
+        }
+
+        if (!NativeMethods.IsIconic(hwnd))
+        {
+            return false;
+        }
+
+        if (_restoreCueHwnd != IntPtr.Zero)
+        {
+            CancelRestoreCue();
+        }
+
+        bool haveShot = _restoreCache.TryGet(hwnd, out BitmapSource? shot, out RECT restorePx);
+        if (!DockMinimizeMotion.ShouldPlay(SystemParameters.ClientAreaAnimation, haveShot) || shot is null)
+        {
+            return false;
+        }
+
+        DockItemCell? cell = CellForWindow(hwnd);
+        if (cell is null || _minimizeCue is null)
+        {
+            return false;
+        }
+
+        if (PresentationSource.FromVisual(cell)?.CompositionTarget is not CompositionTarget target)
+        {
+            return false;
+        }
+
+        DockWindowCloak? cloak = DockWindowCloak.TryHide(hwnd);
+        if (cloak is null)
+        {
+            return false;
+        }
+
+        _restoreCloak = cloak;
+        _restoreCueHwnd = hwnd;
+
+        _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_RESTORE);
+        _ = NativeMethods.PostMessage(hwnd, NativeMethods.WM_SYSCOMMAND, NativeMethods.SC_RESTORE, IntPtr.Zero);
+
+        if (restorePx.Width <= 0 || restorePx.Height <= 0)
+        {
+            if (NativeMethods.GetWindowRect(hwnd, out RECT live) && live.Width > 0 && live.Height > 0)
+            {
+                restorePx = live;
+            }
+            else
+            {
+                FinishRestoreCue(hwnd, activate: true);
+                return true;
+            }
+        }
+
+        Matrix fromDevice = target.TransformFromDevice;
+        Point origin = fromDevice.Transform(new Point(restorePx.Left, restorePx.Top));
+        Point far = fromDevice.Transform(new Point(restorePx.Right, restorePx.Bottom));
+        Point icon = fromDevice.Transform(cell.PointToScreen(new Point(cell.ActualWidth / 2d, cell.ActualHeight / 2d)));
+
+        try
+        {
+            _minimizeCue.PlayRestore(shot, new Rect(origin, far), icon, () =>
+            {
+                if (_restoreCueHwnd == hwnd)
+                {
+                    FinishRestoreCue(hwnd, activate: true);
+                }
+            });
+        }
+        catch
+        {
+            FinishRestoreCue(hwnd, activate: true);
+        }
+
+        return true;
+    }
+
+    private void FinishRestoreCue(IntPtr hwnd, bool activate)
+    {
+        _restoreCloak?.Dispose();
+        _restoreCloak = null;
+        if (_restoreCueHwnd == hwnd)
+        {
+            _restoreCueHwnd = IntPtr.Zero;
+        }
+
+        _restoreCache.Remove(hwnd);
+        if (activate)
+        {
+            ActivateRestored(hwnd);
+        }
+    }
+
+    private void ActivateRestored(IntPtr hwnd)
+    {
+        if (!NativeMethods.IsWindow(hwnd))
+        {
+            return;
+        }
+
+        _ = NativeMethods.SetForegroundWindow(hwnd);
+        _activation?.NoteDockActivated(hwnd);
+        NoteActivated(hwnd);
+    }
+
     private void ActivateFromFlyout(IntPtr hwnd)
     {
+        if (IsRestorePendingOrIconic(hwnd) && TryBeginRestoreCue(hwnd))
+        {
+            return;
+        }
+
         if (_activation?.TryActivate(hwnd) == true)
         {
             NoteActivated(hwnd);
