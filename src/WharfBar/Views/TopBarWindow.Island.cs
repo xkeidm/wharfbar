@@ -14,7 +14,6 @@ namespace WharfBar.Views;
 
 public partial class TopBarWindow
 {
-    private const double IslandWidthMs = 200;
     private const double IslandIdleDip = 108;
     private const double IslandHoverDip = 4;
     private const double IslandPadDip = 32;
@@ -22,6 +21,8 @@ public partial class TopBarWindow
     private const double IslandMeterDip = 72;
     // Centered slot outside the title: pill margin 24+24, padding 16+16, glyph, title gap.
     private const double IslandTitleChromeDip = 104;
+    /// <summary>Margin 8 + five 3 DIP bars with 2 DIP gaps.</summary>
+    private const double IslandBarsDip = 28;
 
     /// <summary>Grid margin on each side. Counted so the title ellipsizes before the chip meets a cluster.</summary>
     private const double IslandContentInsetDip = 10;
@@ -46,6 +47,9 @@ public partial class TopBarWindow
     private IslandPanelBody _shownPanel;
     private bool _shownBack;
     private bool _islandPulseRunning;
+    private bool _islandPressed;
+    private IslandPillFace? _shownFace;
+    private readonly double[] _barScales = new double[VisualizerBars.Count];
     private string? _islandTip;
     private string _faceTitle = string.Empty;
     private double _faceBar = double.NaN;
@@ -55,6 +59,7 @@ public partial class TopBarWindow
     private double _meterFill;
     private double _pillWidth = double.NaN;
     private double _faceSatellites;
+    private double _faceBars;
     private bool _captureExcluded;
     private IslandShotWindow? _shot;
     private Panel? _pillHome;
@@ -397,6 +402,7 @@ public partial class TopBarWindow
             ApplyIslandChrome(focusMusic: false);
         }
 
+        ApplyIslandTint(_presence.View.Face);
         SyncVisualizerTimer();
     }
 
@@ -471,6 +477,8 @@ public partial class TopBarWindow
                 IslandPill.Visibility = Visibility.Collapsed;
             }
 
+            _shownFace = null;
+
             if (IslandPopup.IsOpen)
             {
                 CloseIslandPopupOnly(animate: false);
@@ -507,8 +515,54 @@ public partial class TopBarWindow
         return snap.Face != IslandPillFace.Idle || snap.Panel != IslandPanelBody.None;
     }
 
+    private string _islandColorMode = IslandConfig.DefaultColorMode;
+    private Color? _lastPillTint; // null == theme accent resource state (initial XAML)
+
+    /// <summary>Bars follow the tint; no tint restores the theme accent.</summary>
+    private void ApplyIslandTint(IslandPillFace face)
+    {
+        MediaSnapshot snapshot = _engine.Media.Snapshot;
+        bool showCover = face == IslandPillFace.NowPlaying && snapshot.Thumbnail is not null;
+        IslandCoverImage.Source = showCover ? snapshot.Thumbnail : null;
+        IslandCoverThumb.Visibility = showCover ? Visibility.Visible : Visibility.Collapsed;
+        IslandGlyph.Visibility = showCover ? Visibility.Collapsed : Visibility.Visible;
+        bool music = face == IslandPillFace.NowPlaying && snapshot.IsPlaying;
+        Color? tint = IslandTintSource.Resolve(_islandColorMode, snapshot.Thumbnail, music);
+        if (tint == _lastPillTint)
+        {
+            return;
+        }
+
+        _lastPillTint = tint;
+        Border[] bars = [IslandBar0, IslandBar1, IslandBar2, IslandBar3, IslandBar4];
+        if (tint is Color c)
+        {
+            var brush = new SolidColorBrush(c);
+            brush.Freeze();
+            foreach (Border bar in bars)
+            {
+                bar.Background = brush;
+            }
+
+            return;
+        }
+
+        foreach (Border bar in bars)
+        {
+            bar.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+        }
+    }
+
+    private void PushColorMode(IslandConfig config)
+    {
+        _islandColorMode = IslandNormalizer.NormalizeColorMode(config.ColorMode);
+        IslandHost.ColorMode = _islandColorMode;
+        ApplyIslandTint(_presence?.View.Face ?? IslandPillFace.Idle);
+    }
+
     private void ApplyIslandFace(IslandPresenceView snap)
     {
+        ApplyIslandTint(snap.Face);
         IslandGlyph.Text = snap.Face switch
         {
             IslandPillFace.NowPlaying => GlyphMusic,
@@ -520,6 +574,30 @@ public partial class TopBarWindow
             IslandPillFace.Camera => GlyphCamera,
             _ => GlyphClipboard,
         };
+
+        if (_shownFace != snap.Face)
+        {
+            bool first = _shownFace is null;
+            _shownFace = snap.Face;
+            if (!first)
+            {
+                // Face swap: content dips and settles, the glyph pops in slightly. Both finish on
+                // their own (FillBehavior.Stop) and never run while the pill sits idle.
+                if (IslandGlyph.RenderTransform is not ScaleTransform glyphScale)
+                {
+                    glyphScale = new ScaleTransform(1, 1);
+                    IslandGlyph.RenderTransformOrigin = new Point(0.5, 0.5);
+                    IslandGlyph.RenderTransform = glyphScale;
+                }
+
+                FadeFrom(
+                    IslandContent,
+                    IslandMotion.ContentFromOpacity,
+                    IslandMotion.Gate(IslandMotion.ContentFadeMs, SystemParameters.ClientAreaAnimation),
+                    glyphScale,
+                    0.8);
+            }
+        }
 
         string tip = snap.Face switch
         {
@@ -546,6 +624,8 @@ public partial class TopBarWindow
         bool meter = snap.Face is IslandPillFace.Volume or IslandPillFace.Brightness or IslandPillFace.Battery;
         bool showTitle = false;
         double titleDip = 0;
+        // Bars sit after the title; reserve them in the title budget before measuring.
+        double barsDip = VisualizerBarsWanted(snap) ? IslandBarsDip : 0;
 
         if (meter)
         {
@@ -561,7 +641,7 @@ public partial class TopBarWindow
         else
         {
             HideMeter();
-            showTitle = TryShowTitle(snap, satelliteDip, out titleDip);
+            showTitle = TryShowTitle(snap, satelliteDip, barsDip, out titleDip);
             if (!showTitle)
             {
                 ShowIdleChrome(snap.Face == IslandPillFace.Idle);
@@ -578,7 +658,11 @@ public partial class TopBarWindow
         AnimatePillWidth(Math.Max(IslandIdleDip, content) + hover);
     }
 
-    private bool TryShowTitle(IslandPresenceView snap, double satelliteDip, out double titleDip)
+    private bool TryShowTitle(
+        IslandPresenceView snap,
+        double satelliteDip,
+        double barsDip,
+        out double titleDip)
     {
         titleDip = 0;
         if (!FaceHasTitle(snap.Face) || string.IsNullOrWhiteSpace(snap.Title))
@@ -591,6 +675,7 @@ public partial class TopBarWindow
             && Math.Abs(_faceLeft - LeftCluster.ActualWidth) < 1
             && Math.Abs(_faceRight - StatusStrip.ActualWidth) < 1
             && Math.Abs(_faceSatellites - satelliteDip) < 1
+            && Math.Abs(_faceBars - barsDip) < 1
             && IslandTitle.Visibility == Visibility.Visible;
         if (!sameLayout)
         {
@@ -599,6 +684,7 @@ public partial class TopBarWindow
             _faceLeft = LeftCluster.ActualWidth;
             _faceRight = StatusStrip.ActualWidth;
             _faceSatellites = satelliteDip;
+            _faceBars = barsDip;
 
             IslandTitle.Text = snap.Title;
             IslandTitle.BeginAnimation(FrameworkElement.MaxWidthProperty, null);
@@ -607,7 +693,7 @@ public partial class TopBarWindow
                 ActualWidth,
                 LeftCluster.ActualWidth + IslandContentInsetDip,
                 StatusStrip.ActualWidth + IslandContentInsetDip,
-                IslandTitleChromeDip + satelliteDip + IslandHoverDip,
+                IslandTitleChromeDip + satelliteDip + barsDip + IslandHoverDip,
                 IslandTitleMeasure.Dip(IslandTitle));
         }
 
@@ -629,6 +715,7 @@ public partial class TopBarWindow
     {
         _faceTitle = string.Empty;
         _titleWidth = 0;
+        _faceBars = 0;
         IslandTitle.BeginAnimation(FrameworkElement.MaxWidthProperty, null);
         IslandTitle.MaxWidth = 0;
         IslandTitle.Margin = new Thickness(0);
@@ -676,21 +763,139 @@ public partial class TopBarWindow
             return;
         }
 
-        double from = cached;
+        // Retarget from the value the user currently sees (an animation may be mid-flight),
+        // so a quick second change glides on instead of snapping back to the old target.
+        double from = element.GetValue(property) is double live && !double.IsNaN(live) ? live : cached;
         cached = to;
         element.BeginAnimation(property, null);
-        element.SetValue(property, from);
-        if (!SystemParameters.ClientAreaAnimation)
+        element.SetValue(property, to);
+        double ms = IslandMotion.WidthMs(from, to, SystemParameters.ClientAreaAnimation);
+        if (ms <= 0)
         {
-            element.SetValue(property, to);
             return;
         }
 
-        element.BeginAnimation(property, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(IslandWidthMs))
+        // FillBehavior.Stop: the local value is already `to`, so nothing is held after the
+        // clock ends and no animation clock lingers on an idle pill.
+        element.BeginAnimation(property, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
         {
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            FillBehavior = FillBehavior.HoldEnd,
+            EasingFunction = to > from
+                ? new QuinticEase { EasingMode = EasingMode.EaseOut }
+                : new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
         });
+    }
+
+    /// <summary>One-shot opacity (and optional scale) animation that leaves nothing running.</summary>
+    private static void FadeFrom(UIElement element, double fromOpacity, double ms, ScaleTransform? scale = null, double fromScale = 1)
+    {
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        if (ms <= 0)
+        {
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        element.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(fromOpacity, 1, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop,
+        });
+        if (scale is null)
+        {
+            return;
+        }
+
+        var grow = new DoubleAnimation(fromScale, 1, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop,
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, grow);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, grow);
+    }
+
+    private ScaleTransform EnsurePillScale()
+    {
+        if (IslandPill.RenderTransform is ScaleTransform existing)
+        {
+            return existing;
+        }
+
+        var transform = new ScaleTransform(1, 1);
+        IslandPill.RenderTransformOrigin = new Point(0.5, 0.5);
+        IslandPill.RenderTransform = transform;
+        return transform;
+    }
+
+    private void OnIslandPillPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (_islandPressed || IsInsideSatellite(e.OriginalSource as DependencyObject))
+        {
+            return;
+        }
+
+        _islandPressed = true;
+        PressPill(true);
+        // Release can land outside the pill; MouseUp on the pill, leave, or capture loss undoes it.
+        IslandPill.MouseLeftButtonUp += ReleasePillPress;
+        IslandPill.MouseLeave += ReleasePillPress;
+    }
+
+    private void ReleasePillPress(object sender, MouseEventArgs e)
+    {
+        IslandPill.MouseLeftButtonUp -= ReleasePillPress;
+        IslandPill.MouseLeave -= ReleasePillPress;
+        if (!_islandPressed)
+        {
+            return;
+        }
+
+        _islandPressed = false;
+        PressPill(false);
+    }
+
+    private bool IsInsideSatellite(DependencyObject? source)
+    {
+        while (source is not null && !ReferenceEquals(source, IslandPill))
+        {
+            if (ReferenceEquals(source, IslandSatelliteFirst) || ReferenceEquals(source, IslandSatelliteSecond))
+            {
+                return true;
+            }
+
+            source = source is Visual or System.Windows.Media.Media3D.Visual3D
+                ? VisualTreeHelper.GetParent(source)
+                : LogicalTreeHelper.GetParent(source);
+        }
+
+        return false;
+    }
+
+    private void PressPill(bool down)
+    {
+        ScaleTransform scale = EnsurePillScale();
+        double to = down ? IslandMotion.PressScale : 1;
+        double from = scale.ScaleX;
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        scale.ScaleX = to;
+        scale.ScaleY = to;
+        double ms = IslandMotion.Gate(down ? IslandMotion.PressInMs : IslandMotion.PressOutMs, SystemParameters.ClientAreaAnimation);
+        if (ms <= 0 || Math.Abs(from - to) < 0.001)
+        {
+            return;
+        }
+
+        var anim = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = down
+                ? new CubicEase { EasingMode = EasingMode.EaseOut }
+                : new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.6 },
+            FillBehavior = FillBehavior.Stop,
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
     }
 
     private static string VolumeHudGlyph(int percent, bool muted)
@@ -922,8 +1127,8 @@ public partial class TopBarWindow
             dpi,
             work.Left,
             work.Right);
-        ApplyIslandOffset(offset, force);
-        IslandHost.SetNeck(pillDip);
+        ApplyIslandOffset(offset - IslandFlyout.ShadowPadDip, force);
+        IslandHost.SetJoin(pillDip, -offset);
         return true;
     }
 
@@ -989,7 +1194,7 @@ public partial class TopBarWindow
             IslandPill.Background = FlyoutSurface.Create();
             IslandPill.CornerRadius = new CornerRadius(12, 12, 0, 0);
             IslandPill.BorderThickness = new Thickness(1, 1, 1, 0);
-            IslandHost.SetNeck(IslandPill.ActualWidth);
+            IslandHost.SetJoin(IslandPill.ActualWidth, IslandHost.PanelWidthDip > 0 ? (IslandHost.PanelWidthDip - IslandPill.ActualWidth) / 2d : 0);
             return;
         }
 
@@ -1163,6 +1368,7 @@ public partial class TopBarWindow
         _presence.SetMusicMode(mode, IslandNow());
         PushLowBattery(island.Config);
         PushIdleLabel(island.Config);
+        PushColorMode(island.Config);
         if (Monitor.IsPrimary)
         {
             PushIdlePreview(island);
@@ -1178,14 +1384,7 @@ public partial class TopBarWindow
             return;
         }
 
-        var transform = IslandPill.RenderTransform as System.Windows.Media.ScaleTransform;
-        if (transform is null)
-        {
-            transform = new System.Windows.Media.ScaleTransform(1, 1);
-            IslandPill.RenderTransformOrigin = new Point(0.5, 0.5);
-            IslandPill.RenderTransform = transform;
-        }
-
+        ScaleTransform transform = EnsurePillScale();
         if (!SystemParameters.ClientAreaAnimation)
         {
             return;
@@ -1326,17 +1525,33 @@ public partial class TopBarWindow
         };
         if (text is null)
         {
-            host.Visibility = Visibility.Collapsed;
-            host.Margin = new Thickness(0);
             host.BorderBrush = Brushes.Transparent;
+            if (host.Tag is true && host.Visibility == Visibility.Visible)
+            {
+                // Closing: fade and shrink, then collapse. The pill width already morphs
+                // to the smaller target, so both run together. Re-showing cancels this.
+                host.Tag = false;
+                HideSatelliteAnimated(host);
+            }
+            else if (host.Tag is not false)
+            {
+                host.Visibility = Visibility.Collapsed;
+                host.Margin = new Thickness(0);
+            }
+
             return 0;
         }
 
         glyph.Text = text;
-        host.Visibility = Visibility.Visible;
+        bool wasShown = host.Tag is true && host.Visibility == Visibility.Visible;
         host.Margin = new Thickness(8, 0, 0, 0);
-        host.BorderThickness = new Thickness(1);
-        host.CornerRadius = new CornerRadius(8);
+        if (!wasShown)
+        {
+            host.Tag = true;
+            host.Visibility = Visibility.Visible;
+            ShowSatelliteAnimated(host);
+        }
+
         bool selected = satellite == _selectedSatellite;
         host.BorderBrush = selected
             ? TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue
@@ -1345,18 +1560,100 @@ public partial class TopBarWindow
         return IslandSatelliteDip;
     }
 
+    private static ScaleTransform SatelliteScale(Border host)
+    {
+        if (host.RenderTransform is ScaleTransform existing)
+        {
+            return existing;
+        }
+
+        var transform = new ScaleTransform(1, 1);
+        host.RenderTransform = transform;
+        return transform;
+    }
+
+    private static void ShowSatelliteAnimated(Border host)
+    {
+        ScaleTransform scale = SatelliteScale(host);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        scale.ScaleX = 1;
+        scale.ScaleY = 1;
+        host.Opacity = 1;
+        double ms = IslandMotion.Gate(IslandMotion.SatelliteInMs, SystemParameters.ClientAreaAnimation);
+        FadeFrom(host, 0, ms, scale, IslandMotion.SatelliteFromScale);
+    }
+
+    private static void HideSatelliteAnimated(Border host)
+    {
+        ScaleTransform scale = SatelliteScale(host);
+        double ms = IslandMotion.Gate(IslandMotion.SatelliteOutMs, SystemParameters.ClientAreaAnimation);
+        void Collapse()
+        {
+            // A re-show in the meantime flips Tag back to true and owns the host again.
+            if (host.Tag is false)
+            {
+                host.Tag = null;
+                host.Visibility = Visibility.Collapsed;
+                host.Margin = new Thickness(0);
+            }
+
+            host.Opacity = 1;
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        }
+
+        if (ms <= 0)
+        {
+            Collapse();
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var fade = new DoubleAnimation(host.Opacity, 0, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        fade.Completed += (_, _) =>
+        {
+            if (host.Tag is false)
+            {
+                host.BeginAnimation(UIElement.OpacityProperty, null);
+                Collapse();
+            }
+        };
+        host.BeginAnimation(UIElement.OpacityProperty, fade);
+        var shrink = new DoubleAnimation(scale.ScaleX, IslandMotion.SatelliteFromScale, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, shrink);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, shrink);
+    }
+
     private double ApplyIslandExtras(IslandPresenceView snap)
     {
         bool camera = snap.Face == IslandPillFace.Camera;
         IslandCamera.Visibility = camera ? Visibility.Visible : Visibility.Collapsed;
         IslandCamera.Source = camera ? CameraMirrorHost.Preview?.Frame : null;
-        bool bars = snap.Face == IslandPillFace.NowPlaying
-            && Island?.Config.Visualizer == true
-            && _engine.Media.Snapshot.IsPlaying;
+        bool bars = VisualizerBarsWanted(snap);
         IslandBars.Visibility = bars ? Visibility.Visible : Visibility.Collapsed;
         double cameraDip = camera && IslandCamera.Source is not null ? 44 : 0;
-        return cameraDip + (bars ? 28 : 0);
+        return cameraDip + (bars ? IslandBarsDip : 0);
     }
+
+    /// <summary>
+    /// Bars follow the music face, not SMTC IsPlaying — some players keep a
+    /// session while playback status lags; peak stays flat when audio is quiet.
+    /// </summary>
+    private bool VisualizerBarsWanted(IslandPresenceView snap)
+        => snap.Face == IslandPillFace.NowPlaying
+           && Island?.Config.Visualizer == true
+           && _engine.Media.Snapshot.HasSession;
 
     private void OnBluetoothNotice(object? sender, EventArgs e)
     {
@@ -1418,26 +1715,31 @@ public partial class TopBarWindow
 
     private bool VisualizerWanted()
         => Monitor.IsPrimary
-           && Island?.Config.Visualizer == true
-           && _engine.Media.Snapshot.IsPlaying
-           && _presence?.View.Face == IslandPillFace.NowPlaying;
+           && _presence is not null
+           && VisualizerBarsWanted(_presence.View);
 
     private void SyncVisualizerTimer()
     {
         if (!VisualizerWanted())
         {
-            _vizTimer?.Stop();
+            if (_vizTimer is { IsEnabled: true })
+            {
+                _vizTimer.Stop();
+                VisualizerBars.Reset();
+            }
+
             return;
         }
 
         if (_vizTimer is null)
         {
-            _vizTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _vizTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
             _vizTimer.Tick += OnVisualizerTick;
         }
 
         if (!_vizTimer.IsEnabled)
         {
+            VisualizerBars.Reset();
             _vizTimer.Start();
         }
     }
@@ -1447,6 +1749,7 @@ public partial class TopBarWindow
         if (!VisualizerWanted())
         {
             _vizTimer?.Stop();
+            VisualizerBars.Reset();
             if (IslandBars.Visibility == Visibility.Visible)
             {
                 ApplyIslandChrome(focusMusic: false);
@@ -1456,12 +1759,33 @@ public partial class TopBarWindow
         }
 
         float peak = 0f;
-        _ = AudioPeak.TryRead(out peak);
-        int[] heights = VisualizerBars.Heights(peak);
+        if (_engine.Volume.Snapshot is { IsMuted: true })
+        {
+            // Endpoint peak is pre-master-volume; mute still means a quiet chip.
+            peak = 0f;
+        }
+        else
+        {
+            _ = AudioPeak.TryRead(out peak);
+        }
+
+        // Bars are fixed 14 DIP tall and scaled with a RenderTransform: no layout pass per tick,
+        // and a tick whose scales did not change (silence) touches nothing at all.
+        float[] levels = VisualizerBars.Step(peak);
         Border[] bars = [IslandBar0, IslandBar1, IslandBar2, IslandBar3, IslandBar4];
         for (int i = 0; i < bars.Length; i++)
         {
-            bars[i].Height = heights[i];
+            double scale = IslandMotion.BarScale(levels[i], VisualizerBars.MaxDip);
+            if (Math.Abs(scale - _barScales[i]) < 0.01)
+            {
+                continue;
+            }
+
+            _barScales[i] = scale;
+            if (bars[i].RenderTransform is ScaleTransform transform)
+            {
+                transform.ScaleY = scale;
+            }
         }
 
         if (IslandBars.Visibility != Visibility.Visible)

@@ -1839,12 +1839,14 @@ public partial class TopBarWindow : Window
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
                 ApplyBackgroundAppearance();
+                _engine.TrayMirror.NotifyAppearanceChanged();
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
                     ApplyBackgroundAppearance();
+                    _engine.TrayMirror.NotifyAppearanceChanged();
                 }
 
                 break;
@@ -1994,14 +1996,18 @@ public partial class TopBarWindow : Window
         _trayOverflowUiStale = false;
 
         IReadOnlyList<string>? box = _config.Current.TopBar?.TrayOverflowIcons;
-        var visible = new List<TrayMirrorItem>(items.Count);
+        var visibleRaw = new List<TrayMirrorItem>(items.Count);
         foreach (TrayMirrorItem candidate in items)
         {
             if (!TrayOverflowMembership.IsInBox(box, candidate.Key))
             {
-                visible.Add(candidate);
+                visibleRaw.Add(candidate);
             }
         }
+
+        // UIA keys by tooltip/name; duplicates make Items.Count < visible.Count and the
+        // RemoveAt+Insert reorder throws ArgumentOutOfRangeException (APPCRASH).
+        IReadOnlyList<TrayMirrorItem> visible = TrayMirrorOrder.UniqueByKey(visibleRaw);
 
         _trayMirrorActive = visible.Count > 0;
 
@@ -2071,20 +2077,16 @@ public partial class TopBarWindow : Window
             }
         }
 
-        for (int i = 0; i < visible.Count; i++)
+        var desired = new List<object>(visible.Count);
+        foreach (TrayMirrorItem item in visible)
         {
-            if (!_trayMirrorImages.TryGetValue(visible[i].Key, out Border? host))
+            if (_trayMirrorImages.TryGetValue(item.Key, out Border? host))
             {
-                continue;
-            }
-
-            int current = TrayMirrorItems.Items.IndexOf(host);
-            if (current >= 0 && current != i)
-            {
-                TrayMirrorItems.Items.RemoveAt(current);
-                TrayMirrorItems.Items.Insert(i, host);
+                desired.Add(host);
             }
         }
+
+        TrayMirrorOrder.SyncOrder(TrayMirrorItems.Items, desired);
 
         TrayOverflowHost.SetItems(ParkedTrayIcons(items, box));
         ApplyStatusItemLayout();
