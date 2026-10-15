@@ -47,7 +47,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an on/off record only;
  an assembly is not loaded. Top bar and dock slots are not drawn in v1.
  The phone row appears only while a device is connected: name, battery, and notification count from the YourPhone start card; a missing field is hidden.
- Folder stack, minimize snapshot, and Store logo are ADR-014.
+ Folder stack, minimize snapshot, dock restore reverse cue from the icon/flyout, and Store logo are ADR-014.
 - **Taskbar:** hide/auto-hide while WharfBar is running; restore on exit (ADR-005).
 - **Monitor:** Per-monitor top bar / dock — each monitor is turned on or off separately through the `monitors` config;
  every bar runs on one shared engine; each bar
