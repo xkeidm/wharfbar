@@ -95,6 +95,7 @@
 | The Launchpad fullscreen cover comes out opaque | On a layered window, DWM Mica paints a dark solid sheet in place of the wallpaper. `LaunchpadWindow` refreshes `Dwm.SetSystemBackdrop(None)` and `CompositionTarget.BackgroundColor = Transparent` on placement and on theme/display/DPI messages |
 | Dock recycle bin | The tile at the right end. A dropped path uses `SHFileOperationW` `FO_DELETE` \| `FOF_ALLOWUNDO`. A reparse directory is rejected. If the API returns an error or cancel, the original is not deleted and success is not shown |
 | The dock minimize moment | `EVENT_SYSTEM_MINIMIZESTART` + `WINEVENT_OUTOFCONTEXT` \| `WINEVENT_SKIPOWNPROCESS`. The frame is `PrintWindow`; an empty/failed capture skips the animation. If `SystemParameters.ClientAreaAnimation == false`, there is no animation. There is no `SetWindowPos` loop on a foreign window |
+| The dock restore moment | Dock/flyout iconic activate only. Cache from minimize `PrintWindow`; cloak (or alpha 0) → `SW_RESTORE` → reverse cue → uncloak. No foreign `SetWindowPos` loop. Always dispose the cloak token. |
 | Dock UWP logo | `PackageManager` / `GetLogo` / `SHLoadIndirectString`. If the file is missing or the read blows up, a letter glyph. A broken `Image` path is not left behind |
 
 ## Development tip

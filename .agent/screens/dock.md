@@ -140,6 +140,7 @@ If the reading is empty there is no bar. A window that wants attention pulses th
 a second flash restarts the duration, and activation ends it. Position does not move.
 
 When a window minimizes, the captured frame scales toward that icon for ~200 ms.
+When that window is restored from this dock (icon click or surface flyout), the cached frame grows back from the icon for ~200 ms while the real window stays DWM-cloaked (layered alpha 0 if cloak is refused). If animations are off, the capture is missing, or cloak/alpha both fail, restore is immediate. Restores from Alt-Tab or other shells are unchanged.
 If `SystemParameters.ClientAreaAnimation` is off, or `PrintWindow` is empty, there is no animation.
 A Store app's logo comes from the package API; if the file is missing, a letter glyph.
 

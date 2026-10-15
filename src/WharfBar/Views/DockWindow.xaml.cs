@@ -703,6 +703,18 @@ public partial class DockWindow : Window
             return;
         }
 
+        if (row.Item.IsRunning
+            && IsRestorePendingOrIconic(row.Item.MainWindowHandle)
+            && TryBeginRestoreCue(row.Item.MainWindowHandle))
+        {
+            if (sender is DockItemCell restored)
+            {
+                ClearAttentionFor(row, restored);
+            }
+
+            return;
+        }
+
         _activation?.LaunchOrActivate(row.Item, _launcher);
         if (sender is DockItemCell activated)
         {
