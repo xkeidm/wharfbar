@@ -28,11 +28,11 @@ While the application is open, continuous work is sparse. While a panel is close
 | Clock | 1 s | The UI is not refreshed if the text is the same |
 | Window census | 3 s, single pass | `WindowCensus`. Each dock does not run its own `EnumWindows` round; the process path is in the pid cache |
 | CPU / GPU / RAM / network speed | 4 s, off the UI | `SystemStatsService`. The PDH GPU wildcard counter is expensive. If the visible text and the network label have not changed, there is no `Changed`. If `showSystemStats` is off, the timer stops |
-| Tray mirror | 4 s | The icon bitmap is cached. Pixel refresh is a blip at most once every 60 s |
+| Tray mirror | 4 s | No new timer; the 4 s poll schedules the pixel refresh. Icons are cached by pixel signature; an unchanged snapshot raises no `Changed`. Pixel refresh (one `PrintWindow` per peek): show-only peek every 60 s (20 s while icons are changing); one extra show-only refresh ≥15 s apart after a mirror click, a theme/accent change, or an inconclusive peek. Where show-only cannot read the parked tray it latches off and the work-area-flapping state blip runs only via `TrayStateBlipGate`: once per explorer instance (bootstrap, not while maximized), then ≥10 min (empty mirror) / ≥20 min (upkeep) **and** user idle ≥3 min **and** no maximized/bottom-touching window — never from a click, theme or retry request. A click session re-captures the strip when the last capture is ≥15 s old (no extra timer). Re-anchor: a bounded 2.5 s watch + 1.5 s re-assert per click only |
 | Dock auto-hide | 200 ms while hidden, 50 ms while visible | While hidden, the hide timer does not run |
 | Dock progress | 2 s / 20 s | UI Automation is 2 s only while there is a running application and the tray button is open; otherwise 20 s |
 | Bluetooth notification | 10 s | If the list is the same, the island is not refreshed. 2 s while the Quick Settings Bluetooth page is open |
-| Visualizer | 100 ms, only while on the music face | The peak meter is not rebuilt every frame |
+| Visualizer | 50 ms, only while on the music face | Endpoint peak → attack/staggered release; meter COM stays open |
 | Volume indicator | 1 s | A single Core Audio scalar read |
 
 > Early project notes assumed both windows were AppBars. The current decision: the top bar is an AppBar,
@@ -234,7 +234,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `NetworkDetailsService` | Network-page "Properties" (`Özellikler`) (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
 | `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
 | `TrayIconService` / `NotifyIconHost` | Its own tray icon + Quit menu (`Shell_NotifyIcon`) |
-| `TrayMirrorService` | Polls the tray toolbar every 4 s, filters system icons, and publishes a `TrayMirrorItem` snapshot; the icon pixel stays in the cache and a blip refreshes it; click forward (ADR-009) |
+| `TrayMirrorService` | Polls the tray toolbar every 4 s, filters system icons, and publishes a `TrayMirrorItem` snapshot only when it changed; icon pixels live in `TrayIconCache` (keyed by `TrayIconSignature`) and a refresh peek on the `TrayIconRefreshPolicy` cadence re-captures them; click forward (ADR-009) |
 | `PowerStatus` | Battery / AC line (`GetSystemPowerStatus`) |
 
 ## Island (ADR-010)
@@ -310,6 +310,14 @@ v1: only the primary monitor's bar (the same limit as `trayMirror` — the servi
 the listener is not set up, and `island.json` is not read; existing entries are left without touching the disk.
 `Clear` does **not** delete file copies (deliberate); only `DeleteDroppedFiles` deletes them, and that
 action scans the `Drop` folder so it also covers orphans.
+
+### Redesign and color mode (ADR-018)
+
+- **Decision:** the tint is optional and user-selectable (`island.colorMode`); the default is `album` (tints from the cover while music plays; neutral otherwise).
+- **Deferred (not built):** progress bar that thickens on hover (thumb only while dragging); pill-shaped search box with icon; large-icon empty state; image row type with type badge; restyled meter and satellites; theme-aware contrast window for the album tint (the 0.12–0.90 luminance window is theme-independent); play-button focus visual.
+- **Join:** the island `Popup` is `AllowsTransparency` (its own layered window, allowed; the Mica ban applies to the bar window only), so the panel is one **silhouette** (`IslandSilhouette`, pure geometry): 24 DIP corners and 10 DIP concave fillets that flare up beside the pill, a drop shadow, and a top-lit gradient rim (tinted when a color is active). The popup child is padded 24 DIP for the shadow; `VerticalOffset` is -12. Near a screen edge WPF may nudge the popup up to 24 DIP, drifting the join. Manual check: the transparent strip over the pill must not swallow pill clicks.
+- **Pin:** no pin action on clipboard rows (`IslandService` has no pin support).
+- **Code:** `Services/IslandPalette` (pure: `Dominant`, `Luminance`, `Tint`) + `Views/IslandTintSource` (32×32 `TransformedBitmap` copy, cached by bitmap reference, UI thread) → `TopBarWindow.ApplyIslandTint` (pill bars) and `IslandFlyout.ApplyTint` (ambient glow + progress fill). Motion numbers are in `Services/IslandMotion` (pure; `Gate` zeroes them when `ClientAreaAnimation` is off).
 
 ## Window model
 
@@ -460,8 +468,8 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
-| `language` | `system` \| `en` \| `tr` — UI culture via `LocalizationService.Apply` at startup; null/empty/unknown → `system`; soft field (`schemaVersion` stays **2**). Change requires restart (Phase 0) |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
+| `language` | `system` \| `en` \| `tr` — UI culture via `LocalizationService.Apply` at startup; null/empty/unknown → `system`; soft field (`schemaVersion` stays **2**). Change requires restart (Phase 0) |
 | `dock.autoHide` | `true` → edge-band proximity + animated hide; `false` → always visible |
 | `dock.iconSize` | DIP; 16–36 (default **24**). The old 48/72 and the previous default of 28 are pulled down to 24 on load |
 | `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; unknown → `mica`. Independent of the top bar. Mica is real DWM (`AllowsTransparency=false`). Tint/transparent is a layered window; switching rebuilds the dock |
@@ -488,6 +496,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.musicPresence` | `"persistent"` (default) \| `"transient"`. How music sits on the pill (ADR-011). A soft string; `IslandNormalizer.NormalizeMusicPresence`, unresolvable → `persistent`. `schemaVersion` does not increase |
 | `island.idleLabel` | `"clipboard"` (default, the pill says **Clipboard** (`Pano`)) \| `"lastClip"` (a preview of the last text). A soft string; `IslandNormalizer.NormalizeIdleLabel`, unresolvable → `clipboard`. `schemaVersion` does not increase (ADR-012) |
 | `island.visualizer` | Five bars on the island pill while music is playing (default **`true`**). A gallery switch. Soft bool (ADR-015, ADR-017) |
+| `island.colorMode` | `"album"` (default) \| `"system"` \| `"neutral"`. Who is tinted and the fallbacks: `IslandPalette.Tint`. A soft string; `IslandNormalizer.NormalizeColorMode`, unresolvable → `album`. `schemaVersion` stays **2** (ADR-018) |
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |

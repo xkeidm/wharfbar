@@ -108,7 +108,7 @@ For top-bar indicators:
   the click is forwarded with `SendMessageTimeout` mouse messages.
   There is no `ReadProcessMemory` / injection / undocumented enumeration. Hidden/overflow icons
   cannot be mirrored (they exist only in the open popup); `TrayOverflowInvoker` (`Win+B` / chevron) remains.
-  The poll is 4 s; the icon pixel is not pulled every round (a blip at most every 60 s). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) does not
+  The poll is 4 s; the icon pixel is not pulled every round (refresh cadence: `TrayIconRefreshPolicy`, see the 25H2 section). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) does not
   lock the UI on a hung explorer.
 - **Windows 11 25H2+ UIA fallback:** the classic `ToolbarWindow32` tray was removed in this version
   (on 25H2 there is no `SysPager`/`ToolbarWindow32` under `TrayNotifyWnd`). When `FindToolbarHwnd` returns
@@ -147,7 +147,8 @@ For top-bar indicators:
    taskbar position (the bottom edge) or the restored cursor → `TrayMenuReanchor`
    moves the application's newly appeared popup window under the mirror icon (`SetWindowPos`,
    work-area clamped; a `#32768` menu always, other classes are candidates only in the click region
-   around the clicked button; fullscreen overlays never). Matching is NOT by pid:
+   around the clicked button; fullscreen overlays never; 2.5 s watch, cloaked windows are not in the
+   pre-click snapshot, and a 1.5 s re-assert counters owners that move their flyout back). Matching is NOT by pid:
    every 25H2 XAML button reports the explorer pid.
 
 **Implemented:** the left Windows logo (4 squares of **Path/Rectangle**, not a font glyph — visible on Mica);
@@ -279,8 +280,23 @@ and restored on the exit/crash paths (`ABM_REMOVE` discipline). Implementation: 
     on a parked tray (XAML content is virtualized): desktop-root UIA reads are done from a dedicated STA dispatcher
     thread. Refresh first tries a stateless stealth peek; if that read returns an icon,
     `ABM_SETSTATE` is not flipped (that flip opens and closes the work area, and the desktop
-    and windows jump). If it is empty, the state blip remains while there is no maximize, and the interval is 3 min.
-    An empty read does not clear the mirror (the last good snapshot stays frozen). Restore is
+    and windows jump). If it is empty, show-only latches off and the state blip is gated by
+    `TrayStateBlipGate` (once per explorer instance; later only ≥10/≥20 min apart, user idle ≥3 min via
+    `GetLastInputInfo`, and no maximized/bottom-touching window). Expedited requests never reach it.
+    A mirror click reveals the auto-hide tray by hovering the bottom edge (`SetCursorPos` + an absolute
+    `SendInput` move; no work-area change) and drops the state only as a fallback. Every tray-driven
+    flip is logged as `state-change #N reason=…`. Crops are matted against the taskbar fill
+    (`TrayIconMatte`, ring-median background, colour-to-alpha).
+    The refresh runs on this cadence **whether or not the direct read returned buttons** (pixels need a
+    shown tray; gating the peek on an empty read froze icon state such as Discord's mute icon). Show-only:
+    60 s, 20 s while the last refresh found changed pixels; an out-of-band refresh (floor 15 s) follows a
+    mirror click (+6 s), a theme/accent change (`WM_SETTINGCHANGE` `ImmersiveColorSet`,
+    `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED` → `NotifyAppearanceChanged`, +3 s) and one
+    inconclusive peek. One `PrintWindow` per peek (`TrayCapture.TryCaptureFrame`, skipped while
+    `IsWindowVisible=False`), per-button crops fingerprinted by `TrayIconSignature`; unchanged pixels
+    keep the cached `ImageSource` and an unchanged snapshot is not published. A click whose key is
+    missing from the live tray (the app exited, the snapshot was held) is not sent to the old rect.
+    An empty read does not clear the mirror (the last good snapshot is held for a bounded grace). Restore is
     `SetState(baseline)` + `SetTrayVisible(true)`; after a force kill, the stale watchdog
     file restores the baseline state.
 3. **After an AppBar `SETPOS`:** if the shell can write the bottom strip back,

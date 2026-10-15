@@ -41,8 +41,16 @@
   The tray mirror cannot be read with UIA on a parked tray:
   reads run from the desktop root on a dedicated STA dispatcher thread. Refresh tries a stateless
   stealth peek first; if icons arrive, `ABM_SETSTATE` is not toggled (work-area jump). If empty,
-  a state blip while nothing is maximized, interval 3 min. An empty read does not clear the mirror (the last good
-  snapshot stays frozen). After a force kill, a stale watchdog file restores the baseline state
+  show-only latches off and the state blip runs only through `TrayStateBlipGate` (once per explorer
+  instance, then ≥10/≥20 min apart with the user idle ≥3 min and no maximized/bottom-touching window).
+  **Never** let a click, theme or retry request trigger a state blip; a stale icon beats a jumping desktop.
+  Clicks reveal the auto-hide tray by hovering the bottom edge (`SetCursorPos`/`SendInput`, cursor
+  restored); the state drop is only the fallback. Flips are counted in the diag log (`state-change #`).
+  The show-only refresh runs on its cadence even when the direct read has buttons (60 s / 20 s while
+  icons change; one extra refresh after a mirror click or a theme change, floor 15 s). Crops are
+  colour-keyed against the taskbar fill (`TrayIconMatte`). One `PrintWindow` per peek; pixels are
+  compared by signature and an unchanged snapshot is not published. An empty read does not clear the mirror (the last good
+  snapshot is held for a bounded grace). After a force kill, a stale watchdog file restores the baseline state
   (poisoned baseline chain — happened live on 2026-08-30).
 - Live dock: the left group **reads the taskbar `User Pinned` shortcuts** (including closed pins,
   in taskbar order) + entries that are in `dock.items` but not on the taskbar + `EnumWindows`

@@ -28,6 +28,8 @@ Bluetooth device connects, its name stays on the pill for a short time; the Blue
 stays separate. The camera mirror opens from the gallery: the frame is inside the pill, a denied or busy camera
 leaves text, and there is no fake frame. Widgets (clock, calendar) are on the desktop, not on the pill.
 
+**Motion:** the pill width morphs between idle, music, meter, and satellite states (quintic ease-out on grow, cubic on shrink, 140–260 ms); a face swap dips and restores content opacity and pops the glyph; satellites scale/fade in and out; hover lifts the fill, press scales the pill to 0.97 (80 ms, cubic) and release springs back (`PressOut` 220 ms `BackEase`), a focused pill shows the accent ring, and a hovered satellite gets a subtle fill. Visualizer bars attack smoothly and release per bar. With system animations off (`SystemParameters.ClientAreaAnimation`) every transition is instant. Nothing animates while the pill is idle.
+
 While the island setting is off the pill collapses on every bar. On the **primary** bar, while the setting is on, the pill stays
 (idle `Pano` (Clipboard) or the last clip). On a **secondary** bar the pill is visible only while the face is not idle or while the panel
 is open: music and the volume/brightness/battery meters. There is no clipboard list, no file drop, and no clipboard
@@ -55,7 +57,7 @@ the meter, and the satellites grow on top of it. The track-name ceiling also cou
   150 ms of hover the same `IslandPopup` opens with the clipboard body (a short empty state if there is no record).
   About 300 ms after the pointer leaves. A click pins it. **Drag-and-drop** is only on the primary pill (`AllowDrop`).
 - **Now playing** (`island.musicPresence`, default `persistent`): the pill widens into a note (`E90C`)
-  + a single-line track name. The name is clipped with `IslandPresence.TitleMaxWidth` so it does not touch the left stats
+  + a single-line track name. When SMTC provided a thumbnail, the note is replaced by a 16 DIP rounded cover thumbnail (`IslandCoverThumb`, corner 4; only on the now-playing face, otherwise the glyph). The five visualizer bars are 2.5 DIP wide. The name is clipped with `IslandPresence.TitleMaxWidth` so it does not touch the left stats
   or the right strip. After 150 ms of hover the music panel opens;
   about 300 ms after the pointer leaves. A click pins the panel. When the session ends the pill is idle. The chip tooltip, if SMTC
   provided position and duration, appends the same `m:ss / m:ss` text that is on the panel; a percent is not written.
@@ -88,6 +90,10 @@ turns the body into the list; back is music. While the music panel is open the S
 the bar is visible when position and duration are both present. If the session `IsPlaybackPositionEnabled`
 is set, a slider sits in the bar's place and dragging seeks. While it is closed that read does not happen. If there is no duration, a percent is not written.
 The volume/brightness/battery meter's fill flows when the level changes.
+
+**Panel look (`IslandFlyout`):** 420 DIP wide, 24 px corners, 16 px padding. Music body: 88 px cover (corner 14, note glyph placeholder), 16 pt semibold title, 13 pt artist, a round 44 DIP accent play button, a 4 DIP progress bar, and an ambient glow behind the content (radial gradient, top-left, 35% alpha of the tint; hidden with no tint). On open the cover, the title block, and the transport row reveal in order, each delayed by `IslandMotion.StaggerDelayMs` (30 ms step; 0 with system animations off). Clipboard rows are 12 px-corner cards: a 32 px icon tile (text/file glyph), a preview line + a smaller meta line, and a delete button that shows only on hover (`Delete` key still works). The panel is a unified silhouette with the pill: concave 10 DIP fillets beside the pill, drop shadow, gradient rim (`IslandSilhouette`, ADR-018); the popup is `AllowsTransparency` and padded 24 DIP for the shadow. There is no pin action on rows.
+
+**Color (`island.colorMode`, ADR-018):** `album` (default) | `system` | `neutral`; unknown values fall back to `album`. The tint colors the pill's visualizer bars, the panel's ambient glow, and the progress fill; with no tint they use `AccentFillColorDefaultBrush` and no glow. Rules (`IslandPalette.Tint`): `neutral` → no tint; `system` → the system accent always; `album` → no tint unless music is playing, the system accent if the cover has no usable color or its luminance is below 0.12 or above 0.90, else the cover color. The cover color (`IslandPalette.Dominant`) is a saturation- and mid-brightness-weighted average of opaque pixels with saturation ≥ 0.25, computed on a 32×32 copy and cached by bitmap reference (`IslandTintSource`). The panel only tints while an SMTC session exists. The setting is the **`Ada rengi`** (Island color) card on the island settings page (ComboBox: Albüm rengi / Sistem rengi / Nötr).
 
 The rules are `IslandPresence` (duration, face, HUD priority, 150 ms hover). The window uses a one-shot timer; the duration is set with `NextDeadlineMs`.
 

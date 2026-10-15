@@ -20,7 +20,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  idle `Pano` (Clipboard) or, with `island.idleLabel=lastClip`, the last clip, now playing via `island.musicPresence`
  (`persistent` default / `transient`), a short meter for volume, brightness, and battery,
  at most two satellites (during HUD, persistent music and clipboard together). Low-battery threshold
- `island.lowBatteryPercent` (default 20, accepted 5–50). Clipboard history is on the primary bar; the secondary pill is music and meters. The multi-line panel is a single
+ `island.lowBatteryPercent` (default 20, accepted 5–50). Optional tint `island.colorMode` (`album` default / `system` / `neutral`, ADR-018). Clipboard history is on the primary bar; the secondary pill is music and meters. The multi-line panel is a single
  popup; the AppBar stays 30 DIP (ADR-012, ADR-013). Background personalization: `mica` / `transparent` / `tint`
  + opacity slider (right-click menu). The clock is a single `tr-TR` line; a clock click is notification text + a month calendar; the bell → native `Win+N`;
  `controlCenter` → QS Main; volume → QS Mixer; brightness → `BrightnessFlyout` (Monitorian DDC/CI + WMI hybrid);
@@ -140,7 +140,10 @@ picker when there are multiple sessions); `MediaSessionService` (Windows SMTC wa
 migration (`media` is inserted after `brightness`).
 **Tray mirror (ADR-009):** top bar `trayMirror` item (catalog **v5**) — reads third-party icons from the real tray
 toolbar (TrayNotifyWnd/SysPager/ToolbarWindow32),
-filters out system icons, 4 s poll (the icon pixel is refreshed on the blip), click forward. **Windows 11 25H2+ UIA fallback:**
+filters out system icons, 4 s poll (the icon pixel is refreshed by a peek on the `TrayIconRefreshPolicy` cadence,
+compared by `TrayIconSignature`; crops matted against the taskbar fill by `TrayIconMatte`; an unchanged
+snapshot is not published; the work-area-flapping state blip is gated by `TrayStateBlipGate`), click forward
+(hover reveal via `TrayAutoHideReveal`, state drop only as fallback). **Windows 11 25H2+ UIA fallback:**
 because the classic toolbar was removed, `TrayUiaReader` (SystemTray.NormalButton) + `TrayCapture`
 (real icon capture from the parked+cloaked taskbar via PrintWindow; letter glyph on failure) + UIA
 `InvokePattern`/peek click.
