@@ -10,6 +10,7 @@ Opens from: top bar Windows logo → `WharfBar Ayarları` (WharfBar Settings) (o
 
 - **`Windows ile Başlat` (Start with Windows)** — Startup folder `WharfBar.lnk` (not Registry Run;
   `AutostartService`, config `autostart`)
+- **`Dil` (Language)** — `Sistem` / `English` / `Türkçe` (config `language`: `system` / `en` / `tr`); applies on restart (`LocalizationService`)
 
 ## Appearance (`AppearancePage`)
 

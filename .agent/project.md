@@ -55,6 +55,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  Veil is limited to the primary monitor.
 - **No global menu** — the focused app's File/Edit menu is not moved onto the 30 DIP bar.
  WharfBar's own settings tabs are already in the Settings window (ADR-015).
+- **UI language:** `system` / `en` / `tr` on **General** (`LocalizationService`, `.resx`); restart to apply (Phase 0).
 
 ## Stack (summary)
 

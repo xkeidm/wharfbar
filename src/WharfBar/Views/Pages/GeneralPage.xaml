@@ -30,7 +30,7 @@
         <StackPanel MaxWidth="850" HorizontalAlignment="Left">
 
             <!-- Page Title -->
-            <TextBlock Text="Genel" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
+            <TextBlock x:Name="PageTitleText" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
             <!-- Başlangıç Section -->
             <TextBlock Text="Başlangıç" FontSize="14" FontWeight="SemiBold"
@@ -61,6 +61,48 @@
                                     VerticalAlignment="Center" />
                 </Grid>
             </Border>
+
+            <!-- Language Section -->
+            <TextBlock x:Name="LanguageSectionHeader" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="LocalLanguage24" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock x:Name="LanguageTitleText" FontSize="14" FontWeight="Medium" />
+                        <TextBlock x:Name="LanguageDescriptionText"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ComboBox x:Name="LanguageCombo"
+                              Grid.Column="2"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Center"
+                              Width="190"
+                              SelectionChanged="OnLanguageChanged">
+                        <ComboBoxItem />
+                        <ComboBoxItem />
+                        <ComboBoxItem />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="LanguageRestartNote"
+                       FontSize="12"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
 
         </StackPanel>
     </ScrollViewer>

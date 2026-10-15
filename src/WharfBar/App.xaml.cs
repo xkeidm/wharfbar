@@ -118,6 +118,7 @@ public partial class App : Application
 
         _config = new ConfigService();
         AppConfig config = _config.LoadOrCreate();
+        LocalizationService.Apply(config.Language);
 
         // Before _monitors.Initialize() creates the dock windows: they read this same store.
         _dockItems = new DockItemStore(_config);

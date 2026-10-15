@@ -229,6 +229,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema |
 | `AppThemePreference` | The `theme` field → `ApplicationTheme` |
 | `AutostartService` | Startup-folder `WharfBar.lnk`; create/delete with `autostart` true/false |
+| `LocalizationService` | UI language (`language`: `system` / `en` / `tr`); `.resx` lookup; culture applied once at startup; change requires restart (Phase 0: General picker only) |
 | `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus` |
 | `NetworkDetailsService` | Network-page "Properties" (`Özellikler`) (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
 | `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
@@ -459,6 +460,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
 | `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
+| `language` | `system` \| `en` \| `tr` — UI culture via `LocalizationService.Apply` at startup; null/empty/unknown → `system`; soft field (`schemaVersion` stays **2**). Change requires restart (Phase 0) |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
 | `dock.autoHide` | `true` → edge-band proximity + animated hide; `false` → always visible |
 | `dock.iconSize` | DIP; 16–36 (default **24**). The old 48/72 and the previous default of 28 are pulled down to 24 on load |
