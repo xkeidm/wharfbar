@@ -215,6 +215,9 @@ internal static class NativeMethods
     internal const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const uint DWMWA_SYSTEMBACKDROP_TYPE = 38;
 
+    /// <summary>DWMWA_CLOAK — set composition cloak (13). Distinct from DWMWA_CLOAKED (14, get).</summary>
+    internal const uint DWMWA_CLOAK = 13;
+
     /// <summary>DWMWA_CLOAKED — window hidden from composition (shell-cloaked apps, other virtual desktops).</summary>
     internal const uint DWMWA_CLOAKED = 14;
 
