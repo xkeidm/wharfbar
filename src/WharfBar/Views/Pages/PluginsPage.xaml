@@ -6,5 +6,13 @@
       Background="Transparent"
       ScrollViewer.CanContentScroll="False">
 
+    <Page.Resources>
+        <!-- Frame-hosted pages inherit accent Foreground from NavigationView; pin body text. -->
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+    </Page.Resources>
+
     <views:PluginGalleryView x:Name="Gallery" />
 </Page>

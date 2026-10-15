@@ -45,16 +45,44 @@ public class GalleryDraftTests
     [Fact]
     public void Heights_AreFlatWhenThePeakIsZero()
     {
+        VisualizerBars.Reset();
         Assert.Equal([1, 1, 1, 1, 1], VisualizerBars.Heights(0f));
     }
 
     [Fact]
     public void Heights_FollowThePeak()
     {
+        VisualizerBars.Reset();
         int[] heights = VisualizerBars.Heights(1f);
         Assert.Equal(5, heights.Length);
         Assert.True(heights[2] >= heights[0]);
         Assert.True(heights[2] > 1);
+    }
+
+    [Fact]
+    public void Heights_MoveOnQuietButAudiblePeaks()
+    {
+        VisualizerBars.Reset();
+        // Shared-mode meters often sit around 0.15 while music is playing.
+        int[] quiet = VisualizerBars.Heights(0.15f);
+        Assert.True(quiet[2] >= 6, $"center bar was {quiet[2]}");
+        Assert.True(quiet[2] > quiet[0]);
+    }
+
+    [Fact]
+    public void Heights_ReleaseAtDifferentRates()
+    {
+        VisualizerBars.Reset();
+        _ = VisualizerBars.Heights(1f);
+        int[] after = [1, 1, 1, 1, 1];
+        for (int i = 0; i < 4; i++)
+        {
+            after = VisualizerBars.Heights(0f);
+        }
+
+        // Center decays fastest; edge bars hold longer — motion from one peak.
+        Assert.True(after[0] > after[2], $"edge={after[0]} center={after[2]}");
+        Assert.True(after[4] > after[2], $"edge={after[4]} center={after[2]}");
     }
 
     [Fact]

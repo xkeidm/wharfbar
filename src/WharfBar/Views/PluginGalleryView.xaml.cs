@@ -125,12 +125,7 @@ internal partial class PluginGalleryView : UserControl
     private UIElement Explanation()
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Yuvalar",
-            FontSize = 14,
-            FontWeight = FontWeights.Medium,
-        });
+        stack.Children.Add(Primary("Yuvalar", 14, FontWeights.Medium, default));
         stack.Children.Add(Chips());
         stack.Children.Add(Secondary(
             "Üst çubuk (topBar) ve Dock (dock) v1'de yalnız kayıttır; çubuğa veya dock'a çizilmez. "
@@ -170,12 +165,7 @@ internal partial class PluginGalleryView : UserControl
     private static UIElement Chip(string title, string detail)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 8, 8) };
-        panel.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontSize = 12,
-            FontWeight = FontWeights.Medium,
-        });
+        panel.Children.Add(Primary(title, 12, FontWeights.Medium, default));
         panel.Children.Add(Secondary(detail, new Thickness(0, 1, 0, 0)));
         var border = new Border
         {
@@ -193,30 +183,24 @@ internal partial class PluginGalleryView : UserControl
     private UIElement EmptyLocal()
     {
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
-        {
-            Text = "Henüz yerel kayıt yok",
-            FontSize = 14,
-            FontWeight = FontWeights.Medium,
-        });
+        stack.Children.Add(Primary("Henüz yerel kayıt yok", 14, FontWeights.Medium, default));
         stack.Children.Add(Secondary(
             "plugins klasörünün altında bir klasör açın ve içine manifest.json koyun. "
             + "Kökteki dosya okunmaz; bağlantı (junction) klasörleri de atlanır.",
             new Thickness(0, 4, 0, 0)));
-        stack.Children.Add(new TextBlock
-        {
-            Text = "{\n"
+        var sample = Primary(
+            "{\n"
                 + "  \"id\": \"hava\",\n"
                 + "  \"name\": \"Hava\",\n"
                 + "  \"description\": \"Kısa durum.\",\n"
                 + "  \"kind\": \"widget\",\n"
                 + "  \"slot\": \"topBar\"\n"
                 + "}",
-            FontFamily = new FontFamily("Consolas"),
-            FontSize = 12,
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 10, 0, 0),
-        });
+            12,
+            FontWeights.Normal,
+            new Thickness(0, 10, 0, 0));
+        sample.FontFamily = new FontFamily("Consolas");
+        stack.Children.Add(sample);
         return Chrome(stack);
     }
 
@@ -245,13 +229,9 @@ internal partial class PluginGalleryView : UserControl
         }
 
         var text = new StackPanel { VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 16, 0) };
-        text.Children.Add(new TextBlock
-        {
-            Text = card.Name,
-            FontSize = 14,
-            FontWeight = FontWeights.Medium,
-            TextWrapping = TextWrapping.Wrap,
-        });
+        var name = Primary(card.Name, 14, FontWeights.Medium, default);
+        name.TextWrapping = TextWrapping.Wrap;
+        text.Children.Add(name);
         text.Children.Add(Secondary(meta, new Thickness(0, 2, 0, 0)));
         if (!string.IsNullOrWhiteSpace(card.Summary))
         {
@@ -337,6 +317,20 @@ internal partial class PluginGalleryView : UserControl
             Margin = new Thickness(0, 16, 0, 8),
         };
         block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        return block;
+    }
+
+    private static TextBlock Primary(string text, double fontSize, FontWeight weight, Thickness margin)
+    {
+        var block = new TextBlock
+        {
+            Text = text,
+            FontSize = fontSize,
+            FontWeight = weight,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = margin,
+        };
+        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
         return block;
     }
 
