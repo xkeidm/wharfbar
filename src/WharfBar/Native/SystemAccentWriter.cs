@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using Microsoft.Win32;
 using WharfBar.Services;
 
@@ -39,32 +38,12 @@ internal static class SystemAccentWriter
                 dwm?.SetValue("ColorizationColor", unchecked((int)dword), RegistryValueKind.DWord);
             }
 
-            BroadcastImmersiveColorSet();
+            ImmersiveColorNotify.Broadcast();
             return true;
         }
         catch (Exception)
         {
             return false;
-        }
-    }
-
-    private static void BroadcastImmersiveColorSet()
-    {
-        IntPtr lParam = Marshal.StringToHGlobalUni("ImmersiveColorSet");
-        try
-        {
-            _ = NativeMethods.SendMessageTimeout(
-                NativeMethods.HWND_BROADCAST,
-                (uint)NativeMethods.WM_SETTINGCHANGE,
-                IntPtr.Zero,
-                lParam,
-                NativeMethods.SMTO_ABORTIFHUNG,
-                1000,
-                out _);
-        }
-        finally
-        {
-            Marshal.FreeHGlobal(lParam);
         }
     }
 }
