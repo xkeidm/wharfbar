@@ -1,7 +1,7 @@
 # Theme ↔ Windows + wallpaper pair sync
 
 **Date:** 2026-10-17  
-**Status:** Approved design  
+**Status:** Implemented  
 **Product:** WharfBar
 
 > Canonical committed design for this feature. Local agent scratch under `docs/superpowers/` is gitignored.

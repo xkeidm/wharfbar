@@ -76,7 +76,7 @@ src/WharfBar/
  Strings.resx # neutral English UI strings (fallback)
  Strings.tr.resx # Turkish satellite; missing keys fall back to neutral
  Strings.Designer.cs # generated accessors for XAML {x:Static} and C#
- AppearancePage.xaml(.cs) # Settings: appearance (theme, background, accent, logo style)
+ AppearancePage.xaml(.cs) # Settings: appearance (theme → WharfBar + optional Windows via SystemThemeWriter; wallpaper pair sync)
  DockPage.xaml(.cs) # Settings: dock (content list, auto-hide, icon size, background, position, running apps)
  TopBarPage.xaml(.cs) # Settings: top bar (status items)
  VeilPage.xaml(.cs) # Settings: Overlay (`Kaplama`) (color/opacity/shortcut; ADR-007)
@@ -106,7 +106,9 @@ src/WharfBar/
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
  DesktopWallpaper.cs # SPI_SETDESKWALLPAPER / SPI_GETDESKWALLPAPER thin wrapper (island wallpaper gallery)
  SystemAccentPack.cs # PURE: accent DWORD + palette bytes for HKCU write
- SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorSet broadcast
+ SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorNotify broadcast
+ ImmersiveColorNotify.cs # shared WM_SETTINGCHANGE ("ImmersiveColorSet") for accent + Windows theme writers
+ SystemThemeWriter.cs # best-effort HKCU Personalize light/dark (AppsUseLightTheme / SystemUsesLightTheme); no exit restore
  ClipboardNative.cs # clipboard P/Invokes (OpenClipboard/GlobalAlloc/listener) + opt-out read/write (ADR-010)
  Models/
  PinnedApp.cs # pin record (path, args, label)
@@ -152,7 +154,10 @@ src/WharfBar/
  WallpaperCatalog.cs # PURE merge/list of bundled + AppData wallpaper paths (.jpg/.jpeg/.png/.webp)
  WallpaperAccent.cs # PURE-ish: decode wallpaper → IslandPalette.Dominant → luminance window
  WallpaperAccentApplier.cs # after SPI success: WPF-UI Apply + ApplyLogoChanges + SystemAccentWriter
- WallpaperService.cs # SPI apply + current-path read; path guard; optional transition overlay; optional accent side effect
+ WallpaperService.cs # SPI apply + current-path read; path guard; optional transition overlay; optional accent side effect; `HubApplied` → remember hub path
+ WallpaperPair.cs # PURE: `-light`/`-dark` sibling path resolution (same folder, case-insensitive suffix)
+ WallpaperThemeSyncPolicy.cs # PURE: external Windows follow only in `system` theme; skip HighContrast
+ WallpaperThemeSync.cs # `island.lastHubWallpaper` + partner apply when resolved theme changes
  WallpaperTransitionPolicy.cs # PURE: ShouldAnimate(mode, respectSystem, clientAreaAnimation) + UsesBlur
  WallpaperTransitionMotion.cs # PURE: fade ms, blur radius, decode width (~½ primary px)
  IslandService.cs # island lifecycle: STA read thread, a single timeline, debounced write — ADR-010
@@ -208,7 +213,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars hide Pano and Duvar kağıdı tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; music body unchanged (ADR-010) |
 | `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Senin** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Klasörü aç`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
 | `WallpaperCatalog` | **Pure** file listing from two roots; extension filter; stable sort by file name — unit tested |
-| `WallpaperService` | `TryApply` / `TryGetCurrentPath`; rejects paths outside bundled `Wallpapers/` and `%AppData%/WharfBar/wallpapers/`. When `TransitionRequest` + policy allow: WorkerW crossfade first, **SPI on fade complete**; else instant SPI. Cancels/replaces an in-flight overlay on re-apply. After successful apply, if `island.wallpaperAccent`: `WallpaperAccentApplier` (SPI path unchanged) |
+| `WallpaperService` | `TryApply` / `TryGetCurrentPath`; rejects paths outside bundled `Wallpapers/` and `%AppData%/WharfBar/wallpapers/`. When `TransitionRequest` + policy allow: WorkerW crossfade first, **SPI on fade complete**; else instant SPI. Cancels/replaces an in-flight overlay on re-apply. After successful apply, if `island.wallpaperAccent`: `WallpaperAccentApplier` (SPI path unchanged). Hub apply raises `HubApplied` → `WallpaperThemeSync.Remember` (and partner auto-apply updates the same field) |
 | `WallpaperAccent` / `WallpaperAccentApplier` | Sample dominant color from the applied image (same luminance window as island album tint); WharfBar accent via `ApplicationAccentColorManager.Apply(..., systemAccentColor: false)` + `App.ApplyLogoChanges`; then `SystemAccentWriter.TryApply` (best-effort HKCU) |
 | `SystemAccentWriter` / `SystemAccentPack` | Undocumented `HKCU\...\Explorer\Accent` + `DWM` values + `WM_SETTINGCHANGE` (`ImmersiveColorSet`); silent failure; no explorer restart; no exit restore |
 | `WallpaperTransitionPolicy` | Pure matrix: `off` → never; `fade`/`blurFade` + `respectSystem` + `!ClientAreaAnimation` → no; `respectSystem=false` → yes for non-`off`. `UsesBlur` only for `blurFade` — unit tested |
@@ -257,7 +262,10 @@ The island (clipboard history + dropped files) is ADR-010.
 | `DemoPinnedApps` | The default 4 pins — the first `config.json` seed |
 | `AppConfig` / `DockConfig` | JSON schema (`schemaVersion` 2) |
 | `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema |
-| `AppThemePreference` | The `theme` field → `ApplicationTheme` |
+| `AppThemePreference` | The `theme` field → `ApplicationTheme`; `Resolve()` drives wallpaper pair sync |
+| `SystemThemeWriter` / `ImmersiveColorNotify` | When Appearance sets **light** or **dark**, best-effort `HKCU\...\Themes\Personalize` (`AppsUseLightTheme`, `SystemUsesLightTheme`) + `WM_SETTINGCHANGE` (`ImmersiveColorSet`); **system** skips the registry write; silent failure; no exit restore (same policy as accent) |
+| `WallpaperPair` | Pure `-light` ↔ `-dark` partner path when the sibling file exists; unpaired names (solids, `turkey-*`, brand PNGs) → no-op — unit tested |
+| `WallpaperThemeSync` | Remembers hub-applied paths in `island.lastHubWallpaper`; `FollowResolvedTheme` applies the partner via `WallpaperService.TryApply` (transition + accent unchanged). **Appearance** → sync after theme change (`fromExternalWindows: false`). **`theme=system`** → sync after bars/dock refresh on `ImmersiveColorSet` (`fromExternalWindows: true`). Fixed light/dark ignores external Windows theme for wallpaper |
 | `BrandPalette` | Pure: accent colour + `isDark` → tile background / pier / sea lines / sun (ADR-019) — unit tested |
 | `BrandLogo` | One home for the logo geometry: `BarGlyph(logoStyle)` (one-colour top bar shape) and `DockTile(logoStyle, …, sizePx)` (themed launch tile; solid small mark at every size). Accent: fresh `GetColorizationColor` with the system accent on, else the applied `SystemAccentColor` resource |
 | `AutostartService` | Startup-folder `WharfBar.lnk`; create/delete with `autostart` true/false |
@@ -307,6 +315,28 @@ WallpaperGalleryView click
 
 SPI remains the only **wallpaper** apply path. Decode/WorkerW failure → instant SPI. A concurrent apply cancels the prior overlay. Accent sync is a post-success side effect; it does not run on exit restore.
 
+### Theme ↔ Windows + hub wallpaper pairs
+
+Design detail: [`05-theme-windows-wallpaper.md`](05-theme-windows-wallpaper.md).
+
+```
+Appearance theme change (light | dark)
+  → AppConfig + AppThemePreference + ApplicationThemeManager (existing)
+  → SystemThemeWriter.TryApply (HKCU Personalize + ImmersiveColorNotify)
+  → App.FollowWallpaperTheme(fromExternalWindows: false)
+
+Appearance theme = system
+  → no SystemThemeWriter; WharfBar follows Windows via existing Refresh on ImmersiveColorSet
+  → TopBar/Dock ImmersiveColorSet → App.FollowWallpaperTheme(fromExternalWindows: true)
+
+Hub WallpaperGalleryView click
+  → WallpaperService.TryApply → HubApplied → WallpaperThemeSync.Remember(full path)
+  → if resolved theme differs from current `-light`/`-dark` variant and sibling exists:
+       FollowResolvedTheme may apply partner (same transition/accent rules)
+```
+
+Gallery UI still shows separate light and dark thumbnails; pairing is backend-only.
+
 ### New files and their jobs
 
 | File | Job |
@@ -319,7 +349,7 @@ SPI remains the only **wallpaper** apply path. Decode/WorkerW failure → instan
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
 | `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
 | `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + three bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save) |
-| `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled content under `Wallpapers/` (copy-to-output beside the exe) |
+| `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled pack under `Wallpapers/` (abstract/scenic pairs, solids, Turkey city photos, brand marks — see that folder’s README; copy-to-output beside the exe) |
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
 | `Services/WallpaperService.cs` | Apply guard + SPI delegate |
 | `Native/DesktopWallpaper.cs` | `SPI_SETDESKWALLPAPER` / `SPI_GETDESKWALLPAPER` |
@@ -530,7 +560,8 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "hubTab": "clipboard",
  "wallpaperTransition": "blurFade",
  "wallpaperRespectSystemAnimation": true,
- "wallpaperAccent": true
+ "wallpaperAccent": true,
+ "lastHubWallpaper": ""
  },
  "plugins": {
  "enabled": []
@@ -544,7 +575,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | Field | Meaning |
 |------|--------|
 | `schemaVersion` | Required; only `1`/`2` are accepted (`> 2` → `.bak` + default). **2** brought in the `monitors` block; the dock redesign **left the schema at 2 anyway** — a preference for reading without breakage via per-field defaults (`conventions.md:24`) |
-| `theme` | `system` \| `light` \| `dark` (`AppThemePreference`) |
+| `theme` | `system` \| `light` \| `dark` (`AppThemePreference`). **Light/dark** also write Windows Personalization via `SystemThemeWriter`; **system** does not write Windows (WharfBar follows Windows). Pair wallpaper sync uses the resolved theme (see `WallpaperThemeSync`) |
 | `language` | UI + formatting culture: `system` / `en` / `tr` (default `system`); applied at startup via `LocalizationService`. Soft field (`schemaVersion` stays 2). `system` uses `CultureInfo.InstalledUICulture` (`tr*` → Turkish, otherwise English). User strings come from `Resources/Strings.resx` + `Strings.tr.resx` (`{x:Static}` / `Strings.*` in C#). A change in Settings → General is saved immediately and applies after restart |
 | `logoStyle` | `wharfbar` (default) \| `windows` — the top bar logo and the dock launch tile on every monitor. Soft string; `LogoStyles.Normalize`, unknown/missing → `wharfbar`. `schemaVersion` stays **2** (ADR-019) |
 | `autostart` | `true` → `WharfBar.lnk` at Startup; `false` → the shortcut is deleted (`AutostartService`) |
@@ -582,6 +613,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.wallpaperTransition` | Post-apply animation: `"off"` \| `"fade"` \| `"blurFade"` (default **`blurFade`**). Soft string; `IslandNormalizer.NormalizeWallpaperTransition`, unresolvable → **`blurFade`**. Primary monitor only; overlay shows the **previous** image fading out over the SPI-applied desktop. `schemaVersion` stays **2** |
 | `island.wallpaperRespectSystemAnimation` | When **`true`** (default), skip the overlay if `SystemParameters.ClientAreaAnimation` is false. When **`false`**, `fade`/`blurFade` run even when Windows animation effects are off. Soft bool; `schemaVersion` stays **2** |
 | `island.wallpaperAccent` | After a successful island hub wallpaper apply, sync WharfBar accent (and best-effort Windows HKCU accent) from the image dominant color (default **`true`**). Soft bool; `schemaVersion` stays **2**. Does not alter SPI wallpaper apply or restore accent/wallpaper on exit |
+| `island.lastHubWallpaper` | Full path of the last wallpaper applied through the island hub (default **`""`**). Soft string; normalized to empty when whitespace on load; not path-validated until sync. Drives light/dark **pair** auto-switch only for hub-applied wallpapers with a `-light`/`-dark` sibling; partner apply updates this field. `schemaVersion` stays **2** |
 | `plugins.enabled` | Local manifest ids (`%AppData%/WharfBar/plugins/<klasör>/manifest.json`; `<klasör>` = folder). A soft list; `schemaVersion` stays **2**. Built-in ids do not live here. Registration is not drawing: no assembly is loaded, and top-bar and dock slots are not drawn in v1 (ADR-017) |
 | `pinnedApps` | **Legacy.** Read only once, by `ConfigService.MigrateDockItems`, when `dock.items` is empty, and then **cleared**. The live taskbar `.lnk` scan was removed on 2026-10-04 (ADR-005 revision) |
 

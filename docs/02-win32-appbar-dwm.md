@@ -577,3 +577,29 @@ Failure is written to the debug log with `GetLastWin32Error`; it is not swallowe
 - `LockWorkStation` (user32) — lock the session
 - `SetSuspendState(FALSE, FALSE, FALSE)` (powrprof) — sleep
 - `shutdown.exe /s|/r /t 0` — shut down / restart (not P/Invoke, `Process.Start`)
+
+---
+
+## m) Windows Personalization theme (Appearance light/dark)
+
+When the user sets Appearance theme to **light** or **dark**, WharfBar mirrors Windows “Choose your mode” (apps and shell together — not Custom per-app chrome). Implementation: `Native/SystemThemeWriter.cs` + shared `Native/ImmersiveColorNotify.cs` (also used by `SystemAccentWriter` after accent writes).
+
+**Registry (HKCU, best-effort, silent on failure; no capture/restore on WharfBar exit):**
+
+```
+Software\Microsoft\Windows\CurrentVersion\Themes\Personalize
+  AppsUseLightTheme     REG_DWORD  1 = light, 0 = dark
+  SystemUsesLightTheme  REG_DWORD  same value as AppsUseLightTheme
+```
+
+When `config.theme` is **system**, these keys are **not** written — WharfBar only follows Windows via existing `AppThemePreference` refresh on `ImmersiveColorSet`.
+
+**Broadcast (same pattern as accent sync):**
+
+```csharp
+// user32.dll — NativeMethods.SendMessageTimeout
+SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "ImmersiveColorSet", SMTO_ABORTIFHUNG, 1000, ...);
+// lParam is a Unicode string pointer; ImmersiveColorNotify.Broadcast() centralizes this.
+```
+
+Failure does not block WharfBar theme apply. Fixed **light/dark** Appearance changes broadcast `ImmersiveColorSet`; wallpaper pair sync from that path is explicit in `AppearancePage` (external Windows theme changes do not flip hub pairs unless `theme=system`). Detail: [`05-theme-windows-wallpaper.md`](05-theme-windows-wallpaper.md).
