@@ -117,7 +117,7 @@
     <value>App Theme</value>
   </data>
   <data name="Appearance_ThemeDescription" xml:space="preserve">
-    <value>Use light, dark, or the Windows system default theme</value>
+    <value>Light or dark also updates Windows personalization. System leaves Windows alone and WharfBar follows it.</value>
   </data>
   <data name="Appearance_ThemeSystem" xml:space="preserve">
     <value>System default</value>

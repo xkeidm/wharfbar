@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using WharfBar.Models;
+using WharfBar.Native;
 using WharfBar.Services;
 using Wpf.Ui.Appearance;
 
@@ -110,6 +111,16 @@ public partial class AppearancePage : Page
         AppThemePreference.Mode = theme;
         ApplicationThemeManager.Apply(AppThemePreference.Resolve());
 
+        // Light/dark also write Windows personalization; system leaves Windows alone.
+        if (theme == AppConfig.ThemeLight)
+        {
+            _ = SystemThemeWriter.TryApply(light: true);
+        }
+        else if (theme == AppConfig.ThemeDark)
+        {
+            _ = SystemThemeWriter.TryApply(light: false);
+        }
+
         if (Cfg.UseSystemAccentColor)
         {
             ApplicationAccentColorManager.ApplySystemAccent();
@@ -119,6 +130,8 @@ public partial class AppearancePage : Page
 
         // See OnAccentStyleChanged: library applies rewrite MainWindow chrome; re-assert bars.
         WharfApp.ApplyLogoChanges();
+
+        WharfApp.FollowWallpaperTheme(fromExternalWindows: false);
     }
 
     private void OnBackgroundModeChanged(object sender, SelectionChangedEventArgs e)

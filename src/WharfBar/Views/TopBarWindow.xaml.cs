@@ -1860,6 +1860,10 @@ public partial class TopBarWindow : Window
                 {
                     ApplyBackgroundAppearance();
                     _engine.TrayMirror.NotifyAppearanceChanged();
+                    if (Application.Current is App app)
+                    {
+                        app.FollowWallpaperTheme(fromExternalWindows: true);
+                    }
                 }
 
                 break;

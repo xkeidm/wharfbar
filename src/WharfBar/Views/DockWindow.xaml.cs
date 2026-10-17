@@ -1972,6 +1972,10 @@ public partial class DockWindow : Window
                 if (IsImmersiveColorSet(lParam))
                 {
                     Dispatcher.BeginInvoke(ApplyThemeFromSystem);
+                    if (Application.Current is App app)
+                    {
+                        app.FollowWallpaperTheme(fromExternalWindows: true);
+                    }
                 }
 
                 break;

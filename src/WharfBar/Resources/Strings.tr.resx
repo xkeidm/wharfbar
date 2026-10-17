@@ -120,7 +120,7 @@
     <value>Uygulama Teması</value>
   </data>
   <data name="Appearance_ThemeDescription" xml:space="preserve">
-    <value>Açık, koyu veya Windows sistem varsayılan temasını kullanın</value>
+    <value>Açık veya koyu seçimi Windows kişiselleştirme temasını da günceller. Sistem, Windows'a dokunmaz; WharfBar Windows'u takip eder.</value>
   </data>
   <data name="Appearance_ThemeSystem" xml:space="preserve">
     <value>Sistem varsayılanı</value>
