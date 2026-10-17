@@ -34,7 +34,12 @@ internal sealed class WallpaperThemeSync
         _config.Save(cfg);
     }
 
+    private readonly ReentrancyGuard _followGuard = new();
+
     internal void FollowResolvedTheme(bool fromExternalWindows)
+        => _followGuard.TryRun(() => FollowCore(fromExternalWindows));
+
+    private void FollowCore(bool fromExternalWindows)
     {
         AppConfig cfg = _config.Current;
         if (fromExternalWindows

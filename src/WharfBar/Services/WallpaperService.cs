@@ -130,8 +130,9 @@ internal sealed class WallpaperService
         // Instant path (policy off, WorkerW missing, or decode failed).
         if (DesktopWallpaper.TrySet(full))
         {
-            TrySyncAccent(full);
+            // Remember first: accent broadcast re-enters FollowResolvedTheme.
             NotifyHubApplied(full);
+            TrySyncAccent(full);
             return true;
         }
 
