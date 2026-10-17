@@ -292,6 +292,8 @@ internal sealed class ConfigService
         config.Island.HubTab = IslandNormalizer.NormalizeHubTab(config.Island.HubTab);
         config.Island.WallpaperTransition =
             IslandNormalizer.NormalizeWallpaperTransition(config.Island.WallpaperTransition);
+        config.Island.LastHubWallpaper =
+            IslandNormalizer.NormalizeLastHubWallpaper(config.Island.LastHubWallpaper);
         config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
         config.Island.ColorMode = IslandNormalizer.NormalizeColorMode(config.Island.ColorMode);
         config.Island.OpenWidgets = PluginCatalog.NormalizeOpenWidgets(config.Island.OpenWidgets);

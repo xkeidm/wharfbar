@@ -451,6 +451,12 @@ internal sealed class IslandConfig
     public bool WallpaperAccent { get; set; } = DefaultWallpaperAccent;
 
     /// <summary>
+    /// Full path of the last wallpaper applied from the island hub (for light/dark pair sync).
+    /// Soft field — schema unchanged. Empty means no hub wallpaper remembered.
+    /// </summary>
+    public string LastHubWallpaper { get; set; } = "";
+
+    /// <summary>
     /// Pil sayacının eşiği (yüzde). Soft alan <c>lowBatteryPercent</c> —
     /// <see cref="AppConfig.CurrentSchemaVersion"/> artmaz. Bilinmeyen veya 5–50 dışı
     /// yükleme <see cref="DefaultLowBatteryPercent"/> olur; kullanıcının yazdığı değer
@@ -576,6 +582,9 @@ internal static class IslandNormalizer
     /// <summary>A value the user just chose. Clamped into 5–50.</summary>
     internal static int ClampLowBatteryPercent(int value)
         => Math.Clamp(value, IslandConfig.MinLowBatteryPercent, IslandConfig.MaxLowBatteryPercent);
+
+    internal static string NormalizeLastHubWallpaper(string? value)
+        => string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
 }
 
 /// <summary>Which launchpad face opens from the dock Launchpad tile.</summary>
