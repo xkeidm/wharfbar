@@ -1317,6 +1317,13 @@ public partial class TopBarWindow
                     return IslandConfig.DefaultWallpaperAccent;
                 }
             };
+            if (Application.Current is App app && app.Config is { } appConfig)
+            {
+                var sync = new WallpaperThemeSync(appConfig, _wallpaper);
+                _wallpaper.HubApplied = sync.Remember;
+                app.SetWallpaperSync(sync);
+            }
+
             IslandHost.AttachWallpaper(_wallpaper);
         }
 
@@ -1352,6 +1359,16 @@ public partial class TopBarWindow
         IslandHost.SizeChanged -= OnIslandPopupSizeChanged;
         IslandHost.HubTabChanged -= OnIslandHubTabChanged;
         IslandHost.DetachWallpaper();
+        if (_wallpaper is not null)
+        {
+            _wallpaper.HubApplied = null;
+        }
+
+        if (Monitor.IsPrimary && Application.Current is App detachApp)
+        {
+            detachApp.SetWallpaperSync(null);
+        }
+
         IslandHost.DetachMedia();
         _engine.MonitorBrightness.BrightnessChanged -= OnIslandBrightnessChanged;
 

@@ -23,6 +23,14 @@ public partial class App : Application
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
 
+    /// <summary>Wallpaper theme sync owned by the primary island; null when detached.</summary>
+    internal WallpaperThemeSync? WallpaperSync { get; private set; }
+
+    internal void SetWallpaperSync(WallpaperThemeSync? sync) => WallpaperSync = sync;
+
+    internal void FollowWallpaperTheme(bool fromExternalWindows)
+        => WallpaperSync?.FollowResolvedTheme(fromExternalWindows);
+
     /// <summary>
     /// The single dock item store. Shared by every per-monitor dock window and the settings
     /// page so a list edit made in settings reaches the docks live instead of only on the

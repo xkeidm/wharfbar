@@ -44,6 +44,9 @@ internal sealed class WallpaperService
 
     internal Func<bool>? AccentEnabled { get; set; }
 
+    /// <summary>Invoked with the applied full path when <see cref="TryApply"/> succeeds (hub gallery).</summary>
+    internal Action<string>? HubApplied { get; set; }
+
     private WallpaperTransitionWindow? _overlay;
 
     internal bool IsAllowedPath(string path)
@@ -114,6 +117,7 @@ internal sealed class WallpaperService
             {
                 if (BeginTransition(fromBmp, toBmp, WallpaperTransitionPolicy.UsesBlur(req.Mode), full))
                 {
+                    NotifyHubApplied(full);
                     return true;
                 }
             }
@@ -127,10 +131,16 @@ internal sealed class WallpaperService
         if (DesktopWallpaper.TrySet(full))
         {
             TrySyncAccent(full);
+            NotifyHubApplied(full);
             return true;
         }
 
         return false;
+    }
+
+    private void NotifyHubApplied(string full)
+    {
+        try { HubApplied?.Invoke(full); } catch { /* ignore */ }
     }
 
     private void TrySyncAccent(string fullPath)
