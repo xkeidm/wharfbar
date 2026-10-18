@@ -1,9 +1,13 @@
+using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using WharfBar.Services;
 
@@ -11,10 +15,15 @@ namespace WharfBar.Views;
 
 public partial class WallpaperGalleryView : UserControl
 {
-    private const double TileSize = 80;
-    private const int DecodeWidth = 160;
+    private const double PreviewDisplayWidthDip = 388;
+    private static readonly Color BadgeTextColor = Color.FromRgb(0x12, 0x12, 0x1A);
 
     private WallpaperService? _service;
+    private bool _hasPreviewSource;
+
+    /// <summary>Strip tiles keyed by full path, so the accent ring can move without a rebuild.</summary>
+    private readonly Dictionary<string, (Border Tile, Border Badge)> _tilesByPath =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public WallpaperGalleryView()
     {
@@ -32,6 +41,17 @@ public partial class WallpaperGalleryView : UserControl
     internal void Refresh()
     {
         ContentHost.Children.Clear();
+        _tilesByPath.Clear();
+        PreviewTop.BeginAnimation(Image.OpacityProperty, null);
+        PreviewTop.Source = null;
+        PreviewTop.Visibility = Visibility.Collapsed;
+        PreviewTop.Opacity = 0;
+        PreviewBase.Source = null;
+        PreviewBase.Visibility = Visibility.Collapsed;
+        PreviewBadge.Visibility = Visibility.Collapsed;
+        PreviewPlaceholder.Visibility = Visibility.Visible;
+        _hasPreviewSource = false;
+
         if (_service is null)
         {
             return;
@@ -55,6 +75,7 @@ public partial class WallpaperGalleryView : UserControl
             return;
         }
 
+        ShowPreview(current, animate: false);
         AddSection("WharfBar", bundled, current);
         AddSection("Senin", user, current);
     }
@@ -72,46 +93,145 @@ public partial class WallpaperGalleryView : UserControl
             FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Opacity = 0.7,
-            Margin = new Thickness(2, ContentHost.Children.Count == 0 ? 0 : 10, 0, 6),
+            Margin = new Thickness(2, ContentHost.Children.Count == 0 ? 2 : 6, 0, 4),
         });
 
-        var panel = new WrapPanel();
+        var stripViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
+            PanningMode = PanningMode.HorizontalOnly,
+        };
+        var stripPanel = new StackPanel { Orientation = Orientation.Horizontal };
         foreach (WallpaperItem item in items)
         {
-            panel.Children.Add(BuildTile(item, current));
+            stripPanel.Children.Add(BuildTile(item, current));
         }
 
-        ContentHost.Children.Add(panel);
+        stripViewer.Content = stripPanel;
+        stripViewer.PreviewMouseWheel += (_, e) => OnStripWheel(stripViewer, e);
+
+        var left = new Button
+        {
+            Style = (Style)Resources["StripArrow"],
+            Content = ArrowGlyph("\uE74D"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+        };
+        left.Click += (_, _) => WallpaperStripScroll.Page(
+            stripViewer, stripViewer.HorizontalOffset - WallpaperGalleryMotion.ScrollStepDip);
+        var right = new Button
+        {
+            Style = (Style)Resources["StripArrow"],
+            Content = ArrowGlyph("\uE76C"),
+            HorizontalAlignment = HorizontalAlignment.Right,
+        };
+        right.Click += (_, _) => WallpaperStripScroll.Page(
+            stripViewer, stripViewer.HorizontalOffset + WallpaperGalleryMotion.ScrollStepDip);
+
+        stripViewer.ScrollChanged += (_, _) => UpdateArrows(stripViewer, left, right);
+        stripViewer.MouseEnter += (_, _) => UpdateArrows(stripViewer, left, right);
+
+        var strip = new Grid();
+        strip.Children.Add(stripViewer);
+        strip.Children.Add(left);
+        strip.Children.Add(right);
+
+        ContentHost.Children.Add(strip);
+    }
+
+    private static TextBlock ArrowGlyph(string glyph)
+    {
+        var text = new TextBlock();
+        text.SetResourceReference(TextBlock.FontFamilyProperty, "AppIconFontFamily");
+        text.FontSize = 10;
+        text.Text = glyph;
+        return text;
+    }
+
+    private void UpdateArrows(ScrollViewer stripViewer, Button left, Button right)
+    {
+        if (stripViewer.ScrollableWidth <= 0)
+        {
+            left.Visibility = Visibility.Collapsed;
+            right.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        left.Visibility = stripViewer.HorizontalOffset > 0.5 ? Visibility.Visible : Visibility.Collapsed;
+        right.Visibility = stripViewer.HorizontalOffset < stripViewer.ScrollableWidth - 0.5
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        // Opaklığa kod dokunmaz: stil varsayılanı 0.75, hover tetiği 1'e çıkarır.
+    }
+
+    private void OnStripWheel(ScrollViewer stripViewer, MouseWheelEventArgs e)
+    {
+        // Şerit o yöne kayamıyorsa olayı düşür → dıştaki dikey listeyi tekerlek beslemeye devam etsin.
+        (bool handles, double target) = WallpaperGalleryMotion.WheelTarget(
+            stripViewer.ScrollableWidth, stripViewer.HorizontalOffset, e.Delta);
+        if (!handles)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        WallpaperStripScroll.Page(stripViewer, target);
     }
 
     private UIElement BuildTile(WallpaperItem item, string? current)
     {
+        string full = Path.GetFullPath(item.Path);
         bool selected = current is not null
-            && string.Equals(Path.GetFullPath(item.Path), current, StringComparison.OrdinalIgnoreCase);
-
-        UIElement visual = CreateThumbnail(item.Path);
-
-        var inner = new Border
-        {
-            CornerRadius = new CornerRadius(6),
-            ClipToBounds = true,
-            Child = visual,
-        };
+            && string.Equals(full, current, StringComparison.OrdinalIgnoreCase);
 
         var tile = new Border
         {
-            Width = TileSize,
-            Height = TileSize,
-            Margin = new Thickness(0, 0, 8, 8),
+            Width = WallpaperGalleryMotion.ThumbWidthDip,
+            Height = WallpaperGalleryMotion.ThumbHeightDip,
+            Margin = new Thickness(0, 0, WallpaperGalleryMotion.ThumbGapDip, 0),
             CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
             BorderThickness = new Thickness(2),
-            Padding = new Thickness(0),
             Cursor = Cursors.Hand,
             ToolTip = item.DisplayName,
             Background = Brushes.Transparent,
-            Child = inner,
-            Tag = item.Path,
+            Tag = full,
+            Style = (Style)Resources["GalleryThumb"],
         };
+
+        var imageHolder = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            ClipToBounds = true,
+            Child = CreateThumbVisual(full, selected),
+        };
+
+        var badge = new Border
+        {
+            Width = 15,
+            Height = 15,
+            CornerRadius = new CornerRadius(7.5),
+            Visibility = selected ? Visibility.Visible : Visibility.Collapsed,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 3, 3, 0),
+            IsHitTestVisible = false,
+        };
+        badge.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+        badge.Child = new TextBlock
+        {
+            Text = "\u2713",
+            FontSize = 9,
+            FontWeight = FontWeights.Bold,
+            Foreground = new SolidColorBrush(BadgeTextColor),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+
+        var content = new Grid();
+        content.Children.Add(imageHolder);
+        content.Children.Add(badge);
+        tile.Child = content;
 
         if (selected)
         {
@@ -122,40 +242,49 @@ public partial class WallpaperGalleryView : UserControl
             tile.BorderBrush = Brushes.Transparent;
         }
 
+        _tilesByPath[full] = (tile, badge);
         tile.MouseLeftButtonUp += Tile_MouseLeftButtonUp;
         return tile;
     }
 
-    private static UIElement CreateThumbnail(string path)
+    private UIElement CreateThumbVisual(string path, bool selected)
     {
-        try
-        {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
-            bmp.DecodePixelWidth = DecodeWidth;
-            bmp.UriSource = new Uri(path, UriKind.Absolute);
-            bmp.EndInit();
-            bmp.Freeze();
-            return new Image { Source = bmp, Stretch = Stretch.UniformToFill };
-        }
-        catch (Exception ex) when (ex is IOException or NotSupportedException or UriFormatException
-                                       or UnauthorizedAccessException or InvalidOperationException
-                                       or FileFormatException or ArgumentException)
+        BitmapImage? bmp = TryDecode(path, WallpaperGalleryMotion.DecodeWidth(WallpaperGalleryMotion.ThumbWidthDip));
+        if (bmp is null)
         {
             return CreatePlaceholder();
         }
+
+        var image = new Image { Source = bmp, Stretch = Stretch.UniformToFill };
+        if (selected)
+        {
+            return image;
+        }
+
+        // Şerit ilk boyanırken seçili kart hariç hafifçe belirir.
+        // Taban değeri 0'da kalır; animasyon varsayılan HoldEnd ile son değeri tutar.
+        // FillBehavior.Stop kullanırsak WPF opaklığı taban değerine (0) geri çevirir
+        // ve kartlar animasyon biter bitmez kaybolur — Bug A düzeltmesi.
+        image.Opacity = 0;
+        image.Loaded += (_, _) =>
+        {
+            var fadeIn = new DoubleAnimation(0, 1, WallpaperGalleryMotion.PreviewCrossfade)
+            {
+                EasingFunction = WallpaperGalleryMotion.CreateEase(),
+            };
+            image.BeginAnimation(Image.OpacityProperty, fadeIn);
+        };
+        return image;
     }
 
     private static UIElement CreatePlaceholder()
     {
-        var border = new Border { CornerRadius = new CornerRadius(6) };
+        var border = new Border();
         border.SetResourceReference(Border.BackgroundProperty, "ControlFillColorDefaultBrush");
         var glyph = new TextBlock
         {
             Text = "\uE91B",
-            FontSize = 24,
+            FontSize = 18,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
@@ -167,16 +296,111 @@ public partial class WallpaperGalleryView : UserControl
 
     private void Tile_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
     {
-        if (_service is null || sender is not FrameworkElement { Tag: string path })
+        if (_service is null || sender is not Border { Tag: string path })
         {
             return;
         }
 
         e.Handled = true;
-        if (_service.TryApply(path))
+        if (!_service.TryApply(path))
         {
-            Refresh();
-            Applied?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        UpdateSelection(path);
+        ShowPreview(path, animate: true);
+        Applied?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateSelection(string appliedPath)
+    {
+        foreach (var (path, entry) in _tilesByPath)
+        {
+            bool selected = string.Equals(path, appliedPath, StringComparison.OrdinalIgnoreCase);
+            if (selected)
+            {
+                entry.Tile.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+                entry.Badge.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                entry.Tile.BorderBrush = Brushes.Transparent;
+                entry.Badge.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
+
+    private void ShowPreview(string? path, bool animate)
+    {
+        if (path is null)
+        {
+            PreviewPlaceholder.Visibility = Visibility.Visible;
+            PreviewBadge.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        BitmapImage? bmp = TryDecode(path, WallpaperGalleryMotion.DecodeWidth(PreviewDisplayWidthDip));
+        if (bmp is null)
+        {
+            return;
+        }
+
+        PreviewPlaceholder.Visibility = Visibility.Collapsed;
+        PreviewBadge.Visibility = Visibility.Visible;
+
+        if (!animate || !_hasPreviewSource)
+        {
+            PreviewBase.Source = bmp;
+            PreviewBase.Visibility = Visibility.Visible;
+            PreviewTop.Source = null;
+            PreviewTop.Visibility = Visibility.Collapsed;
+            PreviewTop.Opacity = 0;
+            _hasPreviewSource = true;
+            return;
+        }
+
+        // Hafif crossfade: alt katmanda önceki görsel kalır; üst katmandaki yeni opaklık 0 → 1.
+        if (PreviewTop.Source is not null)
+        {
+            PreviewBase.Source = PreviewTop.Source;
+        }
+
+        PreviewTop.Source = bmp;
+        PreviewTop.Visibility = Visibility.Visible;
+        PreviewTop.Opacity = 0;
+        var fade = new DoubleAnimation(1, WallpaperGalleryMotion.PreviewCrossfade)
+        {
+            EasingFunction = WallpaperGalleryMotion.CreateEase(),
+            FillBehavior = FillBehavior.Stop,
+        };
+        fade.Completed += (_, _) =>
+        {
+            PreviewBase.Source = PreviewTop.Source;
+            PreviewTop.Source = null;
+            PreviewTop.Visibility = Visibility.Collapsed;
+        };
+        PreviewTop.BeginAnimation(Image.OpacityProperty, fade);
+    }
+
+    private static BitmapImage? TryDecode(string path, int decodeWidth)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bmp.DecodePixelWidth = decodeWidth;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+        catch (Exception ex) when (ex is IOException or NotSupportedException or UriFormatException
+                                       or UnauthorizedAccessException or InvalidOperationException
+                                       or FileFormatException or ArgumentException)
+        {
+            return null;
         }
     }
 
