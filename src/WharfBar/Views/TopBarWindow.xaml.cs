@@ -1499,7 +1499,7 @@ public partial class TopBarWindow : Window
     /// <summary>
     /// Watermark-driven bar palette. Only the fully transparent bar on the primary monitor
     /// follows the wallpaper strip; every other mode mirrors the theme brushes. Sampling is
-    /// cached by wallpaper path ÔÇö refresh calls are cheap.
+    /// cached by wallpaper path — refresh calls are cheap.
     /// </summary>
     private void RefreshWallpaperTextContrast()
     {
@@ -1544,7 +1544,7 @@ public partial class TopBarWindow : Window
         string? path = _wallpaper?.TryGetDesktopWallpaperPath() ?? TrySpiWallpaperPath();
         if (string.IsNullOrWhiteSpace(path))
         {
-            // No readable SPI wallpaper ÔåÆ keep the theme palette.
+            // No readable SPI wallpaper → keep the theme palette.
             ApplyBarPalette(BarTextTone.FollowTheme);
             return;
         }
@@ -1569,7 +1569,7 @@ public partial class TopBarWindow : Window
 
     /// <summary>
     /// Slow watch for wallpapers that change without a broadcast (IDesktopWallpaper paths).
-    /// Only runs while the wallpaper-driven palette is active ÔÇö ticks are a cached path compare.
+    /// Only runs while the wallpaper-driven palette is active — ticks are a cached path compare.
     /// </summary>
     private void EnsureWallpaperWatch(bool active)
     {
