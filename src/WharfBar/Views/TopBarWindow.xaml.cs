@@ -116,7 +116,14 @@ public partial class TopBarWindow : Window
         StatusStrip.LostMouseCapture += OnStatusStripDragLostCapture;
         _statsHover = new StatsHoverCard();
         SystemStatsText.ToolTip = new ToolTip { Content = _statsHover };
+
+        // Windows-style Show Desktop sliver: click 1 puts open windows down, click 2
+        // brings back exactly what it put down. Not a strip slot — no reorder, no map.
+        ShowDesktopEdge.PreviewMouseLeftButtonUp += OnShowDesktopClick;
     }
+
+    private void OnShowDesktopClick(object sender, MouseButtonEventArgs e) =>
+        ShowDesktopService.ClickFromUi();
 
     protected override void OnSourceInitialized(EventArgs e)
     {

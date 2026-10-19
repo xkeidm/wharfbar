@@ -597,6 +597,9 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="TopBar_NowPlaying" xml:space="preserve">
     <value>Now playing</value>
   </data>
+  <data name="TopBar_ShowDesktop" xml:space="preserve">
+    <value>Show desktop</value>
+  </data>
   <data name="TopBar_Background" xml:space="preserve">
     <value>Background</value>
   </data>

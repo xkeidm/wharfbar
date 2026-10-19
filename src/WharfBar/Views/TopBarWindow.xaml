@@ -407,6 +407,32 @@
                 </StackPanel>
             </StackPanel>
 
+            <!-- Windows-style Show Desktop sliver, pinned to the screen's right edge.
+                 A sibling of the strip, not a slot: the strip's drag-reorder and the
+                 status item map treat it as nothing. Negative right margin reaches
+                 past the 10 DIP bar margin; the strip needs the same 7 DIP back so
+                 the hover plates never touch the sliver. -->
+            <Border x:Name="ShowDesktopEdge"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Stretch"
+                    Width="7"
+                    Margin="0,0,-10,0"
+                    Cursor="Hand">
+                <Border.ToolTip>
+                    <ToolTip Content="{x:Static res:Strings.TopBar_ShowDesktop}" />
+                </Border.ToolTip>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource Bar.HitFill}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+            </Border>
+
             <!-- Insertion caret for a status-strip drag. Overlay, so the slot measure stays put. -->
             <Border x:Name="StatusDropCue"
                     Width="2"

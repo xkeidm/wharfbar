@@ -600,6 +600,9 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="TopBar_NowPlaying" xml:space="preserve">
     <value>Çalan medya</value>
   </data>
+  <data name="TopBar_ShowDesktop" xml:space="preserve">
+    <value>Masaüstünü göster</value>
+  </data>
   <data name="TopBar_Background" xml:space="preserve">
     <value>Arka plan</value>
   </data>

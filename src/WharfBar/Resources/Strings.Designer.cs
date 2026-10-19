@@ -1130,6 +1130,12 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string TopBar_ShowDesktop {
+            get {
+                return ResourceManager.GetString("TopBar_ShowDesktop", resourceCulture);
+            }
+        }
+
         public static string TopBar_Background {
             get {
                 return ResourceManager.GetString("TopBar_Background", resourceCulture);
