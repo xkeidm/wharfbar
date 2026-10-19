@@ -70,8 +70,8 @@ public class IslandConfigTests
         Assert.Equal("clipboard", config.IdleLabel);
         Assert.Equal("clipboard", IslandConfig.DefaultHubTab);
         Assert.Equal("clipboard", new IslandConfig().HubTab);
-        Assert.False(new IslandConfig().ShelfTab);
-        Assert.False(new IslandConfig().ColorPickerTab);
+        Assert.True(new IslandConfig().ShelfTab);
+        Assert.True(new IslandConfig().ColorPickerTab);
         Assert.Equal("blurFade", IslandConfig.DefaultWallpaperTransition);
         Assert.True(IslandConfig.DefaultWallpaperRespectSystemAnimation);
         Assert.Equal("blurFade", new IslandConfig().WallpaperTransition);
@@ -80,6 +80,13 @@ public class IslandConfigTests
         Assert.True(new IslandConfig().WallpaperAccent);
         Assert.Equal(20, config.LowBatteryPercent);
         Assert.Equal(20, IslandConfig.DefaultLowBatteryPercent);
+    }
+
+    [Fact]
+    public void Defaults_MatchSpec_WidgetTabs()
+    {
+        Assert.True(IslandConfig.DefaultShelfTab);
+        Assert.True(IslandConfig.DefaultColorPickerTab);
     }
 
     [Theory]
