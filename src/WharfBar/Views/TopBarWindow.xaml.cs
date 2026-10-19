@@ -315,20 +315,10 @@ public partial class TopBarWindow : Window
     {
         e.Handled = true;
         CloseFlyouts();
-        if (AppMenu.IsOpen)
-        {
-            AppMenu.IsOpen = false;
-            return;
-        }
 
-        // Open after this click finishes. Opening in the same mouse-up lets the
-        // click land outside the menu and dismiss it immediately.
-        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
-        {
-            AppMenu.PlacementTarget = AppMenuButton;
-            AppMenu.Placement = PlacementMode.Bottom;
-            AppMenu.IsOpen = true;
-        });
+        // Left click on the brand logo opens the launchpad (same window the dock
+        // tile toggles). The app menu stays on right click via the ContextMenu.
+        LaunchpadWindow.Toggle(_config.Current);
     }
 
     /// <summary>

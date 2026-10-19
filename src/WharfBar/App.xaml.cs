@@ -177,6 +177,10 @@ public partial class App : Application
         // Own tray icon only (quit menu). Not reading system status tray icons.
         _tray = new TrayIconService();
 
+        // The launchpad opens with the full list and icons already decoded: scan the
+        // Start Menu in the background now, then fill the icon pool in idle slices.
+        LaunchpadWarmup.Begin(Dispatcher);
+
         // Shell_NotifyIcon / AppBar SETPOS can re-show Shell_TrayWnd after the initial hide.
         _taskbar.ReapplyHide();
         Dispatcher.BeginInvoke(

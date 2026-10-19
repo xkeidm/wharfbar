@@ -27,7 +27,7 @@ internal partial class LaunchpadWindow : Window
     private static long _closedAt;
 
     private readonly AppConfig _config;
-    private static readonly AppIconService Icons = new();
+    private static readonly AppIconService Icons = LaunchpadIcons.Shared;
     private const int CatalogBatch = 16;
     private HwndSource? _source;
     private bool _acceptDismiss;
@@ -210,11 +210,17 @@ internal partial class LaunchpadWindow : Window
 
     private UIElement Build()
     {
+        // A process-wide cache warmed at startup paints the list on the first frame.
+        // Without it (cold start) the session waits for the background scan below.
+        LaunchpadCatalogCache.Shared.TryGet(out LaunchpadCatalogSnapshot? snapshot);
+        bool fresh = snapshot is not null
+            && !LaunchpadCatalogCache.IsStale(snapshot, DateTimeOffset.UtcNow, LaunchpadCatalogCache.DefaultTtl);
+
         var session = new LaunchpadSession
         {
             Config = _config,
-            Apps = [],
-            CatalogPending = true,
+            Apps = snapshot?.Apps ?? [],
+            CatalogPending = snapshot is null,
             Icon = app => Icons.GetIcon(app.ShortcutPath, 64),
             Open = OpenApp,
             Close = RequestClose,
@@ -240,7 +246,7 @@ internal partial class LaunchpadWindow : Window
             },
             OpenPath = OpenPath,
             Pinned = LaunchpadPins.FromDock(_config.Dock),
-            Recent = [],
+            Recent = snapshot?.Recent ?? [],
             LinkedPhone = LaunchpadPhoneLink.Read(),
             UseStyle = _ => { },
         };
@@ -291,7 +297,13 @@ internal partial class LaunchpadWindow : Window
         stage.Children.Add(shadow);
         // The Start Menu walk and shell icons used to finish before Show, so the box
         // stayed invisible. Paint the shell first, then fill the list in small slices.
-        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => LoadCatalog(session));
+        // With a warm cache the pad paints the full list now; only a missing or stale
+        // cache needs the background scan.
+        if (!fresh)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () => LoadCatalog(session));
+        }
+
         return stage;
     }
 
@@ -304,23 +316,19 @@ internal partial class LaunchpadWindow : Window
 
         Task.Run(() =>
         {
-            IReadOnlyList<LaunchpadApp> apps;
-            IReadOnlyList<LaunchpadRecentItem> recent;
-            try
-            {
-                apps = LaunchpadCatalog.List();
-                recent = LaunchpadRecent.List(24);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"WharfBar launchpad catalog: {ex.Message}");
-                apps = [];
-                recent = [];
-            }
-
+            // LoadSync also publishes the result, so the next open starts warm.
+            LaunchpadCatalogSnapshot fresh = LaunchpadCatalogCache.Shared.LoadSync();
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
-                () => ApplyCatalog(session, apps, recent, 0));
+                () =>
+                {
+                    if (_closing)
+                    {
+                        return;
+                    }
+
+                    ApplyCatalog(session, fresh.Apps, fresh.Recent, 0);
+                });
         });
     }
 

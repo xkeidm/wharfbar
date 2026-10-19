@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using WharfBar.Resources;
 using WharfBar.Native;
 using WharfBar.Services;
@@ -216,9 +217,10 @@ internal static class LaunchpadWin11Face
 
     private static TextBlock LetterHeader(string letter)
     {
-        var block = Caption(letter, 20);
+        var block = Caption(letter, 18);
         block.FontWeight = FontWeights.SemiBold;
-        block.Margin = new Thickness(6, 14, 6, 4);
+        block.Margin = new Thickness(6, 18, 6, 6);
+        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         return block;
     }
 
@@ -341,8 +343,8 @@ internal static class LaunchpadWin11Face
         double width = large ? 112 : 92;
         var icon = new Image
         {
-            Width = large ? 40 : 36,
-            Height = large ? 40 : 36,
+            Width = large ? 44 : 40,
+            Height = large ? 44 : 40,
             Source = session.Icon(app),
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -351,7 +353,7 @@ internal static class LaunchpadWin11Face
         var name = new TextBlock
         {
             Text = app.Name,
-            FontSize = 11,
+            FontSize = 12,
             TextAlignment = TextAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -633,9 +635,49 @@ internal static class LaunchpadWin11Face
 
     private static void Hover(Button button)
     {
+        button.ApplyTemplate();
+
+        // The flat template is sealed and shared, so the overlay is resolved per
+        // instance after ApplyTemplate. The resource swap stays as the fallback.
+        if (button.Template?.FindName("HoverOverlay", button) is not Border overlay)
+        {
+            button.MouseEnter += (_, _) =>
+                button.SetResourceReference(Control.BackgroundProperty, "ControlFillColorSecondaryBrush");
+            button.MouseLeave += (_, _) => button.Background = TransparentFill;
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         button.MouseEnter += (_, _) =>
-            button.SetResourceReference(Control.BackgroundProperty, "ControlFillColorSecondaryBrush");
-        button.MouseLeave += (_, _) => button.Background = TransparentFill;
+            overlay.BeginAnimation(
+                UIElement.OpacityProperty,
+                new DoubleAnimation(1, TimeSpan.FromMilliseconds(120)) { EasingFunction = ease });
+        button.MouseLeave += (_, _) =>
+            overlay.BeginAnimation(
+                UIElement.OpacityProperty,
+                new DoubleAnimation(0, TimeSpan.FromMilliseconds(200)) { EasingFunction = ease });
+        Press(button);
+    }
+
+    private static void Press(Button button)
+    {
+        var scale = new ScaleTransform(1, 1);
+        button.RenderTransform = scale;
+        button.RenderTransformOrigin = new Point(0.5, 0.5);
+        var down = new DoubleAnimation(0.97, TimeSpan.FromMilliseconds(60));
+        button.PreviewMouseLeftButtonDown += (_, _) =>
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, down);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, down);
+        };
+        button.PreviewMouseLeftButtonUp += (_, _) => Release(scale);
+    }
+
+    private static void Release(ScaleTransform scale)
+    {
+        var up = new DoubleAnimation(1, TimeSpan.FromMilliseconds(140)) { EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut } };
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, up);
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, up);
     }
 
     private static Button Flat() =>
@@ -660,7 +702,21 @@ internal static class LaunchpadWin11Face
         presenter.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
         presenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, new TemplateBindingExtension(Control.HorizontalContentAlignmentProperty));
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
-        border.AppendChild(presenter);
+        // Border takes one child, so presenter + hover overlay share a grid. The
+        // padding stays on the root border; the grid stretches across it.
+        var align = new FrameworkElementFactory(typeof(Grid));
+        align.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
+        align.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Stretch);
+        align.AppendChild(presenter);
+        // Painted over the content but not hit-testable; Hover() fades it in so the
+        // fill eases instead of snapping. Theme lookup must stay dynamic: the sealed,
+        // shared template cannot resolve a resource at seal time.
+        var hover = new FrameworkElementFactory(typeof(Border), "HoverOverlay");
+        hover.SetValue(Border.BackgroundProperty, new DynamicResourceExtension("ControlFillColorSecondaryBrush"));
+        hover.SetValue(Border.CornerRadiusProperty, new CornerRadius(6));
+        hover.SetValue(Border.OpacityProperty, 0.0);
+        hover.SetValue(FrameworkElement.IsHitTestVisibleProperty, false);
+        align.AppendChild(hover);
         return new ControlTemplate(typeof(Button)) { VisualTree = border };
     }
 

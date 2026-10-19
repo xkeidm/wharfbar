@@ -177,6 +177,8 @@ src/WharfBar/
  DockDropFormats.cs # dropped-file filter (.lnk/.exe/.bat/.cmd) + path resolution
  ShortcutResolver.cs #.lnk → target path / args / label (read direction; the `.lnk` **write** path was removed on 2026-10-04)
  PluginCatalog.cs # local manifest catalog + built-in on/off (ADR-017); no assembly is loaded
+ LaunchpadCatalogCache.cs # the process-wide Start Menu + recent snapshot (TTL: 30 min; Warm in the background; PURE `IsStale` — unit tested)
+ LaunchpadWarmup.cs # decodes the cached catalog's icons in idle UI-thread slices (8 per pass, first 64) into the shared `AppIconService`
  TrayOverflowInvoker.cs # peek-show + native overflow + hide again
  TrayMirrorService.cs # polls the tray toolbar, filters system icons, publishes a `TrayMirrorItem` snapshot (ADR-009)
  NotificationCenterInvoker.cs # Win+N
@@ -198,7 +200,7 @@ The island (clipboard history + dropped files) is ADR-010.
 
 | Component | Job |
 |---------|--------|
-| `TopBarWindow` | AppBar; left logo menu; **island in the center** (`IslandPill` + `IslandPopup`); right cluster; quick settings; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (hidden when there is no session); `network` → QS Network |
+| `TopBarWindow` | AppBar; **brand logo: left click opens the Launchpad, right click the app menu**; **island in the center** (`IslandPill` + `IslandPopup`); right cluster; quick settings; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (hidden when there is no session); `network` → QS Network |
 | `QuickSettingsFlyout` | Win11-style quick settings (tiles / volume mixer / network). Page changes in an open panel are a 220 ms slide+fade (`QuickSettingsPageMotion`); there is none on the first open — ADR-006 |
 | `BrightnessFlyout` | Monitorian-style monitor brightness popover (master slider + independent monitor cards) |
 | `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot (cover/title/artist/playback state), commands (Play/Pause (`Oynat/Duraklat`), Next/Previous (`İleri`/`Geri`)), session selection; events are marshaled to the Dispatcher where it was created; init failure retries in 10 s; `Changed` / `SessionsChanged` (ADR-008) |

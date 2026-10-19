@@ -97,6 +97,15 @@
 - **Plugin catalog (ADR-017) ✓ (code)** — Launchpad Widget/Plugin and Settings → `Eklentiler` (Plugins).
  Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an
  on/off record only; an assembly is not loaded. Top bar and dock slots are not drawn.
+- **Launchpad open speed + top-bar logo ✓ (code; manual verification pending)** — the Start Menu
+  scan (`LaunchpadCatalog.List` + recent) is captured once into `LaunchpadCatalogCache`
+  (TTL 30 min, refreshed in the background), so the pad paints the **full list on the first frame**
+  instead of growing in 16-app slices. `LaunchpadWarmup` decodes the cached catalog's shell icons on
+  the UI thread in idle slices (8 per pass, first 64; a shared `AppIconService` store with the face).
+  The top-bar brand logo now **left-opens the launchpad** (`LaunchpadWindow.Toggle`, same window as
+  the dock tile); the app menu stays on **right click** via the existing `ContextMenu`. Face polish:
+  eased hover (animated overlay in the flat template, resource-swap fallback), 0.97 press scale,
+  secondary-colour letter headers, tile icon/text sizes (44/40 px icons, 12 px labels).
 
 ## Former to-do list (moved to milestones)
 
