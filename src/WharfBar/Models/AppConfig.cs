@@ -368,6 +368,8 @@ internal sealed class IslandConfig
     internal const string HubTabClipboard = "clipboard";
     internal const string HubTabWallpaper = "wallpaper";
     internal const string HubTabMusic = "music";
+    internal const string HubTabShelf = "shelf";
+    internal const string HubTabColorPicker = "colorpicker";
     internal const string DefaultHubTab = HubTabClipboard;
 
     internal const string TransitionOff = "off";
@@ -427,10 +429,23 @@ internal sealed class IslandConfig
     public string IdleLabel { get; set; } = DefaultIdleLabel;
 
     /// <summary>
-    /// Last island hub page: <c>clipboard</c> (default), <c>wallpaper</c>, or <c>music</c>.
+    /// Last island hub page: <c>clipboard</c> (default), <c>wallpaper</c>, <c>music</c>,
+    /// <c>shelf</c> or <c>colorpicker</c>.
     /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
     /// </summary>
     public string HubTab { get; set; } = DefaultHubTab;
+
+    /// <summary>
+    /// Widget shelf tab of the island hub. Opt-in; the tab mounts in a later phase.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public bool ShelfTab { get; set; }
+
+    /// <summary>
+    /// Color picker tab of the island hub. Opt-in; the tab mounts in a later phase.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public bool ColorPickerTab { get; set; }
 
     /// <summary>
     /// Wallpaper change animation: <c>off</c>, <c>fade</c>, or <c>blurFade</c> (default).

@@ -1,4 +1,5 @@
 using WharfBar.Models;
+using WharfBar.Services;
 using Xunit;
 
 namespace WharfBar.Tests;
@@ -69,6 +70,8 @@ public class IslandConfigTests
         Assert.Equal("clipboard", config.IdleLabel);
         Assert.Equal("clipboard", IslandConfig.DefaultHubTab);
         Assert.Equal("clipboard", new IslandConfig().HubTab);
+        Assert.False(new IslandConfig().ShelfTab);
+        Assert.False(new IslandConfig().ColorPickerTab);
         Assert.Equal("blurFade", IslandConfig.DefaultWallpaperTransition);
         Assert.True(IslandConfig.DefaultWallpaperRespectSystemAnimation);
         Assert.Equal("blurFade", new IslandConfig().WallpaperTransition);
@@ -147,5 +150,19 @@ public class IslandConfigTests
     public void NormalizeWallpaperTransition_FallsBackToBlurFade(string? input, string expected)
     {
         Assert.Equal(expected, IslandNormalizer.NormalizeWallpaperTransition(input));
+    }
+
+    [Theory]
+    [InlineData("clipboard", "clipboard")]
+    [InlineData("music", "music")]
+    [InlineData("shelf", "shelf")]
+    [InlineData("SheLF", "shelf")]
+    [InlineData("colorpicker", "colorpicker")]
+    [InlineData("ColorPicker", "colorpicker")]
+    [InlineData(null, "clipboard")]
+    [InlineData("garbage", "clipboard")]
+    public void NormalizeHubTab_AcceptsKnownIdsInAnyCasing(string? input, string expected)
+    {
+        Assert.Equal(expected, IslandNormalizer.NormalizeHubTab(input));
     }
 }

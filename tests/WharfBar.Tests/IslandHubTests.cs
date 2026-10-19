@@ -30,4 +30,25 @@ public class IslandHubTests
         Assert.Equal(IslandConfig.HubTabWallpaper, IslandHub.ToConfig(IslandHubTab.Wallpaper));
         Assert.Equal(IslandHubTab.Wallpaper, IslandHub.Normalize(IslandHub.ToConfig(IslandHubTab.Wallpaper)));
     }
+
+    [Fact]
+    public void Normalize_Self_ReturnsShelfTab()
+    {
+        Assert.Equal(IslandHubTab.Shelf, IslandHub.Normalize("shelf"));
+    }
+    [Fact]
+    public void Normalize_ColorPicker_ReturnsColorPickerTab()
+    {
+        Assert.Equal(IslandHubTab.ColorPicker, IslandHub.Normalize("colorpicker"));
+    }
+    [Fact]
+    public void ToConfig_Shelf_WritesShelfId()
+    {
+        Assert.Equal("shelf", IslandHub.ToConfig(IslandHubTab.Shelf));
+    }
+    [Fact]
+    public void Resolve_UnknownSavedString_FallsBackToClipboardTab()
+    {
+        Assert.Equal(IslandHubTab.Clipboard, IslandHub.Resolve("nope", musicAvailable: false));
+    }
 }
