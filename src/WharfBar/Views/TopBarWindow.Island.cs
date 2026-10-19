@@ -1305,6 +1305,7 @@ public partial class TopBarWindow
         {
             _wallpaper ??= new WallpaperService(WallpaperPaths.BundledRoot, WallpaperPaths.UserRoot);
             _wallpaper.TransitionRequest = BuildWallpaperTransitionRequest;
+            _wallpaper.WallpaperApplied += OnWallpaperAppliedRefreshPalette;
             _wallpaper.AccentEnabled = () =>
             {
                 try
@@ -1352,6 +1353,10 @@ public partial class TopBarWindow
         UpdateIslandPill();
     }
 
+    /// <summary>Hub gallery applied a wallpaper: the strip tone may have changed.</summary>
+    private void OnWallpaperAppliedRefreshPalette(string path)
+        => RefreshWallpaperTextContrast();
+
     private void DetachIsland()
     {
         SizeChanged -= OnIslandBarSizeChanged;
@@ -1361,6 +1366,7 @@ public partial class TopBarWindow
         IslandHost.DetachWallpaper();
         if (_wallpaper is not null)
         {
+            _wallpaper.WallpaperApplied -= OnWallpaperAppliedRefreshPalette;
             _wallpaper.HubApplied = null;
         }
 

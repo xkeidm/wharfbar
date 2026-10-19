@@ -47,6 +47,13 @@ internal sealed class WallpaperService
     /// <summary>Invoked with the applied full path when <see cref="TryApply"/> succeeds (hub gallery).</summary>
     internal Action<string>? HubApplied { get; set; }
 
+    /// <summary>
+    /// Raised alongside <see cref="HubApplied"/> for every successful apply — the top bar's
+    /// wallpaper-driven text contrast listens here (single-slot <see cref="HubApplied"/> is
+    /// already owned by the island's theme sync).
+    /// </summary>
+    internal event Action<string>? WallpaperApplied;
+
     private WallpaperTransitionWindow? _overlay;
 
     internal bool IsAllowedPath(string path)
@@ -142,6 +149,7 @@ internal sealed class WallpaperService
     private void NotifyHubApplied(string full)
     {
         try { HubApplied?.Invoke(full); } catch { /* ignore */ }
+        try { WallpaperApplied?.Invoke(full); } catch { /* ignore */ }
     }
 
     private void TrySyncAccent(string fullPath)

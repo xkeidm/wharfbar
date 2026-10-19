@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
@@ -62,6 +63,19 @@ public partial class TopBarWindow : Window
     private readonly Dictionary<string, Border> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
+
+    /// <summary>Wallpaper path of the last completed strip-luma sample (cache key).</summary>
+    private string? _wallpaperSampledPath;
+
+    /// <summary>Last completed top-strip luma; null until the first sample lands.</summary>
+    private double? _wallpaperSampledLuma;
+
+    /// <summary>Set while the background strip sample is decoding on the worker thread.</summary>
+    private bool _wallpaperSampling;
+
+    /// <summary>Idle watch so wallpaper edits without module broadcasts still retune the palette.</summary>
+    private static readonly TimeSpan WallpaperWatchInterval = TimeSpan.FromSeconds(3);
+    private DispatcherTimer? _wallpaperWatch;
 
     /// <summary>The monitor this bar is attached to (physical-pixel geometry).</summary>
     internal MonitorInfo Monitor { get; }
@@ -959,6 +973,7 @@ public partial class TopBarWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        EnsureWallpaperWatch(active: false);
         _source?.RemoveHook(WndProc);
         _source = null;
         base.OnClosed(e);
@@ -1487,6 +1502,179 @@ public partial class TopBarWindow : Window
                 _appearance.Apply();
                 break;
         }
+
+        RefreshWallpaperTextContrast();
+    }
+
+    /// <summary>
+    /// Watermark-driven bar palette. Only the fully transparent bar on the primary monitor
+    /// follows the wallpaper strip; every other mode mirrors the theme brushes. Sampling is
+    /// cached by wallpaper path ÔÇö refresh calls are cheap.
+    /// </summary>
+    private void RefreshWallpaperTextContrast()
+    {
+        TopBarConfig? top = _config.Current.TopBar;
+        string mode = TopBarBackgroundModes.NormalizeMode(top?.BackgroundMode);
+        bool driven = TopBarContrastPolicy.IsWallpaperDriven(mode, Monitor.IsPrimary);
+        EnsureWallpaperWatch(driven);
+        if (!driven)
+        {
+            _wallpaperSampledPath = null;
+            _wallpaperSampledLuma = null;
+            ApplyBarPalette(BarTextTone.FollowTheme);
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(SampleWallpaperStrip, DispatcherPriority.Background);
+    }
+
+    /// <summary>Applies the palette for <paramref name="tone"/> to the bar's own resource scope.</summary>
+    private void ApplyBarPalette(BarTextTone tone)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            _ = Dispatcher.BeginInvoke(() => ApplyBarPalette(tone));
+            return;
+        }
+
+        IReadOnlyList<KeyValuePair<string, Brush>> plan = tone == BarTextTone.FollowTheme
+            ? TopBarContrastPalette.Theme(FindThemeBrush)
+            : TopBarContrastPalette.For(tone);
+
+        foreach (KeyValuePair<string, Brush> entry in plan)
+        {
+            Resources[entry.Key] = entry.Value;
+        }
+    }
+
+    private Brush FindThemeBrush(string key) => (Brush)FindResource(key);
+
+    private void SampleWallpaperStrip()
+    {
+        string? path = _wallpaper?.TryGetDesktopWallpaperPath() ?? TrySpiWallpaperPath();
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            // No readable SPI wallpaper ÔåÆ keep the theme palette.
+            ApplyBarPalette(BarTextTone.FollowTheme);
+            return;
+        }
+
+        if (_wallpaperSampledLuma is { } cached
+            && string.Equals(_wallpaperSampledPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyBarPalette(TopBarContrastPolicy.Decide(cached));
+            return;
+        }
+
+        if (_wallpaperSampling)
+        {
+            return;
+        }
+
+        _wallpaperSampling = true;
+        _wallpaperSampledPath = path;
+        double stripFraction = ComputeStripFraction();
+        _ = SampleWallpaperLumaAsync(path, stripFraction);
+    }
+
+    /// <summary>
+    /// Slow watch for wallpapers that change without a broadcast (IDesktopWallpaper paths).
+    /// Only runs while the wallpaper-driven palette is active ÔÇö ticks are a cached path compare.
+    /// </summary>
+    private void EnsureWallpaperWatch(bool active)
+    {
+        if (active && _wallpaperWatch is null)
+        {
+            _wallpaperWatch = new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = WallpaperWatchInterval,
+            };
+            _wallpaperWatch.Tick += OnWallpaperWatchTick;
+            _wallpaperWatch.Start();
+        }
+        else if (!active && _wallpaperWatch is not null)
+        {
+            _wallpaperWatch.Stop();
+            _wallpaperWatch.Tick -= OnWallpaperWatchTick;
+            _wallpaperWatch = null;
+        }
+    }
+
+    private void OnWallpaperWatchTick(object? sender, EventArgs e)
+        => RefreshWallpaperTextContrast();
+
+    /// <summary>Fallback probe: the SPI wallpaper path when the island service is not attached.</summary>
+    private static string? TrySpiWallpaperPath()
+        => DesktopWallpaper.TryGet(out string path) ? path : null;
+
+    /// <summary>
+    /// Fraction of the wallpaper height occupied by the bar: 30 DIP scaled to device pixels
+    /// against the monitor's physical height.
+    /// </summary>
+    private double ComputeStripFraction()
+    {
+        Matrix transform = _source?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+        double dpiY = transform.M22;
+        double barPx = Math.Max(1d, BarHeightDip * (dpiY > 0 ? dpiY : 1.0));
+        double monitorPx = Monitor.Bounds.Height;
+        if (monitorPx < 1)
+        {
+            return 0;
+        }
+
+        return Math.Clamp(barPx / monitorPx, 0.001, 1.0);
+    }
+
+    private async Task SampleWallpaperLumaAsync(string path, double stripFraction)
+    {
+        try
+        {
+            double? luma = await Task.Run(() => DecodeAndSample(path, stripFraction));
+            if (luma is { } value)
+            {
+                _wallpaperSampledLuma = value;
+            }
+        }
+        finally
+        {
+            _wallpaperSampling = false;
+        }
+
+        // The bar could have switched to Mica/Tint while the decode ran; only surface the
+        // tone when the wallpaper-driven mode is still active (next refresh fixes the rest).
+        TopBarConfig? top = _config.Current.TopBar;
+        string mode = TopBarBackgroundModes.NormalizeMode(top?.BackgroundMode);
+        if (TopBarContrastPolicy.IsWallpaperDriven(mode, Monitor.IsPrimary) && _wallpaperSampledLuma is { } done)
+        {
+            ApplyBarPalette(TopBarContrastPolicy.Decide(done));
+        }
+    }
+
+    /// <summary>Decodes the wallpaper small and measures the bar's strip; null when unreadable.</summary>
+    private static double? DecodeAndSample(string path, double stripFraction)
+    {
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+            bmp.DecodePixelWidth = 480;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+
+            int width = bmp.PixelWidth;
+            int height = bmp.PixelHeight;
+            var pixels = new byte[width * height * 4];
+            bmp.CopyPixels(pixels, width * 4, 0);
+            return WallpaperTopStrip.AverageLuma(pixels, width, height, stripFraction);
+        }
+        catch (Exception)
+        {
+            // Garbage / unsupported wallpaper: keep the theme palette.
+            return null;
+        }
     }
 
     /// <summary>
@@ -1864,6 +2052,16 @@ public partial class TopBarWindow : Window
                     {
                         app.FollowWallpaperTheme(fromExternalWindows: true);
                     }
+
+                    break;
+                }
+
+                // SPI_SETDESKWALLPAPER lands here ("wallpaper" lParam, or null for IDesktopWallpaper
+                // changes and older paths). The refresh compares against the last sampled wallapper
+                // path first, so unrelated broadcasts cost one cheap dispatcher hop.
+                if (lParam == IntPtr.Zero || IsWallpaperSettingChange(lParam))
+                {
+                    RefreshWallpaperTextContrast();
                 }
 
                 break;
@@ -1927,6 +2125,12 @@ public partial class TopBarWindow : Window
     {
         return lParam != IntPtr.Zero
             && string.Equals(Marshal.PtrToStringUni(lParam), "ImmersiveColorSet", StringComparison.Ordinal);
+    }
+
+    private static bool IsWallpaperSettingChange(IntPtr lParam)
+    {
+        return lParam != IntPtr.Zero
+            && string.Equals(Marshal.PtrToStringUni(lParam), "wallpaper", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

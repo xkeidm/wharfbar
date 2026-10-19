@@ -6,21 +6,32 @@ Height 30 DIP, an **AppBar** (work area reserved), always on top. A separate bar
 for each enabled monitor (per-monitor; each bar is an AppBar on its own monitor, and the bar is moved onto that monitor
 before it is registered). Visibility is turned on or off per monitor through the `monitors` config.
 Background mode comes from config: `mica` (default, `AllowsTransparency=false`),
-`transparent` / `tint` (`AllowsTransparency=true` — never together with Mica).
+`transparent` / `tint` (`AllowsTransparency=true` ÔÇö never together with Mica).
+
+**Text contrast (`TopBarContrastPalette`):** the bar paints via its own `Bar.*` window
+resources (`Bar.TextPrimary`, `Bar.HitFill`, `Bar.PillFill`, `Bar.PillFillHover`,
+`Bar.PillStroke`, `Bar.SubtleFill`) instead of the WPF-UI brush keys directly. In Mica/Tint
+those mirror the theme brushes exactly as before. In `transparent` on the **primary** bar the
+palette is driven by the wallpaper: the strip behind the bar is decoded small once per
+wallpaper path and measures average luma (`WallpaperTopStrip`, threshold 0.55) ÔÇö a light strip
+switches the bar to dark text + white plates, a dark strip keeps light text. Fully automatic,
+no user setting; wallpaper reloads on sample cache change (3 s watch while transparent, hub
+apply events, `WM_SETTINGCHANGE`). Flyout popups keep the theme look: they resolve resources
+through the shared WPF-UI dictionaries, not the bar's `Bar.*` keys.
 
 ## Left cluster
 
-- **Logo** (geometry drawing, not a font glyph — it does not disappear on Mica). `logoStyle` picks the shape: `wharfbar` (default; the solid small Dusk mark — sun + pier, no plank gaps, no sea lines) or `windows` (four panes). Both are one colour, `TextFillColorPrimaryBrush`, in an 18 DIP box on the shared 128 grid (`BrandLogo.BarGlyph`, ADR-019); the bar stays 30 DIP. **Left and right click** open the menu. Launchpad does not open from this icon; it is on the dock tile (ADR-016). The menu opens flush to the icon's left edge; `OnAppMenuLoaded` zeros the left margin of WPF-UI's 30 px effect margin — so the popup window is not clamped to the screen edge and does not shift the menu to the right:
-  - **`Ayarlar (PC)` (Settings (PC))** → `ms-settings:` · **`Profil` (Profile)** → `ms-settings:yourinfo` · **`Bilgisayar hakkında` (About this PC)** → `ms-settings:about`
-  - **`Bilgisayarı kilitle` (Lock)** / **`Uyku` (Sleep)** → `PowerActions` (LockWorkStation / SetSuspendState)
-  - **`Kapat` (Shut down)** / **`Yeniden başlat` (Restart)** → `PowerActions` (shutdown.exe `/s|/r /t 0`)
-  - **`WharfBar Ayarları` (WharfBar Settings)** → [`settings.md`](settings.md)
-  - **`WharfBar hakkında` (About WharfBar)** → `AboutWindow`
-  - **`WharfBar'ı kapat` (Quit WharfBar)** → a clean exit (taskbar restore + `ABM_REMOVE`)
+- **Logo** (geometry drawing, not a font glyph ÔÇö it does not disappear on Mica). `logoStyle` picks the shape: `wharfbar` (default; the solid small Dusk mark ÔÇö sun + pier, no plank gaps, no sea lines) or `windows` (four panes). Both are one colour ÔÇö `Bar.TextPrimary` (`TopBarContrastPalette`: theme-following, or wallpaper-driven on a transparent bar) ÔÇö in an 18 DIP box on the shared 128 grid (`BrandLogo.BarGlyph`, ADR-019); the bar stays 30 DIP. **Left and right click** open the menu. Launchpad does not open from this icon; it is on the dock tile (ADR-016). The menu opens flush to the icon's left edge; `OnAppMenuLoaded` zeros the left margin of WPF-UI's 30 px effect margin ÔÇö so the popup window is not clamped to the screen edge and does not shift the menu to the right:
+  - **`Ayarlar (PC)` (Settings (PC))** ÔåÆ `ms-settings:` ┬À **`Profil` (Profile)** ÔåÆ `ms-settings:yourinfo` ┬À **`Bilgisayar hakk─▒nda` (About this PC)** ÔåÆ `ms-settings:about`
+  - **`Bilgisayar─▒ kilitle` (Lock)** / **`Uyku` (Sleep)** ÔåÆ `PowerActions` (LockWorkStation / SetSuspendState)
+  - **`Kapat` (Shut down)** / **`Yeniden ba┼şlat` (Restart)** ÔåÆ `PowerActions` (shutdown.exe `/s|/r /t 0`)
+  - **`WharfBar Ayarlar─▒` (WharfBar Settings)** ÔåÆ [`settings.md`](settings.md)
+  - **`WharfBar hakk─▒nda` (About WharfBar)** ÔåÆ `AboutWindow`
+  - **`WharfBar'─▒ kapat` (Quit WharfBar)** ÔåÆ a clean exit (taskbar restore + `ABM_REMOVE`)
 
-System stats (`CPU · GPU · RAM`) are in the same left cluster, on a single line. The sparkline of recent samples and the network speed (↓/↑ bytes/s) are on a card that opens when the pointer is over the text; if the line were placed under the text the 30 DIP bar would grow. If there is no GPU counter the GPU row on the card is hidden. There is no temperature. Network speed uses the same 4 s interval as `SystemStatsService`; the sample is taken off the UI and the bar is not refreshed when the text did not change. If stats are off, sampling stops. The music visualizer runs only while the now-playing face is up. The Bluetooth connection notice looks every 10 s; if the list is the same the pill is not refreshed.
+System stats (`CPU ┬À GPU ┬À RAM`) are in the same left cluster, on a single line. The sparkline of recent samples and the network speed (Ôåô/Ôåæ bytes/s) are on a card that opens when the pointer is over the text; if the line were placed under the text the 30 DIP bar would grow. If there is no GPU counter the GPU row on the card is hidden. There is no temperature. Network speed uses the same 4 s interval as `SystemStatsService`; the sample is taken off the UI and the bar is not refreshed when the text did not change. If stats are off, sampling stops. The music visualizer runs only while the now-playing face is up. The Bluetooth connection notice looks every 10 s; if the list is the same the pill is not refreshed.
 
-## Center — island pill (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
+## Center ÔÇö island pill (`IslandPill`, ADR-010 + ADR-011 + ADR-012)
 
 While music is playing and the visualizer is on in the plugin gallery, the pill shows five bars of the
 default audio device's peak. If the peak cannot be read the bars stay flat. When a paired

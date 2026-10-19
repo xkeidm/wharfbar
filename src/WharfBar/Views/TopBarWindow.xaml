@@ -38,7 +38,7 @@
             <Setter Property="VerticalAlignment" Value="Center" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#1EFFFFFF" />
+                    <Setter Property="Background" Value="{DynamicResource Bar.HitFill}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -48,20 +48,20 @@
             <Setter Property="Width" Value="18" />
             <Setter Property="TextAlignment" Value="Center" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource Bar.TextPrimary}" />
         </Style>
         <Style x:Key="StatusLabel" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource Bar.TextPrimary}" />
         </Style>
         <!-- Center island chip. WinUI control fill + 1px stroke, light and dark.
              Idle is a short indicator (glyph + label), not a bare hit-plate.
              Hover uses the next control fill; width eases in code. -->
         <Style x:Key="IslandPillHit" TargetType="Border">
-            <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
-            <Setter Property="BorderBrush" Value="{DynamicResource ControlStrokeColorDefaultBrush}" />
+            <Setter Property="Background" Value="{DynamicResource Bar.PillFill}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource Bar.PillStroke}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="16,0" />
             <Setter Property="MinWidth" Value="108" />
@@ -75,7 +75,7 @@
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource Bar.PillFillHover}" />
                 </Trigger>
                 <Trigger Property="IsKeyboardFocused" Value="True">
                     <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
@@ -95,7 +95,7 @@
             <Setter Property="RenderTransformOrigin" Value="0.5,0.5" />
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{DynamicResource SubtleFillColorSecondaryBrush}" />
+                    <Setter Property="Background" Value="{DynamicResource Bar.SubtleFill}" />
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -106,7 +106,7 @@
             <Setter Property="FontWeight" Value="Normal" />
             <Setter Property="TextAlignment" Value="Right" />
             <Setter Property="VerticalAlignment" Value="Center" />
-            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource Bar.TextPrimary}" />
         </Style>
     </Window.Resources>
 
@@ -150,7 +150,7 @@
                     <Viewbox Width="18" Height="18" Stretch="Uniform">
                         <Canvas Width="128" Height="128">
                             <Path x:Name="AppLogoGlyph"
-                                  Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                  Fill="{DynamicResource Bar.TextPrimary}" />
                         </Canvas>
                     </Viewbox>
                 </Border>
@@ -194,7 +194,7 @@
                                Width="16"
                                TextAlignment="Center"
                                VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Foreground="{DynamicResource Bar.TextPrimary}"
                                Text="&#xE8C8;" />
                     <Border x:Name="IslandCoverThumb"
                             Width="16"
@@ -213,7 +213,7 @@
                                FontWeight="SemiBold"
                                Margin="8,0,0,0"
                                VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                               Foreground="{DynamicResource Bar.TextPrimary}"
                                Text="Pano" />
                     <Image x:Name="IslandCamera"
                            Width="36"
@@ -250,7 +250,7 @@
                           Visibility="Collapsed">
                         <Border CornerRadius="2"
                                 Opacity="0.28"
-                                Background="{DynamicResource TextFillColorPrimaryBrush}" />
+                                Background="{DynamicResource Bar.TextPrimary}" />
                         <Border x:Name="IslandMeterFill"
                                 Width="0"
                                 HorizontalAlignment="Left"
@@ -267,7 +267,7 @@
                                    Width="16"
                                    TextAlignment="Center"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Foreground="{DynamicResource Bar.TextPrimary}"
                                    IsHitTestVisible="False" />
                     </Border>
                     <Border x:Name="IslandSatelliteSecond"
@@ -280,10 +280,10 @@
                                    Width="16"
                                    TextAlignment="Center"
                                    VerticalAlignment="Center"
-                                   Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                                   Foreground="{DynamicResource Bar.TextPrimary}"
                                    IsHitTestVisible="False" />
-                    </Border>
-                </StackPanel>
+                     </Border>
+                 </StackPanel>
             </Border>
 
             <!-- Right cluster (runtime order from config; default LTR):

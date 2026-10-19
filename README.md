@@ -62,7 +62,7 @@ One bar per enabled monitor, each registered as an AppBar. Visibility is the `mo
 - **Center:** the island pill.
 - **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. Default order: tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media start hidden (the island already shows them). Saved order is kept.
 - Clock is a single line in the UI language (Settings → General → Language, or follow Windows when set to System). Click opens notification text and a month calendar. The bell sends `Win+N`.
-- Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined.
+- Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined. On the transparent top bar the text tone follows the wallpaper automatically (light strip → dark text, dark strip → light text) so text stays readable on any wallpaper.
 
 </details>
 
