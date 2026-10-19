@@ -65,6 +65,9 @@ It started for personal use; as it matures, opening it from private → public i
 - Top bar: third-party tray icons are mirrored (click forward). Chosen ones sit in a horizontal
   pill as the icon alone; the chevron at the end of the pill opens Windows' hidden
   area with `Win+B`.
+- Top bar: the right-edge Show Desktop sliver puts every open window away on the first click
+  and restores exactly the recorded set (skipping windows closed in the meantime) on the second;
+  windows minimized by the user themselves are never touched.
 - A second instance does not start (Mutex).
 - On a DPI / display change the top bar position does not break (the basic handlers).
 

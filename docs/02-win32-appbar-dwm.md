@@ -363,6 +363,26 @@ in the background → bring it forward; if it is already in front → `SW_MINIMI
 `GetForegroundWindow` is recorded at the `PreviewMouseLeftButtonDown` instant; the same process PID
 also counts as “in front” (child windows such as Electron).
 
+### Show Desktop sliver (top bar, Windows-style)
+
+A 7 DIP hover plate pinned to the screen's right edge (`ShowDesktopEdge`, a sibling of the
+status strip, not a strip slot). Click 1 minimizes every top-level window; click 2 brings back
+exactly the recorded set; the cycle repeats. The core (`Services/ShowDesktopToggle.cs`) is pure
+and unit tested; the window set comes from a dedicated `EnumWindows` pass (`Native/ShowDesktopNative.cs`)
+on a background thread — census rules (visible / not hung / not cloaked / no owner / tool windows out /
+own PID out) with `ApplicationFrameWindow` **kept in** (a UWP frame is a real window here), and
+minimized windows excluded (the user minimized those themselves; the restore must not undo them).
+
+```csharp
+[DllImport("user32.dll", SetLastError = true)]
+static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+// SW_MINIMIZE = 6, SW_RESTORE = 9
+```
+
+`ShowWindowAsync` (not `ShowWindow`) because a stale window must not block the pass. Calls are
+serialized through one gate (`ShowDesktopService.RunClick`) so a double-click cannot interleave
+the phase. Windows opened between the two clicks are not in the restore set by design.
+
 **Hover and window size:** the live scale is **1**. Hover paints the square (corner 4 DIP,
 `ControlFillColorSecondaryBrush`); the square ends above the bottom **8 DIP** strip. On a window open on the desktop,
 the same square and a **16×3 DIP** `AccentFillColorDefaultBrush` line are present. On a minimized

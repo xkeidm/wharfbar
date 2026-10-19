@@ -11,6 +11,7 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 ### Added
 
 - Left click on the top-bar brand logo opens the Launchpad (the same window the dock tile toggles); the app menu stays on right click.
+- Windows-style Show Desktop sliver at the right edge of the top bar: the first click minimizes every open window, the second restores exactly what it put down (windows closed in the meantime are skipped; windows the user minimized themselves are never touched).
 
 ### Changed
 

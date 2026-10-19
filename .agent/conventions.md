@@ -46,6 +46,9 @@
 - Dock: at the 16/36 icon-size extremes, does the plate stay tight to the icons? Does the Mica ↔ transparent transition recreate the window?
 - Dock: do taskbar pins not affect WharfBar, and does WharfBar not affect the taskbar?
   (ADR-005 revision: there must be no write or read in either direction)
+- Show Desktop sliver: click 1 — every open window minimizes; click 2 — the same set comes back
+  (a window closed in between is skipped); a window the user minimized themselves is neither
+  minimized again nor restored.
 
 ## Versioning
 
