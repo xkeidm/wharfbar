@@ -340,7 +340,9 @@ public partial class TopBarWindow
     private void StartScreenPicker()
     {
         IntPtr hwnd = _source?.Handle ?? IntPtr.Zero;
-        if (hwnd == IntPtr.Zero || _screenPicker is { IsOpen: true })
+        // IsOpen seçim sonrası "yerleşiyor" aralığında (0.9-1.6 sn) falsified düşer;
+        // IsLoaded ise pencere kapanana kadar true kalır — ikinci örtüyü o aralıkta da yasaklar.
+        if (hwnd == IntPtr.Zero || _screenPicker is { IsLoaded: true })
         {
             return;
         }
@@ -380,6 +382,11 @@ public partial class TopBarWindow
     /// </summary>
     private void OnScreenPickerWindowClosed(object? sender, EventArgs e)
     {
+        if (!ReferenceEquals(sender, _screenPicker))
+        {
+            return;
+        }
+
         _screenPicker = null;
         ReopenIslandAfterPicker(_pendingPickerWritten);
     }

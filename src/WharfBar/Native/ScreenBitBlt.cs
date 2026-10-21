@@ -86,7 +86,9 @@ internal static class ScreenBitBlt
     /// Rectangular capture (physical px, same BGRA top-down layout, <paramref name="stride"/>
     /// = 4*<paramref name="width"/>). The color picker's full-monitor frozen frame uses it:
     /// sampling must read the screen <b>before</b> a layered dim mask is shown, because BitBlt
-    /// composites the mask too. False when any GDI step failed — never throws.
+    /// composites the mask too. <paramref name="bgra"/> is allocated <c>stride*height</c> bytes
+    /// up front, with an overflow guard that bails before the alloc. False when any GDI step
+    /// failed — never throws.
     /// </summary>
     internal static bool TryCaptureRect(int x, int y, int width, int height, out byte[] bgra, out int stride)
     {
@@ -178,8 +180,6 @@ internal static class ScreenBitBlt
             _ = ReleaseDC(IntPtr.Zero, screen);
         }
     }
-
-    /// <summary>stride*height with an overflow guard; 0 means "don't attempt the alloc".</summary>
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BITMAPINFOHEADER
