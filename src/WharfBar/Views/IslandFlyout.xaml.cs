@@ -121,22 +121,33 @@ public sealed partial class IslandFlyout : UserControl
     {
         TabClipboard.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         TabWallpaper.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
-        // Renk gövdesi aynı yüzeyde ekran örneklemesi taşır (ScreenSampler tek zamanlama,
-        // örtü birincilin çalışma alanı için); ikincilde sekme gizli kalır.
-        _pickerSurface = available;
+        // Şerit invariantı: ikincil barlar yalnız Müzik taşır, yani config'i açık olsa bile
+        // gövde sekmeleri (Renk, Raf) bu yüzey kapısıyla birlikte gizlenir. Renk gövdesi ayrıca
+        // ekran örneklemesini birincilin çalışma alanına kilitler (ScreenSampler tek zamanlama);
+        // Raf gövdesi yalnız birincilde bağlanan bırakma servisine bakar.
+        _primarySurface = available;
         TabColor.Visibility = available && _pickerTabWanted ? Visibility.Visible : Visibility.Collapsed;
+        TabShelf.Visibility = available && _shelfTabWanted ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private bool _pickerSurface;
+    /// <summary>
+    /// Gövde sekmelerinin yüzey kapısı: yalnız birincil barın hub'ı ekran örneklemesi (Renk)
+    /// ve bırakma servisi (Raf) taşıyabildiği için <see cref="SetClipboardChrome"/> küçükken
+    /// iki sekme de config'ten bağımsız gizlenir.
+    /// </summary>
+    private bool _primarySurface;
 
     /// <summary>Gövde sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
     private bool _pickerTabWanted = IslandConfig.DefaultColorPickerTab;
+
+    /// <summary>Raf sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    private bool _shelfTabWanted = IslandConfig.DefaultShelfTab;
 
     /// <summary>Shows or hides the Color picker tab; gated by <c>IslandConfig.ColorPickerTab</c>.</summary>
     internal void SetColorPickerTabVisible(bool visible)
     {
         _pickerTabWanted = visible;
-        TabColor.Visibility = visible && _pickerSurface ? Visibility.Visible : Visibility.Collapsed;
+        TabColor.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -232,10 +243,11 @@ public sealed partial class IslandFlyout : UserControl
         TabMusic.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    /// <summary>Shows or hides the Shelf tab; gated by <c>IslandConfig.ShelfTab</c>.</summary>
+    /// <summary>Shows or hides the Shelf tab; gated by <c>IslandConfig.ShelfTab</c> and the primary surface.</summary>
     internal void SetShelfTabVisible(bool visible)
     {
-        TabShelf.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        _shelfTabWanted = visible;
+        TabShelf.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
