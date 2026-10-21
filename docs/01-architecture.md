@@ -427,7 +427,7 @@ action scans the `Drop` folder so it also covers orphans.
   is the **Drop** face and the shelf tab is on, the panel opens on the **Raf** tab (the user just
   dropped files, they want to see them). Otherwise the saved tab goes through `IslandHub.Resolve`
   (unknown → Clipboard; Music saved without an SMTC session → Clipboard, unchanged), and afterwards
-  a `Shelf`/`Prompter`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. Both
+  a `Shelf`/`Prompter`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. All three
   flag-arms live in `ResolveHubTab`; secondary bars keep Music only.
 - **Shelf tab:** each dropped entry is a chip — a 3-letter extension badge + the file name.
   Chip context menu: **`Uygulama ile aç`** (guarded by `IslandService.CanOpenShelfFile` →
