@@ -792,6 +792,32 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
+    /// Raf dosyasını varsayılan uygulamasıyla açar. Kapı <see cref="CanOpenShelfFile"/>'dır:
+    /// açmadan önce yine girdi doğrulaması yapılır. Dosya silinmez.
+    /// </summary>
+    /// <returns>Kapıyı geçtiyse ve başlatma denediyse <c>true</c>; kapı reddeyse ya da varsayılan
+    /// uygulama bulunamadıysa <c>false</c> (kayıt listede kalır).</returns>
+    internal bool OpenShelfFile(string path)
+    {
+        if (!CanOpenShelfFile(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            return true;
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            // Bozuk kısayol, erişim yok, varsayılan uygulama yok.
+            Debug.WriteLine($"[WharfBar] island open failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Açılacak yolu tam yola çevirir. Aygıt ad alanı (<c>\\.\</c>, <c>\\?\</c> çözülmeden
     /// kalanlar) ve ayrılmış DOS aygıt adları (<c>NUL</c>, <c>CON</c>, <c>COM1</c> …) reddedilir.
     /// </summary>

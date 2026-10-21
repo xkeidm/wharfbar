@@ -289,10 +289,29 @@ public partial class TopBarWindow
         _config.Save(_config.Current);
     }
 
+    /// <summary>
+    /// Panel açılış sekmeyi seçer. Son yüz <see cref="IslandPillFace.Drop"/> ise raf gövdesi
+    /// gelir (<see cref="IslandConfig.ShelfTab"/> açıkken): dosya bırakıldıysa kullanıcı
+    /// bırakmayı rafında görmek ister. Raf kapalıysa ya da kayıtlı sekme rafsıza
+    /// çözülürse yedek sıra aynı kalır (Pano → Duvar kağıdı → Müzik; bilinmezse Pano).
+    /// Aynı şekilde ikincil monitör yalnız Müzik taşır.
+    /// </summary>
     private IslandHubTab ResolveHubTab(bool musicAvailable)
-        => Monitor.IsPrimary
-            ? IslandHub.Resolve(_config.Current.Island.HubTab, musicAvailable)
-            : IslandHubTab.Music;
+    {
+        if (!Monitor.IsPrimary)
+        {
+            return IslandHubTab.Music;
+        }
+
+        IslandConfig cfg = _config.Current.Island;
+        if (_shownFace == IslandPillFace.Drop && cfg.ShelfTab)
+        {
+            return IslandHubTab.Shelf;
+        }
+
+        IslandHubTab tab = IslandHub.Resolve(cfg.HubTab, musicAvailable);
+        return tab == IslandHubTab.Shelf && !cfg.ShelfTab ? IslandHubTab.Clipboard : tab;
+    }
 
     /// <summary>
     /// Session ended while the Music tab is showing: fall back to the saved tab (Clipboard).

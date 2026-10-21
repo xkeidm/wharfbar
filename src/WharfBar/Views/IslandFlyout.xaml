@@ -103,11 +103,20 @@
                 </StackPanel>
             </Button>
             <Button x:Name="TabMusic" Tag="music" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Müzik">
+                    Click="OnHubTabClick" ToolTip="Müzik" Margin="0,0,4,0">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE90C;" />
                     <TextBlock Text="Müzik" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="TabShelf" Tag="shelf" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Raf" Margin="0,0,4,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE8B7;" />
+                    <TextBlock Text="Raf" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
@@ -359,6 +368,51 @@
 
             <Grid x:Name="WallpaperBody" Visibility="Collapsed">
                 <local:WallpaperGalleryView x:Name="WallpaperHost" />
+            </Grid>
+
+            <!-- Şelf: bırakılan dosya kayıtları çip olarak; satırlar kodla kurulur
+                 (ClipboardBody'deki ile aynı desen). Tek Popup kalır. -->
+            <Grid x:Name="ShelfBody" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <ScrollViewer x:Name="ShelfScroll"
+                              Grid.Row="0"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Focusable="False">
+                    <StackPanel x:Name="ShelfList" />
+                </ScrollViewer>
+
+                <TextBlock x:Name="ShelfEmpty"
+                           Grid.Row="0"
+                           Margin="16,28,16,28"
+                           FontSize="13"
+                           Opacity="0.65"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           Visibility="Collapsed"
+                           Text="Bırakılan dosya kayıtları adıyla burada durur — çipi tutup bir klasöre sürükleyin." />
+
+                <Button x:Name="ShelfClearButton"
+                        Grid.Row="1"
+                        HorizontalAlignment="Left"
+                        Margin="0,8,0,0"
+                        Style="{StaticResource IslandIconButton}"
+                        Padding="10,6"
+                        Click="OnShelfClearClick"
+                        ToolTip="Raf listesini boşaltır; %AppData%\WharfBar\Drop altındaki kopyaları da siler (onay ister).">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                   VerticalAlignment="Center" Text="&#xE74D;" />
+                        <TextBlock Text="Rafını boşalt" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource AppTextFontFamily}" />
+                    </StackPanel>
+                </Button>
             </Grid>
         </Grid>
         </Grid>

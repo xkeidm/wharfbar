@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -215,18 +216,39 @@ public sealed partial class IslandFlyout : UserControl
         TabMusic.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
+    /// <summary>Shows or hides the Shelf tab; gated by <c>IslandConfig.ShelfTab</c>.</summary>
+    internal void SetShelfTabVisible(bool visible)
+    {
+        TabShelf.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Gövde Tag kimlikleri: sekmenin XAML'deki Tag dizgisini verir (<c>Tag="shelf"</c> vb.).
+    /// Renk seçici gövdesi sonraki fazda biner; bilinmeyen değer
+    /// <see cref="IslandHub.Normalize"/> gibi Pano'ya döner.
+    /// </summary>
+    internal static string TabIdForBody(IslandHubTab tab) => tab switch
+    {
+        IslandHubTab.Wallpaper => "wallpaper",
+        IslandHubTab.Music => "music",
+        IslandHubTab.Shelf => "shelf",
+        _ => "clipboard",
+    };
+
     private FrameworkElement BodyFor(IslandHubTab tab) => tab switch
     {
         IslandHubTab.Wallpaper => WallpaperBody,
         IslandHubTab.Music => MusicBody,
+        IslandHubTab.Shelf => ShelfBody,
         _ => ClipboardBody,
     };
 
-    /// <summary>Same popup, one of three bodies. <paramref name="focus"/> only on a pinning click.</summary>
+    /// <summary>Same popup, one body of several. <paramref name="focus"/> only on a pinning click.</summary>
     internal void PresentHub(IslandHubTab tab, bool focus, bool crossfade = false)
     {
         ApplySurface();
         SetMusicTabVisible(_media?.Snapshot.HasSession ?? false);
+        SetShelfTabVisible(_service?.Config.ShelfTab ?? IslandConfig.DefaultShelfTab);
         CurrentHubTab = tab;
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
@@ -245,6 +267,11 @@ public sealed partial class IslandFlyout : UserControl
                 StopTimelinePoll();
                 ApplyTint(null);
                 WallpaperHost.Refresh();
+                break;
+            case IslandHubTab.Shelf:
+                StopTimelinePoll();
+                ApplyTint(null);
+                RebuildShelf();
                 break;
             default:
                 StopTimelinePoll();
@@ -293,7 +320,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void UpdateTabChrome(IslandHubTab tab)
     {
-        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic })
+        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf })
         {
             if (b.Tag as string == IslandHub.ToConfig(tab))
             {
@@ -322,7 +349,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         FrameworkElement show = BodyFor(tab);
         FrameworkElement? hide = null;
-        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody })
+        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody })
         {
             if (ReferenceEquals(body, show))
             {
@@ -693,7 +720,25 @@ public sealed partial class IslandFlyout : UserControl
     /// <see cref="IslandService.Changed"/> yalnızca UI dispatcher'ında yükselir
     /// (<c>IslandService.RaiseChanged</c>); atlamaya gerek yok.
     /// </summary>
-    private void OnChanged(object? sender, EventArgs e) => Rebuild();
+    private void OnChanged(object? sender, EventArgs e)
+    {
+        if (_service is { Config.ShelfTab: false })
+        {
+            // Sekme ayardan kapandı: şeritten düşer (Müzik'teki güncelleme ilkesiyle aynı).
+            // Gövdesi hâlâ açıksa beklemeye alınmaz: anında Pano gövdesine döner.
+            SetShelfTabVisible(false);
+            if (ShelfBody.Visibility == Visibility.Visible)
+            {
+                PresentHub(IslandHubTab.Clipboard, focus: false, crossfade: true);
+            }
+        }
+        else if (ShelfBody.Visibility == Visibility.Visible)
+        {
+            RebuildShelf();
+        }
+
+        Rebuild();
+    }
 
     private void OnSearchChanged(object sender, TextChangedEventArgs e) => Rebuild();
 
@@ -982,36 +1027,232 @@ public sealed partial class IslandFlyout : UserControl
     /// Bırakılan kopyayı varsayılan uygulamayla açar; dosya silinmez.
     /// </summary>
     /// <remarks>
-    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir. Silme hâlâ
-    /// <c>Drop</c> önekini zorunlu tutar. Açma <see cref="IslandService.CanOpenShelfFile"/>
-    /// kapısından geçer: raf yolu kopyalamadan durabilir, dizin ve kaçış yolları reddedilir.
+    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir. Açma
+    /// <see cref="IslandService.OpenShelfFile"/> kapısından geçer: orijinal yolu tutan raf
+    /// kaydında dizin/kaçış yolları <see cref="IslandService.CanOpenShelfFile"/> tarafında
+    /// reddedilir; başlatma hataları da orada loglanıp <c>false</c> döner.
     /// </remarks>
     private void OpenFile(string? path)
     {
-        if (_service is null || !_service.CanOpenShelfFile(path))
+        if (_service is null || path is null)
         {
-            if (path is not null)
-            {
-                Debug.WriteLine($"[WharfBar] island open skipped, outside Drop: {path}");
-            }
-
             return;
         }
 
-        try
+        _ = _service.OpenShelfFile(path);
+    }
+
+    #region Şelf gövdesi
+
+    /// <summary>
+    /// Raf gövdesi: bırakılan dosya kayıtları tek satırlık çip olarak — uzantı rozeti + dosya
+    /// adı. Sıra <see cref="IslandService.Entries"/> ile aynı (en yeni başta); pano gövdesinin
+    /// satır tavanı (<see cref="MaxRenderedRows"/>) burada da geçerlidir.
+    /// </summary>
+    private void RebuildShelf()
+    {
+        if (_service is null)
         {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = path,
-                UseShellExecute = true,
-            });
+            return;
         }
-        catch (Exception ex)
+
+        List<IslandEntry> files = _service.Entries
+            .Where(entry => entry.Kind == IslandEntryKind.File)
+            .ToList();
+
+        bool empty = files.Count == 0;
+        ShelfEmpty.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+        ShelfScroll.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
+
+        ShelfList.Children.Clear();
+        int shown = Math.Min(files.Count, MaxRenderedRows);
+        for (int i = 0; i < shown; i++)
         {
-            // Bozuk kısayol, erişim yok, varsayılan uygulama yok: kayıt listede kalır.
-            Debug.WriteLine($"[WharfBar] island open failed: {ex.Message}");
+            ShelfList.Children.Add(BuildShelfChip(files[i]));
         }
     }
+
+    /// <summary>
+    /// Rozet metni: uzantının ilk üç harfi büyük harfe (<c>report.PDF → PDF</c>). Uzantısız
+    /// dosyada adın ilk üç harfi okunur — boş rozet bırakılmaz.
+    /// </summary>
+    private static string ShelfBadge(string fileName)
+    {
+        string ext = Path.GetExtension(fileName);
+        ext = ext.Length > 0 ? ext[1..] : fileName;
+        return (ext.Length <= 3 ? ext : ext[..3]).ToUpperInvariant();
+    }
+
+    /// <summary>
+    /// Çip satırı: pano gövdesinin <see cref="BuildRow"/> deseniyle aynı ölçüler (kutu 32,
+    /// köşe 12, iki satır arası 2) — tek fark: ikinci kolonda meta değil ad, sağ tık menüsü ve
+    /// sürükleyerek dışarı taşıma. Sol tık hiçbir şey yapmaz; dosya açma menüden ya da pano
+    /// gövdesindeki satırdan.
+    /// </summary>
+    private Border BuildShelfChip(IslandEntry entry)
+    {
+        var chip = new Border
+        {
+            Padding = new Thickness(8, 8, 8, 8),
+            Margin = new Thickness(0, 0, 0, 2),
+            CornerRadius = new CornerRadius(12),
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var badge = new Border
+        {
+            Width = 36,
+            Height = 32,
+            CornerRadius = new CornerRadius(8),
+            Background = ResolveTileBrush(),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = ShelfBadge(entry.Text),
+                FontSize = 11,
+                FontWeight = FontWeights.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        grid.Children.Add(badge);
+
+        var name = new TextBlock
+        {
+            Text = entry.Text,
+            Margin = new Thickness(10, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Grid.SetColumn(name, 1);
+        grid.Children.Add(name);
+        chip.Child = grid;
+
+        // Dosya adı listede; kopyanın tam yolu tooltip'te (pano gövdesindeki yerleşimle aynı).
+        if (entry.FilePath is { Length: > 0 } fullPath)
+        {
+            chip.ToolTip = fullPath;
+        }
+
+        Brush restingBrush = Brushes.Transparent;
+        Brush hoverBrush = ResolveSelectedBrush();
+        chip.MouseEnter += (_, _) => chip.Background = hoverBrush;
+        chip.MouseLeave += (_, _) => chip.Background = restingBrush;
+
+        AttachShelfChipDrag(chip, entry);
+        chip.ContextMenu = BuildShelfChipMenu(entry);
+        return chip;
+    }
+
+    /// <summary>
+    /// Çipi bir klasör penceresine sürükler: <see cref="DataFormats.FileDrop"/> biçiminde
+    /// <see cref="IslandEntry.FilePath"/> taşınır. Sürkleme <b>gerçek taşınımda</b> başlar:
+    /// sol tuş <see cref="UIElement.MouseLeftButtonDownEvent"/>'te yakalanır, eşik aşılınca
+    /// yakalama bırakılıp <see cref="DragDrop.DoDragDrop"/> çağrılır — o çağrı kullanıcı
+    /// sürüklemeyi bırakana kadar engelleyici çalışır (UI thread'i zaten STA'dır).
+    /// </summary>
+    private void AttachShelfChipDrag(FrameworkElement chip, IslandEntry entry)
+    {
+        if (entry.FilePath is not { Length: > 0 } path)
+        {
+            return;
+        }
+
+        bool pressed = false;
+        Point origin = default;
+        chip.MouseLeftButtonDown += (_, args) =>
+        {
+            pressed = true;
+            origin = args.GetPosition(ShelfList);
+            _ = chip.CaptureMouse();
+        };
+        chip.MouseMove += (_, args) =>
+        {
+            if (!pressed || args.LeftButton != MouseButtonState.Pressed)
+            {
+                return;
+            }
+
+            Vector delta = args.GetPosition(ShelfList) - origin;
+            if (Math.Abs(delta.X) <= SystemParameters.MinimumHorizontalDragDistance
+                && Math.Abs(delta.Y) <= SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            // DoDragDrop engelleyicidir: bayrak önce kapatılır ki çağrı bittikten sonra
+            // kuyruğa düşen MouseMove'larda sürükleme yeniden başlamasın.
+            pressed = false;
+            chip.ReleaseMouseCapture();
+            var payload = new DataObject(DataFormats.FileDrop, new[] { path });
+            _ = DragDrop.DoDragDrop(chip, payload, DragDropEffects.Copy | DragDropEffects.Move);
+        };
+        chip.MouseLeftButtonUp += (_, _) =>
+        {
+            if (pressed)
+            {
+                pressed = false;
+                chip.ReleaseMouseCapture();
+            }
+        };
+    }
+
+    /// <summary>
+    /// Çip menüsü. "Uygulama ile aç" yalnız <see cref="IslandService.CanOpenShelfFile"/> izin
+    /// verdiğinde görünür; her çipte "Listeden kaldır" vardır — kayıt listeden düşer, dosyaya
+    /// dokunulmaz (silme sınırları <see cref="IslandService.Remove"/> ve
+    /// <see cref="IslandService.DeleteDroppedFiles"/> kontratlarındadır). "Rafını boşalt"
+    /// gövde altında tek düğmedir; menüye ikinci kez tekrarlanmaz.
+    /// </summary>
+    private ContextMenu BuildShelfChipMenu(IslandEntry entry)
+    {
+        var menu = new ContextMenu();
+        if (_service is not null && _service.CanOpenShelfFile(entry.FilePath))
+        {
+            var open = new MenuItem { Header = "Uygulama ile aç" };
+            open.Click += (_, _) => _ = _service?.OpenShelfFile(entry.FilePath!);
+            menu.Items.Add(open);
+        }
+
+        var remove = new MenuItem { Header = "Listeden kaldır" };
+        remove.Click += (_, _) => _service?.Remove(entry);
+        menu.Items.Add(remove);
+        return menu;
+    }
+
+    /// <summary>
+    /// "Rafını boşalt": listeyi ve <c>Drop</c> kökündeki kopyaları boşaltmadan önce onay ister
+    /// (tek seferde silinen kopyalar geri dönüşsüz). Pano gövdesinin
+    /// <see cref="IslandService.Clear"/> yolu buraya değmez; kayıt yolu <c>Drop</c> dışındaysa
+    /// kayıt yalnız listeden çıkar, orijinal dosyaya dokunulmaz.
+    /// </summary>
+    private void OnShelfClearClick(object sender, RoutedEventArgs e)
+    {
+        if (_service is null)
+        {
+            return;
+        }
+
+        const string title = "Rafını boşalt";
+        const string text = "Raf listesi boşaltılır; %AppData%\\WharfBar\\Drop altındaki kopyalar da silinir. Devam edilsin mi?";
+        Window? owner = Window.GetWindow(this);
+        MessageBoxResult choice = owner is null
+            ? MessageBox.Show(text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning)
+            : MessageBox.Show(owner, text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (choice != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _service.DeleteDroppedFiles();
+    }
+
+    #endregion
 
     /// <summary>
     /// Panel klavye gezinmesi. Arama kutusu odaktayken <c>PreviewKeyDown</c>'den gelir; tuş
@@ -1038,8 +1279,9 @@ public sealed partial class IslandFlyout : UserControl
             }
         }
 
-        if (CurrentHubTab == IslandHubTab.Wallpaper)
+        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf)
         {
+            // Duvar kağıdı ve raf gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
             return false;
         }
 
