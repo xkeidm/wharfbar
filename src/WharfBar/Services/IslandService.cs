@@ -549,6 +549,91 @@ internal sealed class IslandService : IDisposable
             DispatcherPriority.Background);
     }
 
+    /// <summary>
+    /// UI thread'inde çağrılır. Metni panoya yazar (yapıştırma yapılmaz) — renk seçicinin
+    /// HEX/RGB kopyalaması için <see cref="PutBack"/>'in yazarının bağımsız girişi
+    /// (denetim kararı: PutBack'in STA yazma bloğu refaktör edilmez, yazar ikiz kalır).
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Kapı:</b> island kapalı, metin boş ya da servis atılmışsa yazma hiç
+    /// denenmez ve <paramref name="completed"/>'a <c>false</c> bildirilir — PutBack'in
+    /// "görünmeyen bir listeden gelen istekle pano sessizce değiştirilmez" ilkesinin
+    /// kardeşi: seçici sadece açılmış bir adadan gelir, kapalıyken gelen tıklama bayat
+    /// bir yoldur ve pano sessiz durur.</para>
+    /// <para><b>Sonuç bildirimi:</b> yazma STA worker'da biter; <paramref name="completed"/>
+    /// UI thread'inden çağrılır (<see cref="RaiseChanged"/>'in UI'ya atlama kalıbı).
+    /// UI dispatcher kapanmışsa bildirim sessizce düşürülür.</para>
+    /// <para><b>Kendi yazımın geri yakalanması:</b> <see cref="ClipboardNative.TryWriteText"/>
+    /// yazdığı kaydı <c>CanIncludeInClipboardHistory = 0</c> bloğuyla opt-out işaretler,
+    /// yani kendi dinleyicimiz (<c>AddClipboardFormatListener</c>) bu yazımı yeniden
+    /// kaydetmez. Bir şekilde yakalanırsa yakalama zaten <see
+    /// cref="CaptureFromClipboard"/> → <see cref="AddEntry"/> yolunu (kayıt-ekleme kodu)
+    /// kullanır — bu metot kaydı elle eklemez, sadece yazar.</para>
+    /// </remarks>
+    internal void PutOnClipboard(string text, Action<bool>? completed = null)
+    {
+        // TryWriteText'in boş-metin kuralıyla aynı kapı: boş metin yazılamaz.
+        if (string.IsNullOrEmpty(text) || !Config.Enabled)
+        {
+            ReportWriteResult(completed, success: false);
+            return;
+        }
+
+        Dispatcher? sta = _staDispatcher;
+        if (sta is null || _disposed)
+        {
+            ReportWriteResult(completed, success: false);
+            return;
+        }
+
+        _ = sta.BeginInvoke(
+            () =>
+            {
+                bool written;
+                try
+                {
+                    written = ClipboardNative.TryWriteText(text);
+                    if (!written)
+                    {
+                        Debug.WriteLine("[WharfBar] island put-on-clipboard write failed");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[WharfBar] island put-on-clipboard failed: {ex.Message}");
+                    written = false;
+                }
+
+                ReportWriteResult(completed, written);
+            },
+            DispatcherPriority.Background);
+    }
+
+    /// <summary>Yazma sonucunu <paramref name="completed"/>'a UI thread'inde bildirir.
+    /// Kapı yolları bunu çağıranın thread'inde (UI) senkron çağırır; STA yolu result'ı
+    /// UI'ya atlar. UI dispatcher kapanmışsa bildirim sessizce düşürülür.</summary>
+    private void ReportWriteResult(Action<bool>? completed, bool success)
+    {
+        if (completed is null)
+        {
+            return;
+        }
+
+        if (_dispatcher.CheckAccess())
+        {
+            completed.Invoke(success);
+        }
+        else if (CanPostToUi)
+        {
+            _ = _dispatcher.BeginInvoke(
+                () => completed.Invoke(success),
+                DispatcherPriority.Background);
+        }
+
+        // UI yok (dispose / shutdown yarışı): bildirim sessizce düşer — CanPostToUi'in
+        // gerekçesiyle aynı.
+    }
+
     /// <summary>UI thread'inde çağrılır.</summary>
     internal void Remove(IslandEntry entry)
     {
