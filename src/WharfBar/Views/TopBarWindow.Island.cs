@@ -313,6 +313,93 @@ public partial class TopBarWindow
         return tab == IslandHubTab.Shelf && !cfg.ShelfTab ? IslandHubTab.Clipboard : tab;
     }
 
+    /// <summary>Onaylanan ya da reddedilen seçim sonrası Renk gövdesinin flash hedefi.</summary>
+    private bool? _pendingPickerWritten;
+
+    private ColorPickerWindow? _screenPicker;
+
+    /// <summary>
+    /// "Ekran rengini seç": ada paneli KAPANIR, örtü çalışma alanını kaplar (kullanıcının
+    /// onayladığı tek örtü istisnası), seçim bittikten sonra hub geri sergilenir. Örtü
+    /// açıkken başka topmost pencere açılmaz.
+    /// </summary>
+    private void OnIslandScreenPickerRequested(object? sender, EventArgs e)
+    {
+        if (!Monitor.IsPrimary)
+        {
+            return;
+        }
+
+        _pendingPickerWritten = null;
+        CloseIsland(animate: false);
+        StartScreenPicker();
+    }
+
+    private void StartScreenPicker()
+    {
+        IntPtr hwnd = _source?.Handle ?? IntPtr.Zero;
+        if (hwnd == IntPtr.Zero || _screenPicker is { IsOpen: true })
+        {
+            return;
+        }
+
+        _screenPicker = new ColorPickerWindow();
+        _screenPicker.Settled += OnScreenPickerSettled;
+        _screenPicker.Cancelled += OnScreenPickerCancelled;
+        _screenPicker.Closed += OnScreenPickerWindowClosed;
+        if (!_screenPicker.Start(hwnd, _engine.Island))
+        {
+            // Örtü açılamadı: hub'ı yeniden sergileyip kullanıcının bağlamına geri dönelim.
+            _screenPicker = null;
+            ReopenIslandAfterPicker(pickerWritten: null);
+        }
+    }
+
+    private void OnScreenPickerSettled(Color color, string hex, bool written)
+    {
+        if (color.A != 0)
+        {
+            IslandPickedColors.Add(color);
+        }
+
+        _pendingPickerWritten = written;
+    }
+
+    private void OnScreenPickerCancelled()
+    {
+        // Reopen, pencerenin Closed'unda tek noktadan yapılır (Cancelled da Close'un önünde gelir).
+        _pendingPickerWritten = null;
+    }
+
+    /// <summary>
+    /// Örtü kapandıktan sonra hub'ı geri açar: kayıtlı sekme "colorpicker" olduğundan
+    /// gövde Renk'te gelir. <see cref="_pendingPickerWritten"/> yalnız seçim sonu taşır
+    /// (null: vazgeç); flash gövde sunulduktan sonraki durakta yazılır.
+    /// </summary>
+    private void OnScreenPickerWindowClosed(object? sender, EventArgs e)
+    {
+        _screenPicker = null;
+        ReopenIslandAfterPicker(_pendingPickerWritten);
+    }
+
+    private void ReopenIslandAfterPicker(bool? pickerWritten)
+    {
+        if (_presence is null)
+        {
+            return;
+        }
+
+        RunIslandCommand(_presence.Click(IslandNow()));
+        if (pickerWritten is null)
+        {
+            return;
+        }
+
+        _ = Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            new Action(() => IslandHost.ShowPickerCopyFeedback(pickerWritten.Value)));
+    }
+
     /// <summary>
     /// Session ended while the Music tab is showing: fall back to the saved tab (Clipboard).
     /// </summary>
@@ -1320,6 +1407,7 @@ public partial class TopBarWindow
         IslandPill.SizeChanged += OnIslandPillSizeChanged;
         IslandHost.SizeChanged += OnIslandPopupSizeChanged;
         IslandHost.HubTabChanged += OnIslandHubTabChanged;
+        IslandHost.ScreenPickerRequested += OnIslandScreenPickerRequested;
         IslandHost.AttachMedia(_engine.Media);
         if (Monitor.IsPrimary)
         {
@@ -1383,6 +1471,7 @@ public partial class TopBarWindow
         IslandPill.SizeChanged -= OnIslandPillSizeChanged;
         IslandHost.SizeChanged -= OnIslandPopupSizeChanged;
         IslandHost.HubTabChanged -= OnIslandHubTabChanged;
+        IslandHost.ScreenPickerRequested -= OnIslandScreenPickerRequested;
         IslandHost.DetachWallpaper();
         if (_wallpaper is not null)
         {
@@ -1429,6 +1518,7 @@ public partial class TopBarWindow
         _selectedSatellite = IslandSatellite.None;
         _idlePreviewSet = false;
         _appliedIdlePreview = null;
+        _screenPicker?.Close();
     }
 
     private void OnIslandChanged(object? sender, EventArgs e) => UpdateIslandPill();
@@ -1461,6 +1551,8 @@ public partial class TopBarWindow
                 CloseIsland(animate: false);
             }
 
+            // Ada kapandıysa seçim örtüsü de bayat bir maskenin altında kalmamalı.
+            _screenPicker?.Close();
             _islandClock?.Stop();
             ApplyCaptureAffinity(default, pillShown: false);
             return;

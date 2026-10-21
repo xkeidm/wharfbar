@@ -5,8 +5,8 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Şelf sekmesi hub'a bağlanırken tag→gövde eşleşmesi pure yardımcı üzerinden sınanır:
-/// <c>IslandFlyout.TabIdForBody</c> her sekme için gövde Tag'indeki kimliği üretir.
+/// Şelf ve renk seçici sekmeleri hub'a bağlanırken tag→gövde eşleşmesi pure yardımcı üzerinden
+/// sınanır: <c>IslandFlyout.TabIdForBody</c> her sekme için gövde Tag'indeki kimliği üretir.
 /// </summary>
 public class IslandFlyoutHubTabsTests
 {
@@ -14,5 +14,11 @@ public class IslandFlyoutHubTabsTests
     public void TabIdForBody_ShelfId_MatchesTag()
     {
         Assert.Equal("shelf", IslandFlyout.TabIdForBody(IslandHubTab.Shelf));
+    }
+
+    [Fact]
+    public void TabIdForBody_ColorPickerId_MatchesTag()
+    {
+        Assert.Equal("colorpicker", IslandFlyout.TabIdForBody(IslandHubTab.ColorPicker));
     }
 }

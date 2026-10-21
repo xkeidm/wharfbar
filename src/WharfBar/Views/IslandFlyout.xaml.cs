@@ -121,6 +121,22 @@ public sealed partial class IslandFlyout : UserControl
     {
         TabClipboard.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         TabWallpaper.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        // Renk gövdesi aynı yüzeyde ekran örneklemesi taşır (ScreenSampler tek zamanlama,
+        // örtü birincilin çalışma alanı için); ikincilde sekme gizli kalır.
+        _pickerSurface = available;
+        TabColor.Visibility = available && _pickerTabWanted ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private bool _pickerSurface;
+
+    /// <summary>Gövde sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    private bool _pickerTabWanted = IslandConfig.DefaultColorPickerTab;
+
+    /// <summary>Shows or hides the Color picker tab; gated by <c>IslandConfig.ColorPickerTab</c>.</summary>
+    internal void SetColorPickerTabVisible(bool visible)
+    {
+        _pickerTabWanted = visible;
+        TabColor.Visibility = visible && _pickerSurface ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>
@@ -223,15 +239,23 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
+    /// "Ekran rengini seç" tıklaması. Üst bar bu olayı alır: ada paneli önce kapanır, sonra
+    /// tam çalışma alanını kaplayan seçim örtüsü açılır (<see cref="ColorPickerWindow"/> örtüsü
+    /// tek topmost istisnası) ve seçim bittiğinde hub geri döner — paneli yöneten
+    /// <c>TopBarWindow.Island</c> tarafı aynı sınıfta olduğu için düzen oradan gelir.
+    /// </summary>
+    internal event EventHandler? ScreenPickerRequested;
+
+    /// <summary>
     /// Gövde Tag kimlikleri: sekmenin XAML'deki Tag dizgisini verir (<c>Tag="shelf"</c> vb.).
-    /// Renk seçici gövdesi sonraki fazda biner; bilinmeyen değer
-    /// <see cref="IslandHub.Normalize"/> gibi Pano'ya döner.
+    /// Bilinmeyen değer <see cref="IslandHub.Normalize"/> gibi Pano'ya döner.
     /// </summary>
     internal static string TabIdForBody(IslandHubTab tab) => tab switch
     {
         IslandHubTab.Wallpaper => "wallpaper",
         IslandHubTab.Music => "music",
         IslandHubTab.Shelf => "shelf",
+        IslandHubTab.ColorPicker => "colorpicker",
         _ => "clipboard",
     };
 
@@ -240,6 +264,7 @@ public sealed partial class IslandFlyout : UserControl
         IslandHubTab.Wallpaper => WallpaperBody,
         IslandHubTab.Music => MusicBody,
         IslandHubTab.Shelf => ShelfBody,
+        IslandHubTab.ColorPicker => ColorPickerBody,
         _ => ClipboardBody,
     };
 
@@ -249,6 +274,7 @@ public sealed partial class IslandFlyout : UserControl
         ApplySurface();
         SetMusicTabVisible(_media?.Snapshot.HasSession ?? false);
         SetShelfTabVisible(_service?.Config.ShelfTab ?? IslandConfig.DefaultShelfTab);
+        SetColorPickerTabVisible(_service?.Config.ColorPickerTab ?? IslandConfig.DefaultColorPickerTab);
         CurrentHubTab = tab;
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
@@ -272,6 +298,11 @@ public sealed partial class IslandFlyout : UserControl
                 StopTimelinePoll();
                 ApplyTint(null);
                 RebuildShelf();
+                break;
+            case IslandHubTab.ColorPicker:
+                StopTimelinePoll();
+                ApplyTint(null);
+                RebuildPicker();
                 break;
             default:
                 StopTimelinePoll();
@@ -320,7 +351,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void UpdateTabChrome(IslandHubTab tab)
     {
-        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf })
+        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf, TabColor })
         {
             if (b.Tag as string == IslandHub.ToConfig(tab))
             {
@@ -349,7 +380,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         FrameworkElement show = BodyFor(tab);
         FrameworkElement? hide = null;
-        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody })
+        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody, ColorPickerBody })
         {
             if (ReferenceEquals(body, show))
             {
@@ -735,6 +766,19 @@ public sealed partial class IslandFlyout : UserControl
         else if (ShelfBody.Visibility == Visibility.Visible)
         {
             RebuildShelf();
+        }
+
+        if (_service is { Config.ColorPickerTab: false })
+        {
+            SetColorPickerTabVisible(false);
+            if (ColorPickerBody.Visibility == Visibility.Visible)
+            {
+                PresentHub(IslandHubTab.Clipboard, focus: false, crossfade: true);
+            }
+        }
+        else if (ColorPickerBody.Visibility == Visibility.Visible)
+        {
+            RebuildPicker();
         }
 
         Rebuild();
@@ -1254,6 +1298,144 @@ public sealed partial class IslandFlyout : UserControl
 
     #endregion
 
+    #region Renk seçici gövdesi
+
+    private DispatcherTimer? _pickerFeedbackTimer;
+
+    /// <summary>
+    /// Renk gövdesi: seçim tıklaması düğme + son renkler şeridi + büyük renk kartı. Renkler
+    /// oturumluk <see cref="IslandPickedColors"/> deposundan gelir (pano gövdesinin
+    /// <see cref="Rebuild"/> yeniden-kuruluş deseniyle aynı ölçüler).
+    /// </summary>
+    private void RebuildPicker()
+    {
+        IReadOnlyList<Color> colors = IslandPickedColors.Items;
+        bool any = colors.Count > 0;
+        Color current = any ? colors[0] : Color.FromArgb(0, 0, 0, 0);
+        _pickerSelected = current;
+        ApplyPickerSelection(current);
+        PickerCopyButton.IsEnabled = any;
+
+        // Yeni sunum eski geri bildirim flaşını da temizler (kalıcı "Kopyalandı" kalıntısı kalmasın).
+        _pickerFeedbackTimer?.Stop();
+        PickerFeedback.Opacity = 0;
+
+        PickerRecents.Children.Clear();
+        Brush tileBrush = ResolveTileBrush();
+        for (int i = 0; i < colors.Count; i++)
+        {
+            PickerRecents.Children.Add(BuildPickerChip(colors[i], tileBrush));
+        }
+    }
+
+    /// <summary>Büyük kartı verilen renge çeker; boş renk varsayılan görünümü döndürür.</summary>
+    private void ApplyPickerSelection(Color color)
+    {
+        if (color.A == 0)
+        {
+            // XAML varsayılanına döner (DynamicResource bağını ClearValue sileceği için set edilir).
+            PickerSwatch.SetResourceReference(Border.BackgroundProperty, "ControlFillColorDefaultBrush");
+            PickerHex.Text = "—";
+            System.Windows.Automation.AutomationProperties.SetName(PickerHex, "Henüz renk seçilmedi");
+            return;
+        }
+
+        var fill = new SolidColorBrush(color);
+        fill.Freeze();
+        PickerSwatch.Background = fill;
+        PickerHex.Text = ColorMath.ToHex(color.R, color.G, color.B);
+        System.Windows.Automation.AutomationProperties.SetName(PickerHex, PickerHex.Text);
+    }
+
+    /// <summary>Son renkler şeridindeki küçük kutu: tıkla → seçim ona döner. HEX tooltip'te.</summary>
+    private FrameworkElement BuildPickerChip(Color color, Brush tileBrush)
+    {
+        string hex = ColorMath.ToHex(color.R, color.G, color.B);
+        Brush fill = ResolveSwatchBrush(color);
+        Brush hoverBrush = ResolveSelectedBrush();
+        var chip = new Border
+        {
+            Width = 26,
+            Height = 26,
+            CornerRadius = new CornerRadius(8),
+            BorderThickness = new Thickness(1),
+            BorderBrush = tileBrush,
+            Background = fill,
+            Margin = new Thickness(0, 0, 6, 0),
+            Cursor = Cursors.Hand,
+            ToolTip = hex,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(chip, hex);
+        chip.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            ApplyPickerSelection(color);
+            _pickerSelected = color;
+        };
+        chip.MouseEnter += (_, _) => chip.Background = hoverBrush;
+        chip.MouseLeave += (_, _) => chip.Background = fill;
+        return chip;
+    }
+
+    private Brush ResolveSwatchBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    /// <summary>Kopyala: seçili rengin HEX'i panoya yazılır (Task 7 yolu); sonuç bildirimi ile.</summary>
+    private void OnPickerCopyClick(object sender, RoutedEventArgs e)
+    {
+        if (_service is null || _pickerSelected.A == 0)
+        {
+            return;
+        }
+
+        string hex = ColorMath.ToHex(_pickerSelected.R, _pickerSelected.G, _pickerSelected.B);
+        // Yazma aynı Task 7 kapısından geçer: gate path'i senkron false, başarı BeginInvoke
+        // ile birlikte gelir — iki zamanlama da aynı geri bildirimi yazar.
+        _service.PutOnClipboard(hex, completed => ShowPickerCopyFeedback(completed));
+    }
+
+    /// <summary>Copy feedback flash ("Kopyalandı" / "Kopyalanamadı"): sessiz false kalmasın.</summary>
+    internal void ShowPickerCopyFeedback(bool written)
+    {
+        ShowPickerFeedback(written ? "Kopyalandı" : "Kopyalanamadı", written);
+    }
+
+    private void ShowPickerFeedback(string text, bool ok)
+    {
+        PickerFeedback.Text = text;
+        PickerFeedback.Opacity = ok ? 0.75 : 0.95;
+        _pickerFeedbackTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1600) };
+        _pickerFeedbackTimer.Tick -= OnPickerFeedbackTick;
+        _pickerFeedbackTimer.Tick += OnPickerFeedbackTick;
+        _pickerFeedbackTimer.Stop();
+        _pickerFeedbackTimer.Start();
+    }
+
+    private void OnPickerFeedbackTick(object? sender, EventArgs e)
+    {
+        _pickerFeedbackTimer?.Stop();
+        PickerFeedback.Opacity = 0;
+    }
+
+    /// <summary>Seçili renk: gövde kuruluşunda son seçim, çip tıklamalarında o renk.</summary>
+    private Color _pickerSelected;
+
+    private void OnPickerScreenClick(object sender, RoutedEventArgs e)
+    {
+        if (_service is null)
+        {
+            return;
+        }
+
+        ScreenPickerRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    #endregion
+
     /// <summary>
     /// Panel klavye gezinmesi. Arama kutusu odaktayken <c>PreviewKeyDown</c>'den gelir; tuş
     /// burada doğrudan servise iletilir, sahte <see cref="KeyEventArgs"/> kurulmaz.
@@ -1279,7 +1461,7 @@ public sealed partial class IslandFlyout : UserControl
             }
         }
 
-        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf)
+        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.ColorPicker)
         {
             // Duvar kağıdı ve raf gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
             return false;

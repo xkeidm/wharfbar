@@ -80,10 +80,19 @@ internal static class ScreenBitBlt
     /// (<paramref name="stride"/> = 4*size). False when any GDI step failed — never throws.
     /// </summary>
     internal static bool TryCapture(int x, int y, int size, out byte[] bgra, out int stride)
+        => TryCaptureRect(x, y, size, size, out bgra, out stride);
+
+    /// <summary>
+    /// Rectangular capture (physical px, same BGRA top-down layout, <paramref name="stride"/>
+    /// = 4*<paramref name="width"/>). The color picker's full-monitor frozen frame uses it:
+    /// sampling must read the screen <b>before</b> a layered dim mask is shown, because BitBlt
+    /// composites the mask too. False when any GDI step failed — never throws.
+    /// </summary>
+    internal static bool TryCaptureRect(int x, int y, int width, int height, out byte[] bgra, out int stride)
     {
         bgra = null!;
         stride = 0;
-        if (size <= 0)
+        if (width <= 0 || height <= 0)
         {
             return false;
         }
@@ -100,14 +109,14 @@ internal static class ScreenBitBlt
         try
         {
             mem = CreateCompatibleDC(screen);
-            bmp = CreateCompatibleBitmap(screen, size, size);
+            bmp = CreateCompatibleBitmap(screen, width, height);
             if (mem == IntPtr.Zero || bmp == IntPtr.Zero)
             {
                 return false;
             }
 
             old = SelectObject(mem, bmp);
-            if (!BitBlt(mem, 0, 0, size, size, screen, x, y, SRCCOPY))
+            if (!BitBlt(mem, 0, 0, width, height, screen, x, y, SRCCOPY))
             {
                 return false;
             }
@@ -116,8 +125,14 @@ internal static class ScreenBitBlt
             _ = SelectObject(mem, old);
             old = IntPtr.Zero;
 
-            stride = size * 4;
-            bgra = new byte[stride * size];
+            stride = width * 4;
+            long totalBytes = (long)stride * height;
+            if (totalBytes <= 0 || totalBytes > int.MaxValue)
+            {
+                return false;
+            }
+
+            bgra = new byte[totalBytes];
 
             // Negative height = top-down DIB: row 0 first, no bottom-up flip afterwards.
             var info = new BITMAPINFO
@@ -125,16 +140,16 @@ internal static class ScreenBitBlt
                 BmiHeader = new BITMAPINFOHEADER
                 {
                     BiSize = (uint)Marshal.SizeOf<BITMAPINFOHEADER>(),
-                    BiWidth = size,
-                    BiHeight = -size,
+                    BiWidth = width,
+                    BiHeight = -height,
                     BiPlanes = 1,
                     BiBitCount = 32,
                     BiCompression = BI_RGB,
                 },
             };
 
-            int lines = GetDIBits(mem, bmp, 0, (uint)size, bgra, ref info, DIB_RGB_COLORS);
-            if (lines != size)
+            int lines = GetDIBits(mem, bmp, 0, (uint)height, bgra, ref info, DIB_RGB_COLORS);
+            if (lines != height)
             {
                 bgra = null!;
                 stride = 0;
@@ -163,6 +178,8 @@ internal static class ScreenBitBlt
             _ = ReleaseDC(IntPtr.Zero, screen);
         }
     }
+
+    /// <summary>stride*height with an overflow guard; 0 means "don't attempt the alloc".</summary>
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BITMAPINFOHEADER

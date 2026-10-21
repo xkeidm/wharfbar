@@ -120,6 +120,15 @@
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
+            <Button x:Name="TabColor" Tag="colorpicker" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Renk" Margin="0,0,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE790;" />
+                    <TextBlock Text="Renk" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
         </StackPanel>
         <Grid x:Name="BodyHost" Grid.Row="1" ClipToBounds="True">
             <Border x:Name="AmbientGlow"
@@ -413,6 +422,84 @@
                                    FontFamily="{DynamicResource AppTextFontFamily}" />
                     </StackPanel>
                 </Button>
+            </Grid>
+
+            <!-- Renk: ekran seçici (ColorPickerWindow örtüsü) + son renkler + seçili HEX.
+                 Renkler oturumluk IslandPickedColors deposundan gelir. -->
+            <Grid x:Name="ColorPickerBody" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button x:Name="PickerScreenButton"
+                        Grid.Row="0"
+                        HorizontalAlignment="Left"
+                        Style="{StaticResource IslandIconButton}"
+                        Padding="10,6"
+                        Click="OnPickerScreenClick"
+                        ToolTip="İmlecin altındaki ekrandan renk örnekler; HEX panoya yazılır (Esc ile vazgeç).">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                   VerticalAlignment="Center" Text="&#xE790;" />
+                        <TextBlock Text="Ekran rengini seç" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource AppTextFontFamily}" />
+                    </StackPanel>
+                </Button>
+
+                <WrapPanel x:Name="PickerRecents" Grid.Row="1" Margin="2,10,0,0" Orientation="Horizontal" />
+
+                <Grid Grid.Row="2" Margin="2,12,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="PickerSwatch"
+                            Width="44"
+                            Height="44"
+                            CornerRadius="10"
+                            BorderThickness="1"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}"
+                            VerticalAlignment="Top" />
+                    <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Top">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock x:Name="PickerHex"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                            <TextBlock x:Name="PickerFeedback"
+                                       Margin="8,0,0,0"
+                                       FontSize="12"
+                                       Opacity="0"
+                                       IsHitTestVisible="False"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button x:Name="PickerCopyButton"
+                                HorizontalAlignment="Left"
+                                Margin="0,6,0,0"
+                                Style="{StaticResource IslandIconButton}"
+                                Padding="8,6"
+                                Click="OnPickerCopyClick"
+                                ToolTip="Seçilen rengin HEX kodunu panoya yazılır.">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                           VerticalAlignment="Center" Text="&#xE8C8;" />
+                                <TextBlock Text="Kopyala" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource AppTextFontFamily}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <TextBlock Grid.Row="3"
+                           Margin="2,10,0,0"
+                           FontSize="11"
+                           Opacity="0.55"
+                           TextWrapping="Wrap"
+                           Text="Ekran seçici tüm ekranı karartır: imleç altındaki rengi tıklayarak HEX olarak panoya yazarsın, Esc ile vazgeçersin." />
             </Grid>
         </Grid>
         </Grid>
