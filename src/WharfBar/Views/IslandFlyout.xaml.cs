@@ -66,6 +66,88 @@ public sealed partial class IslandFlyout : UserControl
     {
         InitializeComponent();
         FlyoutRoot.SizeChanged += (_, _) => RebuildSilhouette();
+        HubTabs.SizeChanged += OnHubTabStripSizeChanged;
+        _tabStripButtons = [TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabColor];
+        _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabColorLabel];
+    }
+
+    /// <summary>
+    /// Altı gövde sekmesi aynı anda görünürken etiketli şerit panel içine sığmaz (ölçülmüş:
+    /// 6 etiketli sekme ~447 dip, panel iç genişliği ~388). Etiketler taştığı anda katlanır
+    /// — adlar ToolTip ve otomasyon adlarında kalır — ve yer açıldığında geri döner. Beş ve
+    /// daha az sekmenin Faz 1 görüntüsü hiçbir durumda değişmez.
+    /// </summary>
+    private bool _tabStripCompact;
+
+    /// <summary>Etiket genişlikleri katlanmadan ÖNCE yakalanır; tekrar açma hesabı bunu kullanır.</summary>
+    private readonly double[] _tabLabelWidths = new double[6];
+
+    private readonly Button[] _tabStripButtons;
+    private readonly TextBlock[] _tabStripLabels;
+
+    private void OnHubTabStripSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTabStripCompactness();
+
+    /// <summary>
+    /// Sekme görünürlüğü değişimi HubTabs'ın gerçek boyutunu değiştirmez (panel iç genişliği
+    /// hep aynıdır, ActualWidth değişmez), SizeChanged ateşlenmez; karar bir düzen geçişi
+    /// sonrasına ertelenir.
+    /// </summary>
+    private void ScheduleTabStripCompactness()
+    {
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(UpdateTabStripCompactness));
+    }
+
+    private void UpdateTabStripCompactness()
+    {
+        double available = HubTabs.ActualWidth;
+        if (available <= 1)
+        {
+            return;
+        }
+
+        if (!_tabStripCompact)
+        {
+            if (HubTabs.DesiredSize.Width > available)
+            {
+                // Katlanmadan ÖNCE etiket genişliklerini yakala; geri açma hesabı için gerekir.
+                for (int i = 0; i < _tabStripLabels.Length; i++)
+                {
+                    _tabLabelWidths[i] = _tabStripLabels[i].ActualWidth;
+                }
+
+                _tabStripCompact = true;
+                FoldTabStripLabels(true);
+                HubTabs.InvalidateMeasure();
+            }
+
+            return;
+        }
+
+        // Katlanmış ölçü + görünen etiketlerin genişlikleri: yine taşmayacaksa etiketler döner.
+        double expandNeed = HubTabs.DesiredSize.Width;
+        for (int i = 0; i < _tabStripLabels.Length; i++)
+        {
+            if (_tabStripButtons[i].Visibility == Visibility.Visible)
+            {
+                expandNeed += 6 + Math.Max(0, _tabLabelWidths[i]);
+            }
+        }
+
+        if (expandNeed <= available)
+        {
+            _tabStripCompact = false;
+            FoldTabStripLabels(false);
+            // Bir sonraki düzen geçişi etiketli ölçüyü getirir; karar tek geçişte kapanır.
+            HubTabs.InvalidateMeasure();
+        }
+    }
+
+    private void FoldTabStripLabels(bool fold)
+    {
+        foreach (TextBlock label in _tabStripLabels)
+        {
+            label.Visibility = fold ? Visibility.Collapsed : Visibility.Visible;
+        }
     }
 
     /// <summary>
@@ -128,6 +210,8 @@ public sealed partial class IslandFlyout : UserControl
         _primarySurface = available;
         TabColor.Visibility = available && _pickerTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabShelf.Visibility = available && _shelfTabWanted ? Visibility.Visible : Visibility.Collapsed;
+        TabPrompter.Visibility = available && _prompterTabWanted ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
     }
 
     /// <summary>
@@ -143,11 +227,15 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Raf sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
     private bool _shelfTabWanted = IslandConfig.DefaultShelfTab;
 
+    /// <summary>Prompter sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    private bool _prompterTabWanted = IslandConfig.DefaultPrompterTab;
+
     /// <summary>Shows or hides the Color picker tab; gated by <c>IslandConfig.ColorPickerTab</c>.</summary>
     internal void SetColorPickerTabVisible(bool visible)
     {
         _pickerTabWanted = visible;
         TabColor.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
     }
 
     /// <summary>
@@ -241,6 +329,7 @@ public sealed partial class IslandFlyout : UserControl
     internal void SetMusicTabVisible(bool visible)
     {
         TabMusic.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
     }
 
     /// <summary>Shows or hides the Shelf tab; gated by <c>IslandConfig.ShelfTab</c> and the primary surface.</summary>
@@ -248,6 +337,15 @@ public sealed partial class IslandFlyout : UserControl
     {
         _shelfTabWanted = visible;
         TabShelf.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
+    }
+
+    /// <summary>Shows or hides the Prompter tab; gated by <c>IslandConfig.PrompterTab</c> and the primary surface.</summary>
+    internal void SetPrompterTabVisible(bool visible)
+    {
+        _prompterTabWanted = visible;
+        TabPrompter.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
     }
 
     /// <summary>
@@ -267,6 +365,7 @@ public sealed partial class IslandFlyout : UserControl
         IslandHubTab.Wallpaper => "wallpaper",
         IslandHubTab.Music => "music",
         IslandHubTab.Shelf => "shelf",
+        IslandHubTab.Prompter => "prompter",
         IslandHubTab.ColorPicker => "colorpicker",
         _ => "clipboard",
     };
@@ -276,6 +375,7 @@ public sealed partial class IslandFlyout : UserControl
         IslandHubTab.Wallpaper => WallpaperBody,
         IslandHubTab.Music => MusicBody,
         IslandHubTab.Shelf => ShelfBody,
+        IslandHubTab.Prompter => PrompterBody,
         IslandHubTab.ColorPicker => ColorPickerBody,
         _ => ClipboardBody,
     };
@@ -287,9 +387,17 @@ public sealed partial class IslandFlyout : UserControl
         SetMusicTabVisible(_media?.Snapshot.HasSession ?? false);
         SetShelfTabVisible(_service?.Config.ShelfTab ?? IslandConfig.DefaultShelfTab);
         SetColorPickerTabVisible(_service?.Config.ColorPickerTab ?? IslandConfig.DefaultColorPickerTab);
+        SetPrompterTabVisible(_service?.Config.PrompterTab ?? IslandConfig.DefaultPrompterTab);
         CurrentHubTab = tab;
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
+
+        // Gövde gizlenince tik atmasın: sekme değişirken oynatmayı durdur (pim serbest
+        // kalır; kaydırma konumu Paused'ta korunur, geri dönüşte kaldığı yerden sürer).
+        if (tab != IslandHubTab.Prompter && _prompterState == PrompterMotion.Playback.Playing)
+        {
+            SetPrompterPlayback(PrompterMotion.Playback.Paused);
+        }
 
         switch (tab)
         {
@@ -310,6 +418,10 @@ public sealed partial class IslandFlyout : UserControl
                 StopTimelinePoll();
                 ApplyTint(null);
                 RebuildShelf();
+                break;
+            case IslandHubTab.Prompter:
+                StopTimelinePoll();
+                ApplyTint(null);
                 break;
             case IslandHubTab.ColorPicker:
                 StopTimelinePoll();
@@ -363,7 +475,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void UpdateTabChrome(IslandHubTab tab)
     {
-        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf, TabColor })
+        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabColor })
         {
             if (b.Tag as string == IslandHub.ToConfig(tab))
             {
@@ -392,7 +504,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         FrameworkElement show = BodyFor(tab);
         FrameworkElement? hide = null;
-        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody, ColorPickerBody })
+        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody, PrompterBody, ColorPickerBody })
         {
             if (ReferenceEquals(body, show))
             {
@@ -756,6 +868,7 @@ public sealed partial class IslandFlyout : UserControl
     internal void OnPanelClosed()
     {
         StopTimelinePoll();
+        StopPrompterPlayback();
         Detach();
     }
 
@@ -791,6 +904,15 @@ public sealed partial class IslandFlyout : UserControl
         else if (ColorPickerBody.Visibility == Visibility.Visible)
         {
             RebuildPicker();
+        }
+
+        if (_service is { Config.PrompterTab: false })
+        {
+            SetPrompterTabVisible(false);
+            if (PrompterBody.Visibility == Visibility.Visible)
+            {
+                PresentHub(IslandHubTab.Clipboard, focus: false, crossfade: true);
+            }
         }
 
         Rebuild();
@@ -1448,6 +1570,285 @@ public sealed partial class IslandFlyout : UserControl
 
     #endregion
 
+    #region Okur (Prompter) gövdesi
+
+    /// <summary>
+    /// Okur oynatma pimi: true = oynatma açık (Task 5 üst bar tarafını kilitler), false =
+    /// serbest. Yalnız gerçek durum değişimlerinde atılır (Editing→Paused geçişinde sessiz).
+    /// </summary>
+    internal event Action<bool>? PrompterPinnedChanged;
+
+    /// <summary>Oynatma simgeleri (MDL2 belgelenmiş): Play E768, Pause E769.</summary>
+    private const string PrompterPlayGlyphText = "\uE768";
+    private const string PrompterPauseGlyphText = "\uE769";
+
+    /// <summary>"Sonuna vardı" sayma toleransı (dip). Tik payı ve uç belirleme aynı duyarlılıkta.</summary>
+    private const double PrompterEndEpsilon = 0.25;
+
+    /// <summary>
+    /// Okuma tik aralığı ~16 ms. Tek karar: <see cref="DispatcherTimer"/>,
+    /// <c>CompositionTarget.Rendering</c> kancası YOK — gizli gövdede durdurabilen ve
+    /// mevcut <c>_timelineTimer</c> kalııyla aynı ömür desenine uyan baştan oluşturma.
+    /// </summary>
+    private static readonly TimeSpan PrompterTickInterval = TimeSpan.FromMilliseconds(16);
+
+    private PrompterMotion.Playback _prompterState = PrompterMotion.Playback.Editing;
+    private DispatcherTimer? _prompterTick;
+    private DateTime _prompterLastTickUtc;
+    private double _prompterSpeed = 1.0;
+    private double _prompterEditingFontSize;
+
+    private bool _prompterDragging;
+    private double _prompterDragStartOffset;
+    private Point _prompterDragOrigin;
+
+    private void OnPrompterPlayPauseClick(object sender, RoutedEventArgs e) =>
+        SetPrompterPlayback(PrompterMotion.Toggle(_prompterState));
+
+    /// <summary>
+    /// Okuma tek geçidi. Playing: editör salt-okunur, okuma fontu
+    /// <see cref="PrompterMotion.ReadingFontDip"/>, tik çalışır; Editing/Paused: düzenlenebilir ve
+    /// tik kapalı. Pim (true/false) yalnız oynatmanın açılıp kapandığında fırlar.
+    /// </summary>
+    private void SetPrompterPlayback(PrompterMotion.Playback incoming)
+    {
+        // Uçta oturuyorsa oynatmak hiç başlamaz: metin tam görünür, sessizce Editing kalır.
+        ScrollViewer? sv = incoming == PrompterMotion.Playback.Playing ? PrompterInnerScroll(PrompterEditor) : null;
+        PrompterMotion.Playback state = incoming;
+        if (state == PrompterMotion.Playback.Playing
+            && (sv is null
+                || sv.ScrollableHeight <= 0
+                || sv.VerticalOffset >= sv.ScrollableHeight - PrompterEndEpsilon))
+        {
+            state = PrompterMotion.Playback.Editing;
+        }
+
+        bool wasPlaying = _prompterState == PrompterMotion.Playback.Playing;
+        _prompterState = state;
+        bool nowPlaying = state == PrompterMotion.Playback.Playing;
+
+        PrompterEditor.IsReadOnly = nowPlaying;
+        if (nowPlaying && !wasPlaying)
+        {
+            _prompterEditingFontSize = PrompterEditor.FontSize;
+            PrompterEditor.FontSize = PrompterMotion.ReadingFontDip;
+        }
+        else if (!nowPlaying && wasPlaying && _prompterEditingFontSize > 0)
+        {
+            // XAML'daki düzenleme fontu ilk Playing'e girişte yakalanır; buraya geri konur.
+            PrompterEditor.FontSize = _prompterEditingFontSize;
+        }
+
+        PrompterPlayGlyph.Text = nowPlaying ? PrompterPauseGlyphText : PrompterPlayGlyphText;
+        PrompterPlayLabel.Text = nowPlaying ? "Duraklat" : "Oynat";
+        PrompterPlayPause.IsChecked = nowPlaying;
+
+        if (nowPlaying)
+        {
+            StartPrompterTick();
+        }
+        else
+        {
+            StopPrompterTick();
+        }
+
+        if (nowPlaying != wasPlaying)
+        {
+            PrompterPinnedChanged?.Invoke(nowPlaying);
+        }
+    }
+
+    private void OnPrompterTick(object? sender, EventArgs e)
+    {
+        // Kapı 1: gövde gizliyken hiçbir tik dönmez (ikinci duvar <see cref="OnPanelClosed"/>).
+        if (PrompterBody.Visibility != Visibility.Visible)
+        {
+            StopPrompterTick();
+            return;
+        }
+
+        ScrollViewer? sv = PrompterInnerScroll(PrompterEditor);
+        if (sv is null || sv.ScrollableHeight <= 0)
+        {
+            SetPrompterPlayback(PrompterMotion.Playback.Editing);
+            return;
+        }
+
+        DateTime now = DateTime.UtcNow;
+        double elapsed = (now - _prompterLastTickUtc).TotalSeconds;
+        _prompterLastTickUtc = now;
+
+        double current = sv.VerticalOffset;
+        double updated = PrompterMotion.UpdateOffset(
+            current, elapsed, _prompterSpeed, SystemParameters.ClientAreaAnimation);
+        double clamped = PrompterMotion.ClampOffset(updated, sv.ExtentHeight, sv.ViewportHeight);
+        sv.ScrollToVerticalOffset(clamped);
+
+        // Sonuna varış yalnız gerçek ilerlemede sayılır: animasyon kapalıysa hız 0'dır
+        // (<see cref="PrompterMotion.SpeedDipPerSec"/>) ve okuma olduğumuz yerde bekler.
+        if (updated - current > PrompterEndEpsilon && clamped >= sv.ScrollableHeight - PrompterEndEpsilon)
+        {
+            SetPrompterPlayback(PrompterMotion.Playback.Editing);
+        }
+    }
+
+    private void StartPrompterTick()
+    {
+        _prompterTick ??= new DispatcherTimer { Interval = PrompterTickInterval };
+        _prompterTick.Tick -= OnPrompterTick;
+        _prompterTick.Tick += OnPrompterTick;
+        _prompterLastTickUtc = DateTime.UtcNow;
+        _prompterTick.Start();
+    }
+
+    private void StopPrompterTick() => _prompterTick?.Stop();
+
+    /// <summary>Panel kapandı: tik durur, oynatma Editing'e döner (pim serbest kalır).</summary>
+    private void StopPrompterPlayback()
+    {
+        _prompterDragging = false;
+        if (_prompterState == PrompterMotion.Playback.Playing)
+        {
+            SetPrompterPlayback(PrompterMotion.Playback.Editing);
+        }
+        else
+        {
+            StopPrompterTick();
+        }
+    }
+
+    /// <summary>
+    /// Kaydırma kaynağı TextBox'ın İÇ ScrollViewer'ıdır (şablonundaki
+    /// <c>PART_ContentHost</c>): motor ofseti buradan okur ve buraya yazar — dış bir
+    /// kaydırıcı varmadır. Şablon uygulanmadıysa null.
+    /// </summary>
+    private static ScrollViewer? PrompterInnerScroll(TextBox editor) =>
+        editor.Template is null
+            ? null
+            : editor.Template.FindName("PART_ContentHost", editor) as ScrollViewer;
+
+    private void OnPrompterEditorTextChanged(object sender, TextChangedEventArgs e)
+    {
+        PrompterEditorPlaceholder.Visibility = PrompterEditor.Text.Length == 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Okunurken metni tutup sürükleme: dikey fare deltası aynı VerticalOffset'i
+    /// sürükler — oynatma duraklamaz. Editing/Paused'ta TextBox
+    /// kendi metin seçimine döner, biz müdahale etmeyiz.
+    /// </summary>
+    private void OnPrompterEditorPreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        // Kaydırma çubuğunun kendi yolu var: metin sürükleme onu ele geçirmeden çalışsın.
+        if (_prompterState != PrompterMotion.Playback.Playing
+            || e.OriginalSource is System.Windows.Controls.Primitives.ScrollBar
+            || PrompterInnerScroll(PrompterEditor) is not ScrollViewer sv)
+        {
+            return;
+        }
+
+        _prompterDragging = true;
+        _prompterDragOrigin = e.GetPosition(PrompterEditor);
+        _prompterDragStartOffset = sv.VerticalOffset;
+        _ = PrompterEditor.CaptureMouse();
+        e.Handled = true;
+    }
+
+    private void OnPrompterEditorPreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (!_prompterDragging
+            || e.LeftButton != MouseButtonState.Pressed
+            || PrompterInnerScroll(PrompterEditor) is not ScrollViewer sv)
+        {
+            return;
+        }
+
+        double dy = e.GetPosition(PrompterEditor).Y - _prompterDragOrigin.Y;
+
+        // Metni tutan el: metin aşağı inerse (dy > 0) okuma geriye döner (ofset küçülür).
+        double offset = _prompterDragStartOffset - dy;
+        sv.ScrollToVerticalOffset(Math.Clamp(offset, 0, sv.ScrollableHeight));
+        e.Handled = true;
+    }
+
+    private void OnPrompterEditorPreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!_prompterDragging)
+        {
+            return;
+        }
+
+        _prompterDragging = false;
+        PrompterEditor.ReleaseMouseCapture();
+        e.Handled = true;
+    }
+
+    private void OnPrompterResetClick(object sender, RoutedEventArgs e)
+    {
+        // Başa dön metne dokunmaz: editörün metni aynı kalır, ofset ilk üstten başlar.
+        PrompterInnerScroll(PrompterEditor)?.ScrollToHome();
+    }
+
+    private void OnPrompterFromClipboardClick(object sender, RoutedEventArgs e)
+    {
+        if (_service is null)
+        {
+            return;
+        }
+
+        // Kibar-yok: geçmişte metin yoksa editör ve placeholder olduğu gibi kalır; popup/chat yok.
+        if (_service.TryLastClipboardText(out string text))
+        {
+            LoadPrompterText(text);
+        }
+    }
+
+    private void OnPrompterLoadFileClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Metin dosyası (*.txt)|*.txt" };
+        bool? chosen = dialog.ShowDialog(Window.GetWindow(this));
+        if (chosen != true)
+        {
+            return;
+        }
+
+        try
+        {
+            LoadPrompterText(File.ReadAllText(dialog.FileName));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
+        {
+            // Bozuk/erişilemeyen dosya kibar-yok: editör mevcut metni tutar, sessiz log.
+            Debug.WriteLine($"[WharfBar] prompter txt load failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Yeni metin tek yol: oynatma Editing'e döner (pim serbest) ve kaydırma en baştan
+    /// başlar — "Panodan al" ve ".txt" aynı kapıyı kullanır.
+    /// </summary>
+    private void LoadPrompterText(string text)
+    {
+        StopPrompterPlayback();
+        PrompterEditor.Text = text;
+        PrompterInnerScroll(PrompterEditor)?.ScrollToHome();
+    }
+
+    private void OnPrompterSpeedChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        _prompterSpeed = PrompterMotion.ClampMultiplier(e.NewValue);
+
+        // XAML yüklemesi sırasında etiket henüz kurulmamış olabilir (Slider etiketten önce).
+        if (PrompterSpeedLabel is not null)
+        {
+            PrompterSpeedLabel.Text = _prompterSpeed.ToString("F1", CultureInfo.InvariantCulture) + "×";
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Panel klavye gezinmesi. Arama kutusu odaktayken <c>PreviewKeyDown</c>'den gelir; tuş
     /// burada doğrudan servise iletilir, sahte <see cref="KeyEventArgs"/> kurulmaz.
@@ -1473,9 +1874,9 @@ public sealed partial class IslandFlyout : UserControl
             }
         }
 
-        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.ColorPicker)
+        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.Prompter or IslandHubTab.ColorPicker)
         {
-            // Duvar kağıdı ve raf gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
+            // Duvar kağıdı, raf ve okur gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
             return false;
         }
 

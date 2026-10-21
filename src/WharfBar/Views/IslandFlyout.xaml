@@ -55,6 +55,38 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <!-- Okurun oynatma düğmesi: Button değil ToggleButton'ın kendi durumu var;
+             aynı accent top görünümü IslandPlayButton ile paylaşılır. -->
+        <Style x:Key="IslandPlayToggle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd"
+                                Width="36"
+                                Height="36"
+                                CornerRadius="18"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource AccentFillColorSecondaryBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background"
+                                        Value="{DynamicResource AccentFillColorTertiaryBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </UserControl.Resources>
     <Grid x:Name="SurfaceRoot"
           HorizontalAlignment="Left"
@@ -85,47 +117,62 @@
         </Grid.RowDefinitions>
         <StackPanel x:Name="HubTabs" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="TabClipboard" Tag="clipboard" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Pano" Margin="0,0,4,0">
+                    Click="OnHubTabClick" ToolTip="Pano" Margin="0,0,4,0"
+                    AutomationProperties.Name="Pano">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE8C8;" />
-                    <TextBlock Text="Pano" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    <TextBlock x:Name="TabClipboardLabel" Text="Pano" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
             <Button x:Name="TabWallpaper" Tag="wallpaper" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Duvar kağıdı" Margin="0,0,4,0">
+                    Click="OnHubTabClick" ToolTip="Duvar kağıdı" Margin="0,0,4,0"
+                    AutomationProperties.Name="Duvar kağıdı">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE91B;" />
-                    <TextBlock Text="Duvar kağıdı" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    <TextBlock x:Name="TabWallpaperLabel" Text="Duvar kağıdı" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
             <Button x:Name="TabMusic" Tag="music" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Müzik" Margin="0,0,4,0">
+                    Click="OnHubTabClick" ToolTip="Müzik" Margin="0,0,4,0"
+                    AutomationProperties.Name="Müzik">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE90C;" />
-                    <TextBlock Text="Müzik" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    <TextBlock x:Name="TabMusicLabel" Text="Müzik" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
             <Button x:Name="TabShelf" Tag="shelf" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Raf" Margin="0,0,4,0">
+                    Click="OnHubTabClick" ToolTip="Raf" Margin="0,0,4,0"
+                    AutomationProperties.Name="Raf">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE8B7;" />
-                    <TextBlock Text="Raf" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    <TextBlock x:Name="TabShelfLabel" Text="Raf" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
+            <Button x:Name="TabPrompter" Tag="prompter" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Prompter" Margin="0,0,4,0"
+                    AutomationProperties.Name="Prompter">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE720;" />
+                    <TextBlock x:Name="TabPrompterLabel" Text="Prompter" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
             <Button x:Name="TabColor" Tag="colorpicker" Style="{StaticResource IslandIconButton}"
-                    Click="OnHubTabClick" ToolTip="Renk" Margin="0,0,0,0">
+                    Click="OnHubTabClick" ToolTip="Renk" Margin="0,0,0,0"
+                    AutomationProperties.Name="Renk">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
                                VerticalAlignment="Center" Text="&#xE790;" />
-                    <TextBlock Text="Renk" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                    <TextBlock x:Name="TabColorLabel" Text="Renk" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
@@ -500,6 +547,118 @@
                            Opacity="0.55"
                            TextWrapping="Wrap"
                            Text="Ekran seçici tüm ekranı karartır: imleç altındaki rengi tıklayarak HEX olarak panoya yazarsın, Esc ile vazgeçersin." />
+            </Grid>
+
+            <!-- Prompter: üstte okuma editörü (Playing'de saat başı otomatik kayar;
+                 metinle dikey sürükleme aynı ofseti sürükler), altta taşıma + hız + eylemler.
+                 Kaydırma kaynağı TextBox'ın iç ScrollViewer'ıdır (PART_ContentHost). -->
+            <Grid x:Name="PrompterBody" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <TextBox x:Name="PrompterEditor"
+                             Height="220"
+                             FontSize="14"
+                             AcceptsReturn="True"
+                             TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             TextChanged="OnPrompterEditorTextChanged"
+                             PreviewMouseLeftButtonDown="OnPrompterEditorPreviewMouseDown"
+                             PreviewMouseMove="OnPrompterEditorPreviewMouseMove"
+                             PreviewMouseLeftButtonUp="OnPrompterEditorPreviewMouseUp" />
+                    <TextBlock x:Name="PrompterEditorPlaceholder"
+                               Margin="10,7,10,0"
+                               VerticalAlignment="Top"
+                               Opacity="0.5"
+                               IsHitTestVisible="False"
+                               Text="Metni yaz, panodan al veya .txt yükle…" />
+                </Grid>
+
+                <StackPanel Grid.Row="1">
+                    <!-- Taşıma satırı: oynat/duraklat + hız. -->
+                    <Grid Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ToggleButton x:Name="PrompterPlayPause"
+                                          Style="{StaticResource IslandPlayToggle}"
+                                          Click="OnPrompterPlayPauseClick"
+                                          ToolTip="Oynat/Duraklat">
+                                <TextBlock x:Name="PrompterPlayGlyph"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                           FontFamily="{DynamicResource AppIconFontFamily}"
+                                           FontSize="16"
+                                           Text="&#xE768;" />
+                            </ToggleButton>
+                            <TextBlock x:Name="PrompterPlayLabel"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="12"
+                                       Text="Oynat" />
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                                    VerticalAlignment="Center">
+                            <Slider x:Name="PrompterSpeedSlider"
+                                    Width="110"
+                                    Minimum="0.5"
+                                    Maximum="3.0"
+                                    TickFrequency="0.1"
+                                    Value="1.0"
+                                    VerticalAlignment="Center"
+                                    ValueChanged="OnPrompterSpeedChanged"
+                                    ToolTip="Okuma hızı" />
+                            <TextBlock x:Name="PrompterSpeedLabel"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       FontSize="11"
+                                       Opacity="0.75"
+                                       Text="1.0×" />
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Eylem satırı: başa dön, .txt yükle, panodan al. -->
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                        <Button x:Name="PrompterReset"
+                                Style="{StaticResource IslandIconButton}"
+                                Padding="10,6"
+                                Click="OnPrompterResetClick"
+                                ToolTip="Kaydırmayı en üstten yeniden başlatır; metin korunur."
+                                Margin="0,0,4,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                           VerticalAlignment="Center" Text="&#xE8FC;" />
+                                <TextBlock Text="Başa dön" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource AppTextFontFamily}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="PrompterLoadFile"
+                                Style="{StaticResource IslandIconButton}"
+                                Padding="10,6"
+                                Click="OnPrompterLoadFileClick"
+                                ToolTip="Metin dosyası (.txt) yükle"
+                                Margin="0,0,4,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                           VerticalAlignment="Center" Text="&#xE8E5;" />
+                                <TextBlock Text=".txt" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource AppTextFontFamily}" />
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="PrompterFromClipboard"
+                                Style="{StaticResource IslandIconButton}"
+                                Padding="10,6"
+                                Click="OnPrompterFromClipboardClick"
+                                ToolTip="Island geçmişindeki son kopyalanan metni editöre alır">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                           VerticalAlignment="Center" Text="&#xE77F;" />
+                                <TextBlock Text="Panodan al" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                           FontFamily="{DynamicResource AppTextFontFamily}" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
             </Grid>
         </Grid>
         </Grid>

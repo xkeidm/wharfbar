@@ -21,4 +21,10 @@ public class IslandFlyoutHubTabsTests
     {
         Assert.Equal("colorpicker", IslandFlyout.TabIdForBody(IslandHubTab.ColorPicker));
     }
+
+    [Fact]
+    public void TabIdForBody_PrompterId_MatchesTag()
+    {
+        Assert.Equal("prompter", IslandFlyout.TabIdForBody(IslandHubTab.Prompter));
+    }
 }

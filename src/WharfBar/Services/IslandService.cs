@@ -122,6 +122,31 @@ internal sealed class IslandService : IDisposable
 
     internal IslandEntry? Latest => _entries.Count > 0 ? _entries[0] : null;
 
+    /// <summary>
+    /// "Panodan al" (island okur gövdesi) için geçmişteki en yeni düz metin kaydını verir.
+    /// Salt-okunur: geçmişe yazmaz (<see cref="AddEntry"/> çağrılmaz), olay üretmez ve
+    /// gerçek panoya hiç dokunmaz. <see cref="Entries"/> en yeni başta sıralı olduğu
+    /// için ilk metin kaydı en yenisidir — yoksa <c>false</c> ve boş metin döner.
+    /// </summary>
+    /// <remarks>Sınıf zaman çizelgesi kuralı: <see cref="Entries"/> gibi UI
+    /// dispatcher'ında çağrılır.</remarks>
+    internal bool TryLastClipboardText(out string text)
+    {
+        foreach (IslandEntry entry in _entries)
+        {
+            if (entry.Kind != IslandEntryKind.Text)
+            {
+                continue;
+            }
+
+            text = entry.Text;
+            return true;
+        }
+
+        text = string.Empty;
+        return false;
+    }
+
     internal event EventHandler? Changed;
 
     /// <summary>Yeni kayıt eklendiğinde pill'in nabzını tetiklemek için dışarıdan okunur.</summary>
