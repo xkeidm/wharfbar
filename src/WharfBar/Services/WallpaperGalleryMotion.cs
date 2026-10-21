@@ -16,6 +16,9 @@ internal static class WallpaperGalleryMotion
     /// <summary>Eased scroll duration for one arrow / wheel page.</summary>
     internal const int StripScrollMs = 260;
 
+    /// <summary>Fade duration for strip arrow show/hide transitions.</summary>
+    internal const int ArrowFadeMs = 120;
+
     internal const double ThumbWidthDip = 70;
     internal const double ThumbHeightDip = 52;
     internal const double ThumbGapDip = 8;
@@ -29,6 +32,8 @@ internal static class WallpaperGalleryMotion
     internal static TimeSpan PreviewCrossfade => TimeSpan.FromMilliseconds(PreviewCrossfadeMs);
 
     internal static TimeSpan StripScroll => TimeSpan.FromMilliseconds(StripScrollMs);
+
+    internal static TimeSpan ArrowFade => TimeSpan.FromMilliseconds(ArrowFadeMs);
 
     internal static IEasingFunction CreateEase() => new CubicEase { EasingMode = EasingMode.EaseOut };
 

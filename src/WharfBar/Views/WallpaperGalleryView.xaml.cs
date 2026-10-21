@@ -114,7 +114,7 @@ public partial class WallpaperGalleryView : UserControl
         var left = new Button
         {
             Style = (Style)Resources["StripArrow"],
-            Content = ArrowGlyph("\uE74D"),
+            Content = ArrowGlyph("\uE76B"),
             HorizontalAlignment = HorizontalAlignment.Left,
         };
         left.Click += (_, _) => WallpaperStripScroll.Page(
@@ -143,7 +143,7 @@ public partial class WallpaperGalleryView : UserControl
     {
         var text = new TextBlock();
         text.SetResourceReference(TextBlock.FontFamilyProperty, "AppIconFontFamily");
-        text.FontSize = 10;
+        text.FontSize = 11;
         text.Text = glyph;
         return text;
     }
@@ -152,16 +152,37 @@ public partial class WallpaperGalleryView : UserControl
     {
         if (stripViewer.ScrollableWidth <= 0)
         {
-            left.Visibility = Visibility.Collapsed;
-            right.Visibility = Visibility.Collapsed;
+            ShowArrow(left, wanted: false);
+            ShowArrow(right, wanted: false);
             return;
         }
 
-        left.Visibility = stripViewer.HorizontalOffset > 0.5 ? Visibility.Visible : Visibility.Collapsed;
-        right.Visibility = stripViewer.HorizontalOffset < stripViewer.ScrollableWidth - 0.5
-            ? Visibility.Visible
-            : Visibility.Collapsed;
-        // Opaklığa kod dokunmaz: stil varsayılanı 0.75, hover tetiği 1'e çıkarır.
+        ShowArrow(left, wanted: stripViewer.HorizontalOffset > 0.5);
+        ShowArrow(right, wanted: stripViewer.HorizontalOffset < stripViewer.ScrollableWidth - 0.5);
+    }
+
+    /// <summary>
+    /// Şerit oklarının hedef durumuna geçişi: hedef değişmedikçe animasyonu yeniden başlatmaz.
+    /// Görünmezken opacity 0 + hit-test kapalı (tile'lara tıklamayı engellemesin); Collapsed
+    /// yerine fade kullanılır — ScrollChanged her karede geldiğinde state makinesi bozulmaz.
+    /// </summary>
+    private static void ShowArrow(Button arrow, bool wanted)
+    {
+        if (arrow.Tag is bool current && current == wanted)
+        {
+            return;
+        }
+
+        arrow.Tag = wanted;
+        arrow.IsHitTestVisible = wanted;
+        arrow.BeginAnimation(
+            UIElement.OpacityProperty,
+            new DoubleAnimation(
+                wanted ? 0.85d : 0d,
+                TimeSpan.FromMilliseconds(WallpaperGalleryMotion.ArrowFadeMs))
+            {
+                EasingFunction = WallpaperGalleryMotion.CreateEase(),
+            });
     }
 
     private void OnStripWheel(ScrollViewer stripViewer, MouseWheelEventArgs e)
