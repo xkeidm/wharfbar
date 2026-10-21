@@ -37,6 +37,10 @@ public partial class TopBarWindow
     private const string GlyphCamera = "\uE722";
 
     private bool _islandClosePending;
+    // Okur oynatma pimi: true iken panel otomatik kapanamaz; pim olay (Task 3) taşır.
+    private bool _islandPrompterPinned;
+    // Hap/uydu/klavye tıklamasından gelen kapanış pimi tek seferliğine aşar (CloseIsland yolundan gelir).
+    private bool _islandPrompterCloseOnce;
     private bool _islandAwaitingReveal;
     private bool _islandMeasuring;
     private bool _islandRevealPosted;
@@ -252,6 +256,10 @@ public partial class TopBarWindow
             return;
         }
 
+        // Tıklamayla gelen kapanış pimi aşar: işaret her tıklamada tazelenir
+        // (tıklama kapatmadıysa kalan işaret motor-pimli panelde otomatik kapanış üretmez).
+        _islandPrompterCloseOnce = _islandPrompterPinned;
+
         switch (command)
         {
             case IslandPillCommand.OpenVolumeFlyout:
@@ -292,7 +300,7 @@ public partial class TopBarWindow
     /// <summary>
     /// Panel açılış sekmeyi seçer. Son yüz <see cref="IslandPillFace.Drop"/> ise raf gövdesi
     /// gelir (<see cref="IslandConfig.ShelfTab"/> açıkken): dosya bırakıldıysa kullanıcı
-    /// bırakmayı rafında görmek ister. Raf ya da Renk sekmesi kapalıysa kayıtlı sekme
+    /// bırakmayı rafında görmek ister. Raf ya da Renk ya da Okur sekmesi kapalıysa kayıtlı sekme
     /// rafsıza çözülürse yedek sıra aynı kalır (Pano → Duvar kağıdı → Müzik; bilinmezse
     /// Pano). Aynı şekilde ikincil monitör yalnız Müzik taşır.
     /// </summary>
@@ -312,6 +320,7 @@ public partial class TopBarWindow
         IslandHubTab tab = IslandHub.Resolve(cfg.HubTab, musicAvailable);
         return tab == IslandHubTab.Shelf && !cfg.ShelfTab ? IslandHubTab.Clipboard
             : tab == IslandHubTab.ColorPicker && !cfg.ColorPickerTab ? IslandHubTab.Clipboard
+            : tab == IslandHubTab.Prompter && !cfg.PrompterTab ? IslandHubTab.Clipboard
             : tab;
     }
 
@@ -1061,6 +1070,15 @@ public partial class TopBarWindow
 
         if (snap.Panel == IslandPanelBody.None)
         {
+            // Okur oynatma pimi: motorun otomatik kapanışı (hover çıkışı süresi /
+            // geçici tutma bitti) paneli kapatmaz. Açık kapanış (CloseIsland doğrudan
+            // CloseIslandPopupOnly'yi çağırır; hap tıklaması tek atımlık işaretle gelir) buraya uğramaz.
+            if (_islandPrompterPinned && IslandPopup.IsOpen && !_islandPrompterCloseOnce)
+            {
+                return;
+            }
+
+            _islandPrompterCloseOnce = false;
             _shownPanel = IslandPanelBody.None;
             _shownBack = false;
             if (IslandPopup.IsOpen)
@@ -1178,6 +1196,36 @@ public partial class TopBarWindow
         _shownBack = false;
         IslandHost.OnPanelClosed();
         SetIslandJoined(false);
+    }
+
+    /// <summary>
+    /// Okur oynatma pimi: oynatma açıkken panelin otomatik kapanışı baskılanır, pim
+    /// serbest kalınca normal akış döner (pimliyken baskılanan Panel=None durumunda
+    /// kapanış hemen izlenir). Açık kapanışa (CloseIsland) dokunulmaz; hap tıklaması
+    /// tek atımlık işaretle alır.
+    /// </summary>
+    private void OnIslandPrompterPinnedChanged(bool pinned)
+    {
+        if (_islandPrompterPinned == pinned)
+        {
+            return;
+        }
+
+        _islandPrompterPinned = pinned;
+        _islandPrompterCloseOnce = false;
+        if (pinned)
+        {
+            // Pim anında bekleyen otomatik kapanışı geri çek: kapama animasyonu iptal,
+            // panel tam açık karede kalır (bölgenin kendi CancelPendingClose ilkesiyle aynı).
+            CancelIslandMotion();
+            return;
+        }
+
+        // Pimsizken kayıtlı panel None olabilir (pimliyken baskılanmıştı): normal akış kapatır.
+        if (_presence is not null && IslandPopup.IsOpen)
+        {
+            ApplyIslandChrome(focusMusic: false);
+        }
     }
 
     /// <summary>
@@ -1417,6 +1465,7 @@ public partial class TopBarWindow
         IslandHost.SizeChanged += OnIslandPopupSizeChanged;
         IslandHost.HubTabChanged += OnIslandHubTabChanged;
         IslandHost.ScreenPickerRequested += OnIslandScreenPickerRequested;
+        IslandHost.PrompterPinnedChanged += OnIslandPrompterPinnedChanged;
         IslandHost.AttachMedia(_engine.Media);
         if (Monitor.IsPrimary)
         {
@@ -1481,6 +1530,7 @@ public partial class TopBarWindow
         IslandHost.SizeChanged -= OnIslandPopupSizeChanged;
         IslandHost.HubTabChanged -= OnIslandHubTabChanged;
         IslandHost.ScreenPickerRequested -= OnIslandScreenPickerRequested;
+        IslandHost.PrompterPinnedChanged -= OnIslandPrompterPinnedChanged;
         IslandHost.DetachWallpaper();
         if (_wallpaper is not null)
         {
@@ -1522,6 +1572,8 @@ public partial class TopBarWindow
         ClearCaptureAffinity();
         IslandHost.Detach();
         _presence = null;
+        _islandPrompterPinned = false;
+        _islandPrompterCloseOnce = false;
         _idleLabelSet = false;
         _appliedLowBattery = int.MinValue;
         _selectedSatellite = IslandSatellite.None;
