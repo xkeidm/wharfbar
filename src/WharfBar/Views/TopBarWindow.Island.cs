@@ -292,9 +292,9 @@ public partial class TopBarWindow
     /// <summary>
     /// Panel açılış sekmeyi seçer. Son yüz <see cref="IslandPillFace.Drop"/> ise raf gövdesi
     /// gelir (<see cref="IslandConfig.ShelfTab"/> açıkken): dosya bırakıldıysa kullanıcı
-    /// bırakmayı rafında görmek ister. Raf kapalıysa ya da kayıtlı sekme rafsıza
-    /// çözülürse yedek sıra aynı kalır (Pano → Duvar kağıdı → Müzik; bilinmezse Pano).
-    /// Aynı şekilde ikincil monitör yalnız Müzik taşır.
+    /// bırakmayı rafında görmek ister. Raf ya da Renk sekmesi kapalıysa kayıtlı sekme
+    /// rafsıza çözülürse yedek sıra aynı kalır (Pano → Duvar kağıdı → Müzik; bilinmezse
+    /// Pano). Aynı şekilde ikincil monitör yalnız Müzik taşır.
     /// </summary>
     private IslandHubTab ResolveHubTab(bool musicAvailable)
     {
@@ -310,7 +310,9 @@ public partial class TopBarWindow
         }
 
         IslandHubTab tab = IslandHub.Resolve(cfg.HubTab, musicAvailable);
-        return tab == IslandHubTab.Shelf && !cfg.ShelfTab ? IslandHubTab.Clipboard : tab;
+        return tab == IslandHubTab.Shelf && !cfg.ShelfTab ? IslandHubTab.Clipboard
+            : tab == IslandHubTab.ColorPicker && !cfg.ColorPickerTab ? IslandHubTab.Clipboard
+            : tab;
     }
 
     /// <summary>Onaylanan ya da reddedilen seçim sonrası Renk gövdesinin flash hedefi.</summary>
