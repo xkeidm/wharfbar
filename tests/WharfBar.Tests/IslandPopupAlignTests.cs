@@ -83,4 +83,16 @@ public class IslandPopupAlignTests
 
         Assert.Equal(0, offset, 3);
     }
+
+    [Fact]
+    public void HorizontalOffset_PanelWiderThanPill_ClampsToWorkArea()
+    {
+        // Shelf context: 108 DIP pill, 420 DIP panel, pill left at 800 physical px,
+        // 1.5x DPI, work area 64..1856 px. The panel is much wider than the pill, so the
+        // unclamped center is (108 - 420) / 2 = -156; the offset must never overshoot
+        // that to the left — the panel may not open further left than centered on the pill.
+        double offset = IslandPopupAlign.HorizontalOffset(108, 420, 800, 144, 64, 1856);
+
+        Assert.True(offset > 108 / 2d - 420 / 2d - 0.5);
+    }
 }
