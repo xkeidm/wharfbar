@@ -12,12 +12,15 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 - Left click on the top-bar brand logo opens the Launchpad (the same window the dock tile toggles); the app menu stays on right click.
 - Windows-style Show Desktop sliver at the right edge of the top bar: the first click minimizes every open window, the second restores exactly what it put down (windows closed in the meantime are skipped; windows the user minimized themselves are never touched).
+- Island hub **Raf** (`shelf`) tab: dropped files stay as draggable chips (extension badge + name); `Uygulama ile aç` opens with the default app, `Listeden kaldır` removes one, and `Rafını boşalt` empties the shelf (delete paths stay inside the `Drop` folder).
+- Island hub **Renk** (`colorpicker`) tab: a session-scoped recent-colors list plus `Ekran seçici` — a click on the screen copies the averaged 3-px color as HEX (never sampled through the dim mask; the value does not enter Win+V history, paste flow is Ctrl+V).
 
 ### Changed
 
 - Launchpad opens at full size on the first frame: the Start Menu catalog + recent files are captured once into a process-wide cache (30 min TTL, refreshed in the background) instead of growing in 16-app slices during an open.
 - Launchpad shell icons are decoded ahead of time in idle slices after startup (first 64 apps; one shared icon cache for the warm-up and the face).
 - Launchpad face polish: eased hover fill (animated template overlay, with a resource-swap fallback), 0.97 press scale on the flat buttons, secondary-colour letter headers, larger tile icons (44/40 px) and 12 px tile labels.
+- Island hub tab resolve: when the latest pill face is a file drop, the panel opens on the Raf tab; a saved `shelf`/`colorpicker` tab whose config flag is off falls back to Clipboard.
 
 ## [1.0.0-beta] — 2026-10-14
 

@@ -57,7 +57,8 @@ src/WharfBar/
  QuickSettingsFlyout.xaml(.cs) # Win11-style quick settings (volume/network; ADR-006)
  BrightnessFlyout.xaml(.cs) # Monitor brightness flyout (DDC/CI + WMI Monitorian)
  MediaFlyout.xaml(.cs) # Media flyout: cover/title/artist/controls + session picker (ADR-008)
- IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik) + body host (clipboard, wallpaper, music; ADR-010)
+ IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik / Raf / Renk) + body host (clipboard, wallpaper, music, shelf, color picker; ADR-010)
+ ColorPickerWindow.xaml(.cs) # Screen color picker overlay: fullscreen work-area topmost (frozen BitBlt frame + loupe; ADR-010 addendum)
  WallpaperGalleryView.xaml(.cs) # Wallpaper hub body: thumbnail grid, click apply, Open folder
  WallpaperTransitionWindow.xaml(.cs) # WorkerW wallpaper crossfade (SPI after fade; 1×1 then parent)
  AboutWindow.xaml(.cs) # About (`Hakkında`) dialog (no AppBar)
@@ -105,6 +106,7 @@ src/WharfBar/
  CoreAudioSessions.cs # application session volumes
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
  DesktopWallpaper.cs # SPI_SETDESKWALLPAPER / SPI_GETDESKWALLPAPER thin wrapper (island wallpaper gallery)
+ ScreenBitBlt.cs # BitBlt + GetDIBits screen capture (BGRA top-down, physical px, virtual-screen clamp; island color picker)
  SystemAccentPack.cs # PURE: accent DWORD + palette bytes for HKCU write
  SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorNotify broadcast
  ImmersiveColorNotify.cs # shared WM_SETTINGCHANGE ("ImmersiveColorSet") for accent + Windows theme writers
@@ -150,7 +152,8 @@ src/WharfBar/
  ClipboardMessageWindow.cs # clipboard-change listener (message-only HwndSource; WM_CLIPBOARDUPDATE) — ADR-010
  IslandPruner.cs # the island's PURE core: accept/dedupe/prune/search/preview/drop name — ADR-010
  IslandStore.cs # atomic write of %AppData%/WharfBar/island.json + %AppData%/WharfBar/Drop — ADR-010
- IslandHub.cs # hub tab enum + config normalize/resolve (Music-unavailable → Clipboard) — unit tested
+ IslandHub.cs # hub tab enum + config normalize/resolve (Music-unavailable → Clipboard; flag gating in TopBarWindow) — unit tested
+ ScreenSampler.cs # 3 px screen-box sample (pure AverageBgra/RgbAt math; GDI via ScreenBitBlt)
  WallpaperCatalog.cs # PURE merge/list of bundled + AppData wallpaper paths (.jpg/.jpeg/.png/.webp)
  WallpaperAccent.cs # PURE-ish: decode wallpaper → IslandPalette.Dominant → luminance window
  WallpaperAccentApplier.cs # after SPI success: WPF-UI Apply + ApplyLogoChanges + SystemAccentWriter
@@ -161,6 +164,8 @@ src/WharfBar/
  WallpaperTransitionPolicy.cs # PURE: ShouldAnimate(mode, respectSystem, clientAreaAnimation) + UsesBlur
  WallpaperTransitionMotion.cs # PURE: fade ms, blur radius, decode width (~½ primary px)
  IslandService.cs # island lifecycle: STA read thread, a single timeline, debounced write — ADR-010
+ ColorMath.cs # PURE color formatting: #RRGGBB (uppercase) / rgb(r,g,b) — unit tested
+ IslandPickedColors.cs # session-scoped recent colors (top 8; never written to disk) — unit tested
  TrayIconService.cs # Its own Shell_NotifyIcon + Quit menu
  TaskbarVisibilityService.cs # taskbar capture / hide / restore + watchdog spawn/self-heal
  TaskbarWatchdogState.cs # watchdog baseline JSON store (%LOCALAPPDATA%/WharfBar)
@@ -212,7 +217,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `IslandStore` | Atomic **replacement** of `%AppData%/WharfBar/island.json` (metadata) (tmp + `File.Replace`) + `%AppData%/WharfBar/Drop` (dropped files); a single `_ioGate` lock; a corrupt file becomes `.bak` (`.bak.1` on a second corruption), a 64 MB size cap, tolerant per-entry reading; **does not sort** (ADR-010) |
 | `ClipboardNative` | Documented clipboard P/Invokes; `CanIncludeInClipboardHistory` opt-out read **and** write; clipboard-owner process name (`GetClipboardOwner` → pid → `QueryFullProcessImageName`) (ADR-010) |
 | `ClipboardMessageWindow` | Message-only `HwndSource` (`ParentWindow = -3`) + `AddClipboardFormatListener`; `WM_CLIPBOARDUPDATE` → `ClipboardChanged`; `Dispose` removes the listener **once** (the API is not idempotent) (ADR-010) |
-| `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars hide Pano and Duvar kağıdı tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; music body unchanged (ADR-010) |
+| `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music / **shelf chips** / **color picker** inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars keep only Music. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; shelf body: chips with context menu + OLE drag-out; picker body: recent colors + `ScreenPickerRequested`; music body unchanged (ADR-010) |
 | `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Senin** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Klasörü aç`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
 | `WallpaperCatalog` | **Pure** file listing from two roots; extension filter; stable sort by file name — unit tested |
 | `WallpaperService` | `TryApply` / `TryGetCurrentPath`; rejects paths outside bundled `Wallpapers/` and `%AppData%/WharfBar/wallpapers/`. When `TransitionRequest` + policy allow: WorkerW crossfade first, **SPI on fade complete**; else instant SPI. Cancels/replaces an in-flight overlay on re-apply. After successful apply, if `island.wallpaperAccent`: `WallpaperAccentApplier` (SPI path unchanged). Hub apply raises `HubApplied` → `WallpaperThemeSync.Remember` (and partner auto-apply updates the same field) |
@@ -224,6 +229,10 @@ The island (clipboard history + dropped files) is ADR-010.
 | `DesktopWallpaperHost` | Progman `0x052C` + enum to locate the wallpaper WorkerW behind `SHELLDLL_DefView` |
 | `DesktopWallpaper` | Documented `SystemParametersInfo` only; v1 does not change Windows wallpaper style (Fill/Fit/…) |
 | `IslandHub` | `IslandHubTab` + `Normalize` / `Resolve(saved, musicAvailable)`; maps to `island.hubTab` soft strings — unit tested |
+| `ScreenBitBlt` | Documented GDI capture: `BitBlt` (SRCCOPY) + `GetDIBits` (32bpp top-down BGRA) via `GetDC`/`CreateCompatibleDC`/`CreateCompatibleBitmap`; `TryCapture` / `TryCaptureRect` in physical pixels clamped into the virtual screen; every DC / bitmap / selection released in `finally` |
+| `ScreenSampler` | Small screen box read for the picker: `TrySample` (clamped box at physical px), pure `AverageBgra` (3 px box — a stray sub-pixel edge does not dominate), low-quality fallback `RgbAt` |
+| `ColorMath` | Pure formatting: `ToHex` (#RRGGBB, uppercase) / `ToRgb` (`rgb(r,g,b)`) — unit tested |
+| `IslandPickedColors` | Session-scoped recent colors for the picker body (top 8, pure `Pushed`: newest first, duplicate → move up, prune from the oldest; transparent is not stored); never written to disk — unit tested |
 | `VeilService` | Overlay state + fade + hotkey host (message-only `HwndSource`); `SetEnabled` → `Config.Save`; `UnregisterHotKey` on exit (ADR-007) |
 | `VeilWindow` | Fullscreen layered overlay (solid color fill, `Topmost`, permanent `WS_EX_TRANSPARENT` passthrough, 280 ms fade); primary-monitor rect + re-placement on `WM_DISPLAYCHANGE` / `WM_DPICHANGED` |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
@@ -293,12 +302,12 @@ TopBarWindow.xaml — root Grid (no columns; the three clusters share the same c
 
 Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
  AllowsTransparency=True, PopupAnimation=None)
- └─ local:IslandFlyout (hub tab strip + BodyHost: clipboard | WallpaperGalleryView | music)
+ └─ local:IslandFlyout (hub tab strip + BodyHost: clipboard | WallpaperGalleryView | music | shelf chips | color picker)
 ```
 
 The island is only on the primary bar, a pill centered so the AppBar stays **30 DIP** (ADR-011).
 When idle, a clipboard glyph; in `persistent` music, a note + the track name; on a volume/brightness change, a short counter.
-The multi-line panel is the same `IslandPopup` with an in-panel **hub** (`IslandFlyout`): three tabs on the primary bar, Music-only chrome on secondary bars. Last selected tab is persisted as `island.hubTab` (soft string; no `schemaVersion` bump). Wallpaper apply is primary-bar only (`AttachWallpaper`). The rules are `IslandPresence`. Click and
+The multi-line panel is the same `IslandPopup` with an in-panel **hub** (`IslandFlyout`): five tabs on the primary bar, Music-only chrome on secondary bars. Last selected tab is persisted as `island.hubTab` (soft string; no `schemaVersion` bump). Wallpaper apply is primary-bar only (`AttachWallpaper`). The rules are `IslandPresence`. Click and
 file drop stay on the same control.
 
 ### Wallpaper apply + transition
@@ -349,13 +358,16 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Services/IslandPresence.cs` | Pill face, music-panel duration, HUD priority (no WPF). `TitleMaxWidth` is the narrow-monitor cap |
 | `Services/IslandStore.cs` | A separate persistence file: `island.json` (tmp + `File.Replace`), the `Drop` folder; a single `_ioGate` lock; `.bak` / `.bak.1`; a 64 MB size cap; one corrupt field does not drop the whole history; **does not sort** (order is the consumer's job) |
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
-| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
-| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + three bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save) |
+| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
+| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + five bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out) and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
 | `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled pack under `Wallpapers/` (abstract/scenic pairs, solids, Turkey city photos, brand marks — see that folder’s README; copy-to-output beside the exe) |
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
 | `Services/WallpaperService.cs` | Apply guard + SPI delegate |
 | `Native/DesktopWallpaper.cs` | `SPI_SETDESKWALLPAPER` / `SPI_GETDESKWALLPAPER` |
 | `Services/IslandHub.cs` | Tab enum + config normalization |
+| `Native/ScreenBitBlt.cs` | GDI capture (`BitBlt` + `GetDIBits`, top-down BGRA): `TryCapture` / `TryCaptureRect`; no `GetPixel` |
+| `Views/ColorPickerWindow.xaml(.cs)` | Screen color picker overlay: fullscreen work-area topmost, loupe + HEX card, `Settled`/`Cancelled`; a frozen BitBlt frame is captured before the dim mask shows |
+| `Services/ScreenSampler.cs` / `ColorMath.cs` / `IslandPickedColors.cs` | Sampling (3 px box average) + pure formatting + session-scoped recent-colors store |
 | `Views/Pages/IslandPage.xaml(.cs)` | Settings page: visibility, persistence, days/limit, wallpaper transition ComboBox + **Windows animasyonunu takip et** + **Match accent to wallpaper** toggles, maintenance actions; island service fields need `Config.Save` **+** `IslandService.ApplyConfig` where applicable |
 
 ### Clipboard reading on the STA thread
@@ -403,6 +415,43 @@ action scans the `Drop` folder so it also covers orphans.
 - **Join:** the island `Popup` is `AllowsTransparency` (its own layered window, allowed; the Mica ban applies to the bar window only), so the panel is one **silhouette** (`IslandSilhouette`, pure geometry): 24 DIP corners and 10 DIP concave fillets that flare up beside the pill, a drop shadow, and a top-lit gradient rim (tinted when a color is active). The popup child is padded 24 DIP for the shadow; `VerticalOffset` is -12. Near a screen edge WPF may nudge the popup up to 24 DIP, drifting the join. Manual check: the transparent strip over the pill must not swallow pill clicks.
 - **Pin:** no pin action on clipboard rows (`IslandService` has no pin support).
 - **Code:** `Services/IslandPalette` (pure: `Dominant`, `Luminance`, `Tint`) + `Views/IslandTintSource` (32×32 `TransformedBitmap` copy, cached by bitmap reference, UI thread) → `TopBarWindow.ApplyIslandTint` (pill bars) and `IslandFlyout.ApplyTint` (ambient glow + progress fill). Motion numbers are in `Services/IslandMotion` (pure; `Gate` zeroes them when `ClientAreaAnimation` is off).
+
+### Island widgets phase 1 — shelf + screen color picker (ADR-010 addendum)
+
+- **Decision:** the hub grows two more tabs on the primary bar: **Raf** (`shelf`, the existing
+  dropped-file timeline rendered as chips) and **Renk** (`colorpicker`, a screen color picker).
+  Soft fields: `island.hubTab` accepts `shelf` / `colorpicker`, and two new soft bools
+  `island.shelfTab` / `island.colorpickerTab` (default **`true`**) gate the tabs; `schemaVersion` stays **2**.
+- **Tab resolve (`TopBarWindow.Island.ResolveHubTab`):** on the primary bar, when the latest pill face
+  is the **Drop** face and the shelf tab is on, the panel opens on the **Raf** tab (the user just
+  dropped files, they want to see them). Otherwise the saved tab goes through `IslandHub.Resolve`
+  (unknown → Clipboard; Music saved without an SMTC session → Clipboard, unchanged), and afterwards
+  a `Shelf`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. Both
+  flag-arms live in `ResolveHubTab`; secondary bars keep Music only.
+- **Shelf tab:** each dropped entry is a chip — a 3-letter extension badge + the file name.
+  Chip context menu: **`Uygulama ile aç`** (guarded by `IslandService.CanOpenShelfFile` →
+  `OpenShelfFile`; the `Drop`-prefix and device-namespace guards unchanged) and **`Listeden kaldır`**.
+  Panel footer **`Rafını boşalt`** → `DeleteDroppedFiles` (the same `Drop`-folder orphan scan).
+  The chip is also a drag **source**: a real OLE drag-out (`DragDrop.DoDragDrop`,
+  `DataFormats.FileDrop`, the file path) drops a copy into Explorer/folder windows.
+- **Color picker tab:** session-scoped recent colors (`IslandPickedColors`, top 8, pure `Pushed`
+  — no disk, never enters `island.json`). **`Ekran seçici`** closes the island panel first and
+  opens `ColorPickerWindow`: a transparent topmost covering the primary monitor's **work area**
+  (`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`, `ShowActivated=false`, `Dwm.SetSystemBackdrop(None)` —
+  no Mica on a layered window). A frozen `BitBlt` frame of the monitor is captured **before**
+  the dim mask shows and every sample comes from that frame (sampling after the mask sits down
+  returns darkened colors — see `docs/04-gotchas.md`). Pick → `ColorMath.ToHex` → `IslandService.PutOnClipboard`
+  (a dedicated clipboard **write** twin on the STA thread; `TryWriteText` marks its own record with
+  `CanIncludeInClipboardHistory=0`, so the pick never enters Win+V history — paste flow is `Ctrl+V`);
+  the hub comes back after the overlay closes and lights a ✓/✗ copy feedback in the Renk body
+  (the overlay closes on feedback after 900 ms success / 1.6 s failure, with a 3 s failsafe).
+- **Motion:** the pill→panel morph gets a ratio-driven duration — `IslandMotion.MorphOpenMs` /
+  `MorphCloseMs` lerp **230→170 ms** (open) and **150→110 ms** (close) as the pill/panel width
+  ratio rises (clamped 0.18–1); easing is `BackEase(0.28)` on open / `CubicEase` on close and is
+  applied to the **scale axis only** (`MorphEase` — a fade must not overshoot). The general chip
+  flyout constants became `ChipFlyoutOpenMs` 230 / `ChipFlyoutCloseMs` 150. Everything stays
+  `RenderTransform`-based on the inner panel surface (`IslandHost.PanelSurface`) and is zeroed by
+  `ClientAreaAnimation` (reduced motion).
 
 ## Brand logo and logo style (ADR-019)
 
@@ -560,6 +609,8 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "cameraMirror": false,
  "openWidgets": [],
  "hubTab": "clipboard",
+ "shelfTab": true,
+ "colorpickerTab": true,
  "wallpaperTransition": "blurFade",
  "wallpaperRespectSystemAnimation": true,
  "wallpaperAccent": true,
@@ -611,7 +662,9 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |
-| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** |
+| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.shelfTab` | The island hub's **Raf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.colorpickerTab` | The island hub's **Renk** (color picker) tab visible/usable (default **`true`**). Soft bool; a saved `colorpicker` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.wallpaperTransition` | Post-apply animation: `"off"` \| `"fade"` \| `"blurFade"` (default **`blurFade`**). Soft string; `IslandNormalizer.NormalizeWallpaperTransition`, unresolvable → **`blurFade`**. Primary monitor only; overlay shows the **previous** image fading out over the SPI-applied desktop. `schemaVersion` stays **2** |
 | `island.wallpaperRespectSystemAnimation` | When **`true`** (default), skip the overlay if `SystemParameters.ClientAreaAnimation` is false. When **`false`**, `fade`/`blurFade` run even when Windows animation effects are off. Soft bool; `schemaVersion` stays **2** |
 | `island.wallpaperAccent` | After a successful island hub wallpaper apply, sync WharfBar accent (and best-effort Windows HKCU accent) from the image dominant color (default **`true`**). Soft bool; `schemaVersion` stays **2**. Does not alter SPI wallpaper apply or restore accent/wallpaper on exit |

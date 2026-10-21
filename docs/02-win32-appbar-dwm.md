@@ -556,6 +556,30 @@ SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity)
 
 Failure is written to the debug log with `GetLastWin32Error`; it is not swallowed silently.
 
+### gdi32.dll — screen capture for the island color picker (ADR-010 addendum)
+
+Implementation: `Native/ScreenBitBlt.cs` + `Services/ScreenSampler.cs`. Documented GDI only —
+no `GetPixel`, no undocumented surface.
+
+```csharp
+// user32.dll
+GetDC(IntPtr hWnd) / ReleaseDC(IntPtr hWnd, IntPtr hDC)    // screen DC; released in finally
+GetSystemMetrics(int index)  // SM_X/YVIRTUALSCREEN = 76/77, SM_CX/CYVIRTUALSCREEN = 78/79 (union bounds)
+// gdi32.dll
+CreateCompatibleDC(IntPtr hdc) / DeleteDC(IntPtr hdc)
+CreateCompatibleBitmap(IntPtr hdc, int cx, int cy) / DeleteObject(IntPtr hObj)
+SelectObject(IntPtr hdc, IntPtr hgdiObj)
+BitBlt(IntPtr hdcDest, int x, int y, int w, int h, IntPtr hdcSrc, int x1, int y1, uint rop)
+  // rop = SRCCOPY (0x00CC0020)
+GetDIBits(IntPtr hdc, IntPtr hBitmap, uint startScan, uint scanLines, byte[]? bits,
+          ref BITMAPINFO bmi, uint usage)  // DIB_RGB_COLORS; 32bpp → top-down BGRA
+```
+
+- Coordinates are **physical pixels**: the app is Per-Monitor V2 aware, nothing is rescaled;
+  `TryCapture` / `TryCaptureRect` clamp the request into the virtual screen.
+- Every DC, bitmap, and selection is released in the caller's `finally` blocks.
+- The picker captures its **frozen frame before** its own dim mask shows — see `docs/04-gotchas.md`.
+
 ### wlanapi.dll — Wi-Fi list / connecting (Quick Settings)
 
 - `WlanOpenHandle(2, NULL, &ver, &handle)` → `ERROR_SUCCESS`

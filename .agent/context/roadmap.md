@@ -106,6 +106,18 @@
   the dock tile); the app menu stays on **right click** via the existing `ContextMenu`. Face polish:
   eased hover (animated overlay in the flat template, resource-swap fallback), 0.97 press scale,
   secondary-colour letter headers, tile icon/text sizes (44/40 px icons, 12 px labels).
+- **Island widgets phase 1 — shelf + color picker ✓ (code; manual verification pending)** — the hub
+  grows two primary-bar tabs: **Raf** (`shelf`) — dropped-file chips (ext badge + name), `Uygulama
+  ile aç` (`CanOpenShelfFile` → `OpenShelfFile`), `Listeden kaldır`, `Rafını boşalt`, and a real OLE
+  drag-out per chip — and **Renk** (`colorpicker`): a session-scoped recent-colors list
+  (`IslandPickedColors`, top 8) + `Ekran seçici` → `ColorPickerWindow` (work-area topmost, frozen
+  BitBlt frame **before** the dim mask, pick → `PutOnClipboard` HEX with the Win+V opt-out). Soft
+  config `island.shelfTab` / `island.colorpickerTab` (default on); tab resolve adds the Drop-face
+  → Raf default and a Clipboard fallback for disabled tabs (`ResolveHubTab`). Motion: ratio-lerped
+  morph durations (`MorphOpenMs` 230→170 / `MorphCloseMs` 150→110, `BackEase(0.28)`/`CubicEase` on
+  the scale axis only). New capture plumbing: `Native/ScreenBitBlt`, `Services/ScreenSampler`,
+  `Services/ColorMath`. Tests: `ColorMathTests`, `ScreenSamplerTests`, `IslandPickedColorsTests`,
+  `IslandMotionTests`, `IslandClipboardWriteTests`, hub-tab fallback tests.
 
 ## Former to-do list (moved to milestones)
 
