@@ -8,6 +8,7 @@ internal enum IslandHubTab
     Wallpaper,
     Music,
     Shelf,
+    Prompter,
     ColorPicker,
 }
 
@@ -19,6 +20,7 @@ internal static class IslandHub
             IslandConfig.HubTabWallpaper => IslandHubTab.Wallpaper,
             IslandConfig.HubTabMusic => IslandHubTab.Music,
             IslandConfig.HubTabShelf => IslandHubTab.Shelf,
+            IslandConfig.HubTabPrompter => IslandHubTab.Prompter,
             IslandConfig.HubTabColorPicker => IslandHubTab.ColorPicker,
             _ => IslandHubTab.Clipboard,
         };
@@ -28,6 +30,7 @@ internal static class IslandHub
         IslandHubTab.Wallpaper => IslandConfig.HubTabWallpaper,
         IslandHubTab.Music => IslandConfig.HubTabMusic,
         IslandHubTab.Shelf => IslandConfig.HubTabShelf,
+        IslandHubTab.Prompter => IslandConfig.HubTabPrompter,
         IslandHubTab.ColorPicker => IslandConfig.HubTabColorPicker,
         _ => IslandConfig.HubTabClipboard,
     };

@@ -51,4 +51,19 @@ public class IslandHubTests
     {
         Assert.Equal(IslandHubTab.Clipboard, IslandHub.Resolve("nope", musicAvailable: false));
     }
+
+    [Theory]
+    [InlineData("prompter", IslandHubTab.Prompter)]
+    [InlineData(" PROMPTER ", IslandHubTab.Prompter)]
+    [InlineData("prompterX", IslandHubTab.Clipboard)]
+    internal void Normalize_StringValue_ReturnsExpectedTab(string value, IslandHubTab expected)
+    {
+        Assert.Equal(expected, IslandHub.Normalize(value));
+    }
+
+    [Fact]
+    public void Resolve_SavedPrompter_MusicAvailable_Resolves()
+    {
+        Assert.Equal(IslandHubTab.Prompter, IslandHub.Resolve("prompter", musicAvailable: true));
+    }
 }

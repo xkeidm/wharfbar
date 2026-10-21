@@ -89,6 +89,13 @@ public class IslandConfigTests
         Assert.True(IslandConfig.DefaultColorPickerTab);
     }
 
+    [Fact]
+    public void Defaults_MatchSpec_PrompterTab()
+    {
+        Assert.True(IslandConfig.DefaultPrompterTab);
+        Assert.True(new IslandConfig().PrompterTab);
+    }
+
     [Theory]
     [InlineData(5, 5)]
     [InlineData(20, 20)]
