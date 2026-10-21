@@ -65,6 +65,36 @@ public class IslandMotionTests
     }
 
     [Fact]
+    public void MorphOpenMs_Enabled_VariedByRatio_AndLerps()
+    {
+        var fast = IslandMotion.MorphOpenMs(1.0, true);
+        var slow = IslandMotion.MorphOpenMs(0.18, true);
+        Assert.InRange(fast.TotalMilliseconds, 160, 180);
+        Assert.InRange(slow.TotalMilliseconds, 220, 240);
+    }
+
+    [Fact]
+    public void MorphOpenMs_Disabled_IsZero()
+    {
+        Assert.Equal(TimeSpan.Zero, IslandMotion.MorphOpenMs(0.5, false));
+    }
+
+    [Fact]
+    public void MorphCloseMs_Enabled_VariedByRatio_AndLerps()
+    {
+        var fast = IslandMotion.MorphCloseMs(1.0, true);
+        var slow = IslandMotion.MorphCloseMs(0.18, true);
+        Assert.InRange(fast.TotalMilliseconds, 100, 120);
+        Assert.InRange(slow.TotalMilliseconds, 140, 160);
+    }
+
+    [Fact]
+    public void MorphCloseMs_Disabled_IsZero()
+    {
+        Assert.Equal(TimeSpan.Zero, IslandMotion.MorphCloseMs(0.5, false));
+    }
+
+    [Fact]
     public void StaggerDelay_StepsPerIndexAndIsZeroWhenAnimationsAreOff()
     {
         Assert.Equal(0, IslandMotion.StaggerDelayMs(0, true));

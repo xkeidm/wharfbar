@@ -1262,9 +1262,10 @@ public partial class TopBarWindow
         // top-left; scaling IslandHost and then centering on the full width shifts the
         // panel left of the pill, and that position sticks after the scale returns to 1.
         IslandHost.ClearValue(UIElement.RenderTransformProperty);
-        TimeSpan motion = SystemParameters.ClientAreaAnimation
-            ? TimeSpan.FromMilliseconds(opening ? ChipFlyoutOpenMs : ChipFlyoutCloseMs)
-            : TimeSpan.Zero;
+        bool enabled = SystemParameters.ClientAreaAnimation;
+        TimeSpan motion = opening
+            ? IslandMotion.MorphOpenMs(fromX, enabled)
+            : IslandMotion.MorphCloseMs(fromX, enabled);
         AnimateChipFlyout(IslandHost.PanelSurface, opening, onDone, fromX, 0.05, IslandHost, motion);
     }
 

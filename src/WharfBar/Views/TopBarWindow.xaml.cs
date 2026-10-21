@@ -557,13 +557,16 @@ public partial class TopBarWindow : Window
         double fromOpacity = opening ? 0 : 1;
         double toOpacity = opening ? 1 : 0;
         var duration = motion ?? TimeSpan.FromMilliseconds(opening ? ChipFlyoutOpenMs : ChipFlyoutCloseMs);
-        var ease = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn };
+        // Scale gets the island morph ease (a subtle overshoot feel when opening); opacity
+        // keeps its own ease — a fade must not overshoot past 1 or dip below 0.
+        IEasingFunction scaleEase = IslandMotion.MorphEase(opening);
+        var fadeEase = new CubicEase { EasingMode = opening ? EasingMode.EaseOut : EasingMode.EaseIn };
 
         scale.ScaleX = startX;
         scale.ScaleY = startY;
         fade.Opacity = fromOpacity;
 
-        var scaleX = new DoubleAnimation(startX, endX, duration) { EasingFunction = ease };
+        var scaleX = new DoubleAnimation(startX, endX, duration) { EasingFunction = scaleEase };
         if (onDone is not null)
         {
             scaleX.Completed += (_, _) => onDone();
@@ -572,11 +575,11 @@ public partial class TopBarWindow : Window
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, scaleX);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(startY, endY, duration)
         {
-            EasingFunction = ease,
+            EasingFunction = scaleEase,
         });
         fade.BeginAnimation(UIElement.OpacityProperty, new DoubleAnimation(fromOpacity, toOpacity, duration)
         {
-            EasingFunction = ease,
+            EasingFunction = fadeEase,
         });
     }
 
@@ -635,8 +638,8 @@ public partial class TopBarWindow : Window
     private const double FlyoutFadeMs = 140;
     private const double FlyoutCloseSlideMs = 110;
     private const double FlyoutCloseFadeMs = 90;
-    private const double ChipFlyoutOpenMs = 200;
-    private const double ChipFlyoutCloseMs = 140;
+    private const double ChipFlyoutOpenMs = 230;
+    private const double ChipFlyoutCloseMs = 150;
 
     private bool _qsClosePending;
     private bool _brightnessClosePending;
