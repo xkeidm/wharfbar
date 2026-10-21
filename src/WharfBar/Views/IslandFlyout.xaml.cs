@@ -139,6 +139,11 @@ public sealed partial class IslandFlyout : UserControl
             FoldTabStripLabels(false);
             // Bir sonraki düzen geçişi etiketli ölçüyü getirir; karar tek geçişte kapanır.
             HubTabs.InvalidateMeasure();
+
+            // Kestirim yanlış olabilir (ilk katlanmada gizli bir sekmenin etiketi genişlik
+            // 0 almıştı). Açılımdan sonra gerçek etiketli DesiredSize'la yeniden doğrula:
+            // sığıyorsa geçiş sessiz biter, taşarsa şerit yeniden katlanır — döngü kurmaz.
+            ScheduleTabStripCompactness();
         }
     }
 
@@ -163,6 +168,10 @@ public sealed partial class IslandFlyout : UserControl
 
     internal void Detach()
     {
+        // Değişmez: bağlı olmayan panel oynamaz. Bir sonraki tik zaten kendi kendini
+        // durdurur ama pim serbest bırakımı burada koşulsuz olsun.
+        StopPrompterPlayback();
+
         if (_service is not null)
         {
             _service.Changed -= OnChanged;
