@@ -118,6 +118,17 @@
   the scale axis only). New capture plumbing: `Native/ScreenBitBlt`, `Services/ScreenSampler`,
   `Services/ColorMath`. Tests: `ColorMathTests`, `ScreenSamplerTests`, `IslandPickedColorsTests`,
   `IslandMotionTests`, `IslandClipboardWriteTests`, hub-tab fallback tests.
+- **Island widgets phase 2 — prompter reading tab ✓ (code; manual verification pending)** — a sixth
+  primary-bar tab, **Prompter** (`prompter`; soft `island.prompterTab`, default on; tab order now
+  Pano → Duvar kağıdı → Müzik → Raf → Prompter → Renk, disabled-tab fallback Clipboard in
+  `ResolveHubTab`): a multiline reading editor over a control bar — play/pause toggle
+  (`Oynat`/`Duraklat`), speed slider 0.5–3.0 (live `1.0×` label), `Başa dön`, `.txt` load,
+  `Panodan al` (read-only `IslandService.TryLastClipboardText`). Pure engine `PrompterMotion`
+  (66 px/s @1×, 17 DIP reading font, 16 ms tick): end-of-content → Editing + unpin, manual drag
+  never pauses, and the speed is 0 when `ClientAreaAnimation` is off. Playback pin: the panel's
+  auto-close is suppressed while Playing (explicit close still wins). The tab strip folds labels
+  to icons when all six tabs converge. Tests: `PrompterMotionTests`, `IslandServiceTextPickTests`,
+  `IslandConfigTests` / `IslandHubTests` / `IslandFlyoutHubTabsTests` extensions.
 
 ## Former to-do list (moved to milestones)
 

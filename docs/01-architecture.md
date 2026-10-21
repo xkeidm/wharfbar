@@ -359,8 +359,8 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Services/IslandPresence.cs` | Pill face, music-panel duration, HUD priority (no WPF). `TitleMaxWidth` is the narrow-monitor cap |
 | `Services/IslandStore.cs` | A separate persistence file: `island.json` (tmp + `File.Replace`), the `Drop` folder; a single `_ioGate` lock; `.bak` / `.bak.1`; a 64 MB size cap; one corrupt field does not drop the whole history; **does not sort** (order is the consumer's job) |
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
-| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
-| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + five bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out) and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
+| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `TryLastClipboardText` (prompter `Panodan al`; read-only newest-text pick), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
+| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + six bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out), the prompter reading body (`PrompterMotion` + playback pin), and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
 | `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled pack under `Wallpapers/` (abstract/scenic pairs, solids, Turkey city photos, brand marks — see that folder’s README; copy-to-output beside the exe) |
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
 | `Services/WallpaperService.cs` | Apply guard + SPI delegate |
@@ -427,7 +427,7 @@ action scans the `Drop` folder so it also covers orphans.
   is the **Drop** face and the shelf tab is on, the panel opens on the **Raf** tab (the user just
   dropped files, they want to see them). Otherwise the saved tab goes through `IslandHub.Resolve`
   (unknown → Clipboard; Music saved without an SMTC session → Clipboard, unchanged), and afterwards
-  a `Shelf`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. Both
+  a `Shelf`/`Prompter`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. Both
   flag-arms live in `ResolveHubTab`; secondary bars keep Music only.
 - **Shelf tab:** each dropped entry is a chip — a 3-letter extension badge + the file name.
   Chip context menu: **`Uygulama ile aç`** (guarded by `IslandService.CanOpenShelfFile` →
@@ -453,6 +453,32 @@ action scans the `Drop` folder so it also covers orphans.
   flyout constants became `ChipFlyoutOpenMs` 230 / `ChipFlyoutCloseMs` 150. Everything stays
   `RenderTransform`-based on the inner panel surface (`IslandHost.PanelSurface`) and is zeroed by
   `ClientAreaAnimation` (reduced motion).
+
+### Island prompter reading tab (ADR-010 addendum, phase 2)
+
+- **Decision:** the hub grows a sixth primary-bar tab, **Prompter** (`prompter`): a reading
+  auto-scroll view. Soft field `island.prompterTab` (default **`true`**) gates the tab;
+  `schemaVersion` stays **2**. Primary bar only (config flag + `_primarySurface` — the Faz 1
+  Raf/Renk clone); secondary bars keep Music only.
+- **Tab order / resolve:** the enum order is Clipboard → Wallpaper → Music → Shelf → Prompter →
+  ColorPicker. `IslandHub.Resolve` is unchanged (unknown → Clipboard; Music saved without an SMTC
+  session → Clipboard), and `ResolveHubTab` gains a third flag-arm: a saved `prompter` tab whose
+  config flag is off falls back to **Clipboard**.
+- **Body + playback:** a multiline reading editor over a control bar — play/pause toggle (label
+  swap `Oynat`/`Duraklat`), speed slider 0.5–3.0 (tick 0.1, live `1.0×` label), `Başa dön`,
+  `.txt` load (`OpenFileDialog`, `.txt` filter), and `Panodan al` → the additive read-only
+  `IslandService.TryLastClipboardText` (the newest text record of the island history; gentle
+  no-op when empty — no clipboard read). Playing locks the editor read-only, bumps the font to
+  17 DIP and auto-scrolls its inner `ScrollViewer` on a 16 ms `DispatcherTimer`; reaching the
+  bottom returns to Editing and unpins; manual vertical drag never pauses. The math is
+  `PrompterMotion` (pure: `BaseSpeedDip` 66 px/s @1×, `ReadingFontDip` 17, `Toggle`,
+  `ClampMultiplier` 0.5–3.0, `SpeedDipPerSec`, `UpdateOffset`, `ClampOffset`); see
+  `docs/04-gotchas.md` for the two sharp edges (playback pin vs. auto-close;
+  `ClientAreaAnimation=false` keeps the speed at 0).
+- **Playback pin (deliberate):** while Playing, the auto-close funnel is guarded at the
+  `SyncIslandPopup` `Panel == None` branch — a hover-out duration or a transient-hold expiry no
+  longer closes the panel. An explicit close (the pill click) always wins via a one-shot marker;
+  unpinning runs a catch-up sync, and the subscription is torn down in `DetachIsland`.
 
 ## Brand logo and logo style (ADR-019)
 
@@ -612,6 +638,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "hubTab": "clipboard",
  "shelfTab": true,
  "colorpickerTab": true,
+ "prompterTab": true,
  "wallpaperTransition": "blurFade",
  "wallpaperRespectSystemAnimation": true,
  "wallpaperAccent": true,
@@ -663,7 +690,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |
-| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`prompter`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.prompterTab` | The island hub's **Prompter** (reading auto-scroll) tab visible/usable (default **`true`**). Soft bool; a saved `prompter` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island prompter phase 1/2) |
 | `island.shelfTab` | The island hub's **Raf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.colorpickerTab` | The island hub's **Renk** (color picker) tab visible/usable (default **`true`**). Soft bool; a saved `colorpicker` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
