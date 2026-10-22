@@ -196,6 +196,15 @@ internal sealed class DockConfig
     /// </summary>
     public List<PinnedApp> Items { get; set; } = [];
 
+    /// <summary>
+    /// Frozen display order for the whole left (pinned) group — normalized target paths,
+    /// taskbar pins included. Reordering on the dock strip writes the full visual sequence
+    /// here (ADR-005 keeps the User Pinned folder and the Taskband registry read-only, so
+    /// this list is the only place a drag can persist). Empty means "no override": taskbar
+    /// pin order first, then <see cref="Items"/> order.
+    /// </summary>
+    public List<string> ItemOrder { get; set; } = [];
+
     /// <summary>Anchor: <c>bottom-left</c>, <c>bottom-center</c>, <c>bottom-right</c>, or <c>left</c>.</summary>
     public string Position { get; set; } = DockPositions.BottomCenter;
 

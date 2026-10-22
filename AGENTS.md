@@ -58,7 +58,7 @@ is missing, the build breaks.
 ## Boundaries (summary)
 
 - **Never:** On exit, forget AppBar unregister (`ABM_REMOVE`) or taskbar restore; do not use Mica together with `AllowsTransparency=true`; do not read foreign tray icons via memory or an undocumented path.
-- **Do (ADR-005):** While WharfBar is running, hide/auto-hide the taskbar; on exit/crash, restore the previous state. Dock: on the left, `User Pinned` is **read-only** (including closed pins) + `dock.items`; on the right, unpinned running apps; one box per application. The pin folder is not written. Magnification ceiling is 1.15×. Tray: hybrid (native overflow button; no full mirror).
+- **Do (ADR-005):** While WharfBar is running, hide/auto-hide the taskbar; on exit/crash, restore the previous state. Dock: on the left, `User Pinned` is **read-only** (including closed pins) + `dock.items`; on the right, unpinned running apps; one box per application. The pin folder is not written; strip reordering persists only to `dock.itemOrder`. Magnification ceiling is 1.15×. Tray: hybrid (native overflow button; no full mirror).
 - **v1:** Primary monitor only; UWP/Store icons are limited. Quick settings (Wi-Fi/BT/project) work through real APIs (wlanapi, WinRT Radio, SetDisplayConfig); the top bar network tooltip stays on the .NET network API heuristic.
 - Detail: [`.agent/boundaries.md`](.agent/boundaries.md)
 

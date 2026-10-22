@@ -403,9 +403,11 @@ Mica and `AllowsTransparency` are not used together (`docs/04-gotchas.md`).
 **Drag and drop:** Dock dragging for reorder uses the `DoDragDrop(StringFormat)` path,
 while adding a file uses the `DataFormats.FileDrop` path — one is a `Move` effect and the other is `Copy`,
 so `DragOver` does **not mark** the file drop on the cell (`Handled = false`) and bubbles it to the surface
-handler. Drag-reorder works **only on fixed (`Pinned`) boxes**;
+handler. Drag-reorder works **only on fixed (`Pinned`) boxes** — taskbar-pinned tiles included;
 the drag payload is **path**-based via `DockItemStore.Normalize(item.Path)`, not via `Id`
-(the `Id` of a pinned-and-running box comes from the running application). **The OLE risk (R1) is at window
+(the `Id` of a pinned-and-running box comes from the running application). A drop freezes the whole
+left-group sequence into `dock.itemOrder` (`DockItemStore.ReorderOnStrip`): the Windows side is read-only
+(ADR-005), so the visual order of a taskbar pin can persist only on the dock side. **The OLE risk (R1) is at window
 level and covers reorder too:** `RegisterDragDrop` is per HWND; if a layered
 (`WS_EX_LAYERED`) `Topmost` window is not accepted as a target, **no**
 `DragOver`/`Drop` arrives on this window — both dropping a file from Explorer and in-app reorder fail.

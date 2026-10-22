@@ -370,4 +370,58 @@ public class DockItemStoreTests : IDisposable
         IReadOnlyList<PinnedApp> reloaded = NewStoreFromDisk(out _).Items;
         Assert.Equal(expected, reloaded.Select(i => i.Path).ToArray());
     }
+
+    [Fact]
+    public void SetOrder_PersistsAndCanonicalizesAcrossDisk()
+    {
+        DockItemStore store = NewStore(out _);
+        store.SetOrder([@"C:\pin\a.lnk", @"  C:\pin\a.lnk  ", @"C:\pin\b.lnk", ""]);
+
+        IReadOnlyList<string> reloaded = NewStoreFromDisk(out _).ItemOrder;
+        Assert.Equal([@"C:\pin\a.lnk", @"C:\pin\b.lnk"], reloaded);
+    }
+
+    [Fact]
+    public void ReorderOnStrip_MovesStoredPinAndFreezesSequence()
+    {
+        DockItemStore store = NewStore(out _);
+        string[] before = store.Items.Select(static pin => pin.Path).ToArray();
+        string[] frozen = [before[^1], .. before[..^1]];
+
+        store.ReorderOnStrip(DockItemStore.IdFor(store.Items[^1]), frozen, storeIndex: 0);
+
+        DockItemStore reloaded = NewStoreFromDisk(out _);
+        Assert.Equal(frozen, reloaded.Items.Select(static pin => pin.Path));
+        Assert.Equal(frozen, reloaded.ItemOrder);
+    }
+
+    [Fact]
+    public void ReorderOnStrip_TaskbarOnlyKey_FreezesWithoutTouchingItems()
+    {
+        DockItemStore store = NewStore(out _);
+        string[] before = store.Items.Select(static pin => pin.Path).ToArray();
+        string[] frozen = [@"C:\lnks\taskbar-pin.lnk", .. before];
+
+        store.ReorderOnStrip(@"C:\lnks\taskbar-pin.lnk", frozen, storeIndex: 0);
+
+        DockItemStore reloaded = NewStoreFromDisk(out _);
+        Assert.Equal(before, reloaded.Items.Select(static pin => pin.Path));
+        Assert.Equal(frozen, reloaded.ItemOrder);
+    }
+
+    [Fact]
+    public void Move_UnfreezesTheMovedKey()
+    {
+        DockItemStore store = NewStore(out _);
+        string secondId = DockItemStore.IdFor(store.Items[1]);
+        string firstId = DockItemStore.IdFor(store.Items[0]);
+        store.SetOrder([secondId, firstId]);
+        Assert.Equal(2, store.ItemOrder.Count);
+
+        Assert.True(store.Move(secondId, 0));
+
+        DockItemStore reloaded = NewStoreFromDisk(out _);
+        Assert.DoesNotContain(reloaded.ItemOrder, key => key == secondId);
+        Assert.Equal([firstId], reloaded.ItemOrder);
+    }
 }

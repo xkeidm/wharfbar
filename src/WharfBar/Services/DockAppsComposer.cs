@@ -64,7 +64,9 @@ internal sealed class DockAppsComposer : IDisposable
 
     /// <summary>
     /// Pure merge. The left group is the taskbar pin order, then dock pins that are not
-    /// already in that group. Running windows collapse to one application first (canonical
+    /// already in that group, unless <paramref name="itemOrder"/> freezes a sequence:
+    /// mentioned tiles come in that order, unmentioned ones keep their merge order behind
+    /// them. Running windows collapse to one application first (canonical
     /// exe path, AppUserModelId, or process id — transitive). That app binds to the first
     /// pin that is the same target and does not appear again. Closed pins stay, with
     /// <see cref="DockAppItem.IsRunning"/> false. Unpinned running apps follow on the right
@@ -77,10 +79,12 @@ internal sealed class DockAppsComposer : IDisposable
         IReadOnlyList<AppWindowInfo> minimized,
         bool showRunning,
         Func<string, PinMatchKey?>? resolveShortcut = null,
-        IReadOnlyList<PinnedApp>? taskbarPins = null)
+        IReadOnlyList<PinnedApp>? taskbarPins = null,
+        IReadOnlyList<string>? itemOrder = null)
     {
         resolveShortcut ??= ResolveStoredShortcut;
         pins = MergePins(taskbarPins ?? [], pins, resolveShortcut);
+        pins = ApplyItemOrder(pins, itemOrder);
         running = RunningAppsSource.Collapse(running);
 
         var next = new List<DockAppItem>(pins.Count + running.Count);
@@ -302,6 +306,52 @@ internal sealed class DockAppsComposer : IDisposable
         AppendUnique(merged, keys, taskbarPins, resolveShortcut);
         AppendUnique(merged, keys, dockPins, resolveShortcut);
         return merged;
+    }
+
+    /// <summary>
+    /// Reorders the merged left group by the frozen sequence (normalized paths). Mentioned
+    /// tiles come in sequence order; unmentioned keep merge order and trail behind. Stale
+    /// keys (unpinned since the last drag) resolve to nothing and drop out on the next
+    /// freeze. An empty or missing sequence is a no-op.
+    /// </summary>
+    internal static IReadOnlyList<PinnedApp> ApplyItemOrder(
+        IReadOnlyList<PinnedApp> pins,
+        IReadOnlyList<string>? itemOrder)
+    {
+        ArgumentNullException.ThrowIfNull(pins);
+        if (itemOrder is null || itemOrder.Count == 0)
+        {
+            return pins;
+        }
+
+        var rank = new Dictionary<string, int>(itemOrder.Count, StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < itemOrder.Count; i++)
+        {
+            string key = DockItemStore.Normalize(itemOrder[i]);
+            if (key.Length > 0 && !rank.ContainsKey(key))
+            {
+                rank[key] = i;
+            }
+        }
+
+        if (rank.Count == 0)
+        {
+            return pins;
+        }
+
+        var indexed = new List<(int Rank, int Original, PinnedApp Pin)>(pins.Count);
+        for (int i = 0; i < pins.Count; i++)
+        {
+            string key = DockItemStore.Normalize(pins[i].Path);
+            int r = key.Length > 0 && rank.TryGetValue(key, out int position) ? position : int.MaxValue;
+            indexed.Add((r, i, pins[i]));
+        }
+
+        // List.Sort is unstable; the Original tiebreaker makes the result deterministic.
+        indexed.Sort(static (a, b) => a.Rank != b.Rank
+            ? a.Rank.CompareTo(b.Rank)
+            : a.Original.CompareTo(b.Original));
+        return [.. indexed.Select(static entry => entry.Pin)];
     }
 
     private static void AppendUnique(
@@ -637,7 +687,8 @@ internal sealed class DockAppsComposer : IDisposable
                 _running.Apps,
                 _minimized.Minimized,
                 _config.ShowRunningApps,
-                taskbarPins: _taskbarPins?.Pins),
+                taskbarPins: _taskbarPins?.Pins,
+                itemOrder: _store.ItemOrder),
             windows);
         next = DockBuiltInTiles.MarkFolders(next, DockBuiltInTiles.IsDirectoryPin);
         next = DockBuiltInTiles.Append(next, DockKnownFolder.TryGetDownloads());

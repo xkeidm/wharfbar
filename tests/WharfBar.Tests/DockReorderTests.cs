@@ -68,6 +68,36 @@ public class DockReorderTests
     }
 
     [Fact]
+    public void OrderAfterDrop_MovesTheDraggedKeyBeforeTheTarget()
+    {
+        IReadOnlyList<string> order = DockReorder.OrderAfterDrop(
+            [@"C:\a.exe", @"C:\b.exe", @"C:\c.exe"],
+            @"C:\c.exe",
+            insertAt: 0);
+
+        Assert.Equal([@"C:\c.exe", @"C:\a.exe", @"C:\b.exe"], order);
+    }
+
+    [Fact]
+    public void OrderAfterDrop_ClampsInsertPastTheEnd()
+    {
+        IReadOnlyList<string> order = DockReorder.OrderAfterDrop(
+            [@"C:\a.exe", @"C:\b.exe", @"C:\c.exe"],
+            @"C:\a.exe",
+            insertAt: 99);
+
+        Assert.Equal([@"C:\b.exe", @"C:\c.exe", @"C:\a.exe"], order);
+    }
+
+    [Fact]
+    public void OrderAfterDrop_UnknownDraggedKey_LeavesSequenceAlone()
+    {
+        IReadOnlyList<string> keys = [@"C:\a.exe", @"C:\b.exe"];
+        IReadOnlyList<string> order = DockReorder.OrderAfterDrop(keys, @"C:\x.exe", insertAt: 0);
+        Assert.Same(keys, order);
+    }
+
+    [Fact]
     public void IsStoredPin_AcceptsFolderPinsAndRejectsBuiltIns()
     {
         List<PinnedApp> store =

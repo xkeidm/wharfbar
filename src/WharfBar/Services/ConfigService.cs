@@ -189,6 +189,7 @@ internal sealed class ConfigService
     {
         config.Dock ??= new DockConfig();
         config.Dock.Items ??= [];
+        config.Dock.ItemOrder ??= [];
 
         if (config.Dock.Items.Count == 0 && config.PinnedApps is { Count: > 0 } legacy)
         {
@@ -344,6 +345,7 @@ internal sealed class ConfigService
         config.Dock.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.Dock.BackgroundMode);
         config.Dock.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.Dock.TintOpacity);
         config.Dock.Items ??= [];
+        config.Dock.ItemOrder ??= [];
         config.Dock.Position = DockPositions.Normalize(config.Dock.Position);
         config.Dock.Magnification = DockMagnification.Clamp(config.Dock.Magnification);
         config.PinnedApps ??= [];

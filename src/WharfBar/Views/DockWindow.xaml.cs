@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -807,7 +808,24 @@ public partial class DockWindow : Window
         }
 
         int slot = Strip.ResolveInsertIndex(Strip.Axis(e.GetPosition(Strip)));
-        ItemStore?.Move(dragged, StoreIndexForDropSlot(slot));
+        if (ItemStore is { } store)
+        {
+            // Freeze the whole left-group sequence: taskbar pins are read-only on the
+            // Windows side (ADR-005), so their visual order can only persist in dock
+            // config. Stored pins additionally Move so the settings page keeps its
+            // rows honest.
+            List<DockAppItem> settled = SettledItems();
+            List<string> pinnedKeys =
+            [
+                .. settled.Where(IsPinnedRow).Select(static item => DockItemStore.Normalize(item.Path))
+            ];
+            int pinnedIndex = DockReorder.StoreIndexBeforeSlot(settled, slot, IsPinnedRow);
+            store.ReorderOnStrip(
+                dragged,
+                DockReorder.OrderAfterDrop(pinnedKeys, dragged, pinnedIndex),
+                StoreIndexForDropSlot(slot, settled));
+        }
+
         e.Handled = true;
     }
 
@@ -816,14 +834,8 @@ public partial class DockWindow : Window
     /// <see cref="Controls.DockStrip.ResolveInsertIndex"/>. Launchpad and Downloads
     /// occupy slots but are not store rows.
     /// </summary>
-    private int StoreIndexForDropSlot(int slot)
+    private List<DockAppItem> SettledItems()
     {
-        DockItemStore? store = ItemStore;
-        if (store is null)
-        {
-            return 0;
-        }
-
         var settled = new List<DockAppItem>();
         foreach (DockItemCell cell in Strip.Cells)
         {
@@ -833,6 +845,21 @@ public partial class DockWindow : Window
             }
 
             settled.Add(row.Item);
+        }
+
+        return settled;
+    }
+
+    /// <summary>Same gate as <see cref="ReorderKeyFor"/>: tiles the strip can drag.</summary>
+    private static bool IsPinnedRow(DockAppItem item)
+        => item.IsPinned && DockItemStore.Normalize(item.Path).Length > 0;
+
+    private int StoreIndexForDropSlot(int slot, IReadOnlyList<DockAppItem> settled)
+    {
+        DockItemStore? store = ItemStore;
+        if (store is null)
+        {
+            return 0;
         }
 
         return DockReorder.StoreIndexBeforeSlot(

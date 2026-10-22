@@ -29,9 +29,10 @@ public class DockAppsComposerTests
         IReadOnlyList<AppWindowInfo>? minimized = null,
         bool showRunning = true,
         Func<string, PinMatchKey?>? resolveShortcut = null,
-        IReadOnlyList<PinnedApp>? taskbarPins = null) =>
+        IReadOnlyList<PinnedApp>? taskbarPins = null,
+        IReadOnlyList<string>? itemOrder = null) =>
         DockAppsComposer.Compose(
-            pins ?? [], running ?? [], minimized ?? [], showRunning, resolveShortcut, taskbarPins);
+            pins ?? [], running ?? [], minimized ?? [], showRunning, resolveShortcut, taskbarPins, itemOrder);
 
     [Fact]
     public void Compose_KeepsConfiguredPinOrder()
@@ -39,6 +40,51 @@ public class DockAppsComposerTests
         IReadOnlyList<DockAppItem> items = Compose(Pins(Notepad, Calc));
         Assert.Equal(["notepad", "calc"], items.Select(i => i.Label));
         Assert.All(items, i => Assert.Equal(DockSection.Pinned, i.Section));
+    }
+
+    [Fact]
+    public void ApplyItemOrder_MovesMentionedPinsAndTrailsUnmentioned()
+    {
+        List<PinnedApp> reordered = [.. DockAppsComposer.ApplyItemOrder(
+            Pins(Notepad, Calc, @"C:\tools\pin.exe"),
+            [@"C:\tools\pin.exe", Notepad])];
+
+        Assert.Equal(
+            [@"C:\tools\pin.exe", Notepad, Calc],
+            reordered.Select(static pin => pin.Path));
+    }
+
+    [Fact]
+    public void ApplyItemOrder_MissingOrEmptySequence_IsNoOp()
+    {
+        List<PinnedApp> pins = Pins(Notepad, Calc);
+        Assert.Same(pins, DockAppsComposer.ApplyItemOrder(pins, null));
+        Assert.Same(pins, DockAppsComposer.ApplyItemOrder(pins, []));
+    }
+
+    [Fact]
+    public void ApplyItemOrder_IgnoresStaleKeys()
+    {
+        IReadOnlyList<PinnedApp> reordered = DockAppsComposer.ApplyItemOrder(
+            Pins(Notepad, Calc),
+            [@"C:\gone\unpinned.exe", Calc]);
+
+        Assert.Equal(
+            [Calc, Notepad],
+            reordered.Select(static pin => pin.Path));
+    }
+
+    [Fact]
+    public void Compose_WithItemOrder_OverridesTaskbarPinOrder()
+    {
+        IReadOnlyList<DockAppItem> items = Compose(
+            pins: Pins(@"C:\tools\dockpin.exe"),
+            taskbarPins: Pins(Notepad, Calc),
+            itemOrder: [Calc, @"C:\tools\dockpin.exe", Notepad]);
+
+        Assert.Equal(
+            ["calc", "dockpin", "notepad"],
+            items.Select(static item => item.Label));
     }
 
     [Fact]

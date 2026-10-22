@@ -57,4 +57,44 @@ internal static class DockReorder
         string key = DockItemStore.Normalize(item.Path);
         return key.Length > 0 && DockItemStore.ContainsById(storeItems, key);
     }
+
+    /// <summary>
+    /// The left-group display sequence after dropping <paramref name="dragged"/> before
+    /// pinned position <paramref name="insertAt"/>: the dragged key is removed and
+    /// re-inserted, everything else keeps strip order. Keys are normalized paths. A
+    /// dragged key that is not in the sequence returns the input unchanged — the freeze
+    /// must not invent a tile the strip did not show.
+    /// </summary>
+    internal static IReadOnlyList<string> OrderAfterDrop(
+        IReadOnlyList<string> keys,
+        string dragged,
+        int insertAt)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (string.IsNullOrEmpty(dragged))
+        {
+            return keys;
+        }
+
+        var result = new List<string>(keys.Count);
+        bool removed = false;
+        foreach (string key in keys)
+        {
+            if (!removed && string.Equals(key, dragged, StringComparison.OrdinalIgnoreCase))
+            {
+                removed = true;
+                continue;
+            }
+
+            result.Add(key);
+        }
+
+        if (!removed)
+        {
+            return keys;
+        }
+
+        result.Insert(Math.Clamp(insertAt, 0, result.Count), dragged);
+        return result;
+    }
 }

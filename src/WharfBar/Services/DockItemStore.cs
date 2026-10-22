@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using WharfBar.Models;
 
 namespace WharfBar.Services;
@@ -16,15 +17,23 @@ internal sealed class DockItemStore
 {
     private readonly ConfigService _config;
     private List<PinnedApp> _items;
+    private List<string> _itemOrder;
 
     internal DockItemStore(ConfigService config)
     {
         ArgumentNullException.ThrowIfNull(config);
         _config = config;
         _items = Snapshot(config.Current.Dock.Items);
+        _itemOrder = SnapshotOrder(config.Current.Dock.ItemOrder);
     }
 
     internal IReadOnlyList<PinnedApp> Items => _items;
+
+    /// <summary>
+    /// Frozen left-group display order (normalized paths, taskbar pins included). Empty
+    /// means "no override" — the composer falls back to taskbar order, then Items order.
+    /// </summary>
+    internal IReadOnlyList<string> ItemOrder => _itemOrder;
 
     internal event EventHandler? Changed;
 
@@ -177,8 +186,40 @@ internal sealed class DockItemStore
             return false;
         }
 
+        // Unfreeze the moved key: a frozen entry would pin this tile to its old spot and
+        // the settings-page drag would look dead. Unmentioned, its display follows the
+        // new Items order again.
+        _itemOrder = NormalizeOrder(_itemOrder.Where(key =>
+            !string.Equals(Normalize(key), Normalize(id), StringComparison.OrdinalIgnoreCase)));
         Persist();
         return true;
+    }
+
+    /// <summary>
+    /// Freezes a full left-group sequence written by the dock strip's own reorder.
+    /// </summary>
+    internal void SetOrder(IReadOnlyList<string> keys)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        _itemOrder = NormalizeOrder(keys);
+        Persist();
+    }
+
+    /// <summary>
+    /// Dock-strip reorder of any pinned tile — taskbar-only pins included. Keeps Items in
+    /// the same relative shape (so the settings page stays honest) and freezes the whole
+    /// visual sequence. One persist, one change event.
+    /// </summary>
+    internal void ReorderOnStrip(string draggedId, IReadOnlyList<string> displayOrder, int storeIndex)
+    {
+        ArgumentNullException.ThrowIfNull(draggedId);
+        ArgumentNullException.ThrowIfNull(displayOrder);
+
+        // Absent id → MoveCore is a no-op; the order still freezes, which is the point
+        // for taskbar pins the store does not own.
+        _ = MoveCore(_items, draggedId, storeIndex);
+        _itemOrder = NormalizeOrder(displayOrder);
+        Persist();
     }
 
     /// <summary>
@@ -189,6 +230,7 @@ internal sealed class DockItemStore
     internal void Reload()
     {
         _items = Snapshot(_config.Current.Dock.Items);
+        _itemOrder = SnapshotOrder(_config.Current.Dock.ItemOrder);
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
@@ -228,7 +270,38 @@ internal sealed class DockItemStore
     private void Persist()
     {
         _config.Current.Dock.Items = new List<PinnedApp>(_items);
+        _config.Current.Dock.ItemOrder = new List<string>(_itemOrder);
         _config.Save(_config.Current);
         Changed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static List<string> SnapshotOrder(IReadOnlyList<string>? source)
+        => NormalizeOrder(source);
+
+    /// <summary>
+    /// Dedupes and canonicalizes order entries: keys are written from strip tiles (already
+    /// normalized) but a hand-edited config may hold raw or duplicated paths. First
+    /// occurrence wins; empty keys drop.
+    /// </summary>
+    private static List<string> NormalizeOrder(IEnumerable<string>? keys)
+    {
+        var result = new List<string>();
+        if (keys is null)
+        {
+            return result;
+        }
+
+        foreach (string key in keys)
+        {
+            string normalized = Normalize(key);
+            if (normalized.Length == 0 || result.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            result.Add(normalized);
+        }
+
+        return result;
     }
 }

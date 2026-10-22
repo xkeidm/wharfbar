@@ -70,14 +70,17 @@ internal static class WindowEnumeration
         }
 
         NativeMethods.GetWindowThreadProcessId(hwnd, out pid);
-        if (pid == OwnProcessId)
-        {
-            return false;
-        }
-
         int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
         bool hasAppWindow = (exStyle & NativeMethods.WS_EX_APPWINDOW) != 0;
         bool hasToolWindow = (exStyle & NativeMethods.WS_EX_TOOLWINDOW) != 0;
+
+        // Own-process chrome (top bar, dock, launchpad, veils…) stays out. The process's
+        // taskbar windows still surface: SettingsWindow is the only ShowInTaskbar=true
+        // window of the process, and the dock hosts it like any running app.
+        if (pid == OwnProcessId && !IsTaskbarWindow(hasAppWindow, hasToolWindow))
+        {
+            return false;
+        }
 
         title = GetWindowTitle(hwnd);
 
@@ -93,6 +96,14 @@ internal static class WindowEnumeration
 
         return true;
     }
+
+    /// <summary>
+    /// Whether an ex-style set carries a taskbar button: <c>WS_EX_APPWINDOW</c> without
+    /// <c>WS_EX_TOOLWINDOW</c>. Pure core the window census uses to decide if an
+    /// own-process window may surface (Settings does; the top bar never does).
+    /// </summary>
+    internal static bool IsTaskbarWindow(bool hasAppWindow, bool hasToolWindow) =>
+        hasAppWindow && !hasToolWindow;
 
     private static string GetWindowTitle(IntPtr hwnd)
     {
