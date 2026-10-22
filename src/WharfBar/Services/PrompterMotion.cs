@@ -15,6 +15,12 @@ internal static class PrompterMotion
     /// <summary>Font size, in dips, of the reading text while playing.</summary>
     internal const int ReadingFontDip = 17;
 
+    /// <summary>
+    /// "Sonuna vardı" sayma toleransı (dip): uç belirleme ve oynatma kapısı aynı
+    /// duyarlılığı paylaşır.
+    /// </summary>
+    internal const double EndEpsilonDip = 0.25;
+
     /// <summary>Playback state of the prompter; toggling starts or flips playback.</summary>
     internal enum Playback
     {
@@ -52,4 +58,13 @@ internal static class PrompterMotion
     /// </summary>
     internal static double ClampOffset(double offsetDip, double contentHeightDip, double viewportHeightDip) =>
         contentHeightDip <= viewportHeightDip ? 0 : Math.Clamp(offsetDip, 0, contentHeightDip - viewportHeightDip);
+
+    /// <summary>
+    /// Playback can start only while there is scrollable room below the current
+    /// offset: content that fully fits (scrollable ≤ 0) or a scroll resting at the
+    /// bottom (within <see cref="EndEpsilonDip"/>) has nothing to play. The play
+    /// gate and the button affordance share this single decision.
+    /// </summary>
+    internal static bool CanStartPlayback(double scrollableHeightDip, double offsetDip) =>
+        scrollableHeightDip > 0 && offsetDip < scrollableHeightDip - EndEpsilonDip;
 }

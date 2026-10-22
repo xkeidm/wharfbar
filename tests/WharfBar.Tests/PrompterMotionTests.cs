@@ -45,4 +45,15 @@ public class PrompterMotionTests
 
     [Fact]
     public void Toggle_FromPaused_Plays() => Assert.Equal(PrompterMotion.Playback.Playing, PrompterMotion.Toggle(PrompterMotion.Playback.Paused));
+
+    [Theory]
+    [InlineData(0, 0)] [InlineData(-5, 0)] [InlineData(0, 37)]
+    [InlineData(100, 100)] [InlineData(100, 99.8)] [InlineData(double.NaN, 0)]
+    public void CanStartPlayback_NoRoomBelow_False(double scrollable, double offset)
+        => Assert.False(PrompterMotion.CanStartPlayback(scrollable, offset));
+
+    [Theory]
+    [InlineData(100, 0)] [InlineData(100, 50)] [InlineData(100, 99.7)] [InlineData(0.26, 0)]
+    public void CanStartPlayback_RoomBelow_True(double scrollable, double offset)
+        => Assert.True(PrompterMotion.CanStartPlayback(scrollable, offset));
 }

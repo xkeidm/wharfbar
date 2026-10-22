@@ -82,6 +82,10 @@
                                 <Setter TargetName="Bd" Property="Background"
                                         Value="{DynamicResource AccentFillColorTertiaryBrush}" />
                             </Trigger>
+                            <!-- Kapalıyken de görünsün: kaydırılacak yer yoksa düğme soluk ama okunur. -->
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.45" />
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -105,7 +109,7 @@
 
     <Border x:Name="FlyoutRoot"
             HorizontalAlignment="Left" VerticalAlignment="Top"
-            Width="420"
+            Width="480"
             MaxHeight="440"
             Background="Transparent"
             Padding="16"
