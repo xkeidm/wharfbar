@@ -531,6 +531,12 @@ internal sealed class IslandConfig
 
     /// <summary>Desktop widgets currently placed: <c>clock</c>, <c>calendar</c>.</summary>
     public List<string> OpenWidgets { get; set; } = [];
+
+    /// <summary>
+    /// Saved desktop positions for <c>clock</c> and <c>calendar</c>.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public List<WidgetPlacement> WidgetPlacements { get; set; } = [];
 }
 
 /// <summary>

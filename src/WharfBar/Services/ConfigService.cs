@@ -298,6 +298,7 @@ internal sealed class ConfigService
         config.Island.LowBatteryPercent = IslandNormalizer.NormalizeLowBatteryPercent(config.Island.LowBatteryPercent);
         config.Island.ColorMode = IslandNormalizer.NormalizeColorMode(config.Island.ColorMode);
         config.Island.OpenWidgets = PluginCatalog.NormalizeOpenWidgets(config.Island.OpenWidgets);
+        config.Island.WidgetPlacements = WidgetPlacementNormalizer.Normalize(config.Island.WidgetPlacements);
         config.Plugins ??= new PluginsConfig();
         config.Plugins.Enabled = PluginCatalog.NormalizeEnabled(config.Plugins.Enabled);
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
