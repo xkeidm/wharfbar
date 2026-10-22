@@ -13,6 +13,12 @@ public class WidgetScaleTests
     }
 
     [Fact]
+    public void ToDip_ZeroDpi_Matches96Dpi()
+    {
+        Assert.Equal(WidgetScale.ToDip(96, 96), WidgetScale.ToDip(96, 0));
+    }
+
+    [Fact]
     public void ToDip_At144Dpi_ShrinksPhysicalPixels()
     {
         Assert.Equal(80, WidgetScale.ToDip(120, 144), 3);

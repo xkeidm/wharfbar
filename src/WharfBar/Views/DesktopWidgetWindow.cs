@@ -5,6 +5,7 @@ using System.Windows.Media;
 using Wpf.Ui.Appearance;
 using WharfBar.Native;
 using WharfBar.Resources;
+using WharfBar.Services;
 
 namespace WharfBar.Views;
 
@@ -59,7 +60,7 @@ internal sealed class DesktopWidgetWindow : Window
 
     private DockPanel Build(string title, UIElement body)
     {
-        var grip = new Border { Height = 28 };
+        var grip = new Border { Height = WidgetMetrics.GripDip };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition());
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });

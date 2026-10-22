@@ -25,6 +25,8 @@ internal static class WidgetHost
     private static Thread? _reader;
     private static bool _readQueued;
     private static IReadOnlyList<DipRect> _icons = [];
+    private static System.Windows.Automation.AutomationElement? _iconWatchRoot;
+    private static System.Windows.Automation.StructureChangedEventHandler? _iconStructureChanged;
 
     internal static void Attach(ConfigService service)
     {
@@ -181,10 +183,30 @@ internal static class WidgetHost
             return;
         }
 
-        uint dpi = NativeMethods.GetDpiForWindow(hwnd);
-        if (dpi == 0)
+        double centerXDip = dip.X + size.Width / 2d;
+        double centerYDip = dip.Y + size.Height / 2d;
+        int probeX = WidgetScale.ToPhysical(centerXDip, 96);
+        int probeY = WidgetScale.ToPhysical(centerYDip, 96);
+        var probeRect = new RECT
         {
-            dpi = 96;
+            Left = probeX,
+            Top = probeY,
+            Right = probeX + 1,
+            Bottom = probeY + 1,
+        };
+        IntPtr placementMonitor = NativeMethods.MonitorFromRect(
+            ref probeRect,
+            NativeMethods.MONITOR_DEFAULTTONEAREST);
+        uint dpi = 96;
+        if (placementMonitor != IntPtr.Zero
+            && NativeMethods.GetDpiForMonitor(
+                placementMonitor,
+                NativeMethods.MDT_EFFECTIVE_DPI,
+                out uint monitorDpi,
+                out _) == 0
+            && monitorDpi != 0)
+        {
+            dpi = monitorDpi;
         }
 
         var screen = new POINT
@@ -416,6 +438,7 @@ internal static class WidgetHost
 
         Open.Clear();
         Apply();
+        TrySubscribeIconChanges();
     }
 
     private static void EnsureReader()
@@ -463,8 +486,31 @@ internal static class WidgetHost
         }
     }
 
+    private static void UnsubscribeIconChanges()
+    {
+        if (_iconWatchRoot is null || _iconStructureChanged is null)
+        {
+            return;
+        }
+
+        try
+        {
+            System.Windows.Automation.Automation.RemoveStructureChangedEventHandler(
+                _iconWatchRoot,
+                _iconStructureChanged);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar desktop icon unwatch failed: {ex.Message}");
+        }
+
+        _iconWatchRoot = null;
+        _iconStructureChanged = null;
+    }
+
     private static void TrySubscribeIconChanges()
     {
+        UnsubscribeIconChanges();
         try
         {
             IntPtr host = DesktopIconHost.TryGet();
@@ -477,10 +523,12 @@ internal static class WidgetHost
             }
 
             var root = System.Windows.Automation.AutomationElement.FromHandle(list);
+            _iconStructureChanged = (_, _) => QueueIconRead();
             System.Windows.Automation.Automation.AddStructureChangedEventHandler(
                 root,
                 System.Windows.Automation.TreeScope.Children,
-                (_, _) => QueueIconRead());
+                _iconStructureChanged);
+            _iconWatchRoot = root;
         }
         catch (Exception ex)
         {
