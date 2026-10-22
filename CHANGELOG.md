@@ -14,7 +14,7 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Windows-style Show Desktop sliver at the right edge of the top bar: the first click minimizes every open window, the second restores exactly what it put down (windows closed in the meantime are skipped; windows the user minimized themselves are never touched).
 - Island hub **Raf** (`shelf`) tab: dropped files stay as draggable chips (extension badge + name); `Uygulama ile aç` opens with the default app, `Listeden kaldır` removes one, and `Rafını boşalt` empties the shelf (delete paths stay inside the `Drop` folder).
 - Island hub **Renk** (`colorpicker`) tab: a session-scoped recent-colors list plus `Ekran seçici` — a click on the screen copies the averaged 3-px color as HEX (never sampled through the dim mask; the value does not enter Win+V history, paste flow is Ctrl+V).
-- Island hub **Prompter** (`prompter`) tab: a reading auto-scroll view — paste (`Panodan al` takes the newest text of the island history), load a `.txt`, or type, then Oynat/Duraklat with a 0.5–3.0× speed slider and `Başa dön`; the panel stays open while playing, and reaching the bottom returns to the editor.
+- Island hub **Prompter** (`prompter`) tab: a reading auto-scroll view — paste (`Panodan al` takes the newest text of the island history), load a `.txt`, or type, then Oynat/Duraklat with a 0.5–3.0× speed slider and `Başa dön`; the panel stays open while playing, and reaching the bottom returns to the editor. Oynat disables with a reason tooltip while there is nothing to scroll (the text fully fits, or the scroll is already at the bottom) instead of silently doing nothing.
 
 ### Changed
 
