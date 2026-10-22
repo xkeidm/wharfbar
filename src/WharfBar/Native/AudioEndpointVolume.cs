@@ -12,6 +12,7 @@ internal static class AudioEndpointVolume
     private static readonly Guid IAudioEndpointVolumeIid = new("5CDF2C82-841E-4546-9722-0CF74078229A");
 
     private const int EDataFlowRender = 0;
+    private const int EDataFlowCapture = 1;
     private const int ERoleMultimedia = 1;
     private const int ClsCtxInprocServer = 1;
 
@@ -28,7 +29,7 @@ internal static class AudioEndpointVolume
     {
         level01 = 0f;
         muted = false;
-        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(EDataFlowRender, deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -57,7 +58,7 @@ internal static class AudioEndpointVolume
     internal static bool TrySetScalarForDevice(string? deviceId, float level01)
     {
         level01 = Math.Clamp(level01, 0f, 1f);
-        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(EDataFlowRender, deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -74,7 +75,7 @@ internal static class AudioEndpointVolume
 
     internal static bool TrySetMuteForDevice(string? deviceId, bool muted)
     {
-        if (!TryGetEndpoint(deviceId, out IAudioEndpointVolume? volume) || volume is null)
+        if (!TryGetEndpoint(EDataFlowRender, deviceId, out IAudioEndpointVolume? volume) || volume is null)
         {
             return false;
         }
@@ -89,7 +90,7 @@ internal static class AudioEndpointVolume
         }
     }
 
-    private static bool TryGetEndpoint(string? deviceId, out IAudioEndpointVolume? volume)
+    private static bool TryGetEndpoint(int dataFlow, string? deviceId, out IAudioEndpointVolume? volume)
     {
         volume = null;
         object? enumeratorObj = null;
@@ -110,7 +111,7 @@ internal static class AudioEndpointVolume
             int hr;
             if (string.IsNullOrWhiteSpace(deviceId))
             {
-                hr = enumerator.GetDefaultAudioEndpoint(EDataFlowRender, ERoleMultimedia, out device);
+                hr = enumerator.GetDefaultAudioEndpoint(dataFlow, ERoleMultimedia, out device);
             }
             else
             {
@@ -212,5 +213,31 @@ internal static class AudioEndpointVolume
 
         [PreserveSig]
         int GetMute(out int pbMute);
+    }
+
+    /// <summary>Default capture (mikrofon) mute durumu. Salt okuma — yazma metodu YOK.</summary>
+    internal static bool TryGetCaptureMute(out bool muted)
+    {
+        muted = false;
+        if (!TryGetEndpoint(EDataFlowCapture, deviceId: null, out IAudioEndpointVolume? volume) || volume is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            int hr = volume.GetMute(out int value);
+            if (hr != NativeMethods.S_OK)
+            {
+                return false;
+            }
+
+            muted = value != 0;
+            return true;
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(volume);
+        }
     }
 }
