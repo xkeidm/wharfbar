@@ -379,6 +379,7 @@ internal sealed class IslandConfig
     internal const string HubTabMusic = "music";
     internal const string HubTabShelf = "shelf";
     internal const string HubTabPrompter = "prompter";
+    internal const string HubTabCamera = "camera";
     internal const string HubTabColorPicker = "colorpicker";
     internal const string DefaultHubTab = HubTabClipboard;
 
@@ -390,6 +391,9 @@ internal sealed class IslandConfig
 
     /// <summary>Prompter tab defaults to visible; mounts in a later phase.</summary>
     internal const bool DefaultPrompterTab = true;
+
+    /// <summary>Camera tab defaults to visible; mounts in a later phase.</summary>
+    internal const bool DefaultCameraTab = true;
 
     internal const string TransitionOff = "off";
 
@@ -449,7 +453,7 @@ internal sealed class IslandConfig
 
     /// <summary>
     /// Last island hub page: <c>clipboard</c> (default), <c>wallpaper</c>, <c>music</c>,
-    /// <c>shelf</c>, <c>prompter</c> or <c>colorpicker</c>.
+    /// <c>shelf</c>, <c>prompter</c>, <c>camera</c> or <c>colorpicker</c>.
     /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
     /// </summary>
     public string HubTab { get; set; } = DefaultHubTab;
@@ -471,6 +475,12 @@ internal sealed class IslandConfig
     /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
     /// </summary>
     public bool PrompterTab { get; set; } = DefaultPrompterTab;
+
+    /// <summary>
+    /// Camera tab of the island hub. Visible by default; the tab mounts in a later phase.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
+    /// </summary>
+    public bool CameraTab { get; set; } = DefaultCameraTab;
 
     /// <summary>
     /// Wallpaper change animation: <c>off</c>, <c>fade</c>, or <c>blurFade</c> (default).

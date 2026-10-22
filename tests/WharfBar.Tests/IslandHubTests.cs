@@ -56,6 +56,9 @@ public class IslandHubTests
     [InlineData("prompter", IslandHubTab.Prompter)]
     [InlineData(" PROMPTER ", IslandHubTab.Prompter)]
     [InlineData("prompterX", IslandHubTab.Clipboard)]
+    [InlineData("camera", IslandHubTab.Camera)]
+    [InlineData(" CAMERA ", IslandHubTab.Camera)]
+    [InlineData("cameraX", IslandHubTab.Clipboard)]
     internal void Normalize_StringValue_ReturnsExpectedTab(string value, IslandHubTab expected)
     {
         Assert.Equal(expected, IslandHub.Normalize(value));
@@ -65,5 +68,17 @@ public class IslandHubTests
     public void Resolve_SavedPrompter_MusicAvailable_Resolves()
     {
         Assert.Equal(IslandHubTab.Prompter, IslandHub.Resolve("prompter", musicAvailable: true));
+    }
+
+    [Fact]
+    public void ToConfig_Camera_WritesCameraId()
+    {
+        Assert.Equal("camera", IslandHub.ToConfig(IslandHubTab.Camera));
+    }
+
+    [Fact]
+    public void Resolve_SavedCamera_MusicAvailable_Resolves()
+    {
+        Assert.Equal(IslandHubTab.Camera, IslandHub.Resolve("camera", musicAvailable: true));
     }
 }

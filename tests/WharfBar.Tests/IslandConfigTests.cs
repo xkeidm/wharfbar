@@ -96,6 +96,13 @@ public class IslandConfigTests
         Assert.True(new IslandConfig().PrompterTab);
     }
 
+    [Fact]
+    public void Defaults_MatchSpec_CameraTab()
+    {
+        Assert.True(IslandConfig.DefaultCameraTab);
+        Assert.True(new IslandConfig().CameraTab);
+    }
+
     [Theory]
     [InlineData(5, 5)]
     [InlineData(20, 20)]
