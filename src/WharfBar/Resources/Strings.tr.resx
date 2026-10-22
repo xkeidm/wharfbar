@@ -793,6 +793,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Gallery_CardCameraName" xml:space="preserve"><value>Kamera aynası</value></data>
   <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Hapta canlı önizleme. İzin yoksa görüntü yok.</value></data>
   <data name="Gallery_CardClockName" xml:space="preserve"><value>Saat</value></data>
+  <data name="Widget_Close" xml:space="preserve"><value>Kapat</value></data>
   <data name="Gallery_CardClockSummary" xml:space="preserve"><value>Masaüstünde saat penceresi. Ada hapına girmez.</value></data>
   <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Takvim</value></data>
   <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>Bu ayın ızgarası. Ada hapına girmez.</value></data>

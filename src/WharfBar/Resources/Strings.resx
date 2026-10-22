@@ -790,6 +790,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Gallery_CardCameraName" xml:space="preserve"><value>Camera mirror</value></data>
   <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Live preview in the pill. No image without permission.</value></data>
   <data name="Gallery_CardClockName" xml:space="preserve"><value>Clock</value></data>
+  <data name="Widget_Close" xml:space="preserve"><value>Close</value></data>
   <data name="Gallery_CardClockSummary" xml:space="preserve"><value>A clock window on the desktop. It does not go in the island pill.</value></data>
   <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Calendar</value></data>
   <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>This month&apos;s grid. It does not go in the island pill.</value></data>

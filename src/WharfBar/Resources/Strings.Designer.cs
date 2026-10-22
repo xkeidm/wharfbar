@@ -2203,6 +2203,12 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Widget_Close {
+            get {
+                return ResourceManager.GetString("Widget_Close", resourceCulture);
+            }
+        }
+
         public static string Gallery_CardClockSummary {
             get {
                 return ResourceManager.GetString("Gallery_CardClockSummary", resourceCulture);
