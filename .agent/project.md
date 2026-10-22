@@ -45,7 +45,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  (not written to the pin folder). Launchpad opens from the dock tile (the themed brand logo tile, ADR-019); the top bar logo opens the menu.
  The face is singular: centered, above the wallpaper; the box opens before the scan finishes, and apps sit under the `Tümü` (All) letter heading (ADR-016).
  The Widget and Plugin tools open the gallery; Settings → `Eklentiler` (Plugins) shows the same list (ADR-017).
- Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an on/off record only;
+ Built-in island switches; the gallery still toggles the desktop clock and calendar; each is a fixed card parented to the desktop icon host; a grip moves it; the drop snaps off icons and off the other card; the place is `island.widgetPlacements`. A local `manifest.json` is an on/off record only;
  an assembly is not loaded. Top bar and dock slots are not drawn in v1.
  The phone row appears only while a device is connected: name, battery, and notification count from the YourPhone start card; a missing field is hidden.
  Folder stack, minimize snapshot, dock restore reverse cue from the icon/flyout, and Store logo are ADR-014.

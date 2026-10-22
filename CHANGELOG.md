@@ -10,6 +10,7 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Added
 
+- Desktop clock and calendar sit on the shell desktop. Drag the grip to move one; it settles beside your icons and remembers the spot.
 - Left click on the top-bar brand logo opens the Launchpad (the same window the dock tile toggles); the app menu stays on right click.
 - Windows-style Show Desktop sliver at the right edge of the top bar: the first click minimizes every open window, the second restores exactly what it put down (windows closed in the meantime are skipped; windows the user minimized themselves are never touched).
 - Island hub **Raf** (`shelf`) tab: dropped files stay as draggable chips (extension badge + name); `Uygulama ile aç` opens with the default app, `Listeden kaldır` removes one, and `Rafını boşalt` empties the shelf (delete paths stay inside the `Drop` folder).

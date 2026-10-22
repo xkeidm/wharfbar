@@ -649,3 +649,17 @@ SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "ImmersiveColorSet", SMT
 ```
 
 Failure does not block WharfBar theme apply. Fixed **light/dark** Appearance changes broadcast `ImmersiveColorSet`; wallpaper pair sync from that path is explicit in `AppearancePage` (external Windows theme changes do not flip hub pairs unless `theme=system`). Detail: [`05-theme-windows-wallpaper.md`](05-theme-windows-wallpaper.md).
+
+---
+
+## Desktop widget parenting
+
+The clock and calendar are children of the top-level window that owns `SHELLDLL_DefView` (`DesktopIconHost`). New imports used only for that parenting:
+
+    [DllImport("user32.dll", SetLastError = true)]
+    static extern IntPtr GetParent(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    static extern bool ScreenToClient(IntPtr hWnd, ref POINT lpPoint);
+
+`SetParent` is the existing import. A failed call is logged; the card stays hidden and retries. Icon rectangles are read with UI Automation from `SysListView32` under `SHELLDLL_DefView`. No memory is allocated in Explorer.

@@ -641,6 +641,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "bluetoothNotice": true,
  "cameraMirror": false,
  "openWidgets": [],
+ "widgetPlacements": [],
  "hubTab": "clipboard",
  "shelfTab": true,
  "colorpickerTab": true,
@@ -697,6 +698,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |
+| `island.widgetPlacements` | Saved top-left of the desktop clock and calendar, in WPF DIP (`Window.Left` space). Entries are `{ "id": "clock"\|"calendar", "x", "y" }`. Unknown ids and non-finite numbers are dropped; a duplicate id keeps the last coordinates. Soft field; `schemaVersion` stays **2**. Closing a widget keeps its placement |
 | `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`prompter`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.prompterTab` | The island hub's **Prompter** (reading auto-scroll) tab visible/usable (default **`true`**). Soft bool; a saved `prompter` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island prompter phase 1/2) |
 | `island.shelfTab` | The island hub's **Raf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
