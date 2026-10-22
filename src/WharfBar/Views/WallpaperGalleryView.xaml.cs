@@ -143,7 +143,9 @@ public partial class WallpaperGalleryView : UserControl
     {
         var text = new TextBlock();
         text.SetResourceReference(TextBlock.FontFamilyProperty, "AppIconFontFamily");
-        text.FontSize = 11;
+        text.FontSize = 12;
+        // Scrim çip üstünde her iki temada da okunabilir beyaz glif.
+        text.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
         text.Text = glyph;
         return text;
     }
@@ -178,7 +180,7 @@ public partial class WallpaperGalleryView : UserControl
         arrow.BeginAnimation(
             UIElement.OpacityProperty,
             new DoubleAnimation(
-                wanted ? 0.85d : 0d,
+                wanted ? 1d : 0d,
                 TimeSpan.FromMilliseconds(WallpaperGalleryMotion.ArrowFadeMs))
             {
                 EasingFunction = WallpaperGalleryMotion.CreateEase(),
