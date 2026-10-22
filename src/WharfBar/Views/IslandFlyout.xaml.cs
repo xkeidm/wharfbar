@@ -431,6 +431,12 @@ public sealed partial class IslandFlyout : UserControl
             case IslandHubTab.Prompter:
                 StopTimelinePoll();
                 ApplyTint(null);
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    // Gövde görünür + layout oturmuş halde karar verilir: extent/ofset sıfır gelmesin.
+                    HookPrompterScroll();
+                    RefreshPrompterPlayAvailability();
+                }));
                 break;
             case IslandHubTab.ColorPicker:
                 StopTimelinePoll();
@@ -1591,9 +1597,6 @@ public sealed partial class IslandFlyout : UserControl
     private const string PrompterPlayGlyphText = "\uE768";
     private const string PrompterPauseGlyphText = "\uE769";
 
-    /// <summary>"Sonuna vardı" sayma toleransı (dip). Tik payı ve uç belirleme aynı duyarlılıkta.</summary>
-    private const double PrompterEndEpsilon = 0.25;
-
     /// <summary>
     /// Okuma tik aralığı ~16 ms. Tek karar: <see cref="DispatcherTimer"/>,
     /// <c>CompositionTarget.Rendering</c> kancası YOK — gizli gövdede durdurabilen ve
@@ -1610,6 +1613,7 @@ public sealed partial class IslandFlyout : UserControl
     private bool _prompterDragging;
     private double _prompterDragStartOffset;
     private Point _prompterDragOrigin;
+    private bool _prompterScrollHooked;
 
     private void OnPrompterPlayPauseClick(object sender, RoutedEventArgs e) =>
         SetPrompterPlayback(PrompterMotion.Toggle(_prompterState));
@@ -1621,13 +1625,13 @@ public sealed partial class IslandFlyout : UserControl
     /// </summary>
     private void SetPrompterPlayback(PrompterMotion.Playback incoming)
     {
-        // Uçta oturuyorsa oynatmak hiç başlamaz: metin tam görünür, sessizce Editing kalır.
+        // Oynatma kapısı tek kararda: kaydırılacak yer yoksa (metin editöre tam sığar ya
+        // da kaydırma uçta oturur) istek sessizce Editing'e döner — düğme tarafı aynı
+        // kararla kapalı durur (<see cref="RefreshPrompterPlayAvailability"/>).
         ScrollViewer? sv = incoming == PrompterMotion.Playback.Playing ? PrompterInnerScroll(PrompterEditor) : null;
         PrompterMotion.Playback state = incoming;
         if (state == PrompterMotion.Playback.Playing
-            && (sv is null
-                || sv.ScrollableHeight <= 0
-                || sv.VerticalOffset >= sv.ScrollableHeight - PrompterEndEpsilon))
+            && (sv is null || !PrompterMotion.CanStartPlayback(sv.ScrollableHeight, sv.VerticalOffset)))
         {
             state = PrompterMotion.Playback.Editing;
         }
@@ -1665,6 +1669,8 @@ public sealed partial class IslandFlyout : UserControl
         {
             PrompterPinnedChanged?.Invoke(nowPlaying);
         }
+
+        RefreshPrompterPlayAvailability();
     }
 
     private void OnPrompterTick(object? sender, EventArgs e)
@@ -1695,7 +1701,8 @@ public sealed partial class IslandFlyout : UserControl
 
         // Sonuna varış yalnız gerçek ilerlemede sayılır: animasyon kapalıysa hız 0'dır
         // (<see cref="PrompterMotion.SpeedDipPerSec"/>) ve okuma olduğumuz yerde bekler.
-        if (updated - current > PrompterEndEpsilon && clamped >= sv.ScrollableHeight - PrompterEndEpsilon)
+        if (updated - current > PrompterMotion.EndEpsilonDip
+            && clamped >= sv.ScrollableHeight - PrompterMotion.EndEpsilonDip)
         {
             SetPrompterPlayback(PrompterMotion.Playback.Editing);
         }
@@ -1735,6 +1742,55 @@ public sealed partial class IslandFlyout : UserControl
         editor.Template is null
             ? null
             : editor.Template.FindName("PART_ContentHost", editor) as ScrollViewer;
+
+    /// <summary>
+    /// Oynat düğmesinin basılabilirliği editörün İÇ ScrollViewer'ından türetilir: yazma,
+    /// elle kaydırma, dosya/pano yükleme ve font geçişi (Playing ↔ Editing) hepsi tek
+    /// <c>ScrollChanged</c> kancasından tazelenir. Playing sırasında düğme Duraklat
+    /// görevi gördüğünden tik başına tazeleme gerekmez (kapalı tutulur).
+    /// </summary>
+    private void HookPrompterScroll()
+    {
+        if (_prompterScrollHooked || PrompterInnerScroll(PrompterEditor) is not ScrollViewer sv)
+        {
+            return;
+        }
+
+        _prompterScrollHooked = true;
+        sv.ScrollChanged += (_, _) =>
+        {
+            if (_prompterState != PrompterMotion.Playback.Playing)
+            {
+                RefreshPrompterPlayAvailability();
+            }
+        };
+    }
+
+    /// <summary>
+    /// "Yalan söylemeyen düğme": kaydırılacak yer yokken Oynat disabled olur ve tooltip
+    /// gerekçeyi söyler — kısa metin ve okuma sonu artık sessiz ölü-uç değil. Playing'de
+    /// düğme Duraklat olduğundan her zaman açıktır. Gövde gizliyken ölçüm sıfır gelir;
+    /// karar o an verilmez (ilk açılışı <see cref="PresentHub"/> deferred tazeler).
+    /// </summary>
+    private void RefreshPrompterPlayAvailability()
+    {
+        if (PrompterBody.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        ScrollViewer? sv = PrompterInnerScroll(PrompterEditor);
+        double scrollable = sv?.ScrollableHeight ?? 0;
+        double offset = sv?.VerticalOffset ?? 0;
+        bool canToggle = _prompterState == PrompterMotion.Playback.Playing
+            || PrompterMotion.CanStartPlayback(scrollable, offset);
+        PrompterPlayPause.IsEnabled = canToggle;
+        PrompterPlayPause.ToolTip = canToggle
+            ? "Oynat/Duraklat"
+            : scrollable <= 0
+                ? "Kaydırılacak bölüm yok; editöre sığmayan daha uzun bir metin gerekli."
+                : "Kaydırma en altta; Başa dön ile en baştan başla.";
+    }
 
     private void OnPrompterEditorTextChanged(object sender, TextChangedEventArgs e)
     {
