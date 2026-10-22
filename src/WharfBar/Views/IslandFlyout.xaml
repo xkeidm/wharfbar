@@ -588,6 +588,7 @@
                             <ToggleButton x:Name="PrompterPlayPause"
                                           Style="{StaticResource IslandPlayToggle}"
                                           Click="OnPrompterPlayPauseClick"
+                                          ToolTipService.ShowOnDisabled="True"
                                           ToolTip="Oynat/Duraklat">
                                 <TextBlock x:Name="PrompterPlayGlyph"
                                            Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
