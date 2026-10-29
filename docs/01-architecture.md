@@ -57,7 +57,7 @@ src/WharfBar/
  QuickSettingsFlyout.xaml(.cs) # Win11-style quick settings (volume/network; ADR-006)
  BrightnessFlyout.xaml(.cs) # Monitor brightness flyout (DDC/CI + WMI Monitorian)
  MediaFlyout.xaml(.cs) # Media flyout: cover/title/artist/controls + session picker (ADR-008)
- IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik / Raf / Prompter / Renk) + body host (clipboard, wallpaper, music, shelf, prompter, color picker; ADR-010)
+ IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik / Raf / Prompter / Kamera / Renk) + body host (clipboard, wallpaper, music, shelf, prompter, camera, color picker; ADR-010)
  ColorPickerWindow.xaml(.cs) # Screen color picker overlay: fullscreen work-area topmost (frozen BitBlt frame + loupe; ADR-010 addendum)
  WallpaperGalleryView.xaml(.cs) # Wallpaper hub body: thumbnail grid, click apply, Open folder
  WallpaperTransitionWindow.xaml(.cs) # WorkerW wallpaper crossfade (SPI after fade; 1×1 then parent)
@@ -101,7 +101,7 @@ src/WharfBar/
  DockHitTest.cs # WS_EX_TRANSPARENT toggle (ApplyInteractive / ApplyPassthrough)
  PowerStatus.cs # GetSystemPowerStatus wrapper
  NotifyIconHost.cs # Shell_NotifyIcon ADD/DELETE (its own tray icon)
- AudioEndpointVolume.cs # master volume / mute (Core Audio)
+ AudioEndpointVolume.cs # master volume / mute + read-only capture mute (Core Audio)
  CoreAudioDevices.cs # render device list + default selection
  CoreAudioSessions.cs # application session volumes
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
@@ -217,7 +217,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `IslandStore` | Atomic **replacement** of `%AppData%/WharfBar/island.json` (metadata) (tmp + `File.Replace`) + `%AppData%/WharfBar/Drop` (dropped files); a single `_ioGate` lock; a corrupt file becomes `.bak` (`.bak.1` on a second corruption), a 64 MB size cap, tolerant per-entry reading; **does not sort** (ADR-010) |
 | `ClipboardNative` | Documented clipboard P/Invokes; `CanIncludeInClipboardHistory` opt-out read **and** write; clipboard-owner process name (`GetClipboardOwner` → pid → `QueryFullProcessImageName`) (ADR-010) |
 | `ClipboardMessageWindow` | Message-only `HwndSource` (`ParentWindow = -3`) + `AddClipboardFormatListener`; `WM_CLIPBOARDUPDATE` → `ClipboardChanged`; `Dispose` removes the listener **once** (the API is not idempotent) (ADR-010) |
-| `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music / **shelf chips** / **prompter reading editor** / **color picker** inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars keep only Music. The tab strip keeps label text while it fits and folds labels to icon-only (tooltips + automation names keep the names) once all six tabs converge — the 420 DIP panel cannot hold six labeled tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; shelf body: chips with context menu + OLE drag-out; picker body: recent colors + `ScreenPickerRequested`; music body unchanged (ADR-010) |
+| `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music / **shelf chips** / **prompter reading editor** / **camera** / **color picker** inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars keep only Music. The tab strip keeps label text while it fits and folds labels to icon-only (tooltips + automation names keep the names) once all seven tabs converge — the panel cannot hold that many labeled tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; shelf body: chips with context menu + OLE drag-out; camera body: the mirror preview + status, toggle via `CameraMirrorRequested` (event only); picker body: recent colors + `ScreenPickerRequested`; music body unchanged (ADR-010) |
 | `PrompterMotion` / island **Prompter** body | Pure motion engine (`BaseSpeedDip 66`, `ReadingFontDip 17`, `Toggle`, `ClampMultiplier 0.5–3.0`, `SpeedDipPerSec` zero with client-area animation off, `UpdateOffset`, `ClampOffset`, `EndEpsilonDip 0.25`, `CanStartPlayback` — the single play gate) — unit tested — plus the read-view body: multiline editor on top; Playing locks it read-only, bumps the font to `ReadingFontDip`, auto-scrolls the editor's **inner** ScrollViewer (`PART_ContentHost`) on a 16 ms `DispatcherTimer` (started only while Playing and the body is visible; demoted Paused on tab switch and stopped+Editing on panel close); reaching the bottom returns to Editing and fires `PrompterPinnedChanged(false)`; manual vertical drag scrolls the same offset without pausing. Control bar: play/pause toggle (+ label swap `Oynat`/`Duraklat`; disabled with a reason tooltip while `CanStartPlayback` is false — text fully fits → `Kaydırılacak bölüm yok…`, scroll at the bottom → `Kaydırma en altta…`; refresh rides the inner ScrollViewer's `ScrollChanged`, deferred once at tab open so the first measurement sees settled layout), speed slider 0.5–3.0 with a live `1.0×` label, `Başa dön` (rescroll, keep text), `.txt` loader, `Panodan al` (.IslandService.TryLastClipboardText, gentle no-op when empty) (island prompter phase 2) |
 | `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Senin** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Klasörü aç`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
 | `WallpaperCatalog` | **Pure** file listing from two roots; extension filter; stable sort by file name — unit tested |
@@ -240,7 +240,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `AboutWindow` | About (`Hakkında`) dialog; no shell registration |
 | `MonitorBrightnessService` | DDC/CI (desktop `dxva2.dll`) + WMI (`WmiMonitorBrightness`) scan; a 50ms debounced background write |
 | `MonitorNative` | `dxva2.dll` P/Invoke functions + `user32.dll` monitor queries |
-| `VolumeService` / `AudioEndpointVolume` | Default render-endpoint volume / mute (Core Audio) |
+| `VolumeService` / `AudioEndpointVolume` | Default render-endpoint volume / mute (Core Audio) + a **read-only** default capture-endpoint mute read (`TryGetCaptureMute`; the island camera body's Mikrofon row — no write method) |
 | `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | A single device + dropdown + application session volumes (ADR-006) |
 | `QuickSettingsService` | Network detail, WinRT radio, Settings URI / Win+P |
 | `NotificationCenterInvoker` | Native notification center (`Win+N`) |
@@ -303,12 +303,12 @@ TopBarWindow.xaml — root Grid (no columns; the three clusters share the same c
 
 Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
  AllowsTransparency=True, PopupAnimation=None)
- └─ local:IslandFlyout (hub tab strip + BodyHost: clipboard | WallpaperGalleryView | music | shelf chips | prompter reading editor | color picker)
+ └─ local:IslandFlyout (hub tab strip + BodyHost: clipboard | WallpaperGalleryView | music | shelf chips | prompter reading editor | camera | color picker)
 ```
 
 The island is only on the primary bar, a pill centered so the AppBar stays **30 DIP** (ADR-011).
 When idle, a clipboard glyph; in `persistent` music, a note + the track name; on a volume/brightness change, a short counter.
-The multi-line panel is the same `IslandPopup` with an in-panel **hub** (`IslandFlyout`): six tabs on the primary bar, Music-only chrome on secondary bars. Last selected tab is persisted as `island.hubTab` (soft string; no `schemaVersion` bump). Wallpaper apply is primary-bar only (`AttachWallpaper`). The rules are `IslandPresence`. Click and
+The multi-line panel is the same `IslandPopup` with an in-panel **hub** (`IslandFlyout`): seven tabs on the primary bar, Music-only chrome on secondary bars. Last selected tab is persisted as `island.hubTab` (soft string; no `schemaVersion` bump). Wallpaper apply is primary-bar only (`AttachWallpaper`). The rules are `IslandPresence`. Click and
 file drop stay on the same control.
 
 ### Wallpaper apply + transition
@@ -360,7 +360,7 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Services/IslandStore.cs` | A separate persistence file: `island.json` (tmp + `File.Replace`), the `Drop` folder; a single `_ioGate` lock; `.bak` / `.bak.1`; a 64 MB size cap; one corrupt field does not drop the whole history; **does not sort** (order is the consumer's job) |
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
 | `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `TryLastClipboardText` (prompter `Panodan al`; read-only newest-text pick), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
-| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + six bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out), the prompter reading body (`PrompterMotion` + playback pin), and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
+| `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + seven bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out), the prompter reading body (`PrompterMotion` + playback pin), the camera body (`CameraMirrorRequested` — event only, the window applies), and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
 | `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled pack under `Wallpapers/` (abstract/scenic pairs, solids, Turkey city photos, brand marks — see that folder’s README; copy-to-output beside the exe) |
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
 | `Services/WallpaperService.cs` | Apply guard + SPI delegate |
@@ -427,7 +427,7 @@ action scans the `Drop` folder so it also covers orphans.
   is the **Drop** face and the shelf tab is on, the panel opens on the **Raf** tab (the user just
   dropped files, they want to see them). Otherwise the saved tab goes through `IslandHub.Resolve`
   (unknown → Clipboard; Music saved without an SMTC session → Clipboard, unchanged), and afterwards
-  a `Shelf`/`Prompter`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. All three
+  a `Shelf`/`Prompter`/`Camera`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. All four
   flag-arms live in `ResolveHubTab`; secondary bars keep Music only.
 - **Shelf tab:** each dropped entry is a chip — a 3-letter extension badge + the file name.
   Chip context menu: **`Uygulama ile aç`** (guarded by `IslandService.CanOpenShelfFile` →
@@ -461,9 +461,11 @@ action scans the `Drop` folder so it also covers orphans.
   `schemaVersion` stays **2**. Primary bar only (config flag + `_primarySurface` — the Faz 1
   Raf/Renk clone); secondary bars keep Music only.
 - **Tab order / resolve:** the enum order is Clipboard → Wallpaper → Music → Shelf → Prompter →
-  ColorPicker. `IslandHub.Resolve` is unchanged (unknown → Clipboard; Music saved without an SMTC
+  Camera → ColorPicker (phase 3 inserts Camera after Prompter, before ColorPicker).
+  `IslandHub.Resolve` is unchanged (unknown → Clipboard; Music saved without an SMTC
   session → Clipboard), and `ResolveHubTab` gains a third flag-arm: a saved `prompter` tab whose
-  config flag is off falls back to **Clipboard**.
+  config flag is off falls back to **Clipboard**. (Phase 3 adds a fourth arm: a saved `camera`
+  tab with `island.cameraTab` off also falls back to **Clipboard**.)
 - **Body + playback:** a multiline reading editor over a control bar — play/pause toggle (label
   swap `Oynat`/`Duraklat`), speed slider 0.5–3.0 (tick 0.1, live `1.0×` label), `Başa dön`,
   `.txt` load (`OpenFileDialog`, `.txt` filter), and `Panodan al` → the additive read-only
@@ -485,6 +487,39 @@ action scans the `Drop` folder so it also covers orphans.
   `SyncIslandPopup` `Panel == None` branch — a hover-out duration or a transient-hold expiry no
   longer closes the panel. An explicit close (the pill click) always wins via a one-shot marker;
   unpinning runs a catch-up sync, and the subscription is torn down in `DetachIsland`.
+
+### Island camera tab (ADR-010 addendum, phase 3)
+
+- **Decision:** the hub grows a seventh primary-bar tab, **Kamera** (`camera`), between Prompter
+  and ColorPicker: a live preview of the running camera mirror plus a display-only microphone
+  read. Soft field `island.cameraTab` (default **`true`**) gates the tab; `schemaVersion` stays
+  **2**. Primary bar only (config flag + `_primarySurface` — the Raf/Prompter/Renk clone);
+  secondary bars keep Music only.
+- **Tab order / resolve:** the enum order becomes Clipboard → Wallpaper → Music → Shelf →
+  Prompter → Camera → ColorPicker, and `ResolveHubTab` gains a fourth flag-arm: a saved
+  `camera` tab with `island.cameraTab` off falls back to **Clipboard** (`IslandHub.Resolve`
+  unchanged: unknown → Clipboard; Music saved without an SMTC session → Clipboard).
+- **Body:** a rounded preview — `CameraPreviewHost` (`Height=180`, corner clip rebuilt from the
+  live size on `SizeChanged`, 14 DIP, the MusicCover clip pattern) around
+  `CameraPreviewImage` (`Stretch=Uniform`); when closed, a placeholder glyph + status instead of
+  a picture. Below: a **Kamera** row with `CameraToggleButton` (aç/kapat) and a **Mikrofon** row
+  that is display-only (no control, no write).
+- **Status mapping:** `CameraMirrorHost.Preview == null` → `Kapalı`; `preview.Status == "Kamera"`
+  → `Aktif`; anything else shows verbatim (e.g. `Kamera yok`). Mikrofon:
+  `AudioEndpointVolume.TryGetCaptureMute` true + not muted → `Aktif`; true + muted → `Sessiz`;
+  a failed read (no capture device) → `Bilinmiyor`. The body reads both at `PresentHub` and then
+  on a 2000 ms `DispatcherTimer` (started only while the camera body is visible; the
+  `CameraMirrorHost.Updated` subscription rides the same lifecycle and is torn down on tab
+  switch and on the panel-close paths).
+- **Aç/Kapa path:** the toggle only raises the `CameraMirrorRequested` event — the body never
+  calls `Apply` itself. The window handler `OnIslandCameraMirrorRequested` does
+  `PluginCatalog.SetEnabled(_config.Current, PluginCatalog.CameraMirror, enable)` +
+  `CameraMirrorHost.Apply(_config.Current.Island.CameraMirror)` + `_config.Save(_config.Current)` —
+  the same three steps the widget gallery toggle (Ayarlar > Widgetlar) applies; both write the
+  same `island.cameraMirror` bool. The pill face and the body refresh through the pre-existing
+  `CameraMirrorHost.Updated` pipeline. `CameraMirrorHost` stays the **single capture owner**
+  (`Apply(bool)` is the only start/stop path); see `docs/04-gotchas.md` for the mic-read sharp
+  edges (read-only capture dataflow; `Updated` can fire from a background thread).
 
 ## Brand logo and logo style (ADR-019)
 
@@ -646,6 +681,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "shelfTab": true,
  "colorpickerTab": true,
  "prompterTab": true,
+ "cameraTab": true,
  "wallpaperTransition": "blurFade",
  "wallpaperRespectSystemAnimation": true,
  "wallpaperAccent": true,
@@ -699,8 +735,9 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.cameraMirror` | A camera preview on the pill. Default **`false`**; turned on from the gallery. If there is no permission, the text stays (ADR-015) |
 | `island.openWidgets` | Widget ids that are open on the desktop: `clock`, `calendar`. Unknown ids are dropped on load. They do not enter the island pill (ADR-015) |
 | `island.widgetPlacements` | Saved top-left of the desktop clock and calendar, in WPF DIP (`Window.Left` space). Entries are `{ "id": "clock"\|"calendar", "x", "y" }`. Unknown ids and non-finite numbers are dropped; a duplicate id keeps the last coordinates. Soft field; `schemaVersion` stays **2**. Closing a widget keeps its placement |
-| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`prompter`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"camera"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`prompter`/`camera`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.prompterTab` | The island hub's **Prompter** (reading auto-scroll) tab visible/usable (default **`true`**). Soft bool; a saved `prompter` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island prompter phase 1/2) |
+| `island.cameraTab` | The island hub's **Kamera** (camera preview + display-only mic read) tab visible/usable (default **`true`**). Soft bool; a saved `camera` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island camera phase 3) |
 | `island.shelfTab` | The island hub's **Raf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.colorpickerTab` | The island hub's **Renk** (color picker) tab visible/usable (default **`true`**). Soft bool; a saved `colorpicker` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.wallpaperTransition` | Post-apply animation: `"off"` \| `"fade"` \| `"blurFade"` (default **`blurFade`**). Soft string; `IslandNormalizer.NormalizeWallpaperTransition`, unresolvable → **`blurFade`**. Primary monitor only; overlay shows the **previous** image fading out over the SPI-applied desktop. `schemaVersion` stays **2** |

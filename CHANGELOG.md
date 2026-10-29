@@ -16,13 +16,14 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 - Island hub **Raf** (`shelf`) tab: dropped files stay as draggable chips (extension badge + name); `Uygulama ile aç` opens with the default app, `Listeden kaldır` removes one, and `Rafını boşalt` empties the shelf (delete paths stay inside the `Drop` folder).
 - Island hub **Renk** (`colorpicker`) tab: a session-scoped recent-colors list plus `Ekran seçici` — a click on the screen copies the averaged 3-px color as HEX (never sampled through the dim mask; the value does not enter Win+V history, paste flow is Ctrl+V).
 - Island hub **Prompter** (`prompter`) tab: a reading auto-scroll view — paste (`Panodan al` takes the newest text of the island history), load a `.txt`, or type, then Oynat/Duraklat with a 0.5–3.0× speed slider and `Başa dön`; the panel stays open while playing, and reaching the bottom returns to the editor. Oynat disables with a reason tooltip while there is nothing to scroll (the text fully fits, or the scroll is already at the bottom) instead of silently doing nothing.
+- Island hub **Kamera** (`camera`) tab: a live preview of the camera mirror (rounded, with a placeholder + status while it is closed), a Kamera row with an aç/kapa toggle, and a display-only Mikrofon row. The toggle rides the same `island.cameraMirror` switch as the widget-gallery toggle — one capture, one owner (`CameraMirrorHost.Apply`), requested from the body through an event.
 
 ### Changed
 
 - Launchpad opens at full size on the first frame: the Start Menu catalog + recent files are captured once into a process-wide cache (30 min TTL, refreshed in the background) instead of growing in 16-app slices during an open.
 - Launchpad shell icons are decoded ahead of time in idle slices after startup (first 64 apps; one shared icon cache for the warm-up and the face).
 - Launchpad face polish: eased hover fill (animated template overlay, with a resource-swap fallback), 0.97 press scale on the flat buttons, secondary-colour letter headers, larger tile icons (44/40 px) and 12 px tile labels.
-- Island hub tab resolve: when the latest pill face is a file drop, the panel opens on the Raf tab; a saved `shelf`/`prompter`/`colorpicker` tab whose config flag is off falls back to Clipboard.
+- Island hub tab resolve: when the latest pill face is a file drop, the panel opens on the Raf tab; a saved `shelf`/`prompter`/`camera`/`colorpicker` tab whose config flag is off falls back to Clipboard.
 
 ## [1.0.0-beta] — 2026-10-14
 

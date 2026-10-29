@@ -131,6 +131,28 @@
   auto-close is suppressed while Playing (explicit close still wins). The tab strip folds labels
   to icons when all six tabs converge. Tests: `PrompterMotionTests`, `IslandServiceTextPickTests`,
   `IslandConfigTests` / `IslandHubTests` / `IslandFlyoutHubTabsTests` extensions.
+- **Island widgets phase 3 — camera tab ✓ (code; manual verification pending)** — a seventh
+  primary-bar tab, **Kamera** (`camera`; soft `island.cameraTab`, default on; enum now Pano →
+  Duvar kağıdı → Müzik → Raf → Prompter → Kamera → Renk, and a fourth disabled-tab Clipboard
+  fallback arm in `ResolveHubTab`): a rounded preview (`CameraPreviewHost` Height 180,
+  size-adaptive 14 DIP clip; `CameraPreviewImage` `Stretch=Uniform`), placeholder + status when
+  closed (host off → `Kapalı`; status "Kamera" → `Aktif`; otherwise verbatim, e.g.
+  `Kamera yok`), a Kamera row with the aç/kapa toggle, and a display-only Mikrofon row
+  (`Aktif` / `Sessiz` / `Bilinmiyor`; read at `PresentHub` + a 2000 ms timer while the body is
+  visible). The toggle raises `CameraMirrorRequested` only; the window handler applies
+  `PluginCatalog.SetEnabled` + `CameraMirrorHost.Apply` + config save — the same three steps the
+  widget-gallery toggle uses (one `island.cameraMirror` bool). `CameraMirrorHost` keeps being the
+  single capture owner; Native adds the read-only `AudioEndpointVolume.TryGetCaptureMute`
+  (capture dataflow; render paths byte-identical). Tests: `IslandConfigTests.Defaults_MatchSpec_CameraTab`,
+  `IslandHubTests` camera rows (`Normalize_StringValue_ReturnsExpectedTab`, `ToConfig_Camera_WritesCameraId`,
+  `Resolve_SavedCamera_MusicAvailable_Resolves`),
+  `IslandFlyoutHubTabsTests.TabIdForBody_CameraId_MatchesTag`.
+  Manual QA (human, from the phase plan): closed body shows `Kapalı` + placeholder without a
+  crash; body on/off syncs the pill face instantly, both directions, together with
+  Ayarlar > Widgetlar; no capture device → `Bilinmiyor`, mute/active text follows the system mic;
+  `island.json` `"hubTab":"camera"` + `"cameraTab":false` opens on Pano; the 7-button strip still
+  folds labels by measurement (no count rule); tab switch / panel close / app detach leaves the
+  live subscription + mic timer while the pill keeps its life, and a returning tab re-attaches.
 
 ## Former to-do list (moved to milestones)
 
