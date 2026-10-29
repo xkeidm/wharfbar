@@ -11,6 +11,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using WharfBar.Models;
+using WharfBar.Native;
 using WharfBar.Resources;
 using WharfBar.Services;
 
@@ -67,20 +68,21 @@ public sealed partial class IslandFlyout : UserControl
         InitializeComponent();
         FlyoutRoot.SizeChanged += (_, _) => RebuildSilhouette();
         HubTabs.SizeChanged += OnHubTabStripSizeChanged;
-        _tabStripButtons = [TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabColor];
-        _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabColorLabel];
+        _tabStripButtons = [TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabCamera, TabColor];
+        _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabCameraLabel, TabColorLabel];
+        CameraPreviewHost.SizeChanged += OnCameraPreviewSizeChanged;
     }
 
     /// <summary>
-    /// Altı gövde sekmesi aynı anda görünürken etiketli şerit panel içine sığmaz (ölçülmüş:
-    /// 6 etiketli sekme ~447 dip, panel iç genişliği ~388). Etiketler taştığı anda katlanır
-    /// — adlar ToolTip ve otomasyon adlarında kalır — ve yer açıldığında geri döner. Beş ve
-    /// daha az sekmenin Faz 1 görüntüsü hiçbir durumda değişmez.
+    /// Yedi gövde sekmesi aynı anda görünürken etiketli şerit panel içine sığmaz (yaklaşık
+    /// ölçü: yedi etiketli sekme ~515 dip, panel iç genişliği ~448). Etiketler taştığı anda
+    /// katlanır — adlar ToolTip ve otomasyon adlarında kalır — ve yer açıldığında geri döner.
+    /// Beş ve daha az sekmenin Faz 1 görüntüsü hiçbir durumda değişmez.
     /// </summary>
     private bool _tabStripCompact;
 
     /// <summary>Etiket genişlikleri katlanmadan ÖNCE yakalanır; tekrar açma hesabı bunu kullanır.</summary>
-    private readonly double[] _tabLabelWidths = new double[6];
+    private readonly double[] _tabLabelWidths = new double[7];
 
     private readonly Button[] _tabStripButtons;
     private readonly TextBlock[] _tabStripLabels;
@@ -171,6 +173,7 @@ public sealed partial class IslandFlyout : UserControl
         // Değişmez: bağlı olmayan panel oynamaz. Bir sonraki tik zaten kendi kendini
         // durdurur ama pim serbest bırakımı burada koşulsuz olsun.
         StopPrompterPlayback();
+        StopCameraBodyLifecycle();
 
         if (_service is not null)
         {
@@ -213,13 +216,14 @@ public sealed partial class IslandFlyout : UserControl
         TabClipboard.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         TabWallpaper.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         // Şerit invariantı: ikincil barlar yalnız Müzik taşır, yani config'i açık olsa bile
-        // gövde sekmeleri (Renk, Raf) bu yüzey kapısıyla birlikte gizlenir. Renk gövdesi ayrıca
+        // gövde sekmeleri (Renk, Raf, Kamera) bu yüzey kapısıyla birlikte gizlenir. Renk gövdesi ayrıca
         // ekran örneklemesini birincilin çalışma alanına kilitler (ScreenSampler tek zamanlama);
         // Raf gövdesi yalnız birincilde bağlanan bırakma servisine bakar.
         _primarySurface = available;
         TabColor.Visibility = available && _pickerTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabShelf.Visibility = available && _shelfTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabPrompter.Visibility = available && _prompterTabWanted ? Visibility.Visible : Visibility.Collapsed;
+        TabCamera.Visibility = available && _cameraTabWanted ? Visibility.Visible : Visibility.Collapsed;
         ScheduleTabStripCompactness();
     }
 
@@ -238,6 +242,9 @@ public sealed partial class IslandFlyout : UserControl
 
     /// <summary>Prompter sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
     private bool _prompterTabWanted = IslandConfig.DefaultPrompterTab;
+
+    /// <summary>Kamera sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    private bool _cameraTabWanted = IslandConfig.DefaultCameraTab;
 
     /// <summary>Shows or hides the Color picker tab; gated by <c>IslandConfig.ColorPickerTab</c>.</summary>
     internal void SetColorPickerTabVisible(bool visible)
@@ -357,6 +364,14 @@ public sealed partial class IslandFlyout : UserControl
         ScheduleTabStripCompactness();
     }
 
+    /// <summary>Shows or hides the Camera tab; gated by <see cref="IslandConfig.CameraTab"/> and the primary surface.</summary>
+    internal void SetCameraTabVisible(bool visible)
+    {
+        _cameraTabWanted = visible;
+        TabCamera.Visibility = visible && _primarySurface ? Visibility.Visible : Visibility.Collapsed;
+        ScheduleTabStripCompactness();
+    }
+
     /// <summary>
     /// "Ekran rengini seç" tıklaması. Üst bar bu olayı alır: ada paneli önce kapanır, sonra
     /// tam çalışma alanını kaplayan seçim örtüsü açılır (<see cref="ColorPickerWindow"/> örtüsü
@@ -364,6 +379,98 @@ public sealed partial class IslandFlyout : UserControl
     /// <c>TopBarWindow.Island</c> tarafı aynı sınıfta olduğu için düzen oradan gelir.
     /// </summary>
     internal event EventHandler? ScreenPickerRequested;
+
+    /// <summary>
+    /// Kamera satırındaki aç/kapat düğmesinin isteği (true = aç, false = kapat). Gövde bu
+    /// olaydan fazlasını yapmaz: <see cref="CameraMirrorHost.Apply(bool)"/> yalnız üst barın
+    /// işleyicisinden çağrılır — tek yol. Yanıt <see cref="CameraMirrorHost.Updated"/> ile
+    /// geri döner ve gövdeyi tazeler.
+    /// </summary>
+    internal event EventHandler<bool>? CameraMirrorRequested;
+
+    /// <summary>
+    /// Mikrofon satırı salt gösterim: gövde görünürken 2000 ms'de bir sessizlik durumu
+    /// tazelenir (Faz 2 timer ömrü deseni: tek kararla kur, tek kararla bırak).
+    /// </summary>
+    private DispatcherTimer? _micTimer;
+
+    /// <summary>
+    /// Kamera gövdesi görünürken canlı takip kurulur: ana bilgisayarın
+    /// <see cref="CameraMirrorHost.Updated"/> aboneliği + mikrofon sayacı. Sekme
+    /// değişince ve panel kapanma yollarında <see cref="StopCameraBodyLifecycle"/>
+    /// bırakır; ikisi de idempotent, tekrar kurulum zararsız.
+    /// </summary>
+    private void StartCameraBodyLifecycle()
+    {
+        CameraMirrorHost.Updated -= OnCameraMirrorHostUpdated;
+        CameraMirrorHost.Updated += OnCameraMirrorHostUpdated;
+        _micTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2000) };
+        _micTimer.Tick -= OnMicTimerTick;
+        _micTimer.Tick += OnMicTimerTick;
+        _micTimer.Start();
+    }
+
+    /// <summary>Gövde görünmezse abonelik + sayaç bırakılır; gizliyken tık taşınmaz.</summary>
+    private void StopCameraBodyLifecycle()
+    {
+        CameraMirrorHost.Updated -= OnCameraMirrorHostUpdated;
+        _micTimer?.Stop();
+    }
+
+    /// <summary>Önizleme güncellemeleri arka iş parçacığından yükselir: gövde tazelemesi UI'ya taşınır.</summary>
+    private void OnCameraMirrorHostUpdated(object? sender, EventArgs e)
+        => _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshCameraBody));
+
+    private void OnMicTimerTick(object? sender, EventArgs e) => ReadMicStatus();
+
+    /// <summary>
+    /// Gövdeyi ana bilgisayar durumundan tazeler. Ana bilgisayar yoksa "Kapalı"; canlı
+    /// akış ("Kamera" durumu) gövde dilinde "Aktif" der, ör. "Kamera yok" gibi başka
+    /// durumlar aynen gösterilir. Düğme yalnız ana bilgisayar durumunu aynalar — kendi
+    /// <see cref="CameraMirrorRequested"/> olayı haricinde yazma yolunun izni yoktur.
+    /// </summary>
+    private void RefreshCameraBody()
+    {
+        CameraPreview? preview = CameraMirrorHost.Preview;
+        if (preview is null)
+        {
+            CameraPreviewImage.Source = null;
+            CameraPreviewPlaceholder.Visibility = Visibility.Visible;
+            CameraStatusText.Text = "Kapalı";
+            CameraToggleButton.IsChecked = false;
+            return;
+        }
+
+        CameraPreviewImage.Source = preview.Frame;
+        CameraPreviewPlaceholder.Visibility = preview.Frame is null ? Visibility.Visible : Visibility.Collapsed;
+        CameraStatusText.Text = preview.Status == "Kamera" ? "Aktif" : preview.Status;
+        CameraToggleButton.IsChecked = preview.IsRunning;
+    }
+
+    /// <summary>Mikrofon durum yazısı: cevap yok → "Bilinmiyor", sessizde → "Sessiz", değilse "Aktif".</summary>
+    private void ReadMicStatus()
+    {
+        bool known = AudioEndpointVolume.TryGetCaptureMute(out bool muted);
+        MicStatusText.Text = known ? (muted ? "Sessiz" : "Aktif") : "Bilinmiyor";
+    }
+
+    /// <summary>
+    /// Kamera aç/kapat tıklaması: gövde yalnız OLAY kaldırır; kendi başına
+    /// <see cref="CameraMirrorHost.Apply(bool)"/> ÇAĞIRMAZ — Apply tek yolu üst bar
+    /// işleyicisidir: SetEnabled + Apply + kayıt ve cevap Updated ile geri döner.
+    /// </summary>
+    private void OnCameraToggleClick(object sender, RoutedEventArgs e)
+        => CameraMirrorRequested?.Invoke(this, CameraToggleButton.IsChecked ?? false);
+
+    /// <summary>
+    /// Önizleme karesini 14 yarıçaplı köşelere kırpar (MusicCover klip deseni, boyuta
+    /// ölçekli — klip kaptersiz kalsaydı kare köşeleri Border'ın yuvarlaklığın taşardı).
+    /// </summary>
+    private void OnCameraPreviewSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        CameraPreviewHost.Clip = new RectangleGeometry(
+            new Rect(0, 0, CameraPreviewHost.ActualWidth, CameraPreviewHost.ActualHeight), 14, 14);
+    }
 
     /// <summary>
     /// Gövde Tag kimlikleri: sekmenin XAML'deki Tag dizgisini verir (<c>Tag="shelf"</c> vb.).
@@ -375,6 +482,7 @@ public sealed partial class IslandFlyout : UserControl
         IslandHubTab.Music => "music",
         IslandHubTab.Shelf => "shelf",
         IslandHubTab.Prompter => "prompter",
+        IslandHubTab.Camera => "camera",
         IslandHubTab.ColorPicker => "colorpicker",
         _ => "clipboard",
     };
@@ -385,6 +493,7 @@ public sealed partial class IslandFlyout : UserControl
         IslandHubTab.Music => MusicBody,
         IslandHubTab.Shelf => ShelfBody,
         IslandHubTab.Prompter => PrompterBody,
+        IslandHubTab.Camera => CameraBody,
         IslandHubTab.ColorPicker => ColorPickerBody,
         _ => ClipboardBody,
     };
@@ -397,6 +506,7 @@ public sealed partial class IslandFlyout : UserControl
         SetShelfTabVisible(_service?.Config.ShelfTab ?? IslandConfig.DefaultShelfTab);
         SetColorPickerTabVisible(_service?.Config.ColorPickerTab ?? IslandConfig.DefaultColorPickerTab);
         SetPrompterTabVisible(_service?.Config.PrompterTab ?? IslandConfig.DefaultPrompterTab);
+        SetCameraTabVisible(_service?.Config.CameraTab ?? IslandConfig.DefaultCameraTab);
         CurrentHubTab = tab;
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
@@ -406,6 +516,13 @@ public sealed partial class IslandFlyout : UserControl
         if (tab != IslandHubTab.Prompter && _prompterState == PrompterMotion.Playback.Playing)
         {
             SetPrompterPlayback(PrompterMotion.Playback.Paused);
+        }
+
+        // Kamera gövdesi görünmezken canlı kaynak takibi taşınmaz: sekme değişince
+        // Updated aboneliği + mikrofon sayacı bırakılır; geri dönüşte kamera kolu kurar.
+        if (tab != IslandHubTab.Camera)
+        {
+            StopCameraBodyLifecycle();
         }
 
         switch (tab)
@@ -437,6 +554,13 @@ public sealed partial class IslandFlyout : UserControl
                     HookPrompterScroll();
                     RefreshPrompterPlayAvailability();
                 }));
+                break;
+            case IslandHubTab.Camera:
+                StopTimelinePoll();
+                ApplyTint(null);
+                RefreshCameraBody();
+                ReadMicStatus();
+                StartCameraBodyLifecycle();
                 break;
             case IslandHubTab.ColorPicker:
                 StopTimelinePoll();
@@ -490,7 +614,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void UpdateTabChrome(IslandHubTab tab)
     {
-        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabColor })
+        foreach (Button b in new[] { TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabCamera, TabColor })
         {
             if (b.Tag as string == IslandHub.ToConfig(tab))
             {
@@ -519,7 +643,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         FrameworkElement show = BodyFor(tab);
         FrameworkElement? hide = null;
-        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody, PrompterBody, ColorPickerBody })
+        foreach (FrameworkElement body in new FrameworkElement[] { MusicBody, ClipboardBody, WallpaperBody, ShelfBody, PrompterBody, CameraBody, ColorPickerBody })
         {
             if (ReferenceEquals(body, show))
             {
@@ -925,6 +1049,17 @@ public sealed partial class IslandFlyout : UserControl
         {
             SetPrompterTabVisible(false);
             if (PrompterBody.Visibility == Visibility.Visible)
+            {
+                PresentHub(IslandHubTab.Clipboard, focus: false, crossfade: true);
+            }
+        }
+
+        if (_service is { Config.CameraTab: false })
+        {
+            // Kamera sekmesi ayardan kapandı: Şelf/Renk/Okur ilkesiyle şeritten düşer ve
+            // gövde açıksa anında Pano'ya döner (PresentHub yaşam döngüsünü de bırakır).
+            SetCameraTabVisible(false);
+            if (CameraBody.Visibility == Visibility.Visible)
             {
                 PresentHub(IslandHubTab.Clipboard, focus: false, crossfade: true);
             }
@@ -1939,9 +2074,9 @@ public sealed partial class IslandFlyout : UserControl
             }
         }
 
-        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.Prompter or IslandHubTab.ColorPicker)
+        if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.Prompter or IslandHubTab.Camera or IslandHubTab.ColorPicker)
         {
-            // Duvar kağıdı, raf ve okur gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
+            // Duvar kağıdı, raf, okur ve kamera gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
             return false;
         }
 

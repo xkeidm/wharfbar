@@ -347,6 +347,19 @@ public partial class TopBarWindow
         StartScreenPicker();
     }
 
+    /// <summary>
+    /// Kamera aç/kapat tek Apply yolu: katalog kaydı + ana bilgisayarın tek sahipli
+    /// Apply'ı + kayıt. Klasör galerisi aynı üçlü adımı uygular; gövde tarafı yalnız
+    /// <see cref="IslandFlyout.CameraMirrorRequested"/> olayını kaldırır. Cevap
+    /// <see cref="CameraMirrorHost.Updated"/> ile gövdeye ve hap görüntüsüne döner.
+    /// </summary>
+    private void OnIslandCameraMirrorRequested(object? sender, bool enable)
+    {
+        PluginCatalog.SetEnabled(_config.Current, PluginCatalog.CameraMirror, enable);
+        CameraMirrorHost.Apply(_config.Current.Island.CameraMirror);
+        _config.Save(_config.Current);
+    }
+
     private void StartScreenPicker()
     {
         IntPtr hwnd = _source?.Handle ?? IntPtr.Zero;
@@ -1467,6 +1480,7 @@ public partial class TopBarWindow
         IslandHost.HubTabChanged += OnIslandHubTabChanged;
         IslandHost.ScreenPickerRequested += OnIslandScreenPickerRequested;
         IslandHost.PrompterPinnedChanged += OnIslandPrompterPinnedChanged;
+        IslandHost.CameraMirrorRequested += OnIslandCameraMirrorRequested;
         IslandHost.AttachMedia(_engine.Media);
         if (Monitor.IsPrimary)
         {
@@ -1532,6 +1546,7 @@ public partial class TopBarWindow
         IslandHost.HubTabChanged -= OnIslandHubTabChanged;
         IslandHost.ScreenPickerRequested -= OnIslandScreenPickerRequested;
         IslandHost.PrompterPinnedChanged -= OnIslandPrompterPinnedChanged;
+        IslandHost.CameraMirrorRequested -= OnIslandCameraMirrorRequested;
         IslandHost.DetachWallpaper();
         if (_wallpaper is not null)
         {

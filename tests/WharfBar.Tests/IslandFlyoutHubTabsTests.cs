@@ -23,6 +23,12 @@ public class IslandFlyoutHubTabsTests
     }
 
     [Fact]
+    public void TabIdForBody_CameraId_MatchesTag()
+    {
+        Assert.Equal("camera", IslandFlyout.TabIdForBody(IslandHubTab.Camera));
+    }
+
+    [Fact]
     public void TabIdForBody_PrompterId_MatchesTag()
     {
         Assert.Equal("prompter", IslandFlyout.TabIdForBody(IslandHubTab.Prompter));

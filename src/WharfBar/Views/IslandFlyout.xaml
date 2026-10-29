@@ -170,6 +170,16 @@
                                FontFamily="{DynamicResource AppTextFontFamily}" />
                 </StackPanel>
             </Button>
+            <Button x:Name="TabCamera" Tag="camera" Style="{StaticResource IslandIconButton}"
+                    Click="OnHubTabClick" ToolTip="Kamera" Margin="0,0,4,0"
+                    AutomationProperties.Name="Kamera">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE722;" />
+                    <TextBlock x:Name="TabCameraLabel" Text="Kamera" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                </StackPanel>
+            </Button>
             <Button x:Name="TabColor" Tag="colorpicker" Style="{StaticResource IslandIconButton}"
                     Click="OnHubTabClick" ToolTip="Renk" Margin="0,0,0,0"
                     AutomationProperties.Name="Renk">
@@ -551,6 +561,75 @@
                            Opacity="0.55"
                            TextWrapping="Wrap"
                            Text="Ekran seçici tüm ekranı karartır: imleç altındaki rengi tıklayarak HEX olarak panoya yazarsın, Esc ile vazgeçersin." />
+            </Grid>
+
+            <!-- Kamera: üstte büyük önizleme (kapalıyken glif + durum yazısı görünür),
+                 altta aç/kapat satırı ve salt-gösterim mikrofon satırı. Kare yalnız
+                 CameraMirrorHost'tan gelir; açma isteği olayla üst bara gider — gövde
+                 kendi Apply ÇAĞIRMAZ. Önizleme klipi MusicCover deseninde kodla kurulur. -->
+            <Grid x:Name="CameraBody" Visibility="Collapsed">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border x:Name="CameraPreviewHost"
+                        Grid.Row="0"
+                        Height="180"
+                        CornerRadius="14"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}">
+                    <Grid>
+                        <Image x:Name="CameraPreviewImage" Stretch="Uniform" />
+                        <StackPanel x:Name="CameraPreviewPlaceholder"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            <TextBlock x:Name="CameraPreviewGlyph"
+                                       FontFamily="{DynamicResource AppIconFontFamily}"
+                                       FontSize="40"
+                                       HorizontalAlignment="Center"
+                                       Text="&#xE722;" />
+                            <TextBlock x:Name="CameraStatusText"
+                                       Margin="0,8,0,0"
+                                       FontSize="12"
+                                       FontFamily="{DynamicResource AppTextFontFamily}"
+                                       HorizontalAlignment="Center"
+                                       Opacity="0.7"
+                                       Text="Kapalı" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <Grid Grid.Row="1" Margin="0,12,0,0">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                                   VerticalAlignment="Center" Text="&#xE722;" />
+                        <TextBlock Text="Kamera" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                                   FontFamily="{DynamicResource AppTextFontFamily}" />
+                    </StackPanel>
+                    <ToggleButton x:Name="CameraToggleButton"
+                                  Style="{StaticResource IslandPlayToggle}"
+                                  HorizontalAlignment="Right"
+                                  IsThreeState="False"
+                                  Click="OnCameraToggleClick"
+                                  ToolTip="Kamera önizlemesini açar ya da kapatır">
+                        <TextBlock x:Name="CameraToggleGlyph"
+                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=ToggleButton}}"
+                                   FontFamily="{DynamicResource AppIconFontFamily}"
+                                   FontSize="16"
+                                   Text="&#xE722;" />
+                    </ToggleButton>
+                </Grid>
+
+                <StackPanel Grid.Row="2" Margin="0,10,0,0" Orientation="Horizontal">
+                    <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" FontSize="13"
+                               VerticalAlignment="Center" Text="&#xE720;" />
+                    <TextBlock Text="Mikrofon" Margin="6,0,0,0" FontSize="12" VerticalAlignment="Center"
+                               FontFamily="{DynamicResource AppTextFontFamily}" />
+                    <TextBlock x:Name="MicStatusText" Margin="8,0,0,0" FontSize="12" Opacity="0.7"
+                               VerticalAlignment="Center" FontFamily="{DynamicResource AppTextFontFamily}"
+                               Text="Bilinmiyor" />
+                </StackPanel>
             </Grid>
 
             <!-- Prompter: üstte okuma editörü (Playing'de saat başı otomatik kayar;
