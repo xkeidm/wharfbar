@@ -1266,6 +1266,9 @@ public partial class TopBarWindow
         double from = scale.ScaleX;
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        // Removing the clock cancels an in-flight pulse, whose Completed handler would otherwise
+        // be the only writer to clear the gate; without this reset the pill never pulses again.
+        _islandPulseRunning = false;
         scale.ScaleX = to;
         scale.ScaleY = to;
         double ms = IslandMotion.Gate(down ? IslandMotion.PressInMs : IslandMotion.PressOutMs, SystemParameters.ClientAreaAnimation);
