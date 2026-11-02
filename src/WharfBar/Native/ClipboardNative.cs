@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -19,6 +20,7 @@ internal static class ClipboardNative
     internal const int WM_CLIPBOARDUPDATE = 0x031D;
 
     private const ushort CF_UNICODETEXT = 13;
+    private const ushort CF_HDROP = 15;
     private const uint GMEM_MOVEABLE = 0x0002;
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -288,6 +290,222 @@ internal static class ClipboardNative
         }
     }
 
+    /// <summary>
+    /// Panoya CF_HDROP (dosya listesi) yazar; yapıştırma çağırana bırakılır. Blok biçimi
+    /// <c>DROPFILES { pFiles = offsetof(char data), fWide = 1 }</c> + çift null'lu UTF-16
+    /// yol listesidir.
+    /// </summary>
+    /// <remarks>
+    /// Metin yazımındaki (<see cref="TryWriteText"/>) gibi bayat pano sahibi sorunu burada da
+    /// vardır: <c>EmptyClipboard</c> önceki kopyayı geri dönüşsüz atar, bu yüzden blok
+    /// <c>EmptyClipboard</c>'tan <b>önce</b> ayrılır ve doldurulur, sonrasındaki her hata bloğu
+    /// serbest bırakıp loglar. <c>CanIncludeInClipboardHistory = 0</c> işareti <b>yazılmaz</b>:
+    /// ada yakalaması metin tabanlıdır (<see cref="TryReadText"/> yalnız <c>CF_UNICODETEXT</c>
+    /// okur), yani bu yazım ada tarafından geri yakalanamaz.
+    /// </remarks>
+    internal static bool TryWriteFileDropList(IReadOnlyList<string> paths)
+    {
+        if (paths is null || paths.Count == 0)
+        {
+            return false;
+        }
+
+        int headerSize = Marshal.SizeOf<DROPFILES>();
+        int byteCount = headerSize + 2; // sonlandırıcı çift null
+        foreach (string? path in paths)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                Debug.WriteLine("[WharfBar] TryWriteFileDropList rejected an empty path.");
+                return false;
+            }
+
+            byteCount += (path.Length + 1) * 2;
+        }
+
+        if (!OpenClipboard(IntPtr.Zero))
+        {
+            Debug.WriteLine($"[WharfBar] OpenClipboard failed (file drop list write): 0x{Marshal.GetLastWin32Error():X8}");
+            return false;
+        }
+
+        try
+        {
+            IntPtr mem = AllocGlobalBlock(new IntPtr(byteCount), block =>
+            {
+                // pFiles = offsetof(char data): yol listesi başlığın hemen ardından başlar.
+                // pt = 0 / fNC = 0: kopyalama için sürükleme görüntüsü konumu anlamsız.
+                Marshal.StructureToPtr(
+                    new DROPFILES { PFiles = (uint)headerSize, Wide = 1 },
+                    block,
+                    fDeleteOld: false);
+
+                int cursor = headerSize;
+                foreach (string path in paths)
+                {
+                    byte[] utf16 = Encoding.Unicode.GetBytes(path);
+                    Marshal.Copy(utf16, 0, block + cursor, utf16.Length);
+                    cursor += utf16.Length;
+                    Marshal.WriteInt16(block, cursor, 0); // yol kendi null'ıyla biter
+                    cursor += 2;
+                }
+
+                // AllocGlobalBlock sıfırlanmış bellek garanti etmez: çift null'ın son baytını
+                // açıkça yaz (yol listesinin bittiği yer burasıdır).
+                Marshal.WriteInt16(block, byteCount - 2, 0);
+            });
+            if (mem == IntPtr.Zero)
+            {
+                return false;
+            }
+
+            // EmptyClipboard önceki kopyayı geri dönüşsüz atar: buradan sonraki her hata
+            // bloğu serbest bırakmalı. Blok önceden dolduğu için açık pencere iki API çağrısıdır.
+            if (!EmptyClipboard())
+            {
+                Debug.WriteLine($"[WharfBar] EmptyClipboard failed (file drop list): 0x{Marshal.GetLastWin32Error():X8}");
+                _ = GlobalFree(mem);
+                return false;
+            }
+
+            // SetClipboardData takes ownership on success; it must NOT be freed then.
+            if (SetClipboardData(CF_HDROP, mem) == IntPtr.Zero)
+            {
+                Debug.WriteLine($"[WharfBar] SetClipboardData(CF_HDROP) failed: 0x{Marshal.GetLastWin32Error():X8}");
+                _ = GlobalFree(mem);
+                return false;
+            }
+
+            return true;
+        }
+        finally
+        {
+            _ = CloseClipboard();
+        }
+    }
+
+    /// <summary>
+    /// Panodaki CF_HDROP listesini okur. <see cref="TryWriteFileDropList"/> yürüyüşünün
+    /// simetriğidir: bloktaki yol listesine <c>pFiles</c> ofsetinden girilir, her UTF-16 dize
+    /// kendi null'ında biter ve boş dize (çift null) listeyi bitirir.
+    /// </summary>
+    /// <remarks>
+    /// Okuma <c>GlobalSize</c> ile sınırlıdır; bozuk bir blok taşma okumasına yol açmaz
+    /// (fail-closed). ANSI liste (<c>fWide = 0</c>) reddedilir: bu yazıcı yalnız UTF-16 üretir,
+    /// yabancı bir ANSI bloğun kod sayfası bilinmez.
+    /// </remarks>
+    internal static bool TryReadFileDropList(out List<string> paths)
+    {
+        paths = new List<string>();
+
+        if (!OpenClipboard(IntPtr.Zero))
+        {
+            Debug.WriteLine($"[WharfBar] OpenClipboard failed (file drop list read): 0x{Marshal.GetLastWin32Error():X8}");
+            return false;
+        }
+
+        try
+        {
+            if (!IsClipboardFormatAvailable(CF_HDROP))
+            {
+                Debug.WriteLine("[WharfBar] clipboard holds no CF_HDROP.");
+                return false;
+            }
+
+            IntPtr handle = GetClipboardData(CF_HDROP);
+            if (handle == IntPtr.Zero)
+            {
+                Debug.WriteLine($"[WharfBar] GetClipboardData(CF_HDROP) failed: 0x{Marshal.GetLastWin32Error():X8}");
+                return false;
+            }
+
+            IntPtr block = GlobalLock(handle);
+            if (block == IntPtr.Zero)
+            {
+                Debug.WriteLine($"[WharfBar] GlobalLock failed (file drop list): 0x{Marshal.GetLastWin32Error():X8}");
+                return false;
+            }
+
+            try
+            {
+                long size = (long)GlobalSize(handle);
+                int headerSize = Marshal.SizeOf<DROPFILES>();
+                if (size < headerSize || size > int.MaxValue)
+                {
+                    Debug.WriteLine($"[WharfBar] CF_HDROP block has an implausible size ({size} bytes).");
+                    return false;
+                }
+
+                DROPFILES header = Marshal.PtrToStructure<DROPFILES>(block);
+                long offset = header.PFiles;
+                if (header.Wide == 0)
+                {
+                    Debug.WriteLine("[WharfBar] CF_HDROP is an ANSI list; only UTF-16 lists are read.");
+                    return false;
+                }
+
+                if ((offset & 1) != 0 || offset < headerSize || offset >= size)
+                {
+                    Debug.WriteLine($"[WharfBar] CF_HDROP has an invalid path-list offset {offset} (block {size} bytes).");
+                    return false;
+                }
+
+                var list = new List<string>();
+                int cursor = (int)offset;
+                while (true)
+                {
+                    if (!TryReadNullTerminatedUtf16(block, cursor, (int)size, out string path))
+                    {
+                        Debug.WriteLine("[WharfBar] CF_HDROP list is not double-null terminated inside the block.");
+                        return false;
+                    }
+
+                    if (path.Length == 0)
+                    {
+                        break; // çift null: liste bitti
+                    }
+
+                    list.Add(path);
+                    cursor += (path.Length + 1) * 2;
+                }
+
+                paths = list;
+                return true;
+            }
+            finally
+            {
+                _ = GlobalUnlock(handle);
+            }
+        }
+        finally
+        {
+            _ = CloseClipboard();
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="block"/> + <paramref name="offset"/> adresindeki null sonlanmış UTF-16
+    /// dizesini <paramref name="end"/> bayt sınırına kadar okur. Sınır içinde null yoksa
+    /// <c>false</c> döner — <c>PtrToStringUni</c>'nin sınırsız okumasına güvenilmez.
+    /// </summary>
+    private static bool TryReadNullTerminatedUtf16(IntPtr block, int offset, int end, out string value)
+    {
+        value = string.Empty;
+        int cursor = offset;
+        while (cursor + 2 <= end)
+        {
+            if (Marshal.ReadInt16(block, cursor) == 0)
+            {
+                value = Marshal.PtrToStringUni(block + offset, (cursor - offset) / 2) ?? string.Empty;
+                return true;
+            }
+
+            cursor += 2;
+        }
+
+        return false;
+    }
+
     /// <summary>Pano sahibi sürecin adı; sahiplik yoksa veya erişilemiyorsa null.</summary>
     internal static string? GetOwnerProcessName()
     {
@@ -419,6 +637,22 @@ internal static class ClipboardNative
         {
             _ = GlobalFree(mem);
         }
+    }
+
+    /// <summary>
+    /// CF_HDROP bloğunun başlığı (<c>DROPFILES</c>): <c>PFiles</c> yol listesinin blok başına
+    /// göre bayt ofsetidir (<c>offsetof(char data)</c>), <c>Wide = 1</c> listenin UTF-16
+    /// olduğunu söyler. <c>PointX/PointY</c> ve <c>NonClient</c> kopyalamada kullanılmaz,
+    /// yalnız sürükleme görüntüsü konumunu taşır.
+    /// </summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct DROPFILES
+    {
+        public uint PFiles;
+        public int PointX;
+        public int PointY;
+        public int NonClient;
+        public int Wide;
     }
 
     private static int Utf8ByteCount(string? text) =>

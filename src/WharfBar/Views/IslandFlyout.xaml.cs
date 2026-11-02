@@ -1949,15 +1949,40 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Çip menüsü. "Uygulama ile aç" yalnız <see cref="IslandService.CanOpenShelfFile"/> izin
-    /// verdiğinde görünür; her çipte "Listeden kaldır" vardır — kayıt listeden düşer, dosyaya
-    /// dokunulmaz (silme sınırları <see cref="IslandService.Remove"/> ve
-    /// <see cref="IslandService.DeleteDroppedFiles"/> kontratlarındadır). "Rafını boşalt"
-    /// gövde altında tek düğmedir; menüye ikinci kez tekrarlanmaz.
+    /// Çip menüsü. Dosya eylemleri ("Dosya konumunu göster", "Yolu kopyala", "Dosyayı
+    /// kopyala") en üstte; yalnız <see cref="ResolveShelfMenuPath"/> yol çözüp
+    /// <see cref="IslandService.CanOpenShelfFile"/> kapısından geçirdiğinde görünürler.
+    /// "Dosyayı kopyala" klasör kaydında ve klasöre çözülen yolda <b>yoktur</b> (B4 kapsamı:
+    /// menüden kopyalama yalnız gerçek dosya). "Uygulama ile aç" yalnız
+    /// <see cref="IslandService.CanOpenShelfFile"/> izin verdiğinde görünür; her çipte
+    /// "Listeden kaldır" vardır — kayıt listeden düşer, dosyaya dokunulmaz (silme sınırları
+    /// <see cref="IslandService.Remove"/> ve <see cref="IslandService.DeleteDroppedFiles"/>
+    /// kontratlarındadır). "Rafını boşalt" gövde altında tek düğmedir; menüye ikinci kez
+    /// tekrarlanmaz.
     /// </summary>
     private ContextMenu BuildShelfChipMenu(IslandEntry entry)
     {
         var menu = new ContextMenu();
+        string? resolved = ResolveShelfMenuPath(entry);
+        if (resolved is not null)
+        {
+            var reveal = new MenuItem { Header = "Dosya konumunu göster" };
+            reveal.Click += (_, _) => RevealInExplorer(resolved);
+            menu.Items.Add(reveal);
+
+            var copyPath = new MenuItem { Header = "Yolu kopyala" };
+            copyPath.Click += (_, _) => _ = ClipboardNative.TryWriteText(resolved);
+            menu.Items.Add(copyPath);
+
+            // Klasörde gizlenir: bu iterasyonda menüden klasör kopyalama kapsam dışı (B4).
+            if (File.Exists(resolved) && !Directory.Exists(resolved))
+            {
+                var copyFile = new MenuItem { Header = "Dosyayı kopyala" };
+                copyFile.Click += (_, _) => _ = ClipboardNative.TryWriteFileDropList([resolved]);
+                menu.Items.Add(copyFile);
+            }
+        }
+
         if (_service is not null && _service.CanOpenShelfFile(entry.FilePath))
         {
             var open = new MenuItem { Header = "Uygulama ile aç" };
@@ -1969,6 +1994,41 @@ public sealed partial class IslandFlyout : UserControl
         remove.Click += (_, _) => _service?.Remove(entry);
         menu.Items.Add(remove);
         return menu;
+    }
+
+    /// <summary>
+    /// Çip menüsünün dosya eylemleri için <b>çözülen ve kapıdan geçirilmiş</b> yolu verir:
+    /// kaydın kendi yolu (dosya ya da klasör) varsa o, yoksa <c>Drop</c> kökündeki aynı adlı
+    /// kopya. Yol <c>island.json</c>'dan geldiği için <b>güvenilmezdir</b>; gösterme ve
+    /// kopyalama da açma kadar <see cref="IslandService.CanOpenShelfFile"/> kapısını ister
+    /// (aygıt yolu, reparse noktalı klasör, kaçış bileşeni reddedilir). Kapı geçilmezse
+    /// <see langword="null"/> döner ve eylemler menüye hiç eklenmez.
+    /// </summary>
+    private string? ResolveShelfMenuPath(IslandEntry entry)
+    {
+        if (_service is null || !_service.TryGetExistingShelfPath(entry.FilePath, out string resolved))
+        {
+            return null;
+        }
+
+        return _service.CanOpenShelfFile(resolved) ? resolved : null;
+    }
+
+    /// <summary>
+    /// Explorer'ı <paramref name="path"/> seçili olarak açar. Yol kapıdan geçmiştir
+    /// (<see cref="ResolveShelfMenuPath"/>) ama kabuk başlatması yine de düşebilir; hata
+    /// loglanır, menü tıklaması uygulamayı düşürmez.
+    /// </summary>
+    private static void RevealInExplorer(string path)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo("explorer.exe") { Arguments = $"/select,\"{path}\"" });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            Debug.WriteLine($"[WharfBar] island reveal failed: {ex.Message}");
+        }
     }
 
     /// <summary>
