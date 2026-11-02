@@ -45,6 +45,13 @@ public partial class TopBarWindow
     private static readonly Thickness IslandDragBorderThickness = new(1, 1, 1, 0);
     private const double IslandDragGlowOpacity = 0.35;
 
+    /// <summary>Swallow micro-motion on a successful drop: compress, release past 1, settle.</summary>
+    private const double IslandSwallowCompressMs = 80;
+    private const double IslandSwallowReleaseMs = 110;
+    private const double IslandSwallowSettleMs = 90;
+    private const double IslandSwallowCompressScale = 0.96;
+    private const double IslandSwallowReleaseScale = 1.05;
+
     private bool _islandClosePending;
     // Okur oynatma pimi: true iken panel otomatik kapanamaz; pim olay (Task 3) taşır.
     private bool _islandPrompterPinned;
@@ -1870,7 +1877,12 @@ public partial class TopBarWindow
         ApplyIslandChrome(focusMusic: false);
     }
 
-    private void PulseIslandPill()
+    /// <summary>
+    /// Resting pill pulse. <paramref name="swallow"/> adds the drop variant: a compress-release
+    /// that reads as the pill swallowing the file, with a one-shot accent flash on the shared
+    /// drag glow. Both variants share the <see cref="_islandPulseRunning"/> reentry gate.
+    /// </summary>
+    private void PulseIslandPill(bool swallow = false)
     {
         if (_islandPulseRunning || IslandPill.Visibility != Visibility.Visible)
         {
@@ -1880,19 +1892,94 @@ public partial class TopBarWindow
         ScaleTransform transform = EnsurePillScale();
         if (!SystemParameters.ClientAreaAnimation)
         {
+            // Static end state: the pill rests at 1 and no accent effect stays attached. The drag
+            // chrome's exit fade may still be in flight, so the swallow detaches it here.
+            if (swallow)
+            {
+                DetachIslandDragGlow();
+            }
+
             return;
         }
 
         _islandPulseRunning = true;
-        var pulse = new DoubleAnimation(1d, 1.06d, TimeSpan.FromMilliseconds(160))
+        if (!swallow)
         {
-            AutoReverse = true,
-            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
-            FillBehavior = FillBehavior.Stop,
-        };
-        pulse.Completed += (_, _) => _islandPulseRunning = false;
-        transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, pulse);
-        transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, pulse);
+            var pulse = new DoubleAnimation(1d, 1.06d, TimeSpan.FromMilliseconds(160))
+            {
+                AutoReverse = true,
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                FillBehavior = FillBehavior.Stop,
+            };
+            pulse.Completed += (_, _) => _islandPulseRunning = false;
+            transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, pulse);
+            transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, pulse);
+            return;
+        }
+
+        // Compress under the pointer, release just past 1, settle: the pill "swallows" the drop.
+        double compress = IslandSwallowCompressMs;
+        double release = compress + IslandSwallowReleaseMs;
+        double settle = release + IslandSwallowSettleMs;
+        var swallowPulse = new DoubleAnimationUsingKeyFrames { FillBehavior = FillBehavior.Stop };
+        swallowPulse.KeyFrames.Add(new EasingDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        swallowPulse.KeyFrames.Add(new EasingDoubleKeyFrame(
+            IslandSwallowCompressScale,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(compress)),
+            new CubicEase { EasingMode = EasingMode.EaseOut }));
+        swallowPulse.KeyFrames.Add(new EasingDoubleKeyFrame(
+            IslandSwallowReleaseScale,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(release)),
+            new CubicEase { EasingMode = EasingMode.EaseOut }));
+        swallowPulse.KeyFrames.Add(new EasingDoubleKeyFrame(
+            1,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(settle)),
+            new CubicEase { EasingMode = EasingMode.EaseInOut }));
+        swallowPulse.Completed += (_, _) => _islandPulseRunning = false;
+        transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleXProperty, swallowPulse);
+        transform.BeginAnimation(System.Windows.Media.ScaleTransform.ScaleYProperty, swallowPulse);
+        FlashIslandAccent(compress, release, settle);
+    }
+
+    /// <summary>
+    /// Accent flash for the swallow: the shared drag glow dims with the compress, flashes back to
+    /// its drag brightness on the release, then fades out and detaches so the always-visible pill
+    /// never keeps rendering through an effect.
+    /// </summary>
+    private void FlashIslandAccent(double compressMs, double releaseMs, double settleMs)
+    {
+        DropShadowEffect glow = EnsureIslandDragGlow();
+        // The drag chrome's exit fade may still own this opacity clock; the flash takes it over.
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, null);
+        glow.Opacity = 0;
+        double dim = IslandMotion.Gate(compressMs, SystemParameters.ClientAreaAnimation);
+        double flash = IslandMotion.Gate(releaseMs, SystemParameters.ClientAreaAnimation);
+        double end = IslandMotion.Gate(settleMs, SystemParameters.ClientAreaAnimation);
+        if (end <= 0)
+        {
+            // Reduced motion: the static end state is the detached glow, never a lit effect.
+            DetachIslandDragGlow();
+            return;
+        }
+
+        var accent = new DoubleAnimationUsingKeyFrames { FillBehavior = FillBehavior.Stop };
+        accent.KeyFrames.Add(new EasingDoubleKeyFrame(
+            IslandDragGlowOpacity,
+            KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        accent.KeyFrames.Add(new EasingDoubleKeyFrame(
+            0,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(dim)),
+            new CubicEase { EasingMode = EasingMode.EaseOut }));
+        accent.KeyFrames.Add(new EasingDoubleKeyFrame(
+            IslandDragGlowOpacity,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(flash)),
+            new CubicEase { EasingMode = EasingMode.EaseOut }));
+        accent.KeyFrames.Add(new EasingDoubleKeyFrame(
+            0,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(end)),
+            new CubicEase { EasingMode = EasingMode.EaseIn }));
+        accent.Completed += (_, _) => DetachIslandDragGlow();
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, accent);
     }
 
     private void OnIslandDragOver(object sender, DragEventArgs e)
@@ -1908,6 +1995,7 @@ public partial class TopBarWindow
     private void OnIslandPillDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        string? displayName = null;
         try
         {
             if (!Monitor.IsPrimary || !e.Data.GetDataPresent(DataFormats.FileDrop) || Island is not { } island)
@@ -1920,7 +2008,6 @@ public partial class TopBarWindow
                 return;
             }
 
-            string? displayName = null;
             foreach (string path in paths)
             {
                 if (string.IsNullOrWhiteSpace(path) || Directory.Exists(path))
@@ -1943,7 +2030,6 @@ public partial class TopBarWindow
 
             _presence?.NoteFileDrop(displayName, IslandNow());
             ApplyIslandChrome(focusMusic: false);
-            PulseIslandPill();
         }
         finally
         {
@@ -1951,6 +2037,10 @@ public partial class TopBarWindow
             // included) so the pill can never stay stuck in drag chrome.
             SetIslandDragActive(false);
         }
+
+        // Only reached when a record actually landed: the collapse above released the drag
+        // chrome, so the swallow's accent flash owns the shared glow from here.
+        PulseIslandPill(swallow: true);
     }
 
     private void PushLowBattery(IslandConfig? config)
