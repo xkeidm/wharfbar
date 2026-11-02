@@ -105,7 +105,19 @@
      deletes, and it also covers orphans by scanning the `Drop` folder. Delete paths are
      checked against the `Drop` prefix (a hand-edited `island.json` cannot delete the user's file).
   - Clipboard history is visible only on the **primary** monitor's bar (the service is a single instance). The secondary pill is music and meters: no clipboard list, no file drop, and no clipboard satellite.
-  - The shelf (`CanOpenShelfFile`) stores a path and can open it with the default app. Deleting a file outside the `Drop` folder is forbidden; the delete path checks the `Drop` prefix. The shelf **Raf** tab renders the timeline as chips and is a drag **source** too — a chip leaves as a real OLE drag (`DataFormats.FileDrop`, the file path); `Rafını boşalt` stays the only mass delete.
+  - The shelf (`CanOpenShelfFile`) stores a path and can open it with the default app. A dropped
+    **folder** is a legitimate record too: the same `IslandEntryKind.File`, the original path, and
+    **no `Drop` copy** (new drops do not copy). `CanOpenShelfFile` accepts a real directory (the
+    default app opens Explorer); reparse-point directories, device paths, and missing paths are
+    rejected — the existing guards are unchanged. `Remove` drops the record and cleans the legacy
+    `%AppData%\WharfBar\Drop` copy through the pre-existing
+    `ApplySnapshot(deleteDroppedFiles: true)` contract; **the original file is never touched**, and a
+    drop made since folder support has no copy, so removing it is record-only. Deleting a file
+    outside the `Drop` folder is forbidden; the delete path checks the `Drop` prefix. The shelf
+    **Raf** tab renders the timeline as chips (Ctrl/Shift multi-select) and is a drag **source**
+    too — a chip, or every selected chip, leaves as a real OLE drag of plain `DataFormats.FileDrop`
+    paths (files and folders; the body menu `Tümünü dışarı sürükle` arms the same drag);
+    `Rafını boşalt` stays the only mass delete.
   - **Screen color picker (ADR-010 addendum):** screen reads are documented GDI only (`Native/ScreenBitBlt` — `BitBlt` + `GetDIBits`; **no `GetPixel`, no memory read**). The overlay captures its frozen frame **before** the dim mask shows — colors are never sampled through the mask. The overlay covers the primary **work area** topmost while the island panel closes first; flags are `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW` + `Dwm.SetSystemBackdrop(None)` (no Mica on a layered window). The pick copies HEX through `IslandService.PutOnClipboard`, which reuses `TryWriteText` and so marks its record `CanIncludeInClipboardHistory=0` (nothing enters Win+V history; paste flow is `Ctrl+V`). Recent colors are session-scoped (`IslandPickedColors`, no disk).
   - **Prompter tab (ADR-010 addendum, phase 2):** reading auto-scroll on the **primary** bar only. The `.txt` loader is a plain `OpenFileDialog` (`.txt` filter; only the user-picked file is read) and `Panodan al` is a **read-only** `IslandService.TryLastClipboardText` over the island history — no clipboard read. While Playing, the playback pin suppresses the panel's auto-close funnel (an explicit close always wins via a one-shot marker); the scroll speed is **0** when `ClientAreaAnimation` is off. Oynat is gated by the pure `CanStartPlayback`: with nothing to scroll (short text, or the scroll at the bottom) the button disables with a reason tooltip — no silent dead click. No new package.
   - **Camera tab (ADR-010 addendum, phase 3):** the camera mirror stays **one capture with one owner** — `CameraMirrorHost.Apply(bool)` is the only start/stop path. The island body raises `CameraMirrorRequested` only (it never calls `Apply`); the top-bar handler and the widget-gallery toggle both land there and both write the same `island.cameraMirror` bool. The microphone is **read-only** (`AudioEndpointVolume.TryGetCaptureMute`, capture dataflow, no write method). No new package.

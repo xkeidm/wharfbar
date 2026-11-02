@@ -153,6 +153,20 @@
   `island.json` `"hubTab":"camera"` + `"cameraTab":false` opens on Pano; the 7-button strip still
   folds labels by measurement (no count rule); tab switch / panel close / app detach leaves the
   live subscription + mic timer while the pill keeps its life, and a returning tab re-attaches.
+- **Island shelf — drag-target chrome + usability ✓ (code; manual verification pending)** — the
+  primary pill is a live drop target: a `FileDrop` drag hovering it grows the pill through
+  `AnimatePillWidth`, swaps the glyph for the drop arrow (`E73E`), sets the caption to the
+  `Island_DragBadge` string (`Drop → shelf` / `Bırak → raf`), draws the accent stroke + glow, and
+  collapses the visualizer bars, camera frame, and both satellites for the duration (a cancel via
+  `DragLeave`/Esc restores the frozen face; reduced motion gets static states). A drop where at
+  least one record landed fires the swallow micro-motion (1 → 0.96 → 1.05 → 1 + accent flash).
+  Shelf usability: dropped folders are records too (same `IslandEntryKind.File`, original path, no
+  `Drop` copy, folder badge); Ctrl/Shift chip multi-select with batch drag-out of every selected
+  path; a body context menu `Tümünü dışarı sürükle` (press-and-drag); a hover `×` that removes one
+  record; and the chip menu `Dosya konumunu göster` / `Yolu kopyala` / `Dosyayı kopyala` (CF_HDROP
+  through `ClipboardNative`, hidden for folders). Design + plan:
+  `docs/superpowers/specs/2026-11-02-island-shelf-dragtarget-design.md`,
+  `docs/superpowers/plans/2026-11-02-island-shelf-dragtarget.md`.
 
 ## Former to-do list (moved to milestones)
 

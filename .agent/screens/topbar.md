@@ -41,6 +41,16 @@ leaves text, and there is no fake frame. Widgets (clock, calendar) are on the de
 
 **Motion:** the pill width morphs between idle, music, meter, and satellite states (quintic ease-out on grow, cubic on shrink, 140ÔÇô260 ms); a face swap dips and restores content opacity and pops the glyph; satellites scale/fade in and out; hover lifts the fill, press scales the pill to 0.97 (80 ms, cubic) and release springs back (`PressOut` 220 ms `BackEase`), a focused pill shows the accent ring, and a hovered satellite gets a subtle fill. Visualizer bars attack smoothly and release per bar. With system animations off (`SystemParameters.ClientAreaAnimation`) every transition is instant. Nothing animates while the pill is idle.
 
+**Drag target (primary pill only):** while a `FileDrop` drag hovers the pill, the drag chrome takes over:
+the glyph becomes the drop arrow (`E73E`), the caption becomes the localized drop badge
+(`Island_DragBadge`), the stroke turns accent and an accent `DropShadowEffect` glow appears, and the
+visualizer bars, the camera frame, and both satellites collapse for the duration. The width grows
+through the same `AnimatePillWidth` pipeline (a drag width term, not a second animation); `DragOver`
+only refreshes the effect. A drop or a cancel (`DragLeave`/Esc) collapses it and rebuilds the frozen
+face; the glow is detached when idle, and with `ClientAreaAnimation` off the states are static. A
+successful drop (at least one record landed) fires the **swallow** micro-motion: 1 -> 0.96 (80 ms)
+-> 1.05 (110 ms) -> 1 (90 ms), plus an accent flash that then detaches the glow.
+
 While the island setting is off the pill collapses on every bar. On the **primary** bar, while the setting is on, the pill stays
 (idle `Pano` (Clipboard) or the last clip). On a **secondary** bar the pill is visible only while the face is not idle or while the panel
 is open: music and the volume/brightness/battery meters. There is no clipboard list, no file drop, and no clipboard
@@ -80,7 +90,7 @@ the meter, and the satellites grow on top of it. The track-name ceiling also cou
   the tooltip includes the percent. The battery appears when it is plugged in and once the percent drops below the threshold.
   The threshold is `island.lowBatteryPercent` (default 20, accepted 5–50). In island settings, `Düşük pil eşiği` (Low battery threshold).
   When the threshold changes, the next drop can fire once again.
-- **New copy / file drop:** a text face for a short time. There is no pulse on every copy; the drop pulse stops.
+- **New copy / file drop:** a text face for a short time. There is no pulse on every copy; a successful drop gets the swallow micro-motion above.
 - **Satellites:** at most two, `FirstSatellite` / `SecondSatellite`. Music is `E90C`, clipboard is `E8C8`.
   Now playing + the clipboard surface is the clipboard satellite only. HUD + persistent music + the clipboard surface shows both (music, then clipboard). There is no clipboard satellite on the secondary bar. `transient` music is not a satellite. The same kind is not repeated.
   A click calls `ClickSatellite` and does not fall through to the pill click. While the pill is focused, Left/Right walks the selection among the visible satellites; the selected satellite has an accent stroke. Enter opens the selected satellite. If nothing is selected, Enter and Space are the pill's own click.
