@@ -449,13 +449,15 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// UI thread'inde çağrılır. Bırakılan dosyayı <c>Drop</c> klasörüne kopyalamaz;
-    /// <see cref="IslandEntryKind.File"/> kaydının <see cref="IslandEntry.FilePath"/>'i
-    /// orijinal tam yoldur, <see cref="IslandEntry.Text"/> dosya adıdır. <c>Drop</c>
-    /// klasörü bu yüzden oluşturulmaz. Dizinler ve olmayan yollar
-    /// <see cref="File.Exists"/> ile elenir. Birden fazla dosya
-    /// <see cref="MergeDroppedFiles"/> ile birleşir; "eklendi" bildirimi yalnız son
-    /// kayıt içindir.
+    /// UI thread'inde çağrılır. Bırakılan dosya ya da <b>klasörü</b> <c>Drop</c> klasörüne
+    /// kopyalamaz; <see cref="IslandEntryKind.File"/> kaydının
+    /// <see cref="IslandEntry.FilePath"/>'i orijinal tam yoldur, <see cref="IslandEntry.Text"/>
+    /// dosya/klasör adıdır. Klasör kaydı ayrı bir tür açmaz: raf onu da aynı çip olarak
+    /// gösterir, açma <see cref="CanOpenShelfFile"/> kapısından Explorer'a gider. <c>Drop</c>
+    /// klasörü bu yüzden oluşturulmaz. Ne dosya ne klasör olan yollar
+    /// (<see cref="File.Exists"/> ve <see cref="Directory.Exists"/> ikisi de false) elenir.
+    /// Birden fazla dosya <see cref="MergeDroppedFiles"/> ile birleşir; "eklendi" bildirimi
+    /// yalnız son kayıt içindir.
     /// </summary>
     /// <remarks>
     /// Kopyalama kalkınca STA worker'a atlamak için bir dosya I/O'su kalmadı
@@ -484,7 +486,10 @@ internal sealed class IslandService : IDisposable
         List<IslandEntry> added = [];
         foreach (string source in sourcePaths)
         {
-            if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
+            // Klasör de raf hedefidir (B1): File.Exists klasörlerde false döner, bu yüzden
+            // iki kontrol birlikte "gerçek bir yol" kapısıdır. Ne dosya ne klasör olan yol
+            // (silinmiş, erişilemeyen) sessizce elenir — fail-closed.
+            if (string.IsNullOrWhiteSpace(source) || (!File.Exists(source) && !Directory.Exists(source)))
             {
                 continue;
             }
@@ -500,7 +505,7 @@ internal sealed class IslandService : IDisposable
                 continue;
             }
 
-            string name = Path.GetFileName(full);
+            string name = GetShelfName(full);
             if (name.Length == 0)
             {
                 continue;
@@ -521,6 +526,21 @@ internal sealed class IslandService : IDisposable
         }
 
         MergeDroppedFiles(added);
+    }
+
+    /// <summary>
+    /// Raf kaydının görünen adı: dosya ya da klasör adı. Sonunda ayırıcı taşıyan klasör yolu
+    /// (<c>C:\a\b\</c>) <see cref="Path.GetFileName(string)"/> ile boş döner; ad ayırıcı
+    /// kırpılarak okunur, yoksa klasör sessizce kaydedilmezdi. Kök yol da boş kalır.
+    /// <see cref="TryGetExistingShelfPath"/> bu adı <c>Drop</c> kopyasıyla eşleştirmek için
+    /// kullanır.
+    /// </summary>
+    private static string GetShelfName(string full)
+    {
+        string name = Path.GetFileName(full);
+        return name.Length > 0
+            ? name
+            : Path.GetFileName(full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     }
 
     /// <summary>UI thread'inde çalışır.</summary>
@@ -850,10 +870,54 @@ internal sealed class IslandService : IDisposable
     internal bool IsInsideDropRoot(string? path) => TryResolveInsideDrop(path, out _);
 
     /// <summary>
-    /// Raf dosyası varsayılan uygulamayla açılabilir mi? <c>island.json</c> güvenilmezdir;
-    /// açmaya yalnız bu kapı izin verir. <c>Drop</c> öneki aranmaz. Yol mevcut normal bir
-    /// dosya olmalıdır: <see langword="null"/>, boş, dizin, aygıt yolu ve dizin
-    /// reparse/junction kaçışı reddedilir. Hiçbir şey çalıştırılmaz.
+    /// Raf kaydının <b>bugün var olan</b> yolunu çözer: önce kaydın kendi yolu (dosya ya da
+    /// klasör), o yoksa <c>Drop</c> kökündeki <b>aynı adlı</b> kopya. Eski kayıtlar kopyayı
+    /// <c>Drop</c> altında tutuyordu; kopyalama kaldırıldıktan sonra orijinali silinen bir
+    /// kaydın açılabilir tek hedefi bu kopyadır. Eşleşme silme yoluyla aynı sınırdadır
+    /// (<see cref="TryResolveInsideDrop"/>: <c>Drop</c> ön eki), yani <c>Drop</c> dışına
+    /// çıkan bir çözümleme yoktur. Kayıt değiştirilmez; bu yalnız bir okumadır.
+    /// </summary>
+    /// <param name="existing">
+    /// Çözülen tam yol; çözümleme yoksa boş dize.
+    /// </param>
+    /// <returns>Var olan bir yol çözüldüyse <c>true</c>; aksi hâlde <c>false</c> (fail-closed).</returns>
+    internal bool TryGetExistingShelfPath(string? filePath, out string existing)
+    {
+        existing = string.Empty;
+        if (!TryNormalizeOpenablePath(filePath, out string full))
+        {
+            return false;
+        }
+
+        if (File.Exists(full) || Directory.Exists(full))
+        {
+            existing = full;
+            return true;
+        }
+
+        // Fallback: kopya DÜZ yazılır (<c>Drop\&lt;ad&gt;</c>), yani ad Drop kökünde aranır.
+        // Ad tek bileşendir; yine de birleşik yol tek doğrulama noktasından geçirilir.
+        string fileName = GetShelfName(full);
+        if (fileName.Length == 0 || !TryResolveInsideDrop(Path.Combine(_store.DropRoot, fileName), out string copy))
+        {
+            return false;
+        }
+
+        if (File.Exists(copy) || Directory.Exists(copy))
+        {
+            existing = copy;
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Raf kaydı varsayılan uygulamayla açılabilir mi? <c>island.json</c> güvenilmezdir;
+    /// açmaya yalnız bu kapı izin verir. <c>Drop</c> öneki aranmaz. Yol mevcut bir dosya ya da
+    /// <b>klasör</b> olmalıdır: <see langword="null"/>, boş, olmayan yol, aygıt yolu, reparse
+    /// noktalı klasör (junction / sembolik bağ) ve dizin reparse kaçışı reddedilir. Hiçbir şey
+    /// çalıştırılmaz.
     /// </summary>
     internal bool CanOpenShelfFile(string? path)
     {
@@ -864,15 +928,22 @@ internal sealed class IslandService : IDisposable
 
         try
         {
-            // Dizin (junction dahil) dosya değildir. File.Exists dizinlerde false döner;
-            // ikisi de fail-closed.
-            if (Directory.Exists(full) || !File.Exists(full))
+            // Klasör de açma hedefidir (B1): Process.Start(UseShellExecute) klasörde Explorer'ı
+            // açar. File.Exists klasörlerde false döndüğü için iki kontrol birlikte "var olan
+            // yol" demektir; hiçbiri yoksa fail-closed.
+            bool isDirectory = Directory.Exists(full);
+            if (!isDirectory && !File.Exists(full))
             {
                 return false;
             }
 
-            if ((File.GetAttributes(full) & FileAttributes.Directory) != 0)
+            // Klasörün KENDİSİ reparse noktasıysa reddedilir: açma bağı izler, yani Drop içine
+            // konan bir junction Drop dışındaki klasörü açtırırdı. Dosyada bu kontrol yok —
+            // bulut yer tutucusu da reparse noktasıdır ve açılması gerekir (macOS/OneDrive);
+            // dosya yolundaki dizin bileşenlerini zaten AllDirectoryComponentsAreReal süzüyor.
+            if (isDirectory && (File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
             {
+                Debug.WriteLine($"[WharfBar] island open skipped, reparse-point folder: {full}");
                 return false;
             }
         }
@@ -888,8 +959,9 @@ internal sealed class IslandService : IDisposable
         }
 
         // Silme guard'ıyla aynı sınıf: yol üzerindeki her dizin bileşeni gerçek olmalı.
-        // Dosyanın kendisi bileşen sayılmaz (bulut yer tutucusu reparse noktası olabilir).
-        // Drop öneki yok — kök, sürücü veya UNC paylaşımıdır.
+        // Dosyanın/klasörün kendisi bileşen sayılmaz (klasör için kendi reparse kontrolü
+        // yukarıda; dosyada bulut yer tutucusu reparse noktası olabilir). Drop öneki yok —
+        // kök, sürücü veya UNC paylaşımıdır.
         if (!AllDirectoryComponentsAreReal(volumePrefix, full, out string? reparseDir))
         {
             Debug.WriteLine(
@@ -902,8 +974,9 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Raf dosyasını varsayılan uygulamasıyla açar. Kapı <see cref="CanOpenShelfFile"/>'dır:
-    /// açmadan önce yine girdi doğrulaması yapılır. Dosya silinmez.
+    /// Raf kaydını varsayılan uygulamasıyla açar. Kapı <see cref="CanOpenShelfFile"/>'dır:
+    /// açmadan önce yine girdi doğrulaması yapılır. Dosya silinmez; klasör kaydında
+    /// <c>UseShellExecute</c> Explorer'ı açar.
     /// </summary>
     /// <returns>Kapıyı geçtiyse ve başlatma denediyse <c>true</c>; kapı reddeyse ya da varsayılan
     /// uygulama bulunamadıysa <c>false</c> (kayıt listede kalır).</returns>

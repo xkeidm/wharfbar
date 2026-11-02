@@ -2010,12 +2010,15 @@ public partial class TopBarWindow
 
             foreach (string path in paths)
             {
-                if (string.IsNullOrWhiteSpace(path) || Directory.Exists(path))
+                // Klasör de rafa düşer (B1): adı "atlandı" sayılmaz. Sonunda ayırıcı taşıyan
+                // klasör yolu Path.GetFileName'de boş döner, o yüzden ayırıcı kırpılarak okunur.
+                if (string.IsNullOrWhiteSpace(path))
                 {
                     continue;
                 }
 
-                string name = Path.GetFileName(path);
+                string name = Path.GetFileName(path.TrimEnd(
+                    Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
                 if (name.Length > 0)
                 {
                     displayName = name;

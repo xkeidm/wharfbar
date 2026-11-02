@@ -40,6 +40,9 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Satır silme düğmesi (MDL2 Delete).</summary>
     private const string DeleteGlyph = "\uE74D";
 
+    /// <summary>Klasör rozeti (Segoe MDL2 Assets "Folder"; <c>AppIconFontFamily</c> ile çizilir).</summary>
+    private const string FolderGlyph = "\uE8B7";
+
     private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
 
     private IslandService? _service;
@@ -1402,7 +1405,8 @@ public sealed partial class IslandFlyout : UserControl
 
     /// <summary>
     /// Rozet metni: uzantının ilk üç harfi büyük harfe (<c>report.PDF → PDF</c>). Uzantısız
-    /// dosyada adın ilk üç harfi okunur — boş rozet bırakılmaz.
+    /// dosyada adın ilk üç harfi okunur — boş rozet bırakılmaz. Klasör kaydında rozet metni
+    /// değil <see cref="FolderGlyph"/> çizilir (bkz. <see cref="BuildShelfChip"/>).
     /// </summary>
     private static string ShelfBadge(string fileName)
     {
@@ -1432,6 +1436,10 @@ public sealed partial class IslandFlyout : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
+        // Klasör rozeti: uzantı üçlüsü yerine klasör glifi. Kayıt türü klasör için ayrı
+        // değildir (IslandEntryKind.File); klasör olup olmadığı diskteki metadata'dan okunur
+        // — File.Exists/Directory.Exists sınıfın kabul ettiği metadata kontrolüdür.
+        bool isFolder = entry.FilePath is { Length: > 0 } folderPath && Directory.Exists(folderPath);
         var badge = new Border
         {
             Width = 36,
@@ -1439,14 +1447,23 @@ public sealed partial class IslandFlyout : UserControl
             CornerRadius = new CornerRadius(8),
             Background = ResolveTileBrush(),
             VerticalAlignment = VerticalAlignment.Center,
-            Child = new TextBlock
-            {
-                Text = ShelfBadge(entry.Text),
-                FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            },
+            Child = isFolder
+                ? new TextBlock
+                {
+                    Text = FolderGlyph,
+                    FontFamily = ResolveIconFont(),
+                    FontSize = 16,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                }
+                : new TextBlock
+                {
+                    Text = ShelfBadge(entry.Text),
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
         };
         grid.Children.Add(badge);
 

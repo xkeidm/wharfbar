@@ -11,8 +11,9 @@ namespace WharfBar.Tests;
 /// <summary>
 /// Bırakma kopyası yollarının güvenlik sınırı. <c>island.json</c> elle düzenlenebildiği için
 /// <c>FilePath</c> güvenilmezdir; <c>Drop</c> dışındaki hiçbir yol silinmemelidir.
-/// Açma ayrı kapıdadır (<c>CanOpenShelfFile</c>): <c>Drop</c> öneki aranmaz, dizin,
-/// eksik yol, aygıt yolu ve junction kaçışı reddedilir. Testler gerçek dosya sistemi
+/// Açma ayrı kapıdadır (<c>CanOpenShelfFile</c>): <c>Drop</c> öneki aranmaz, eksik yol, aygıt
+/// yolu, reparse noktalı klasör ve junction kaçışı reddedilir; gerçek dosya ve gerçek klasör
+/// kabul edilir (raf klasör de barındırır). Testler gerçek dosya sistemi
 /// üzerinde çalışır, çünkü asıl tehlike
 /// (junction'ın Drop dışına taşıması) yalnız diskte görünür.
 /// </summary>
@@ -173,8 +174,13 @@ public sealed class IslandDropPathGuardTests : IDisposable
         Assert.True(IslandService.AllDirectoryComponentsAreReal(Prefix, missing, out _));
     }
 
+    /// <summary>
+    /// Kapı gerçek dosyayı ve gerçek klasörü kabul eder (raf klasör de barındırır; klasör
+    /// <c>UseShellExecute</c> ile Explorer'da açılır). Reparse noktalı klasörün reddi
+    /// <see cref="CanOpenShelfFile_RejectsJunctionEscape"/>'te — junction kurulumu orada.
+    /// </summary>
     [Fact]
-    public void CanOpenShelfFile_AcceptsRegularFile_RejectsDirectoryMissingAndDevice()
+    public void CanOpenShelfFile_AcceptsRegularFileAndRealFolder_RejectsMissingAndDevice()
     {
         string file = WriteFile("raf.txt", "shelf");
         string legacy = WriteFile(Path.Combine("Drop", "legacy.txt"), "old copy");
@@ -191,7 +197,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
             // ama önekin içinde olmak da engel değildir.
             Assert.True(service.CanOpenShelfFile(legacy));
 
-            Assert.False(service.CanOpenShelfFile(directory));
+            Assert.True(service.CanOpenShelfFile(directory));
             Assert.False(service.CanOpenShelfFile(missing));
             Assert.False(service.CanOpenShelfFile(null));
             Assert.False(service.CanOpenShelfFile(string.Empty));

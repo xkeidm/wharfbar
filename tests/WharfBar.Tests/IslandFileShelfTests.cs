@@ -7,9 +7,9 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Bırakılan dosya <c>Drop</c> klasörüne kopyalanmaz; kayıt orijinal yolu tutar.
-/// Silme hâlâ fail-closed: <c>Drop</c> dışındaki dosya listeden düşer ama diskte kalır,
-/// <c>Drop</c> altında duran eski kopya silinmeye devam eder.
+/// Bırakılan dosya <c>Drop</c> klasörüne kopyalanmaz; kayıt orijinal yolu tutar. Klasör de
+/// aynı sözleşmeyle rafa düşer (B1). Silme hâlâ fail-closed: <c>Drop</c> dışındaki dosya
+/// listeden düşer ama diskte kalır, <c>Drop</c> altında duran eski kopya silinmeye devam eder.
 /// </summary>
 public sealed class IslandFileShelfTests
 {
@@ -30,14 +30,20 @@ public sealed class IslandFileShelfTests
             service.AddDroppedFiles([first, directory, missing, second]);
 
             Assert.Equal(1, addedNotifications);
-            Assert.Equal(2, service.Entries.Count);
+
+            // Klasör de kaydedilir (B1): yalnız "ne dosya ne klasör" olan yol elenir.
+            Assert.Equal(3, service.Entries.Count);
 
             IslandEntry last = service.Entries[0];
-            IslandEntry earlier = service.Entries[1];
+            IslandEntry folder = service.Entries[1];
+            IslandEntry earlier = service.Entries[2];
             Assert.Equal(IslandEntryKind.File, last.Kind);
             Assert.Equal("b.txt", last.Text);
             Assert.Equal(Path.GetFullPath(second), last.FilePath);
             Assert.Null(last.SourceApp);
+            Assert.Equal(IslandEntryKind.File, folder.Kind);
+            Assert.Equal("folder", folder.Text);
+            Assert.Equal(Path.GetFullPath(directory), folder.FilePath);
             Assert.Equal("a.txt", earlier.Text);
             Assert.Equal(Path.GetFullPath(first), earlier.FilePath);
 
@@ -111,6 +117,96 @@ public sealed class IslandFileShelfTests
             File.WriteAllText(viaScan, "orphan");
             service.DeleteDroppedFiles();
             Assert.True(WaitUntil(() => !File.Exists(viaScan)), "Drop klasör taraması dosyayı silmedi");
+        });
+    }
+
+    /// <summary>
+    /// B1: klasör de rafa düşer. Kayıt sözleşmesi değişmez — <see cref="IslandEntryKind.File"/>
+    /// ve orijinal tam yol — yalnız <see cref="File.Exists"/> kapısı klasörleri de kabul eder.
+    /// Kopyalama yok: <c>Drop</c> klasörü hâlâ hiç açılmaz.
+    /// </summary>
+    [Fact]
+    public void AddDroppedFiles_RecordsFolder_NoFileRequired()
+    {
+        Run((service, store, root) =>
+        {
+            string dir = Path.Combine(root, "DroppedFolder");
+            Directory.CreateDirectory(dir);
+
+            service.AddDroppedFiles([dir]);
+
+            IslandEntry entry = Assert.Single(service.Entries);
+            Assert.Equal(IslandEntryKind.File, entry.Kind);
+            Assert.Equal(Path.GetFullPath(dir), entry.FilePath);
+            Assert.Equal(Path.GetFileName(dir), entry.Text);
+            Assert.Null(entry.SourceApp);
+
+            // Kopya yok: Drop klasörü bu yüzden hiç oluşturulmaz.
+            Assert.False(Directory.Exists(store.DropRoot));
+        });
+    }
+
+    /// <summary>
+    /// Açma kapısı gerçek klasörü kabul eder (<c>Process.Start { UseShellExecute = true }</c>
+    /// klasörde Explorer'ı açar). Reparse-point klasör reddi burada tekrarlanmaz: kalıcı
+    /// kapsam <c>IslandDropPathGuardTests.CanOpenShelfFile_RejectsJunctionEscape</c>'te, junction
+    /// kurulumu gerektirdiği için orada tutulur.
+    /// </summary>
+    [Fact]
+    public void CanOpenShelfFile_AllowsRealFolder()
+    {
+        Run((service, _, root) =>
+        {
+            string dir = Path.Combine(root, "ShelfFolder");
+            Directory.CreateDirectory(dir);
+
+            Assert.True(service.CanOpenShelfFile(dir));
+
+            // Klasörün kendisi gerçek bir yol olmalı: silinmiş klasör açılmaz.
+            string missing = Path.Combine(root, "NoSuchFolder");
+            Assert.False(service.CanOpenShelfFile(missing));
+        });
+    }
+
+    /// <summary>
+    /// Çözümleme sırası: kaydın kendi yolu (dosya ya da klasör) kazanır; o yol yoksa
+    /// <c>Drop</c> kökündeki <b>aynı adlı</b> kopya döner — kopyalama kaldırılmadan önce
+    /// yazılmış eski kayıtların tek açılabilir hedefi budur. Hiçbiri yoksa fail-closed.
+    /// </summary>
+    [Fact]
+    public void TryGetExistingShelfPath_PrefersOriginal_AndFallsBackToDropCopy()
+    {
+        Run((service, store, root) =>
+        {
+            string real = Write(root, "keep.txt", "original");
+            service.AddDroppedFiles([real]);
+            IslandEntry entry = Assert.Single(service.Entries);
+
+            Assert.True(service.TryGetExistingShelfPath(entry.FilePath, out string resolved));
+            Assert.Equal(Path.GetFullPath(real), Path.GetFullPath(resolved));
+
+            // Drop altında aynı adlı eski bir kopya dursa bile orijinal yol kazanır.
+            Directory.CreateDirectory(store.DropRoot);
+            string staleCopy = Path.Combine(store.DropRoot, "keep.txt");
+            File.WriteAllText(staleCopy, "stale");
+            Assert.True(service.TryGetExistingShelfPath(real, out string stillOriginal));
+            Assert.Equal(Path.GetFullPath(real), Path.GetFullPath(stillOriginal));
+            File.Delete(staleCopy);
+
+            // Fallback dalı: kayıt orijinal yolu tutar, o yol silinmiştir, geriye Drop kopyası kalır.
+            string gone = Path.Combine(root, "gone.txt");
+            File.WriteAllText(gone, "legacy");
+            string dropCopy = Path.Combine(store.DropRoot, "gone.txt");
+            File.Move(gone, dropCopy);
+
+            Assert.True(service.TryGetExistingShelfPath(gone, out string fallback));
+            Assert.Equal(Path.GetFullPath(dropCopy), Path.GetFullPath(fallback));
+
+            // Ne orijinal ne kopya: çözümleme yok (fail-closed).
+            Assert.False(service.TryGetExistingShelfPath(Path.Combine(root, "never.txt"), out string missing));
+            Assert.Equal(string.Empty, missing);
+            Assert.False(service.TryGetExistingShelfPath(null, out _));
+            Assert.False(service.TryGetExistingShelfPath(@"\\.\NUL", out _));
         });
     }
 
