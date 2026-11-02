@@ -124,38 +124,39 @@ public partial class TopBarWindow
 
     private void OnIslandPillDragEnter(object sender, DragEventArgs e)
     {
+        // Only a primary-monitor file drag earns the target chrome; a text/URL drag leaves
+        // the pill untouched. The state machine reads this gate, so there is no second source.
         _islandDragValid = Monitor.IsPrimary && e.Data.GetDataPresent(DataFormats.FileDrop);
-        SetIslandDragActive(_islandDragValid, _islandDragValid);
+        SetIslandDragActive(true);
     }
 
-    private void OnIslandPillDragLeave(object sender, DragEventArgs e) => SetIslandDragActive(false, false);
+    private void OnIslandPillDragLeave(object sender, DragEventArgs e) => SetIslandDragActive(false);
 
     /// <summary>
     /// The drag-target chrome is a transition-gated state, not an extra animation: enter
     /// swaps the pill chrome and widens it through <see cref="AnimatePillWidth"/>, exit
     /// rebuilds the frozen face and lets that same pipeline close the width.
     /// </summary>
-    private void SetIslandDragActive(bool active, bool valid)
+    private void SetIslandDragActive(bool active)
     {
+        // The chrome only engages for a primary-monitor file drag; the enter handler computes
+        // that predicate once into _islandDragValid and every other caller passes false.
+        bool chrome = active && _islandDragValid;
         // DragOver fires ~60 Hz; only a real state change may touch chrome.
-        if (_islandDragActive == active && _islandDragValid == valid)
+        if (_islandDragActive == chrome)
         {
             return;
         }
 
-        _islandDragActive = active;
-        _islandDragValid = valid;
+        _islandDragActive = chrome;
 
-        if (!active)
+        if (!chrome)
         {
             IslandPill.ClearValue(Border.BorderBrushProperty);
-            if (IslandPopup.IsOpen)
+            if (!IslandPopup.IsOpen)
             {
-                // The popup still owns the joined edge; its own close restores the capsule.
-                IslandPill.BorderThickness = IslandDragBorderThickness;
-            }
-            else
-            {
+                // The style's 1 DIP capsule is the closed default. An open popup owns the
+                // joined edge (SetIslandJoined set it) until its own close restores it.
                 IslandPill.ClearValue(Border.BorderThicknessProperty);
             }
 
@@ -166,7 +167,9 @@ public partial class TopBarWindow
             }
 
             // Face chrome was frozen during the drag; rebuild it and let AnimatePillWidth
-            // close the width with its existing slow-close ease.
+            // close the width with its existing slow-close ease. ApplyIslandFace rewrites the
+            // automation name unconditionally; dropping the tooltip cache forces its value too.
+            _islandTip = null;
             UpdateIslandPill();
             return;
         }
@@ -179,6 +182,11 @@ public partial class TopBarWindow
         IslandTitle.Visibility = Visibility.Collapsed;
         IslandMeter.Visibility = Visibility.Collapsed;
         IslandCoverThumb.Visibility = Visibility.Collapsed;
+        // The badge row is centered and the pill clips; trailing chrome must not eat its DIP.
+        IslandBars.Visibility = Visibility.Collapsed;
+        IslandCamera.Visibility = Visibility.Collapsed;
+        CollapseIslandSatellite(IslandSatelliteFirst);
+        CollapseIslandSatellite(IslandSatelliteSecond);
         IslandPill.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
         if (IslandPill.BorderThickness != IslandDragBorderThickness)
         {
@@ -186,8 +194,32 @@ public partial class TopBarWindow
         }
 
         SetIslandDragGlow(IslandDragGlowOpacity);
+        // Screen readers and the tooltip must follow the badge, not the frozen face text;
+        // the exit pipeline restores the face-driven values.
+        AutomationProperties.SetName(IslandPill, IslandDragBadgeText);
+        SetPlainToolTip(IslandPill, IslandDragBadgeText);
         double content = IslandPadDip + IslandGlyphDip + 8 + MeasureIslandDragBadge() + IslandHoverDip;
         AnimatePillWidth(Math.Max(IslandIdleDip, content));
+    }
+
+    /// <summary>Hides a satellite for the drag chrome; the face pipeline re-shows it on exit.</summary>
+    private static void CollapseIslandSatellite(Border host)
+    {
+        // Tag=false marks it hidden so a late HideSatelliteAnimated completion cannot re-show it
+        // and the next ApplySatellites restores it through the normal animated path.
+        host.Tag = false;
+        if (host.RenderTransform is ScaleTransform scale)
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        }
+
+        host.BeginAnimation(UIElement.OpacityProperty, null);
+        host.Opacity = 1;
+        host.Visibility = Visibility.Collapsed;
+        host.Margin = new Thickness(0);
     }
 
     /// <summary>
@@ -206,7 +238,7 @@ public partial class TopBarWindow
         return IslandTitleMeasure.Dip(badge);
     }
 
-    /// <summary>One reused accent glow; only its opacity animates, and it settles at 0.</summary>
+    /// <summary>One reused accent glow; only its opacity animates, and it detaches when idle.</summary>
     private void SetIslandDragGlow(double to)
     {
         DropShadowEffect glow = EnsureIslandDragGlow();
@@ -216,34 +248,65 @@ public partial class TopBarWindow
         double ms = IslandMotion.Gate(IslandMotion.ContentFadeMs, SystemParameters.ClientAreaAnimation);
         if (ms <= 0 || Math.Abs(from - to) < 0.001)
         {
+            if (to <= 0)
+            {
+                DetachIslandDragGlow();
+            }
+
             return;
         }
 
-        glow.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
+        var fade = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
         {
             EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
             FillBehavior = FillBehavior.Stop,
-        });
+        };
+        if (to <= 0)
+        {
+            // The always-visible pill must not keep rendering through an effect surface.
+            fade.Completed += (_, _) => DetachIslandDragGlow();
+        }
+
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, fade);
+    }
+
+    /// <summary>Clears the effect once the exit fade has landed; a re-enter before that re-owns it.</summary>
+    private void DetachIslandDragGlow()
+    {
+        if (_islandDragActive || _islandDragGlow is null)
+        {
+            return;
+        }
+
+        if (ReferenceEquals(IslandPill.Effect, _islandDragGlow))
+        {
+            IslandPill.Effect = null;
+        }
     }
 
     private DropShadowEffect EnsureIslandDragGlow()
     {
-        if (_islandDragGlow is not null)
+        if (_islandDragGlow is null)
         {
-            return _islandDragGlow;
+            _islandDragGlow = new DropShadowEffect
+            {
+                ShadowDepth = 0,
+                BlurRadius = 14,
+                Opacity = 0,
+            };
         }
 
-        Color accent = TryFindResource("SystemAccentColor") is Color color
-            ? color
-            : Color.FromRgb(0x00, 0x78, 0xD4);
-        _islandDragGlow = new DropShadowEffect
+        // Follow the live accent resource on every enter instead of capturing it once.
+        _islandDragGlow.Color = TryFindResource("AccentFillColorDefaultBrush") is SolidColorBrush accentBrush
+            ? accentBrush.Color
+            : TryFindResource("SystemAccentColor") is Color accentColor
+                ? accentColor
+                : Color.FromRgb(0x00, 0x78, 0xD4);
+        if (!ReferenceEquals(IslandPill.Effect, _islandDragGlow))
         {
-            ShadowDepth = 0,
-            BlurRadius = 14,
-            Opacity = 0,
-            Color = accent,
-        };
-        IslandPill.Effect = _islandDragGlow;
+            IslandPill.Effect = _islandDragGlow;
+        }
+
         return _islandDragGlow;
     }
 
@@ -1886,7 +1949,7 @@ public partial class TopBarWindow
         {
             // No DragLeave follows a drop; collapse on every path (empty or failed payload
             // included) so the pill can never stay stuck in drag chrome.
-            SetIslandDragActive(false, false);
+            SetIslandDragActive(false);
         }
     }
 

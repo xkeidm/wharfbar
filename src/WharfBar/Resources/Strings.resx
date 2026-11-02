@@ -713,7 +713,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Open Windows hidden icons</value></data>
   <data name="Island_Clipboard" xml:space="preserve"><value>Clipboard</value></data>
   <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Clipboard and dropped files</value></data>
-  <data name="Island_DragBadge" xml:space="preserve"><value>Bırak → raf</value></data>
+  <data name="Island_DragBadge" xml:space="preserve"><value>Drop → shelf</value></data>
   <data name="Island_Music" xml:space="preserve"><value>Music</value></data>
   <data name="Island_NowPlaying" xml:space="preserve"><value>Now playing</value></data>
   <data name="Island_BackToMusic" xml:space="preserve"><value>Back to music</value></data>
