@@ -1490,6 +1490,7 @@ public sealed partial class IslandFlyout : UserControl
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // Klasör rozeti: uzantı üçlüsü yerine klasör glifi. Kayıt türü klasör için ayrı
         // değildir (IslandEntryKind.File); klasör olup olmadığı diskteki metadata'dan okunur
@@ -1531,6 +1532,32 @@ public sealed partial class IslandFlyout : UserControl
         };
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
+
+        // Hover "×": üçüncü (Auto) kolonda, yalnız fare çipin üzerindeyken görünür. Klik kaydı
+        // listeden düşürür; dosya silinmez (kopya temizliği <see cref="IslandService.Remove"/>
+        // kontratında). Arka plan <c>Transparent</c> (null değil): 16×16 alanı hit-test'e sokar,
+        // yani "×" harfinin etrafına da tıklanabilir.
+        var removeButton = new Border
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(2, 0, 0, 0),
+            CornerRadius = new CornerRadius(4),
+            Background = Brushes.Transparent,
+            Cursor = Cursors.Hand,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            ToolTip = "Listeden kaldır",
+            Child = new TextBlock
+            {
+                Text = "×",
+                FontSize = 10,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+            },
+        };
+        Grid.SetColumn(removeButton, 2);
+        grid.Children.Add(removeButton);
         chip.Child = grid;
 
         // Dosya adı listede; kopyanın tam yolu tooltip'te (pano gövdesindeki yerleşimle aynı).
@@ -1541,9 +1568,14 @@ public sealed partial class IslandFlyout : UserControl
 
         Brush restingBrush = Brushes.Transparent;
         Brush hoverBrush = ResolveSelectedBrush();
-        chip.MouseEnter += (_, _) => chip.Background = hoverBrush;
+        chip.MouseEnter += (_, _) =>
+        {
+            chip.Background = hoverBrush;
+            removeButton.Visibility = Visibility.Visible;
+        };
         chip.MouseLeave += (_, _) =>
         {
+            removeButton.Visibility = Visibility.Collapsed;
             // Seçili çip hover dolgusunu bırakışta da korur; seçim çerçevesi tek başına kalmasın.
             chip.Background = _shelfSelection.Contains(entry.Id) ? hoverBrush : restingBrush;
         };
@@ -1553,7 +1585,19 @@ public sealed partial class IslandFlyout : UserControl
         chip.MouseLeftButtonUp += (_, _) => OnShelfChipReleased(entry);
 
         UpdateShelfChipSelection(chip, entry);
-        AttachShelfChipDrag(chip, entry);
+        Action? cancelShelfDrag = AttachShelfChipDrag(chip, entry);
+
+        // "×" tıklaması çipin seçim/sürükleme yollarına hiç girmez: önizleme (tünel) olayı
+        // burada handled işaretlenince kabarcık <see cref="UIElement.MouseDownEvent"/> çipe
+        // ulaşmaz — ne seçim değişir ne de sürükleme yakalaması kurulur. Yine de olası bir
+        // bayat yakalamayı bırakmak için iptal eylemi çağrılır.
+        removeButton.PreviewMouseLeftButtonDown += (_, args) => args.Handled = true;
+        removeButton.PreviewMouseLeftButtonUp += (_, args) =>
+        {
+            args.Handled = true;
+            RemoveShelfEntry(entry, cancelShelfDrag);
+        };
+
         chip.ContextMenu = BuildShelfChipMenu(entry);
         return chip;
     }
@@ -1745,15 +1789,30 @@ public sealed partial class IslandFlyout : UserControl
     /// bırakılıp <see cref="DragDrop.DoDragDrop"/> çağrılır — o çağrı kullanıcı sürüklemeyi
     /// bırakana kadar engelleyici çalışır (UI thread'i zaten STA'dır).
     /// </summary>
-    private void AttachShelfChipDrag(FrameworkElement chip, IslandEntry entry)
+    /// <returns>
+    /// Basışı iptal eden eylem (bayrağı kapatır, yakalamayı bırakır) — hover "×" tıklaması
+    /// sürükleme başlatmasın diye döner; sürükleme bağlanmadıysa <see langword="null"/>.
+    /// </returns>
+    private Action? AttachShelfChipDrag(FrameworkElement chip, IslandEntry entry)
     {
         if (entry.FilePath is not { Length: > 0 } path)
         {
-            return;
+            return null;
         }
 
         bool pressed = false;
         Point origin = default;
+        void CancelPress()
+        {
+            if (!pressed)
+            {
+                return;
+            }
+
+            pressed = false;
+            chip.ReleaseMouseCapture();
+        }
+
         chip.MouseLeftButtonDown += (_, args) =>
         {
             pressed = true;
@@ -1793,14 +1852,28 @@ public sealed partial class IslandFlyout : UserControl
             var payload = new DataObject(DataFormats.FileDrop, paths);
             _ = DragDrop.DoDragDrop(chip, payload, DragDropEffects.Copy | DragDropEffects.Move);
         };
-        chip.MouseLeftButtonUp += (_, _) =>
+        chip.MouseLeftButtonUp += (_, _) => CancelPress();
+        return CancelPress;
+    }
+
+    /// <summary>
+    /// Çipteki hover "×" tıklaması: kaydı listeden düşürür, seçimden de çıkarır. Dosyaya
+    /// dokunulmaz — silme sınırı <see cref="IslandService.Remove"/> kontratındadır. Tıklama
+    /// seçim değiştirmez ve sürükleme başlatmaz: basış ipi çipe hiç uğramaz
+    /// (<see cref="BuildShelfChip"/> önizleme kapısı), iptal eylemi de bayat yakalamayı bırakır.
+    /// </summary>
+    private void RemoveShelfEntry(IslandEntry entry, Action? cancelShelfDrag)
+    {
+        cancelShelfDrag?.Invoke();
+        _shelfSelection.Remove(entry.Id);
+        if (_shelfAnchorId == entry.Id)
         {
-            if (pressed)
-            {
-                pressed = false;
-                chip.ReleaseMouseCapture();
-            }
-        };
+            _shelfAnchorId = -1;
+        }
+
+        // Changed UI thread'inde eşzamanlı yükselir: çipler burada yeniden kurulur, yani seçim
+        // çerçevesi ve satır sırası ayrıca tazelenmez.
+        _service?.Remove(entry);
     }
 
     /// <summary>
