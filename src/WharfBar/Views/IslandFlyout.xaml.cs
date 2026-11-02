@@ -74,6 +74,10 @@ public sealed partial class IslandFlyout : UserControl
         _tabStripButtons = [TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabCamera, TabColor];
         _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabCameraLabel, TabColorLabel];
         CameraPreviewHost.SizeChanged += OnCameraPreviewSizeChanged;
+
+        // Raf arka plan menüsü boş alanda da açılsın: şeffaf fırça olmadan StackPanel hit test
+        // dışıdır (çipler arası boşluklar panele düşer).
+        ShelfList.Background = Brushes.Transparent;
     }
 
     /// <summary>
@@ -513,6 +517,14 @@ public sealed partial class IslandFlyout : UserControl
         CurrentHubTab = tab;
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
+
+        // Şelf seçimi yalnız Şelf gövdesinde yaşar: gövdeden çıkış (sekme tıklaması, ayar
+        // değişimi ya da gövde gizlenmesi) seçimi düşürür. Şelf'e dönüşte yeniden kurulum
+        // zaten seçimsizdir; yeniden kurulumun kendisi seçimi <b>korur</b>.
+        if (tab != IslandHubTab.Shelf)
+        {
+            ClearShelfSelection();
+        }
 
         // Gövde gizlenince tik atmasın: sekme değişirken oynatmayı durdur (pim serbest
         // kalır; kaydırma konumu Paused'ta korunur, geri dönüşte kaldığı yerden sürer).
@@ -1012,6 +1024,9 @@ public sealed partial class IslandFlyout : UserControl
         StopTimelinePoll();
         StopPrompterPlayback();
         Detach();
+
+        // Gövde kapandı: raf seçimi bir sonraki açılışa taşınmaz (çipler zaten yeniden kurulur).
+        ClearShelfSelection();
     }
 
     /// <summary>
@@ -1376,6 +1391,22 @@ public sealed partial class IslandFlyout : UserControl
     #region Şelf gövdesi
 
     /// <summary>
+    /// Seçili raf çipleri — kayıt <b>kimliği</b> tutulur, çip sırası değil: pano/medya
+    /// bildirimlerinin tetiklediği yeniden kurulumlarda seçim yaşamalı. Listeden düşen ya da
+    /// budanan kaydın kimliği taze listede bulunmayınca sessizce temizlenir.
+    /// </summary>
+    private readonly HashSet<long> _shelfSelection = [];
+
+    /// <summary>Shift ile aralık seçiminin çıpası (kayıt kimliği); seçim yokken <c>-1</c>.</summary>
+    private long _shelfAnchorId = -1;
+
+    /// <summary>
+    /// Son kurulumun görüntüleme sırası (çip sırası = <see cref="IslandService.Entries"/> sırası).
+    /// Aralık seçimi ve toplu sürükleme yükü bu sırayı izler.
+    /// </summary>
+    private readonly List<IslandEntry> _shelfRows = [];
+
+    /// <summary>
     /// Raf gövdesi: bırakılan dosya kayıtları tek satırlık çip olarak — uzantı rozeti + dosya
     /// adı. Sıra <see cref="IslandService.Entries"/> ile aynı (en yeni başta); pano gövdesinin
     /// satır tavanı (<see cref="MaxRenderedRows"/>) burada da geçerlidir.
@@ -1391,16 +1422,35 @@ public sealed partial class IslandFlyout : UserControl
             .Where(entry => entry.Kind == IslandEntryKind.File)
             .ToList();
 
+        // Seçim kimliğe bağlıdır: taze listede olmayan (kaldırılan/budanan) kayıt düşer, kalan
+        // seçim korunur. Arka plan bildirimlerinin sık tetiklediği yeniden kurulumlar seçimi
+        // yemez — seçim yalnız sekme/gövde kapanışında ve bu kimlik süzgecinde temizlenir.
+        HashSet<long> liveIds = [.. files.Select(entry => entry.Id)];
+        _shelfSelection.IntersectWith(liveIds);
+        if (_shelfAnchorId >= 0 && !liveIds.Contains(_shelfAnchorId))
+        {
+            _shelfAnchorId = -1;
+        }
+
         bool empty = files.Count == 0;
         ShelfEmpty.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         ShelfScroll.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
 
         ShelfList.Children.Clear();
+        _shelfRows.Clear();
         int shown = Math.Min(files.Count, MaxRenderedRows);
         for (int i = 0; i < shown; i++)
         {
+            _shelfRows.Add(files[i]);
             ShelfList.Children.Add(BuildShelfChip(files[i]));
         }
+
+        // Arka plan menüsü: en az iki yolu hâlâ var olan kayıt varsa "hepsini dışarı sürükle".
+        // StackPanel yalnız çiplerin alanını kaplar; gövdenin boş kalan alt kısmı için aynı
+        // maddeleri kuran ayrı bir menü kaydırma alanına verilir (örnek paylaşılmaz). Çip
+        // menüsü daha yakın olduğu için çip üzerinde o açılır.
+        ShelfList.ContextMenu = BuildShelfBatchMenu(files);
+        ShelfScroll.ContextMenu = BuildShelfBatchMenu(files);
     }
 
     /// <summary>
@@ -1417,8 +1467,8 @@ public sealed partial class IslandFlyout : UserControl
 
     /// <summary>
     /// Çip satırı: pano gövdesinin <see cref="BuildRow"/> deseniyle aynı ölçüler (kutu 32,
-    /// köşe 12, iki satır arası 2) — tek fark: ikinci kolonda meta değil ad, sağ tık menüsü ve
-    /// sürükleyerek dışarı taşıma. Sol tık hiçbir şey yapmaz; dosya açma menüden ya da pano
+    /// köşe 12, iki satır arası 2) — tek fark: ikinci kolonda meta değil ad, seçim tıklaması,
+    /// sağ tık menüsü ve sürükleyerek dışarı taşıma. Dosya açma menüden ya da pano
     /// gövdesindeki satırdan.
     /// </summary>
     private Border BuildShelfChip(IslandEntry entry)
@@ -1429,7 +1479,12 @@ public sealed partial class IslandFlyout : UserControl
             Margin = new Thickness(0, 0, 0, 2),
             CornerRadius = new CornerRadius(12),
             Background = Brushes.Transparent,
+            // Kenarlık her çipte 1 px'tir; seçimde fırça aksana döner. Kalınlık seçim anında
+            // değişseydi çip 2 px büyür, satır yüksekliği seçimde zıplardı.
+            BorderThickness = new Thickness(1),
+            BorderBrush = Brushes.Transparent,
             Cursor = Cursors.Hand,
+            Tag = entry,
         };
 
         var grid = new Grid();
@@ -1487,19 +1542,208 @@ public sealed partial class IslandFlyout : UserControl
         Brush restingBrush = Brushes.Transparent;
         Brush hoverBrush = ResolveSelectedBrush();
         chip.MouseEnter += (_, _) => chip.Background = hoverBrush;
-        chip.MouseLeave += (_, _) => chip.Background = restingBrush;
+        chip.MouseLeave += (_, _) =>
+        {
+            // Seçili çip hover dolgusunu bırakışta da korur; seçim çerçevesi tek başına kalmasın.
+            chip.Background = _shelfSelection.Contains(entry.Id) ? hoverBrush : restingBrush;
+        };
 
+        // Seçim tıklaması sürükleme yakalamasından bağımsızdır: yol taşımayan kayıt da seçilir.
+        chip.MouseLeftButtonDown += (_, _) => OnShelfChipPressed(entry);
+        chip.MouseLeftButtonUp += (_, _) => OnShelfChipReleased(entry);
+
+        UpdateShelfChipSelection(chip, entry);
         AttachShelfChipDrag(chip, entry);
         chip.ContextMenu = BuildShelfChipMenu(entry);
         return chip;
     }
 
     /// <summary>
+    /// Çip basışı seçimi yönetir: Ctrl tek tek açar/kapatır, Shift çıpadan aralık seçer, düz
+    /// basış seçimi düşürür. Düz basışta <b>seçili</b> çip hemen düşürülmez: basış sürüklemeye
+    /// dönüşürse seçim yükü taşınır; tıklama olarak biterse bırakışta tek çipe daralır
+    /// (<see cref="OnShelfChipReleased"/>).
+    /// </summary>
+    private void OnShelfChipPressed(IslandEntry entry)
+    {
+        ModifierKeys modifiers = Keyboard.Modifiers;
+        if ((modifiers & ModifierKeys.Control) != 0)
+        {
+            if (!_shelfSelection.Remove(entry.Id))
+            {
+                _shelfSelection.Add(entry.Id);
+            }
+
+            _shelfAnchorId = entry.Id;
+        }
+        else if ((modifiers & ModifierKeys.Shift) != 0)
+        {
+            ExtendShelfSelectionTo(entry);
+        }
+        else if (!_shelfSelection.Contains(entry.Id))
+        {
+            ClearShelfSelection();
+        }
+
+        RefreshShelfChipSelection();
+    }
+
+    /// <summary>
+    /// Düz tıklamanın bırakışı: çoklu seçimdeki seçili çipe sürüklemesiz basıldıysa seçim o
+    /// çipe daralır (sürükleme buraya hiç uğramaz; yakalama <see cref="AttachShelfChipDrag"/>
+    /// içinde bırakılır).
+    /// </summary>
+    private void OnShelfChipReleased(IslandEntry entry)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.None
+            || _shelfSelection.Count <= 1
+            || !_shelfSelection.Contains(entry.Id))
+        {
+            return;
+        }
+
+        _shelfSelection.Clear();
+        _shelfSelection.Add(entry.Id);
+        _shelfAnchorId = entry.Id;
+        RefreshShelfChipSelection();
+    }
+
+    /// <summary>Çıpadan tıklanan çipe kadar görüntüleme sırasındaki aralığı seçer.</summary>
+    private void ExtendShelfSelectionTo(IslandEntry entry)
+    {
+        int clicked = IndexOfShelfRow(entry.Id);
+        if (clicked < 0)
+        {
+            return;
+        }
+
+        int anchor = IndexOfShelfRow(_shelfAnchorId);
+        if (anchor < 0)
+        {
+            // Çıpa listeden düşmüşse aralık tıklanan çipten başlar.
+            anchor = clicked;
+            _shelfAnchorId = entry.Id;
+        }
+
+        int from = Math.Min(anchor, clicked);
+        int to = Math.Max(anchor, clicked);
+        _shelfSelection.Clear();
+        for (int i = from; i <= to; i++)
+        {
+            _shelfSelection.Add(_shelfRows[i].Id);
+        }
+    }
+
+    private int IndexOfShelfRow(long id)
+    {
+        for (int i = 0; i < _shelfRows.Count; i++)
+        {
+            if (_shelfRows[i].Id == id)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Seçim görsellerini tek çipte uygular: aksan çerçeve + fare üzerindeyken ya da seçiliyken
+    /// hover dolgusu. Yeniden kurulumda <see cref="BuildShelfChip"/> de bu kapıdan geçer, yani
+    /// seçim yeni çiplere kendiliğinden taşınır.
+    /// </summary>
+    private void UpdateShelfChipSelection(Border chip, IslandEntry entry)
+    {
+        chip.BorderThickness = new Thickness(1);
+        if (_shelfSelection.Contains(entry.Id))
+        {
+            chip.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+            chip.Background = ResolveSelectedBrush();
+            return;
+        }
+
+        chip.BorderBrush = Brushes.Transparent;
+        chip.Background = chip.IsMouseOver ? ResolveSelectedBrush() : Brushes.Transparent;
+    }
+
+    /// <summary>Seçim değişince tüm çiplerin görselini tazeler (çip sayısı satır tavanıyla sınırlı).</summary>
+    private void RefreshShelfChipSelection()
+    {
+        foreach (UIElement child in ShelfList.Children)
+        {
+            if (child is Border chip && chip.Tag is IslandEntry entry)
+            {
+                UpdateShelfChipSelection(chip, entry);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Seçimi bırakır. Yalnız sekme/gövde kapanışında ve liste dışına çıkan kimliklerde
+    /// çağrılır; sıradan <see cref="RebuildShelf"/> seçimi korur.
+    /// </summary>
+    private void ClearShelfSelection()
+    {
+        _shelfSelection.Clear();
+        _shelfAnchorId = -1;
+    }
+
+    /// <summary>
+    /// Seçili kayıtları <see cref="DataFormats.FileDrop"/> yüküne çevirir: yalnız diskte hâlâ
+    /// var olan yollar (dosya <b>ya da</b> klasör). Hiçbiri kalmadıysa <see langword="null"/> —
+    /// çağıran sürüklemeyi başlatmaz.
+    /// </summary>
+    private static string[]? BuildShelfFileDropPayload(IEnumerable<IslandEntry> entries)
+    {
+        List<string> paths = [];
+        foreach (IslandEntry entry in entries)
+        {
+            if (entry.FilePath is { Length: > 0 } path && (File.Exists(path) || Directory.Exists(path)))
+            {
+                paths.Add(path);
+            }
+        }
+
+        return paths.Count == 0 ? null : [.. paths];
+    }
+
+    /// <summary>
+    /// Raf arka planı menüsü: en az iki kaydın yolu hâlâ diskteyse tek maddelik
+    /// "Tümünü dışarı sürükle" (seçimden bağımsız, <b>tüm</b> raf kayıtları). Yük tıklama anında
+    /// yeniden kurulur: menü açıkken diskten düşen yol taşınmaz; hiç yol kalmazsa sürükleme
+    /// başlamaz. Menü her kurulumda tazelenir, eşik altında atanmaz (sağ tık menüsüz kalır).
+    /// </summary>
+    private ContextMenu? BuildShelfBatchMenu(IReadOnlyList<IslandEntry> files)
+    {
+        if (BuildShelfFileDropPayload(files) is not { Length: > 1 })
+        {
+            return null;
+        }
+
+        var menu = new ContextMenu();
+        var dragAll = new MenuItem { Header = "Tümünü dışarı sürükle" };
+        dragAll.Click += (_, _) =>
+        {
+            if (BuildShelfFileDropPayload(files) is not { Length: > 0 } paths)
+            {
+                return;
+            }
+
+            var payload = new DataObject(DataFormats.FileDrop, paths);
+            _ = DragDrop.DoDragDrop(ShelfList, payload, DragDropEffects.Copy | DragDropEffects.Move);
+        };
+        menu.Items.Add(dragAll);
+        return menu;
+    }
+
+    /// <summary>
     /// Çipi bir klasör penceresine sürükler: <see cref="DataFormats.FileDrop"/> biçiminde
-    /// <see cref="IslandEntry.FilePath"/> taşınır. Sürkleme <b>gerçek taşınımda</b> başlar:
-    /// sol tuş <see cref="UIElement.MouseLeftButtonDownEvent"/>'te yakalanır, eşik aşılınca
-    /// yakalama bırakılıp <see cref="DragDrop.DoDragDrop"/> çağrılır — o çağrı kullanıcı
-    /// sürüklemeyi bırakana kadar engelleyici çalışır (UI thread'i zaten STA'dır).
+    /// <see cref="IslandEntry.FilePath"/> taşınır. Çip çoklu seçimin parçasıysa yük <b>seçimin
+    /// tamamıdır</b> (yalnız yolu hâlâ diskte olanlar; hiçbiri kalmadıysa sürükleme başlamaz).
+    /// Sürkleme <b>gerçek taşınımda</b> başlar: sol tuş
+    /// <see cref="UIElement.MouseLeftButtonDownEvent"/>'te yakalanır, eşik aşılınca yakalama
+    /// bırakılıp <see cref="DragDrop.DoDragDrop"/> çağrılır — o çağrı kullanıcı sürüklemeyi
+    /// bırakana kadar engelleyici çalışır (UI thread'i zaten STA'dır).
     /// </summary>
     private void AttachShelfChipDrag(FrameworkElement chip, IslandEntry entry)
     {
@@ -1534,7 +1778,19 @@ public sealed partial class IslandFlyout : UserControl
             // kuyruğa düşen MouseMove'larda sürükleme yeniden başlamasın.
             pressed = false;
             chip.ReleaseMouseCapture();
-            var payload = new DataObject(DataFormats.FileDrop, new[] { path });
+
+            // Seçili çip sürükleniyorsa toplu yük; seçim dışı çip tek yol taşır (bugünkü davranış).
+            bool batch = _shelfSelection.Count > 1 && _shelfSelection.Contains(entry.Id);
+            string[]? paths = batch
+                ? BuildShelfFileDropPayload(_shelfRows.Where(row => _shelfSelection.Contains(row.Id)))
+                : [path];
+            if (paths is null)
+            {
+                // Toplu yükte diskte kalan yol yok: bayat yolla hayalet sürükleme başlatılmaz.
+                return;
+            }
+
+            var payload = new DataObject(DataFormats.FileDrop, paths);
             _ = DragDrop.DoDragDrop(chip, payload, DragDropEffects.Copy | DragDropEffects.Move);
         };
         chip.MouseLeftButtonUp += (_, _) =>
