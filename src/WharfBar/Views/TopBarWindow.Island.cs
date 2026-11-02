@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using WharfBar.Resources;
 using WharfBar.Models;
@@ -33,8 +34,16 @@ public partial class TopBarWindow
     private const string GlyphMusic = "\uE90C";
     private const string GlyphBrightness = "\uE706";
     private const string GlyphDrop = "\uE8A5";
+    private const string GlyphDragTarget = "\uE73E";
     private const string GlyphBluetooth = "\uE702";
     private const string GlyphCamera = "\uE722";
+
+    /// <summary>Drop badge shown while a file drag hovers the pill.</summary>
+    private static readonly string IslandDragBadgeText = Strings.Island_DragBadge;
+
+    /// <summary>Joined edge while the pill is a drag target; popup chrome owns it when open.</summary>
+    private static readonly Thickness IslandDragBorderThickness = new(1, 1, 1, 0);
+    private const double IslandDragGlowOpacity = 0.35;
 
     private bool _islandClosePending;
     // Okur oynatma pimi: true iken panel otomatik kapanamaz; pim olay (Task 3) taşır.
@@ -55,6 +64,12 @@ public partial class TopBarWindow
     private bool _shownBack;
     private bool _islandPulseRunning;
     private bool _islandPressed;
+    // Drag chrome is transient UI (not an IslandPillFace): one transition-gated boolean
+    // freezes the face pipeline and feeds a drag width term into AnimatePillWidth.
+    private bool _islandDragActive;
+    private bool _islandDragValid;
+    private DropShadowEffect? _islandDragGlow;
+    private string? _islandIdleCaptionText;
     private IslandPillFace? _shownFace;
     private readonly double[] _barScales = new double[VisualizerBars.Count];
     private string? _islandTip;
@@ -105,6 +120,131 @@ public partial class TopBarWindow
 
         _presence.PointerLeavePill(IslandNow());
         ApplyIslandChrome(focusMusic: false);
+    }
+
+    private void OnIslandPillDragEnter(object sender, DragEventArgs e)
+    {
+        _islandDragValid = Monitor.IsPrimary && e.Data.GetDataPresent(DataFormats.FileDrop);
+        SetIslandDragActive(_islandDragValid, _islandDragValid);
+    }
+
+    private void OnIslandPillDragLeave(object sender, DragEventArgs e) => SetIslandDragActive(false, false);
+
+    /// <summary>
+    /// The drag-target chrome is a transition-gated state, not an extra animation: enter
+    /// swaps the pill chrome and widens it through <see cref="AnimatePillWidth"/>, exit
+    /// rebuilds the frozen face and lets that same pipeline close the width.
+    /// </summary>
+    private void SetIslandDragActive(bool active, bool valid)
+    {
+        // DragOver fires ~60 Hz; only a real state change may touch chrome.
+        if (_islandDragActive == active && _islandDragValid == valid)
+        {
+            return;
+        }
+
+        _islandDragActive = active;
+        _islandDragValid = valid;
+
+        if (!active)
+        {
+            IslandPill.ClearValue(Border.BorderBrushProperty);
+            if (IslandPopup.IsOpen)
+            {
+                // The popup still owns the joined edge; its own close restores the capsule.
+                IslandPill.BorderThickness = IslandDragBorderThickness;
+            }
+            else
+            {
+                IslandPill.ClearValue(Border.BorderThicknessProperty);
+            }
+
+            SetIslandDragGlow(0);
+            if (IslandIdleCaption.Text == IslandDragBadgeText)
+            {
+                IslandIdleCaption.Text = _islandIdleCaptionText ?? Strings.Island_Clipboard;
+            }
+
+            // Face chrome was frozen during the drag; rebuild it and let AnimatePillWidth
+            // close the width with its existing slow-close ease.
+            UpdateIslandPill();
+            return;
+        }
+
+        _islandIdleCaptionText ??= IslandIdleCaption.Text;
+        IslandGlyph.Text = GlyphDragTarget;
+        IslandGlyph.Visibility = Visibility.Visible;
+        IslandIdleCaption.Text = IslandDragBadgeText;
+        IslandIdleCaption.Visibility = Visibility.Visible;
+        IslandTitle.Visibility = Visibility.Collapsed;
+        IslandMeter.Visibility = Visibility.Collapsed;
+        IslandCoverThumb.Visibility = Visibility.Collapsed;
+        IslandPill.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+        if (IslandPill.BorderThickness != IslandDragBorderThickness)
+        {
+            IslandPill.BorderThickness = IslandDragBorderThickness;
+        }
+
+        SetIslandDragGlow(IslandDragGlowOpacity);
+        double content = IslandPadDip + IslandGlyphDip + 8 + MeasureIslandDragBadge() + IslandHoverDip;
+        AnimatePillWidth(Math.Max(IslandIdleDip, content));
+    }
+
+    /// <summary>
+    /// Width of the badge in the caption's typography. A probe excludes the live caption's
+    /// 8 DIP gap margin, which the drag width formula adds on its own.
+    /// </summary>
+    private double MeasureIslandDragBadge()
+    {
+        var badge = new TextBlock
+        {
+            FontFamily = IslandIdleCaption.FontFamily,
+            FontSize = IslandIdleCaption.FontSize,
+            FontWeight = IslandIdleCaption.FontWeight,
+            Text = IslandDragBadgeText,
+        };
+        return IslandTitleMeasure.Dip(badge);
+    }
+
+    /// <summary>One reused accent glow; only its opacity animates, and it settles at 0.</summary>
+    private void SetIslandDragGlow(double to)
+    {
+        DropShadowEffect glow = EnsureIslandDragGlow();
+        double from = glow.Opacity;
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, null);
+        glow.Opacity = to;
+        double ms = IslandMotion.Gate(IslandMotion.ContentFadeMs, SystemParameters.ClientAreaAnimation);
+        if (ms <= 0 || Math.Abs(from - to) < 0.001)
+        {
+            return;
+        }
+
+        glow.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(ms))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        });
+    }
+
+    private DropShadowEffect EnsureIslandDragGlow()
+    {
+        if (_islandDragGlow is not null)
+        {
+            return _islandDragGlow;
+        }
+
+        Color accent = TryFindResource("SystemAccentColor") is Color color
+            ? color
+            : Color.FromRgb(0x00, 0x78, 0xD4);
+        _islandDragGlow = new DropShadowEffect
+        {
+            ShadowDepth = 0,
+            BlurRadius = 14,
+            Opacity = 0,
+            Color = accent,
+        };
+        IslandPill.Effect = _islandDragGlow;
+        return _islandDragGlow;
     }
 
     private void OnIslandPanelEnter(object sender, MouseEventArgs e)
@@ -681,6 +821,13 @@ public partial class TopBarWindow
     /// <summary>Bars follow the tint; no tint restores the theme accent.</summary>
     private void ApplyIslandTint(IslandPillFace face)
     {
+        // ApplyIslandTint is also reached directly (media, color-mode pushes) below
+        // ApplyIslandFace, so the drag freeze has to hold here too: it owns glyph/cover.
+        if (_islandDragActive)
+        {
+            return;
+        }
+
         MediaSnapshot snapshot = _engine.Media.Snapshot;
         bool showCover = face == IslandPillFace.NowPlaying && snapshot.Thumbnail is not null;
         IslandCoverImage.Source = showCover ? snapshot.Thumbnail : null;
@@ -722,6 +869,14 @@ public partial class TopBarWindow
 
     private void ApplyIslandFace(IslandPresenceView snap)
     {
+        // Drag chrome owns the pill while a file drag hovers it; the presence clock and
+        // snapshot changes must not repaint the glyph/caption underneath. On collapse the
+        // normal pipeline runs again and applies whatever the face became meanwhile.
+        if (_islandDragActive)
+        {
+            return;
+        }
+
         ApplyIslandTint(snap.Face);
         IslandGlyph.Text = snap.Face switch
         {
@@ -814,7 +969,9 @@ public partial class TopBarWindow
             : showTitle
                 ? IslandPadDip + IslandGlyphDip + 8 + titleDip + extras + satelliteDip
                 : IslandIdleDip + extras + satelliteDip;
-        double hover = IslandPill.IsMouseOver ? IslandHoverDip : 0;
+        // An OLE drag freezes IsMouseOver at its pre-drag value, so stale hover must not
+        // ride along; the drag chrome path adds its own hover allowance instead.
+        double hover = !_islandDragActive && IslandPill.IsMouseOver ? IslandHoverDip : 0;
         AnimatePillWidth(Math.Max(IslandIdleDip, content) + hover);
     }
 
@@ -1677,6 +1834,8 @@ public partial class TopBarWindow
 
     private void OnIslandDragOver(object sender, DragEventArgs e)
     {
+        // Fires ~60 Hz: only the effect is refreshed here. Chrome changes are owned by the
+        // DragEnter/DragLeave transitions, so an already-active chrome is left untouched.
         e.Effects = Monitor.IsPrimary && e.Data.GetDataPresent(DataFormats.FileDrop)
             ? DragDropEffects.Copy
             : DragDropEffects.None;
@@ -1686,40 +1845,49 @@ public partial class TopBarWindow
     private void OnIslandPillDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
-        if (!Monitor.IsPrimary || !e.Data.GetDataPresent(DataFormats.FileDrop) || Island is not { } island)
+        try
         {
-            return;
-        }
-
-        if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
-        {
-            return;
-        }
-
-        string? displayName = null;
-        foreach (string path in paths)
-        {
-            if (string.IsNullOrWhiteSpace(path) || Directory.Exists(path))
+            if (!Monitor.IsPrimary || !e.Data.GetDataPresent(DataFormats.FileDrop) || Island is not { } island)
             {
-                continue;
+                return;
             }
 
-            string name = Path.GetFileName(path);
-            if (name.Length > 0)
+            if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths || paths.Length == 0)
             {
-                displayName = name;
+                return;
             }
-        }
 
-        island.AddDroppedFiles(paths);
-        if (displayName is null)
+            string? displayName = null;
+            foreach (string path in paths)
+            {
+                if (string.IsNullOrWhiteSpace(path) || Directory.Exists(path))
+                {
+                    continue;
+                }
+
+                string name = Path.GetFileName(path);
+                if (name.Length > 0)
+                {
+                    displayName = name;
+                }
+            }
+
+            island.AddDroppedFiles(paths);
+            if (displayName is null)
+            {
+                return;
+            }
+
+            _presence?.NoteFileDrop(displayName, IslandNow());
+            ApplyIslandChrome(focusMusic: false);
+            PulseIslandPill();
+        }
+        finally
         {
-            return;
+            // No DragLeave follows a drop; collapse on every path (empty or failed payload
+            // included) so the pill can never stay stuck in drag chrome.
+            SetIslandDragActive(false, false);
         }
-
-        _presence?.NoteFileDrop(displayName, IslandNow());
-        ApplyIslandChrome(focusMusic: false);
-        PulseIslandPill();
     }
 
     private void PushLowBattery(IslandConfig? config)

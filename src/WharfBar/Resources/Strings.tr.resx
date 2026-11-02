@@ -716,6 +716,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Windows gizli simgelerini aç</value></data>
   <data name="Island_Clipboard" xml:space="preserve"><value>Pano</value></data>
   <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Pano ve bırakılan dosyalar</value></data>
+  <data name="Island_DragBadge" xml:space="preserve"><value>Bırak → raf</value></data>
   <data name="Island_Music" xml:space="preserve"><value>Müzik</value></data>
   <data name="Island_NowPlaying" xml:space="preserve"><value>Şimdi çalıyor</value></data>
   <data name="Island_BackToMusic" xml:space="preserve"><value>Müziğe dön</value></data>

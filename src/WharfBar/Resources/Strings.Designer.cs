@@ -1741,6 +1741,12 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Island_DragBadge {
+            get {
+                return ResourceManager.GetString("Island_DragBadge", resourceCulture);
+            }
+        }
+
         public static string Island_Music {
             get {
                 return ResourceManager.GetString("Island_Music", resourceCulture);

@@ -183,6 +183,8 @@
                     PreviewMouseLeftButtonDown="OnIslandPillPreviewMouseDown"
                     PreviewKeyDown="OnIslandPillPreviewKeyDown"
                     Drop="OnIslandPillDrop"
+                    DragEnter="OnIslandPillDragEnter"
+                    DragLeave="OnIslandPillDragLeave"
                     DragOver="OnIslandDragOver">
                 <StackPanel x:Name="IslandContent"
                             Orientation="Horizontal"
