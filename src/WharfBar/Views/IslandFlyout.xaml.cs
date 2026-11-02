@@ -75,9 +75,10 @@ public sealed partial class IslandFlyout : UserControl
         _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabCameraLabel, TabColorLabel];
         CameraPreviewHost.SizeChanged += OnCameraPreviewSizeChanged;
 
-        // Raf arka plan menüsü boş alanda da açılsın: şeffaf fırça olmadan StackPanel hit test
-        // dışıdır (çipler arası boşluklar panele düşer).
-        ShelfList.Background = Brushes.Transparent;
+        // Raf arka plan menüsü gövdenin tamamında (çiplerin altındaki boş alan dâhil) açılsın:
+        // şeffaf fırça olmadan Grid hit test dışıdır, yani iki dosyalık gerçek durumda menüye
+        // ulaşılamazdı. Çipler kendi menüsünü taşıdığı için çip üzerinde çip menüsü kazanır.
+        ShelfBody.Background = Brushes.Transparent;
     }
 
     /// <summary>
@@ -1407,6 +1408,19 @@ public sealed partial class IslandFlyout : UserControl
     private readonly List<IslandEntry> _shelfRows = [];
 
     /// <summary>
+    /// Sürüklemeyle biten hareketin bırakışı seçimi çipe daraltmasın diye ilk bırakışı yer.
+    /// Bırakış sürüklemeyi bitirse de kaynağa teslim edilir (DockWindow'daki
+    /// <c>_suppressNextClick</c> aynı gerekçeyle var), yani toplu sürükleme Esc'le ya da rafın
+    /// üzerine bırakılarak biterse seçim dağılmamalı.
+    /// <para>
+    /// Yaşam döngüsü: her yeni çip basışında temizlenir (bırakışı hiç ulaşmayan sürükleme
+    /// sonraki tıklamanın daraltmasını yemesin), <see cref="DragDrop.DoDragDrop"/> dönüşünde
+    /// koşulsuz kurulur — reddedilen sürükleme de sürüklemedir — ve ilk bırakışta tükenir.
+    /// </para>
+    /// </summary>
+    private bool _suppressNextShelfCollapse;
+
+    /// <summary>
     /// Raf gövdesi: bırakılan dosya kayıtları tek satırlık çip olarak — uzantı rozeti + dosya
     /// adı. Sıra <see cref="IslandService.Entries"/> ile aynı (en yeni başta); pano gövdesinin
     /// satır tavanı (<see cref="MaxRenderedRows"/>) burada da geçerlidir.
@@ -1446,11 +1460,11 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         // Arka plan menüsü: en az iki yolu hâlâ var olan kayıt varsa "hepsini dışarı sürükle".
-        // StackPanel yalnız çiplerin alanını kaplar; gövdenin boş kalan alt kısmı için aynı
-        // maddeleri kuran ayrı bir menü kaydırma alanına verilir (örnek paylaşılmaz). Çip
-        // menüsü daha yakın olduğu için çip üzerinde o açılır.
-        ShelfList.ContextMenu = BuildShelfBatchMenu(files);
-        ShelfScroll.ContextMenu = BuildShelfBatchMenu(files);
+        // Menü tek yüzeye — tüm raf gövdesine — bağlanır: StackPanel yalnız çiplerin alanını
+        // kaplar, kaydırma alanının boş kısmı da hit test'e girmez; gövdenin şeffaf zemini
+        // (ctor) menüyü iki dosyalık gerçek durumda bile erişilebilir kılar. Çip menüsü daha
+        // yakın olduğu için çip üzerinde o açılır. Her kurulumda bir kez kurulur.
+        ShelfBody.ContextMenu = BuildShelfBatchMenu(files);
     }
 
     /// <summary>
@@ -1610,6 +1624,10 @@ public sealed partial class IslandFlyout : UserControl
     /// </summary>
     private void OnShelfChipPressed(IslandEntry entry)
     {
+        // Her yeni basış bayat "sürükleme bitti" işaretini temizler: bırakışı hiç ulaşmamış bir
+        // sürükleme, sonraki tıklamanın seçim daraltmasını yemesin.
+        _suppressNextShelfCollapse = false;
+
         ModifierKeys modifiers = Keyboard.Modifiers;
         if ((modifiers & ModifierKeys.Control) != 0)
         {
@@ -1639,6 +1657,14 @@ public sealed partial class IslandFlyout : UserControl
     /// </summary>
     private void OnShelfChipReleased(IslandEntry entry)
     {
+        // Sürüklemeyi bitiren bırakış da buraya düşer: toplu sürükleme Esc'le ya da rafın
+        // üzerine bırakılarak bittiyse seçim tek çipe daralmasın (yalnız ilk bırakış yutulur).
+        if (_suppressNextShelfCollapse)
+        {
+            _suppressNextShelfCollapse = false;
+            return;
+        }
+
         if (Keyboard.Modifiers != ModifierKeys.None
             || _shelfSelection.Count <= 1
             || !_shelfSelection.Contains(entry.Id))
@@ -1753,9 +1779,10 @@ public sealed partial class IslandFlyout : UserControl
 
     /// <summary>
     /// Raf arka planı menüsü: en az iki kaydın yolu hâlâ diskteyse tek maddelik
-    /// "Tümünü dışarı sürükle" (seçimden bağımsız, <b>tüm</b> raf kayıtları). Yük tıklama anında
-    /// yeniden kurulur: menü açıkken diskten düşen yol taşınmaz; hiç yol kalmazsa sürükleme
-    /// başlamaz. Menü her kurulumda tazelenir, eşik altında atanmaz (sağ tık menüsüz kalır).
+    /// "Tümünü dışarı sürükle" (seçimden bağımsız, <b>tüm</b> raf kayıtları). Yük sürükleme
+    /// başlarken yeniden kurulur: menü açıkken diskten düşen yol taşınmaz; hiç yol kalmazsa
+    /// sürükleme başlamaz. Menü her kurulumda tazelenir, eşik altında atanmaz (sağ tık
+    /// menüsüz kalır); gövde yüzeyi <see cref="RebuildShelf"/>'de tek sefer bağlanır.
     /// </summary>
     private ContextMenu? BuildShelfBatchMenu(IReadOnlyList<IslandEntry> files)
     {
@@ -1765,17 +1792,59 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         var menu = new ContextMenu();
-        var dragAll = new MenuItem { Header = "Tümünü dışarı sürükle" };
-        dragAll.Click += (_, _) =>
+        // Tıklama sürükleme başlatamaz (düğme basılı olmalı): ipucu, maddenin basılı tutulup
+        // sürüklenmesi gerektiğini söyler — düz tıklama menüyü kapatır, sürükleme başlatmaz.
+        var dragAll = new MenuItem
         {
-            if (BuildShelfFileDropPayload(files) is not { Length: > 0 } paths)
+            Header = "Tümünü dışarı sürükle",
+            ToolTip = "Basılı tutup bir klasöre sürükleyin",
+        };
+
+        // Sürükleme OLE'de basılı düğme ister: Click fare bırakışından sonra ateşlenir, ilk
+        // QueryContinueDrag düğmeyi basılı görmez ve WPF sürüklemeyi iptal eder. Bu yüzden
+        // madde basışta yalnız "silahlandırılır" (konum), sürükleme eşik aşılınca — düğme hâlâ
+        // basılıyken — menü kapatılıp başlatılır. Yük eşik anında yeniden kurulur (tıklama
+        // anındaki tazelik); sürüklemesiz düz tıklama sürükleme başlatmaz, menü normal kapanır.
+        // Hareket menüden izlenir: menü açıkken fare popup tarafından yakalanır, yani imleç
+        // maddeden çıksa da olay menüye ulaşır (yalnız maddeye bağlanınca çubuk dışına taşan
+        // ilk hareket kaçardı).
+        Point? armedOrigin = null;
+        dragAll.PreviewMouseLeftButtonDown += (_, args) => armedOrigin = args.GetPosition(ShelfBody);
+        menu.AddHandler(
+            UIElement.MouseMoveEvent,
+            new MouseEventHandler(OnBatchMenuItemMouseMove),
+            handledEventsToo: true);
+
+        void OnBatchMenuItemMouseMove(object sender, MouseEventArgs args)
+        {
+            if (armedOrigin is not { } origin || args.LeftButton != MouseButtonState.Pressed)
+            {
+                return;
+            }
+
+            Vector delta = args.GetPosition(ShelfBody) - origin;
+            if (Math.Abs(delta.X) <= SystemParameters.MinimumHorizontalDragDistance
+                && Math.Abs(delta.Y) <= SystemParameters.MinimumVerticalDragDistance)
+            {
+                return;
+            }
+
+            armedOrigin = null;
+            string[]? paths = BuildShelfFileDropPayload(files);
+            // Popup açıkken OLE döngüsü menüyü kapatamaz: önce menü, sonra sürükleme.
+            menu.IsOpen = false;
+            if (paths is null)
             {
                 return;
             }
 
             var payload = new DataObject(DataFormats.FileDrop, paths);
-            _ = DragDrop.DoDragDrop(ShelfList, payload, DragDropEffects.Copy | DragDropEffects.Move);
-        };
+            _ = DragDrop.DoDragDrop(ShelfBody, payload, DragDropEffects.Copy | DragDropEffects.Move);
+
+            // Sürükleme bitti: onu bitiren bırakış seçimi çipe daraltmasın (bkz. alan).
+            _suppressNextShelfCollapse = true;
+        }
+
         menu.Items.Add(dragAll);
         return menu;
     }
@@ -1851,6 +1920,9 @@ public sealed partial class IslandFlyout : UserControl
 
             var payload = new DataObject(DataFormats.FileDrop, paths);
             _ = DragDrop.DoDragDrop(chip, payload, DragDropEffects.Copy | DragDropEffects.Move);
+
+            // Sürükleme bitti: onu bitiren bırakış seçimi çipe daraltmasın (bkz. alan).
+            _suppressNextShelfCollapse = true;
         };
         chip.MouseLeftButtonUp += (_, _) => CancelPress();
         return CancelPress;
