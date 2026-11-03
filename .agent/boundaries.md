@@ -109,11 +109,12 @@
     **folder** is a legitimate record too: the same `IslandEntryKind.File`, the original path, and
     **no `Drop` copy** (new drops do not copy). `CanOpenShelfFile` accepts a real directory (the
     default app opens Explorer); reparse-point directories, device paths, and missing paths are
-    rejected — the existing guards are unchanged. `Remove` drops the record and cleans the legacy
-    `%AppData%\WharfBar\Drop` copy through the pre-existing
-    `ApplySnapshot(deleteDroppedFiles: true)` contract; **the original file is never touched**, and a
-    drop made since folder support has no copy, so removing it is record-only. Deleting a file
-    outside the `Drop` folder is forbidden; the delete path checks the `Drop` prefix. The shelf
+    rejected — the existing guards are unchanged. `Remove` drops the record and, **only when the
+    record's own path is inside** `%AppData%\WharfBar\Drop`, deletes that legacy copy through the
+    pre-existing `ApplySnapshot(deleteDroppedFiles: true)` contract; a record whose path lives
+    elsewhere is **record-only** (the original file is never touched), and a drop made since folder
+    support has no `Drop` copy. Deleting a file outside the `Drop` folder is forbidden; the delete
+    path checks the `Drop` prefix. The shelf
     **Raf** tab renders the timeline as chips (Ctrl/Shift multi-select) and is a drag **source**
     too — a chip, or every selected chip, leaves as a real OLE drag of plain `DataFormats.FileDrop`
     paths (files and folders; the body menu `Tümünü dışarı sürükle` arms the same drag);

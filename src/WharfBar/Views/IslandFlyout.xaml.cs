@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
@@ -42,6 +43,9 @@ public sealed partial class IslandFlyout : UserControl
 
     /// <summary>Klasör rozeti (Segoe MDL2 Assets "Folder"; <c>AppIconFontFamily</c> ile çizilir).</summary>
     private const string FolderGlyph = "\uE8B7";
+
+    /// <summary>Hover "×" düğmesinin erişilebilirlik adı — menüdeki aynı eylemle aynı.</summary>
+    private const string RemoveAccessName = "Listeden kaldır";
 
     private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
 
@@ -1371,13 +1375,14 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Bırakılan kopyayı varsayılan uygulamayla açar; dosya silinmez.
+    /// Raf kaydını varsayılan uygulamayla açar (dosya <b>ya da</b> klasör); dosya silinmez.
     /// </summary>
     /// <remarks>
     /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir. Açma
-    /// <see cref="IslandService.OpenShelfFile"/> kapısından geçer: orijinal yolu tutan raf
-    /// kaydında dizin/kaçış yolları <see cref="IslandService.CanOpenShelfFile"/> tarafında
-    /// reddedilir; başlatma hataları da orada loglanıp <c>false</c> döner.
+    /// <see cref="IslandService.OpenShelfFile"/> kapısından geçer: gerçek klasör kabul edilir
+    /// (<c>UseShellExecute</c> Explorer'ı açar); aygıt yolu, reparse noktalı klasör ve kaçış
+    /// bileşeni <see cref="IslandService.CanOpenShelfFile"/> tarafında reddedilir; başlatma
+    /// hataları da orada loglanıp <c>false</c> döner.
     /// </remarks>
     private void OpenFile(string? path)
     {
@@ -1455,16 +1460,20 @@ public sealed partial class IslandFlyout : UserControl
         int shown = Math.Min(files.Count, MaxRenderedRows);
         for (int i = 0; i < shown; i++)
         {
-            _shelfRows.Add(files[i]);
-            ShelfList.Children.Add(BuildShelfChip(files[i]));
+            IslandEntry entry = files[i];
+            _shelfRows.Add(entry);
+
+            // Klasör rozeti diskteki metadata'dan okunur. Sorgu çip başına BİR kez, burada
+            // yapılır: RebuildShelf her pano/medya bildiriminde çalışır, çip kurucusuna iki
+            // ayrı Directory.Exists (rozet + menü çözümü) sızdırmak sıcak yolu ikiye katlardı.
+            bool isFolder = entry.FilePath is { Length: > 0 } folderPath && Directory.Exists(folderPath);
+            ShelfList.Children.Add(BuildShelfChip(entry, isFolder));
         }
 
-        // Arka plan menüsü: en az iki yolu hâlâ var olan kayıt varsa "hepsini dışarı sürükle".
-        // Menü tek yüzeye — tüm raf gövdesine — bağlanır: StackPanel yalnız çiplerin alanını
-        // kaplar, kaydırma alanının boş kısmı da hit test'e girmez; gövdenin şeffaf zemini
-        // (ctor) menüyü iki dosyalık gerçek durumda bile erişilebilir kılar. Çip menüsü daha
-        // yakın olduğu için çip üzerinde o açılır. Her kurulumda bir kez kurulur.
-        ShelfBody.ContextMenu = BuildShelfBatchMenu(files);
+        // Arka plan menüsü tembel: eşik kayıt sayısından gelir, diskten değil (yeniden
+        // kurulumda yol sorgusu yok). Menü nesnesi ilk gerektiğinde bir kez kurulur; yük
+        // ise sürükleme gerçekten başlarken canlı listeden çözülür (bkz. GetShelfBatchMenu).
+        ShelfBody.ContextMenu = files.Count >= 2 ? GetShelfBatchMenu() : null;
     }
 
     /// <summary>
@@ -1485,7 +1494,7 @@ public sealed partial class IslandFlyout : UserControl
     /// sağ tık menüsü ve sürükleyerek dışarı taşıma. Dosya açma menüden ya da pano
     /// gövdesindeki satırdan.
     /// </summary>
-    private Border BuildShelfChip(IslandEntry entry)
+    private Border BuildShelfChip(IslandEntry entry, bool isFolder)
     {
         var chip = new Border
         {
@@ -1498,6 +1507,9 @@ public sealed partial class IslandFlyout : UserControl
             BorderThickness = new Thickness(1),
             BorderBrush = Brushes.Transparent,
             Cursor = Cursors.Hand,
+            // Spec B2: klavye odağı + Delete/Enter/Space ile kaldırma yolu (aşağıdaki
+            // PreviewKeyDown). Odak görseli aksan çerçevedir; fareyle gelen odak zarar vermez.
+            Focusable = true,
             Tag = entry,
         };
 
@@ -1507,9 +1519,8 @@ public sealed partial class IslandFlyout : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         // Klasör rozeti: uzantı üçlüsü yerine klasör glifi. Kayıt türü klasör için ayrı
-        // değildir (IslandEntryKind.File); klasör olup olmadığı diskteki metadata'dan okunur
-        // — File.Exists/Directory.Exists sınıfın kabul ettiği metadata kontrolüdür.
-        bool isFolder = entry.FilePath is { Length: > 0 } folderPath && Directory.Exists(folderPath);
+        // değildir (IslandEntryKind.File); klasör olup olmadığı RebuildShelf'te kayıt başına
+        // bir kez okunur ve buraya geçirilir (disk sorgusu bu kurucuda tekrarlanmaz).
         var badge = new Border
         {
             Width = 36,
@@ -1547,10 +1558,12 @@ public sealed partial class IslandFlyout : UserControl
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
 
-        // Hover "×": üçüncü (Auto) kolonda, yalnız fare çipin üzerindeyken görünür. Klik kaydı
-        // listeden düşürür; dosya silinmez (kopya temizliği <see cref="IslandService.Remove"/>
-        // kontratında). Arka plan <c>Transparent</c> (null değil): 16×16 alanı hit-test'e sokar,
-        // yani "×" harfinin etrafına da tıklanabilir.
+        // Hover "×": üçüncü (Auto) kolonda, fare çipin üzerindeyken (ya da çip klavye
+        // odağındayken) görünür. Klik kaydı listeden düşürür; kaydın kendi yolu Drop
+        // altındaysa eski kopya temizlenir, Drop dışındaki orijinal dosyaya dokunulmaz
+        // (<see cref="IslandService.Remove"/> kontratı). Arka plan <c>Transparent</c>
+        // (null değil): 16×16 alanı hit-test'e sokar, yani "×" harfinin etrafına da
+        // tıklanabilir.
         var removeButton = new Border
         {
             Width = 16,
@@ -1561,7 +1574,7 @@ public sealed partial class IslandFlyout : UserControl
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = Visibility.Collapsed,
-            ToolTip = "Listeden kaldır",
+            ToolTip = RemoveAccessName,
             Child = new TextBlock
             {
                 Text = "×",
@@ -1573,6 +1586,10 @@ public sealed partial class IslandFlyout : UserControl
         Grid.SetColumn(removeButton, 2);
         grid.Children.Add(removeButton);
         chip.Child = grid;
+
+        // Spec B2 erişilebilirlik: çip ve "×" ekran okuyucuda adlarıyla duyurulur.
+        System.Windows.Automation.AutomationProperties.SetName(chip, entry.Text);
+        System.Windows.Automation.AutomationProperties.SetName(removeButton, RemoveAccessName);
 
         // Dosya adı listede; kopyanın tam yolu tooltip'te (pano gövdesindeki yerleşimle aynı).
         if (entry.FilePath is { Length: > 0 } fullPath)
@@ -1589,9 +1606,28 @@ public sealed partial class IslandFlyout : UserControl
         };
         chip.MouseLeave += (_, _) =>
         {
-            removeButton.Visibility = Visibility.Collapsed;
+            // Klavye odağı "×" i açık tutar: Enter/Space kaldırma yolu fare ayrıldı diye
+            // sessizce kapanmamalı (odak görseli de odağın kendisinde kalır).
+            removeButton.Visibility = chip.IsKeyboardFocusWithin ? Visibility.Visible : Visibility.Collapsed;
             // Seçili çip hover dolgusunu bırakışta da korur; seçim çerçevesi tek başına kalmasın.
             chip.Background = _shelfSelection.Contains(entry.Id) ? hoverBrush : restingBrush;
+        };
+
+        // Klavye odağı: aksan çerçeve görünür, "×" açılır. Odak kaybında görsel ve düğme
+        // normal (seçim/hover) duruma döner.
+        chip.GotKeyboardFocus += (_, _) =>
+        {
+            chip.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+            removeButton.Visibility = Visibility.Visible;
+        };
+        chip.LostKeyboardFocus += (_, _) =>
+        {
+            if (!chip.IsMouseOver)
+            {
+                removeButton.Visibility = Visibility.Collapsed;
+            }
+
+            UpdateShelfChipSelection(chip, entry);
         };
 
         // Seçim tıklaması sürükleme yakalamasından bağımsızdır: yol taşımayan kayıt da seçilir.
@@ -1612,7 +1648,27 @@ public sealed partial class IslandFlyout : UserControl
             RemoveShelfEntry(entry, cancelShelfDrag);
         };
 
-        chip.ContextMenu = BuildShelfChipMenu(entry);
+        // Klavye kaldırma (spec B2): Delete her zaman; Enter/Space "×" görünürken (odak ya da
+        // hover) aynı kayıt-only yolu çalıştırır. Basış iptali bayat fare yakalamasını bırakır,
+        // yani klavye kaldırma asla sürükleme başlatmaz.
+        chip.PreviewKeyDown += (_, args) =>
+        {
+            bool remove = args.Key == Key.Delete
+                || ((args.Key == Key.Enter || args.Key == Key.Space)
+                    && removeButton.Visibility == Visibility.Visible);
+            if (!remove)
+            {
+                return;
+            }
+
+            args.Handled = true;
+            RemoveShelfEntry(entry, cancelShelfDrag);
+        };
+
+        // Menü tembel kurulur: RebuildShelf her pano/medya bildiriminde çalışır; menüyü burada
+        // kurmak her çipte TryGetExistingShelfPath + CanOpenShelfFile (Exists + GetAttributes +
+        // bileşen yürüyüşü) demekti. Sağ tık gerçekten açıldığında kurulur; davranış aynıdır.
+        chip.ContextMenuOpening += OnShelfChipContextMenuOpening;
         return chip;
     }
 
@@ -1778,17 +1834,18 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Raf arka planı menüsü: en az iki kaydın yolu hâlâ diskteyse tek maddelik
-    /// "Tümünü dışarı sürükle" (seçimden bağımsız, <b>tüm</b> raf kayıtları). Yük sürükleme
-    /// başlarken yeniden kurulur: menü açıkken diskten düşen yol taşınmaz; hiç yol kalmazsa
-    /// sürükleme başlamaz. Menü her kurulumda tazelenir, eşik altında atanmaz (sağ tık
-    /// menüsüz kalır); gövde yüzeyi <see cref="RebuildShelf"/>'de tek sefer bağlanır.
+    /// Raf arka planı menüsü: tek maddelik "Tümünü dışarı sürükle" (seçimden bağımsız,
+    /// <b>tüm</b> raf kayıtları). Menü nesnesi <b>tek örnek</b> ve tembeldir: eşik diskte
+    /// değil kayıt sayısındadır (<see cref="RebuildShelf"/>), böylece her pano/medya
+    /// bildiriminde kayıt başına yol sorgusu yapılmaz. Yük ise sürükleme gerçekten
+    /// başlarken canlı listeden çözülür: menü açıkken diskten düşen yol taşınmaz; hiç yol
+    /// kalmazsa sürükleme başlamaz.
     /// </summary>
-    private ContextMenu? BuildShelfBatchMenu(IReadOnlyList<IslandEntry> files)
+    private ContextMenu GetShelfBatchMenu()
     {
-        if (BuildShelfFileDropPayload(files) is not { Length: > 1 })
+        if (_shelfBatchMenu is not null)
         {
-            return null;
+            return _shelfBatchMenu;
         }
 
         var menu = new ContextMenu();
@@ -1830,7 +1887,10 @@ public sealed partial class IslandFlyout : UserControl
             }
 
             armedOrigin = null;
-            string[]? paths = BuildShelfFileDropPayload(files);
+            IEnumerable<IslandEntry> live = _service is { } service
+                ? service.Entries.Where(entry => entry.Kind == IslandEntryKind.File)
+                : [];
+            string[]? paths = BuildShelfFileDropPayload(live);
             // Popup açıkken OLE döngüsü menüyü kapatamaz: önce menü, sonra sürükleme.
             menu.IsOpen = false;
             if (paths is null)
@@ -1846,8 +1906,12 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         menu.Items.Add(dragAll);
+        _shelfBatchMenu = menu;
         return menu;
     }
+
+    /// <summary>Arka plan menüsünün tek örneği (menü kayıtlara değil, canlı listeye bakar).</summary>
+    private ContextMenu? _shelfBatchMenu;
 
     /// <summary>
     /// Çipi bir klasör penceresine sürükler: <see cref="DataFormats.FileDrop"/> biçiminde
@@ -1929,10 +1993,12 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Çipteki hover "×" tıklaması: kaydı listeden düşürür, seçimden de çıkarır. Dosyaya
-    /// dokunulmaz — silme sınırı <see cref="IslandService.Remove"/> kontratındadır. Tıklama
-    /// seçim değiştirmez ve sürükleme başlatmaz: basış ipi çipe hiç uğramaz
-    /// (<see cref="BuildShelfChip"/> önizleme kapısı), iptal eylemi de bayat yakalamayı bırakır.
+    /// Çipteki kaldırma ("×" tıklaması ya da klavyeden Delete/Enter/Space): kaydı listeden
+    /// düşürür, seçimden de çıkarır. Kaydın <b>kendi yolu</b> <c>Drop</c> altındaysa eski
+    /// kopya silinir; <c>Drop</c> dışındaki orijinal dosyaya dokunulmaz (silme sınırı
+    /// <see cref="IslandService.Remove"/> kontratındadır). Tıklama seçim değiştirmez ve
+    /// sürükleme başlatmaz: basış ipi çipe hiç uğramaz (<see cref="BuildShelfChip"/> önizleme
+    /// kapısı), iptal eylemi de bayat yakalamayı bırakır.
     /// </summary>
     private void RemoveShelfEntry(IslandEntry entry, Action? cancelShelfDrag)
     {
@@ -1946,6 +2012,27 @@ public sealed partial class IslandFlyout : UserControl
         // Changed UI thread'inde eşzamanlı yükselir: çipler burada yeniden kurulur, yani seçim
         // çerçevesi ve satır sırası ayrıca tazelenmez.
         _service?.Remove(entry);
+    }
+
+    /// <summary>
+    /// Çip menüsünü yalnız gerçekten açılırken kurar (sıcak yeniden-kurulum yolunda disk
+    /// sorgusu yok). Menü bu anda atandığı için <c>ContextMenuService</c>'in sınıf işleyicisi
+    /// onu göremez; bu yüzden olay <c>Handled</c> işaretlenir ve menü burada açılır. Yerleşim
+    /// WPF'in otomatik açılışıyla aynıdır: fare imleci, klavye (Shift+F10/Apps) merkez.
+    /// </summary>
+    private void OnShelfChipContextMenuOpening(object sender, ContextMenuEventArgs e)
+    {
+        if (sender is not Border chip || chip.Tag is not IslandEntry entry)
+        {
+            return;
+        }
+
+        ContextMenu menu = BuildShelfChipMenu(entry);
+        chip.ContextMenu = menu;
+        menu.PlacementTarget = chip;
+        menu.Placement = e.CursorLeft < 0 ? PlacementMode.Center : PlacementMode.MousePoint;
+        menu.IsOpen = true;
+        e.Handled = true;
     }
 
     /// <summary>
@@ -2015,15 +2102,25 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Explorer'ı <paramref name="path"/> seçili olarak açar. Yol kapıdan geçmiştir
-    /// (<see cref="ResolveShelfMenuPath"/>) ama kabuk başlatması yine de düşebilir; hata
-    /// loglanır, menü tıklaması uygulamayı düşürmez.
+    /// Explorer'ı <paramref name="path"/> seçili olarak açar. Argümanlar
+    /// <see cref="IslandService.BuildRevealArguments"/> ile üretilir ve
+    /// <see cref="ProcessStartInfo.ArgumentList"/>'e ayrı ayrı eklenir: tırnak kaçışı elle
+    /// yapılmaz, sondaki ayırıcı taşıyan yol da doğru geçer (eski
+    /// <c>Arguments = $"/select,\"{path}\""</c> biçimi Explorer'da varsayılan klasörü
+    /// açıyordu). Yol kapıdan geçmiştir (<see cref="ResolveShelfMenuPath"/>); yine de kabuk
+    /// başlatması düşebilir — hata loglanır, menü tıklaması uygulamayı düşürmez.
     /// </summary>
     private static void RevealInExplorer(string path)
     {
         try
         {
-            Process.Start(new ProcessStartInfo("explorer.exe") { Arguments = $"/select,\"{path}\"" });
+            var startInfo = new ProcessStartInfo("explorer.exe");
+            foreach (string argument in IslandService.BuildRevealArguments(path))
+            {
+                startInfo.ArgumentList.Add(argument);
+            }
+
+            Process.Start(startInfo);
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

@@ -1998,6 +1998,7 @@ public partial class TopBarWindow
     private void OnIslandPillDrop(object sender, DragEventArgs e)
     {
         e.Handled = true;
+        bool landed = false;
         string? displayName = null;
         try
         {
@@ -2028,14 +2029,21 @@ public partial class TopBarWindow
                 }
             }
 
-            island.AddDroppedFiles(paths);
-            if (displayName is null)
+            // Geri bildirim yükün dizelerine değil servisin SAYDIĞI kayda dayanır: sürükleme
+            // sırasında silinen/yeniden adlandırılan yol kayıt üretmez, yani HUD ve yutma
+            // animasyonu "hiçbir şey düşmedi" durumunda çalışmamalı (sahte başarı geri bildirimi).
+            int added = island.AddDroppedFiles(paths);
+            if (added <= 0)
             {
                 return;
             }
 
-            _presence?.NoteFileDrop(displayName, IslandNow());
-            ApplyIslandChrome(focusMusic: false);
+            landed = true;
+            if (displayName is not null)
+            {
+                _presence?.NoteFileDrop(displayName, IslandNow());
+                ApplyIslandChrome(focusMusic: false);
+            }
         }
         finally
         {
@@ -2044,9 +2052,13 @@ public partial class TopBarWindow
             SetIslandDragActive(false);
         }
 
-        // Only reached when a record actually landed: the collapse above released the drag
-        // chrome, so the swallow's accent flash owns the shared glow from here.
-        PulseIslandPill(swallow: true);
+        // Only reached when a record actually landed (`landed` comes from the service's count,
+        // not from the payload): the collapse above released the drag chrome, so the swallow's
+        // accent flash owns the shared glow from here.
+        if (landed)
+        {
+            PulseIslandPill(swallow: true);
+        }
     }
 
     private void PushLowBattery(IslandConfig? config)
@@ -2388,7 +2400,10 @@ public partial class TopBarWindow
             }
         }
 
-        if (IslandBars.Visibility != Visibility.Visible)
+        // The drag chrome collapses the bars, and ApplyIslandFace is frozen while a drag is
+        // active (SetIslandDragActive owns those chrome mutations): repainting on this ~20 Hz
+        // tick would only fight the drag chrome. Exit rebuilds the face through UpdateIslandPill.
+        if (IslandBars.Visibility != Visibility.Visible && !_islandDragActive)
         {
             ApplyIslandChrome(focusMusic: false);
         }

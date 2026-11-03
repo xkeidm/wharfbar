@@ -210,6 +210,77 @@ public sealed class IslandFileShelfTests
         });
     }
 
+    /// <summary>
+    /// Sondaki ayırıcıyı taşıyan klasör yolu da kaydedilir; ad <see cref="Path.GetFileName(string)"/>
+    /// için kırpılır ve çağıranın "gerçekten eklendi" geri bildirimi sayıyla döner (0 = hiç kayıt yok).
+    /// </summary>
+    [Fact]
+    public void AddDroppedFiles_FolderWithTrailingSeparator_CountsOneAndTrimsName()
+    {
+        Run((service, _, root) =>
+        {
+            string dir = Path.Combine(root, "TrailingFolder");
+            Directory.CreateDirectory(dir);
+
+            int added = service.AddDroppedFiles([dir + Path.DirectorySeparatorChar]);
+
+            Assert.Equal(1, added);
+            IslandEntry entry = Assert.Single(service.Entries);
+            Assert.Equal(Path.GetFileName(dir), entry.Text);
+            Assert.Equal(IslandEntryKind.File, entry.Kind);
+            Assert.True(Directory.Exists(entry.FilePath));
+
+            // Hiçbir yol gerçek değilse sayı 0'dır: geri bildirim kapısı buna dayanır.
+            Assert.Equal(0, service.AddDroppedFiles([Path.Combine(root, "missing.txt")]));
+            Assert.Single(service.Entries);
+        });
+    }
+
+    /// <summary>
+    /// Klasör kaydı da çözümlenir (<see cref="Directory.Exists"/> dalı) ve çözülen yol diskteki
+    /// klasördür; aygıt yolu yine fail-closed reddedilir.
+    /// </summary>
+    [Fact]
+    public void TryGetExistingShelfPath_ResolvesDirectoryRecord()
+    {
+        Run((service, _, root) =>
+        {
+            string dir = Path.Combine(root, "ShelfDir");
+            Directory.CreateDirectory(dir);
+            service.AddDroppedFiles([dir]);
+
+            IslandEntry entry = Assert.Single(service.Entries);
+            Assert.True(service.TryGetExistingShelfPath(entry.FilePath, out string resolved));
+            Assert.Equal(Path.GetFullPath(dir), Path.GetFullPath(resolved));
+            Assert.True(Directory.Exists(resolved));
+
+            Assert.False(service.TryGetExistingShelfPath(@"\\.\NUL", out string device));
+            Assert.Equal(string.Empty, device);
+        });
+    }
+
+    /// <summary>
+    /// Explorer'a "konumu göster" argümanı tek öğedir ve tırnak içermez: tırnaklamayı
+    /// <see cref="System.Diagnostics.ProcessStartInfo.ArgumentList"/> yapar. Sondaki ayırıcı
+    /// (kök yol hariç) kırpılır; kök <c>C:\</c> ayırıcısını korur.
+    /// </summary>
+    [Fact]
+    public void BuildRevealArguments_TrimsTrailingSeparator_AndKeepsRoot()
+    {
+        string normal = Path.Combine(Path.GetTempPath(), "WharfBarTests", "reveal", "file.txt");
+        Assert.Equal(["/select," + normal], IslandService.BuildRevealArguments(normal));
+
+        string dir = Path.Combine(Path.GetTempPath(), "WharfBarTests", "reveal");
+        string withSeparator = dir + Path.DirectorySeparatorChar;
+        string[] folderArgs = IslandService.BuildRevealArguments(withSeparator);
+        Assert.Equal(["/select," + dir], folderArgs);
+        Assert.DoesNotContain('"', folderArgs[0]);
+        Assert.Single(folderArgs);
+
+        string root = Path.GetPathRoot(Path.GetTempPath())!;
+        Assert.Equal(["/select," + root], IslandService.BuildRevealArguments(root));
+    }
+
     private static void Run(Action<IslandService, IslandStore, string> body)
     {
         string root = Path.Combine(Path.GetTempPath(), "WharfBarTests", "shelf-" + Guid.NewGuid().ToString("N"));

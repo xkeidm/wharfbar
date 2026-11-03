@@ -463,24 +463,36 @@ internal sealed class IslandService : IDisposable
     /// Kopyalama kalkınca STA worker'a atlamak için bir dosya I/O'su kalmadı
     /// (<c>File.Exists</c> metadata kontrolüdür). İş çağıranın thread'inde, yani UI
     /// dispatcher'ında biter. UI dışında çağrılırsa kayıt listesi orada yazılmasın diye
-    /// iş UI'ya devredilir — zaman çizelgesi sözleşmesi değişmez.
+    /// iş UI'ya devredilir — zaman çizelgesi sözleşmesi değişmez; asenkron devirde gerçek
+    /// sayı çağırana dönemez, bu yüzden 0 döner.
     /// </remarks>
-    internal void AddDroppedFiles(IReadOnlyList<string> sourcePaths)
+    /// <returns>
+    /// Raf listesine <b>gerçekten</b> eklenen kayıt sayısı. Yol boyunca hiçbir kayıt
+    /// eklenmediyse (silinmiş/yeniden adlandırılmış yol, ne dosya ne klasör) 0 döner.
+    /// Bırakma geri bildirimi (HUD + yutma animasyonu) yükün dizelerine değil bu sayıya
+    /// kapılanmalıdır: sürükleme sırasında silinen bir yol "bırakıldı" sanılmamalı.
+    /// </returns>
+    internal int AddDroppedFiles(IReadOnlyList<string> sourcePaths)
     {
         if (_disposed || sourcePaths.Count == 0)
         {
-            return;
+            return 0;
         }
 
         if (!_dispatcher.CheckAccess())
         {
             if (!CanPostToUi)
             {
-                return;
+                return 0;
             }
 
-            _ = _dispatcher.BeginInvoke(() => AddDroppedFiles(sourcePaths), DispatcherPriority.Background);
-            return;
+            _ = _dispatcher.BeginInvoke(
+                () =>
+                {
+                    _ = AddDroppedFiles(sourcePaths);
+                },
+                DispatcherPriority.Background);
+            return 0;
         }
 
         List<IslandEntry> added = [];
@@ -522,10 +534,11 @@ internal sealed class IslandService : IDisposable
 
         if (added.Count == 0)
         {
-            return;
+            return 0;
         }
 
         MergeDroppedFiles(added);
+        return added.Count;
     }
 
     /// <summary>
@@ -881,6 +894,13 @@ internal sealed class IslandService : IDisposable
     /// Çözülen tam yol; çözümleme yoksa boş dize.
     /// </param>
     /// <returns>Var olan bir yol çözüldüyse <c>true</c>; aksi hâlde <c>false</c> (fail-closed).</returns>
+    /// <remarks>
+    /// Dönen yol yalnızca "diskte bir şey var" demektir; kayıt yolu <c>island.json</c>'dan
+    /// geldiği için <b>güvenilmezdir</b>. Açma, gösterme ve kopyalama çağıranı sonucu
+    /// <see cref="CanOpenShelfFile"/> kapısından <b>yeniden geçirmek zorundadır</b>: aygıt
+    /// yolu, reparse noktalı klasör ve kaçış bileşeni orada elenir. Bu metot tek başına
+    /// işlem başlatmaz.
+    /// </remarks>
     internal bool TryGetExistingShelfPath(string? filePath, out string existing)
     {
         existing = string.Empty;
@@ -1032,6 +1052,37 @@ internal sealed class IslandService : IDisposable
         }
 
         return true;
+    }
+
+    /// <summary>
+    /// Explorer'ın "dosya konumunu göster" çağrısı için <see cref="ProcessStartInfo.ArgumentList"/>'e
+    /// eklenecek argümanları üretir: tek öğe, <c>/select,&lt;tam yol&gt;</c>. Yol <b>tırnaklanmaz</b>;
+    /// tırnaklama ve kaçış <see cref="ProcessStartInfo.ArgumentList"/>'e bırakılır çünkü eski
+    /// <c>Arguments = $"/select,\"{path}\""</c> biçiminde sondaki ayırıcı (<c>C:\klasör\</c>)
+    /// kapanış tırnağını kaçırıyordu ve Explorer varsayılan klasörü açıyordu.
+    /// </summary>
+    /// <remarks>
+    /// Sondaki ayırıcı, kök yol (<c>C:\</c>, <c>\\sunucu\paylaşım\</c>) hariç kırpılır: kök
+    /// ayırıcısız geçersiz bir yola (<c>C:</c>) dönerdi. <c>/select,</c> önekiyle birleşik tek
+    /// öğe olması, yolun boşluk içermesi hâlinde dahi <see cref="ProcessStartInfo.ArgumentList"/>'in
+    /// tüm öğeyi doğru tırnaklamasını sağlar.
+    /// </remarks>
+    internal static string[] BuildRevealArguments(string path)
+    {
+        string normalized = path;
+        if (!string.IsNullOrEmpty(path))
+        {
+            string trimmed = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            string root = (Path.GetPathRoot(path) ?? string.Empty)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            if (trimmed.Length > 0
+                && !(root.Length > 0 && string.Equals(trimmed, root, StringComparison.OrdinalIgnoreCase)))
+            {
+                normalized = trimmed;
+            }
+        }
+
+        return ["/select," + normalized];
     }
 
     /// <summary>
