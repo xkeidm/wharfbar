@@ -39,11 +39,12 @@ dotnet test                       # tests/WharfBar.Tests (xUnit)
 
 **Sandboxed workspaces:** an executable started from a sandboxed workspace folder gets a
 low-integrity token, so WharfBar cannot hide the taskbar / reserve the AppBar and cannot write
-settings (it warns at startup, and a low-integrity run is not valid manual QA). Use
-`run-sandboxed.bat`: it builds, copies the output to `%LOCALAPPDATA%\WharfBar\run` and starts that
-copy. `dotnet test` also fails in such a sandbox (VSTest's testhost cannot open the parent process);
-use the local reflection runner under `.superpowers/scratch/` (git-ignored) or run tests from a
-normal terminal. Details: [`docs/04-gotchas.md`](docs/04-gotchas.md).
+settings (it warns at startup, and a low-integrity run is not valid manual QA). Use `run.bat`: it
+builds, copies the output to `%LOCALAPPDATA%\WharfBar\run` and starts that copy (a bare
+`dotnet run --project src/WharfBar`, or double-clicking `bin\Debug\WharfBar.exe`, still starts the
+sandboxed in-repo exe). `dotnet test` also fails in such a sandbox (VSTest's testhost cannot open the
+parent process); use the local reflection runner under `.superpowers/scratch/` (git-ignored) or run
+tests from a normal terminal. Details: [`docs/04-gotchas.md`](docs/04-gotchas.md).
 
 ## Code map
 
