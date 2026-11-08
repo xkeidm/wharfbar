@@ -11,10 +11,10 @@ using WharfBar.Models;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Windows SMTC (GlobalSystemMediaTransportControlsSessionManager) üzerinden çalan medyayı
-/// izler: snapshot (başlık/sanatçı/kapak/durum) + oynat/duraklat/ileri/geri + oturum seçici.
-/// Tüm olaylar UI thread'e (ctor'un kurulduğu Dispatcher) marshal edilir.
-/// Kurulum hatası → 10 sn sonra yeniden dener (SMTC hizmeti gelene kadar).
+/// Tracks playing media through Windows SMTC (GlobalSystemMediaTransportControlsSessionManager):
+/// snapshot (title/artist/artwork/state) + play/pause/next/previous + session selector.
+/// All events are marshaled to the UI thread (the Dispatcher captured by the ctor).
+/// Setup failure → retries after 10 s (until the SMTC service is available).
 /// </summary>
 internal sealed class MediaSessionService : IDisposable
 {
@@ -74,7 +74,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] SMTC init başarısız: {ex.Message}");
+            Debug.WriteLine($"[media] SMTC init failed: {ex.Message}");
             ScheduleRetry();
         }
     }
@@ -132,7 +132,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] arama başarısız: {ex.Message}");
+            Debug.WriteLine($"[media] search failed: {ex.Message}");
         }
     }
 
@@ -193,7 +193,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] komut başarısız (desteklenmeyen komut olabilir): {ex.Message}");
+            Debug.WriteLine($"[media] command failed (possibly an unsupported command): {ex.Message}");
         }
     }
 
@@ -241,7 +241,7 @@ internal sealed class MediaSessionService : IDisposable
         });
     }
 
-    /// <summary>Manager'daki oturumları mevcut kümeyle eşitler: yenileri abone et + selector'a ekle, gidenleri çıkar.</summary>
+    /// <summary>Reconciles the manager's sessions with the current set: subscribe new ones + add them to the selector, remove the ones that left.</summary>
     private void ReconcileSessions()
     {
         if (_manager is null)
@@ -286,8 +286,8 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            // Oturum kapanıyor veya COM hatası veriyor — selector'dan çıkar.
-            Debug.WriteLine($"[media] playback bilgisi alınamadı, oturum çıkarılıyor: {ex.Message}");
+            // The session is closing or throwing a COM error — remove it from the selector.
+            Debug.WriteLine($"[media] could not get playback info, removing session: {ex.Message}");
             _selector.RemoveSession(id);
             return;
         }
@@ -349,9 +349,9 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            // Metadata alınamadı (uygulama yanıt vermiyor) — son bilinen değerler korunur,
-            // yoksa app adı fallback'i kullanılır.
-            Debug.WriteLine($"[media] metadata başarısız: {ex.Message}");
+            // Metadata could not be read (the app is not responding) — the last known values are kept,
+            // otherwise the app-name fallback is used.
+            Debug.WriteLine($"[media] metadata failed: {ex.Message}");
             if (_snapshot.SessionId == id)
             {
                 title = _snapshot.Title;
@@ -388,7 +388,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] playback bilgisi alınamadı: {ex.Message}");
+            Debug.WriteLine($"[media] could not get playback info: {ex.Message}");
         }
 
         (TimeSpan? position, TimeSpan? duration) = ReadTimeline(session);
@@ -398,8 +398,8 @@ internal sealed class MediaSessionService : IDisposable
     }
 
     /// <summary>
-    /// Müzik paneli açıkken konum/süreyi yeniden okur. Kapak ve başlık yenilenmez.
-    /// Değer değişmediyse <see cref="Changed"/> yükselmez.
+    /// Re-reads position/duration while the music panel is open. Artwork and title are not refreshed.
+    /// If the value did not change, <see cref="Changed"/> is not raised.
     /// </summary>
     internal void RefreshTimeline()
     {
@@ -437,7 +437,7 @@ internal sealed class MediaSessionService : IDisposable
     }
 
     /// <summary>
-    /// SMTC zaman çizelgesi. Süre yoksa, 0 veya daha küçükse, ya da okuma patlarsa ikisi de null.
+    /// SMTC timeline. Both are null if there is no duration, it is 0 or less, or the read throws.
     /// </summary>
     private static (TimeSpan? Position, TimeSpan? Duration) ReadTimeline(
         GlobalSystemMediaTransportControlsSession session)
@@ -455,7 +455,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] zaman çizelgesi alınamadı: {ex.Message}");
+            Debug.WriteLine($"[media] could not get timeline: {ex.Message}");
             return (null, null);
         }
     }
@@ -469,7 +469,7 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] arama desteği okunamadı: {ex.Message}");
+            Debug.WriteLine($"[media] could not read seek support: {ex.Message}");
             return false;
         }
     }
@@ -489,12 +489,12 @@ internal sealed class MediaSessionService : IDisposable
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] kapak çözülemedi: {ex.Message}");
+            Debug.WriteLine($"[media] could not resolve cover: {ex.Message}");
             return null;
         }
     }
 
-    /// <summary>Oturum anahtarı: AUMID (uygulama başına tek oturum). Boşsa "session" fallback.</summary>
+    /// <summary>Session key: AUMID (one session per app). If empty, the "session" fallback.</summary>
     private static string GetSessionId(GlobalSystemMediaTransportControlsSession session)
     {
         string id = session.SourceAppUserModelId;

@@ -7,7 +7,7 @@ namespace WharfBar.Tests;
 public class ProjectionMappingTests
 {
     [Theory]
-    // DISPLAYCONFIG_TOPOLOGY_ID gerçek değerleri (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8
+    // Actual DISPLAYCONFIG_TOPOLOGY_ID values (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8
     [InlineData(1, (int)ProjectionMode.InternalOnly)]
     [InlineData(2, (int)ProjectionMode.Clone)]
     [InlineData(4, (int)ProjectionMode.Extend)]

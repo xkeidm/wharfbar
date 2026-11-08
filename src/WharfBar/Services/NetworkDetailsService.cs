@@ -6,7 +6,7 @@ using System.Windows.Threading;
 
 namespace WharfBar.Services;
 
-/// <summary>Ağ paneli ("Özellikler" bölümü) için zengin bağlantı durumu; hızlar Mbps.</summary>
+/// <summary>Rich connection state for the network panel (the "Properties" section); speeds in Mbps.</summary>
 internal sealed record NetworkDetailsSnapshot(
     bool IsOnline,
     NetworkKind Kind,
@@ -21,9 +21,9 @@ internal sealed record NetworkDetailsSnapshot(
     double? UploadMbps);
 
 /// <summary>
-/// Aktif adaptörden (Wi-Fi > Ethernet önceliği) IP/gateway/DNS/MAC/link hızı okur ve
-/// IPv4 byte sayaçlarının delta'sından canlı ↓/↑ hızını hesaplar. Sadece Ağ sayfası
-/// açıkken poll edilir (flyout pattern'i: WifiService/BluetoothService ile aynı).
+/// Reads IP/gateway/DNS/MAC/link speed from the active adapter (Wi-Fi > Ethernet priority) and
+/// computes the live ↓/↑ rate from the delta of the IPv4 byte counters. Polled only while the
+/// Network page is open (flyout pattern: same as WifiService/BluetoothService).
 /// </summary>
 internal sealed class NetworkDetailsService : IDisposable
 {
@@ -129,7 +129,7 @@ internal sealed class NetworkDetailsService : IDisposable
             UploadMbps: up);
     }
 
-    /// <summary>Aktif adaptörü seçer: Wi-Fi öncelikli, sonra Ethernet, sonra ilk "Up" arayüz.</summary>
+    /// <summary>Picks the active adapter: Wi-Fi first, then Ethernet, then the first "Up" interface.</summary>
     private static NetworkInterface? PickAdapter()
     {
         try
@@ -191,7 +191,7 @@ internal sealed class NetworkDetailsService : IDisposable
         return result;
     }
 
-    /// <summary>Byte delta'sını Mbps'ye çevirir; geçersiz ölçüm (sayaç sıfırlaması, 0 süre) → null.</summary>
+    /// <summary>Converts a byte delta to Mbps; an invalid measurement (counter reset, zero duration) → null.</summary>
     internal static double? ComputeThroughputMbps(long prevBytes, long nowBytes, double elapsedSeconds)
     {
         if (elapsedSeconds <= 0 || nowBytes < prevBytes)
@@ -202,7 +202,7 @@ internal sealed class NetworkDetailsService : IDisposable
         return (nowBytes - prevBytes) * 8d / elapsedSeconds / 1_000_000d;
     }
 
-    /// <summary>Link hızını okunur metne çevirir; bilinmiyorsa null.</summary>
+    /// <summary>Converts link speed to readable text; null if unknown.</summary>
     internal static string? FormatLinkSpeed(long bitsPerSecond, CultureInfo? culture = null) =>
         bitsPerSecond <= 0
             ? null
@@ -220,7 +220,7 @@ internal sealed class NetworkDetailsService : IDisposable
             ? null
             : string.Join('-', address.GetAddressBytes().Select(b => b.ToString("X2")));
 
-    /// <summary>Verilen aileden ilk loopback olmayan adresi seçer.</summary>
+    /// <summary>Picks the first non-loopback address of the given family.</summary>
     internal static IPAddress? PickAddress(IEnumerable<IPAddress> addresses, AddressFamily family) =>
         addresses.FirstOrDefault(a => a.AddressFamily == family && !IPAddress.IsLoopback(a));
 

@@ -338,7 +338,7 @@ internal static class VeilNormalizer
     }
 }
 
-/// <summary>Island (clipboard geçmişi + bırakılan dosyalar) ayarları.</summary>
+/// <summary>Island (clipboard history + dropped files) settings.</summary>
 internal sealed class IslandConfig
 {
     internal const bool DefaultEnabled = true;
@@ -347,31 +347,31 @@ internal sealed class IslandConfig
 
     internal const int DefaultMaxItems = 200;
 
-    /// <summary><c>session</c> — yalnız bellekte; WharfBar kapanınca silinir.</summary>
+    /// <summary><c>session</c> — memory only; cleared when WharfBar closes.</summary>
     internal const string PersistenceSession = "session";
 
-    /// <summary><c>persistent</c> — diske yazılır; <c>RetentionDays</c> ile budanır.</summary>
+    /// <summary><c>persistent</c> — written to disk; pruned by <c>RetentionDays</c>.</summary>
     internal const string PersistencePersistent = "persistent";
 
-    /// <summary>Çözülemeyen <c>Persistence</c> değerlerinin düştüğü mod.</summary>
+    /// <summary>Mode that unresolvable <c>Persistence</c> values fall back to.</summary>
     internal const string DefaultPersistence = PersistenceSession;
 
-    /// <summary>Müzik varken ada parça adını göstermeye devam eder.</summary>
+    /// <summary>While music is playing, the island keeps showing the track title.</summary>
     internal const string MusicPresencePersistent = "persistent";
 
-    /// <summary>Müzik varken ada boşta kalır; panel yalnız kısa süre açılır.</summary>
+    /// <summary>While music is playing, the island stays idle; the panel opens only briefly.</summary>
     internal const string MusicPresenceTransient = "transient";
 
-    /// <summary>Çözülemeyen <c>MusicPresence</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
+    /// <summary>Mode that unresolvable <c>MusicPresence</c> values fall back to. Schema does not change.</summary>
     internal const string DefaultMusicPresence = MusicPresencePersistent;
 
-    /// <summary>Boşta hap sabit <c>Pano</c> yazar.</summary>
+    /// <summary>When idle, the pill always writes <c>Clipboard</c>.</summary>
     internal const string IdleLabelClipboard = "clipboard";
 
-    /// <summary>Boşta hap son metin kaydının önizlemesini yazar.</summary>
+    /// <summary>When idle, the pill writes a preview of the last text entry.</summary>
     internal const string IdleLabelLastClip = "lastClip";
 
-    /// <summary>Çözülemeyen <c>IdleLabel</c> değerlerinin düştüğü mod. Şema değişmez.</summary>
+    /// <summary>Mode that unresolvable <c>IdleLabel</c> values fall back to. Schema does not change.</summary>
     internal const string DefaultIdleLabel = IdleLabelClipboard;
 
     internal const string HubTabClipboard = "clipboard";
@@ -407,13 +407,13 @@ internal sealed class IslandConfig
 
     internal const bool DefaultWallpaperAccent = true;
 
-    /// <summary>Düşük pil HUD eşiği. Aralık dışı yükleme buna döner.</summary>
+    /// <summary>Low battery HUD threshold. An out-of-range load falls back to this.</summary>
     internal const int DefaultLowBatteryPercent = 20;
 
-    /// <summary>Kabul edilen eşiğin alt sınırı.</summary>
+    /// <summary>Lower bound of the accepted threshold.</summary>
     internal const int MinLowBatteryPercent = 5;
 
-    /// <summary>Kabul edilen eşiğin üst sınırı.</summary>
+    /// <summary>Upper bound of the accepted threshold.</summary>
     internal const int MaxLowBatteryPercent = 50;
 
     /// <summary>Tint from the playing track's cover (default).</summary>
@@ -430,24 +430,24 @@ internal sealed class IslandConfig
 
     public bool Enabled { get; set; } = DefaultEnabled;
 
-    /// <summary>Geçmişin nerede tutulacağı: <c>session</c> veya <c>persistent</c>.</summary>
+    /// <summary>Where the history is kept: <c>session</c> or <c>persistent</c>.</summary>
     public string Persistence { get; set; } = DefaultPersistence;
 
-    /// <summary>Persistent modda kaç gün geriye bakılır.</summary>
+    /// <summary>How many days back the persistent mode looks.</summary>
     public int RetentionDays { get; set; } = DefaultRetentionDays;
 
-    /// <summary>Kayıt sayısı sert tavanı (gün limitinden bağımsız).</summary>
+    /// <summary>Hard cap on the entry count (independent of the day limit).</summary>
     public int MaxItems { get; set; } = DefaultMaxItems;
 
     /// <summary>
-    /// Müzik adada nasıl durur: <c>persistent</c> (varsayılan) veya <c>transient</c>.
-    /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
+    /// How music sits on the island: <c>persistent</c> (default) or <c>transient</c>.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not increase.
     /// </summary>
     public string MusicPresence { get; set; } = DefaultMusicPresence;
 
     /// <summary>
-    /// Boşta hapta ne yazar: <c>clipboard</c> (varsayılan, "Pano") veya <c>lastClip</c>.
-    /// Soft alan — <see cref="AppConfig.CurrentSchemaVersion"/> artmaz.
+    /// What the idle pill shows: <c>clipboard</c> (default, "Clipboard") or <c>lastClip</c>.
+    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not increase.
     /// </summary>
     public string IdleLabel { get; set; } = DefaultIdleLabel;
 
@@ -507,10 +507,10 @@ internal sealed class IslandConfig
     public string LastHubWallpaper { get; set; } = "";
 
     /// <summary>
-    /// Pil sayacının eşiği (yüzde). Soft alan <c>lowBatteryPercent</c> —
-    /// <see cref="AppConfig.CurrentSchemaVersion"/> artmaz. Bilinmeyen veya 5–50 dışı
-    /// yükleme <see cref="DefaultLowBatteryPercent"/> olur; kullanıcının yazdığı değer
-    /// 5–50 aralığına sıkıştırılır.
+    /// Battery meter threshold (percent). Soft field <c>lowBatteryPercent</c> —
+    /// <see cref="AppConfig.CurrentSchemaVersion"/> does not increase. An unknown load, or one
+    /// outside 5–50, becomes <see cref="DefaultLowBatteryPercent"/>; the value the user typed is
+    /// clamped into the 5–50 range.
     /// </summary>
     public int LowBatteryPercent { get; set; } = DefaultLowBatteryPercent;
 

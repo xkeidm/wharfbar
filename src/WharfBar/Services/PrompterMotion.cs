@@ -16,8 +16,8 @@ internal static class PrompterMotion
     internal const int ReadingFontDip = 17;
 
     /// <summary>
-    /// "Sonuna vardı" sayma toleransı (dip): uç belirleme ve oynatma kapısı aynı
-    /// duyarlılığı paylaşır.
+    /// "Reached the end" counting tolerance (dips): end detection and the playback gate
+    /// share the same sensitivity.
     /// </summary>
     internal const double EndEpsilonDip = 0.25;
 

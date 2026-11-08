@@ -7,7 +7,7 @@ public class WallpaperTopStripTests
 {
     private const double Epsilon = 0.01;
 
-    /// <summary>BGRA piksel dizisi üretir; her satır aynı solid renk (B,G,R,A).</summary>
+    /// <summary>Produces a BGRA pixel array; every row uses the same solid color (B,G,R,A).</summary>
     private static byte[] SolidPixels(int width, int height, byte r, byte g, byte b)
     {
         var pixels = new byte[width * height * 4];
@@ -22,7 +22,7 @@ public class WallpaperTopStripTests
         return pixels;
     }
 
-    /// <summary>Üst <paramref name="topRows"/> satır üst renk, altı alt renk olan dizi.</summary>
+    /// <summary>Array where the top <paramref name="topRows"/> rows use the top color and the rest use the bottom color.</summary>
     private static byte[] TwoTonePixels(int width, int height, int topRows, byte[] topBgra, byte[] bottomBgra)
     {
         var pixels = new byte[width * height * 4];
@@ -62,8 +62,8 @@ public class WallpaperTopStripTests
     [Fact]
     public void AverageLuma_MidGrayIsMid()
     {
-        // sRGB 128 → luma ~0.502 (Rec.709 ağırlıklı ortalama: kanallar eşit olduğu için
-        // sonuc kanal değerinin 0..1'e ölçeğeqılının kendisi).
+        // sRGB 128 → luma ~0.502 (Rec.709 weighted average: since the channels are equal,
+        // the result is the channel value scaled to 0..1).
         byte[] pixels = SolidPixels(4, 4, 128, 128, 128);
 
         double luma = WallpaperTopStrip.AverageLuma(pixels, 4, 4, stripFraction: 1.0);
@@ -74,7 +74,7 @@ public class WallpaperTopStripTests
     [Fact]
     public void AverageLuma_FractionCoversOnlyTopRows()
     {
-        // Üst %25 beyaz, alt %75 siyah; stripFraction 0.25 → sadece beyaz görünür.
+        // Top 25% white, bottom 75% black; stripFraction 0.25 → only the white is seen.
         byte[] pixels = TwoTonePixels(4, 8, 2, [0xFF, 0xFF, 0xFF, 0xFF], [0, 0, 0, 0xFF]);
 
         double luma = WallpaperTopStrip.AverageLuma(pixels, 4, 8, stripFraction: 0.25);
@@ -89,7 +89,7 @@ public class WallpaperTopStripTests
 
         double luma = WallpaperTopStrip.AverageLuma(pixels, 4, 8, stripFraction: 0.0);
 
-        // En az bir satır — üst satır beyaz.
+        // At least one row — the top row is white.
         Assert.InRange(luma, 0.99, 1.0);
     }
 }

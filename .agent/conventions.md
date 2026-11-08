@@ -5,7 +5,9 @@
 - Canonical docs and `README.md` are English.
 - The only extra translation is `README.tr.md` (Turkish). Do not add other language READMEs.
 - API, type, and config names stay English.
-- Code identifiers stay English. Comments may be English.
+- Code identifiers stay English. Code comments and XML doc comments are English.
+- Committed docs, code comments, and UI copy defaults are English-only; Turkish exists only in
+  `src/WharfBar/Resources/Strings.tr.resx` and `README.tr.md`.
 - Commit messages may be English or Turkish, short and why-focused.
 - `.cursor` rules stay short pointers; do not paste long guides into them.
 - **In-app UI:** English + Turkish via `Resources/Strings.resx` + `Strings.tr.resx`; preference is soft top-level `config.language` (`system` \| `en` \| `tr`, default `system`). Applies at startup (`LocalizationService`); change requires restart. This is separate from docs/README language rules above.

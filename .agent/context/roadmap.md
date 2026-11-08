@@ -42,10 +42,9 @@
  - `DockAutoHideController` — edge-band poll, show/hide animation, fullscreen bridge
  - `DockHitTest` — `ApplyInteractive` / `ApplyPassthrough` (`WS_EX_TRANSPARENT`)
  - Code is in the working tree; manual verification is pending
-- **Monitor brightness control (Monitorian integration) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hybrid), `BrightnessFlyout` (TopBar `brightness` glyph, master `Tüm Ekranlar` (All displays) slider, independent monitor cards, 50 ms debounced background queue, catalog v2).
-- **Dock right-click context menu ✓** — `DockWindow` right-click context menu (`Uygulama İkonu`/`Adı` (application icon/name) title
- card, `Dock'a Sabitle`/`Kaldır` (Pin to Dock/Unpin), `Görevi Sonlandır` (End task) `Process.Kill`, `Pencereyi Kapat` (Close window) `WM_CLOSE`,
- `Yönetici Çalıştır` (Run as administrator), `Dosya Konumunu Aç` (Open file location), `Yeni Pencere` (New window)) and 100% screen-width support.
+- **Monitor brightness control (Monitorian integration) ✓** — `MonitorBrightnessService`, `MonitorNative` (DDC/CI `dxva2.dll` + WMI `WmiMonitorBrightness` hybrid), `BrightnessFlyout` (TopBar `brightness` glyph, master `All displays` slider, independent monitor cards, 50 ms debounced background queue, catalog v2).
+- **Dock right-click context menu ✓** — `DockWindow` right-click context menu (application icon/name title card, `Pin to Dock`/`Unpin`, `End task` `Process.Kill`, `Close window` `WM_CLOSE`,
+ `Run as administrator`, `Open file location`, `New window`) and 100% screen-width support.
 - **Dock redesign — macOS logic ✓ (code; mouse verification pending)** — ADR-005
  revision: the write path is `dock.items`. **2026-10-07:** the left group reads the `User Pinned` folder read-only
  (`TaskbarPinnedAppsSource`); the folder is not written. Pins on the left (including closed ones, the same icon once running), unpinned
@@ -53,12 +52,12 @@
  (`DockStrip` + pure `DockMagnification` / `DockStripLayout`), a fixed window budget
  (no `SetWindowPos` on hover), drag-to-reorder,
  file drop from Explorer, bottom-left/center/right position, live DPI via `WM_DPICHANGED`,
- `Pencereler` (Windows) submenu (from the `MinimizedWindowsSource` cache), a content list on the settings page.
+ `Windows` submenu (from the `MinimizedWindowsSource` cache), a content list on the settings page.
  
  **Live end-to-end verification was not done** — plate modes (Mica / transparent / tint), OLE drop acceptance, and click
  suppression were not tried by hand (limited to the interval calculation; see `docs/04-gotchas.md`).
-- **Color overlay (veil) ✓ (code; manual verification pending)** — fullscreen layered overlay (`VeilWindow`, click-through + 280 ms fade), `VeilService` (state + fade + `RegisterHotKey` host + config persistence), QS `veil` tile + global shortcut (default Ctrl+F11, changeable in config), `Kaplama` (Overlay) settings page (`VeilPage`; color/opacity/shortcut). Decision: ADR-007.
-- **Media panel (SMTC) ✓ (code; manual verification pending)** — top bar `media` item (visible only while a session exists; after `brightness`, catalog **v4** migration) + media flyout (art, title/artist, `Oynat`/`Duraklat` (Play/Pause) + `İleri`/`Geri` (Next/Previous), chevron picker when there are multiple sessions). `MediaSessionService` (Windows SMTC watch: snapshot + commands + `Changed`/`SessionsChanged` + 10 s retry), `MediaSessionSelector` (most-recently-active policy + `MoveCurrent` ring), `MediaSnapshot` model. Decision: ADR-008.
+- **Color overlay (veil) ✓ (code; manual verification pending)** — fullscreen layered overlay (`VeilWindow`, click-through + 280 ms fade), `VeilService` (state + fade + `RegisterHotKey` host + config persistence), QS `veil` tile + global shortcut (default Ctrl+F11, changeable in config), `Overlay` settings page (`VeilPage`; color/opacity/shortcut). Decision: ADR-007.
+- **Media panel (SMTC) ✓ (code; manual verification pending)** — top bar `media` item (visible only while a session exists; after `brightness`, catalog **v4** migration) + media flyout (art, title/artist, `Play`/`Pause` + `Next`/`Previous`, chevron picker when there are multiple sessions). `MediaSessionService` (Windows SMTC watch: snapshot + commands + `Changed`/`SessionsChanged` + 10 s retry), `MediaSessionSelector` (most-recently-active policy + `MoveCurrent` ring), `MediaSnapshot` model. Decision: ADR-008.
 - **Tray mirror (ADR-009) ✓** — top bar `trayMirror` (read-only mirror with documented comctl32 `TB_*` messages
  + `SendMessage` click-forward; system-icon filter; 4 s poll; hidden
  icons stay on `Win+B`). **25H2+ UIA fallback ✓ (manually verified):** because the classic toolbar
@@ -69,10 +68,10 @@
  `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
  via `PdhAddEnglishCounterW`; if there is no GPU counter the GPU section is hidden), pure calculation methods
  unit-tested (`SystemStatsTests`, 26 tests), `topBar.showSystemStats` toggle
- (Settings → `Üst Çubuk` (Top bar)). **Per-GPU display ✓ (code):** engine instances are grouped into a physical adapter by the LUID in the instance name;
+ (Settings → `Top bar`). **Per-GPU display ✓ (code):** engine instances are grouped into a physical adapter by the LUID in the instance name;
  with `topBar.showGpuPerAdapter` on, multiple GPUs show
  `GPU0 x% · GPU1 y%` (LUID order; it can differ from Task Manager's numbering).
- The Settings → `Üst Çubuk` (Top bar) page was refreshed: live preview strip, ToggleSwitches,
+ The Settings → `Top bar` page was refreshed: live preview strip, ToggleSwitches,
  ⋮⋮ drag-and-drop ordering of status items (manual verification pending).
 - **Taskbar watchdog ✓ (code + end-to-end verified 2026-08-25)** — the PDH `PtrToStringUni`
  access violation (`PDH_FMT_COUNTERVALUE` 8↔16 byte ABI bug; fixed + ABI test) skipped the managed
@@ -94,7 +93,7 @@
  calculation; see `task-8-report.md`).
  Compact island (ADR-011, 2026-10-07): the pill stays inside the AppBar. Idle is the clipboard; music
  uses `island.musicPresence` (`persistent` default); volume/brightness is a short meter. The panel is a single popup.
-- **Plugin catalog (ADR-017) ✓ (code)** — Launchpad Widget/Plugin and Settings → `Eklentiler` (Plugins).
+- **Plugin catalog (ADR-017) ✓ (code)** — Launchpad Widget/Plugin and Settings → `Plugins`.
  Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an
  on/off record only; an assembly is not loaded. Top bar and dock slots are not drawn.
 - **Launchpad open speed + top-bar logo ✓ (code; manual verification pending)** — the Start Menu
@@ -107,23 +106,23 @@
   eased hover (animated overlay in the flat template, resource-swap fallback), 0.97 press scale,
   secondary-colour letter headers, tile icon/text sizes (44/40 px icons, 12 px labels).
 - **Island widgets phase 1 — shelf + color picker ✓ (code; manual verification pending)** — the hub
-  grows two primary-bar tabs: **Raf** (`shelf`) — dropped-file chips (ext badge + name), `Uygulama
-  ile aç` (`CanOpenShelfFile` → `OpenShelfFile`), `Listeden kaldır`, `Rafını boşalt`, and a real OLE
-  drag-out per chip — and **Renk** (`colorpicker`): a session-scoped recent-colors list
-  (`IslandPickedColors`, top 8) + `Ekran seçici` → `ColorPickerWindow` (work-area topmost, frozen
+  grows two primary-bar tabs: **Shelf** (`shelf`) — dropped-file chips (ext badge + name),
+  `Open with app` (`CanOpenShelfFile` → `OpenShelfFile`), `Remove from list`, `Empty shelf`, and a
+  real OLE drag-out per chip — and **Color** (`colorpicker`): a session-scoped recent-colors list
+  (`IslandPickedColors`, top 8) + `Screen picker` → `ColorPickerWindow` (work-area topmost, frozen
   BitBlt frame **before** the dim mask, pick → `PutOnClipboard` HEX with the Win+V opt-out). Soft
   config `island.shelfTab` / `island.colorpickerTab` (default on); tab resolve adds the Drop-face
-  → Raf default and a Clipboard fallback for disabled tabs (`ResolveHubTab`). Motion: ratio-lerped
+  → Shelf default and a Clipboard fallback for disabled tabs (`ResolveHubTab`). Motion: ratio-lerped
   morph durations (`MorphOpenMs` 230→170 / `MorphCloseMs` 150→110, `BackEase(0.28)`/`CubicEase` on
   the scale axis only). New capture plumbing: `Native/ScreenBitBlt`, `Services/ScreenSampler`,
   `Services/ColorMath`. Tests: `ColorMathTests`, `ScreenSamplerTests`, `IslandPickedColorsTests`,
   `IslandMotionTests`, `IslandClipboardWriteTests`, hub-tab fallback tests.
 - **Island widgets phase 2 — prompter reading tab ✓ (code; manual verification pending)** — a sixth
   primary-bar tab, **Prompter** (`prompter`; soft `island.prompterTab`, default on; tab order now
-  Pano → Duvar kağıdı → Müzik → Raf → Prompter → Renk, disabled-tab fallback Clipboard in
+  Clipboard → Wallpaper → Music → Shelf → Prompter → Color, disabled-tab fallback Clipboard in
   `ResolveHubTab`): a multiline reading editor over a control bar — play/pause toggle
-  (`Oynat`/`Duraklat`), speed slider 0.5–3.0 (live `1.0×` label), `Başa dön`, `.txt` load,
-  `Panodan al` (read-only `IslandService.TryLastClipboardText`). Pure engine `PrompterMotion`
+  (`Play`/`Pause`), speed slider 0.5–3.0 (live `1.0×` label), `Back to start`, `.txt` load,
+  `Take from clipboard` (read-only `IslandService.TryLastClipboardText`). Pure engine `PrompterMotion`
   (66 px/s @1×, 17 DIP reading font, 16 ms tick, play gate `CanStartPlayback`): end-of-content →
   Editing + unpin, manual drag never pauses, the speed is 0 when `ClientAreaAnimation` is off,
   and the play toggle disables with a reason tooltip while there is nothing to scroll (no silent
@@ -132,13 +131,13 @@
   to icons when all six tabs converge. Tests: `PrompterMotionTests`, `IslandServiceTextPickTests`,
   `IslandConfigTests` / `IslandHubTests` / `IslandFlyoutHubTabsTests` extensions.
 - **Island widgets phase 3 — camera tab ✓ (code; manual verification pending)** — a seventh
-  primary-bar tab, **Kamera** (`camera`; soft `island.cameraTab`, default on; enum now Pano →
-  Duvar kağıdı → Müzik → Raf → Prompter → Kamera → Renk, and a fourth disabled-tab Clipboard
+  primary-bar tab, **Camera** (`camera`; soft `island.cameraTab`, default on; enum now Clipboard →
+  Wallpaper → Music → Shelf → Prompter → Camera → Color, and a fourth disabled-tab Clipboard
   fallback arm in `ResolveHubTab`): a rounded preview (`CameraPreviewHost` Height 180,
   size-adaptive 14 DIP clip; `CameraPreviewImage` `Stretch=Uniform`), placeholder + status when
-  closed (host off → `Kapalı`; status "Kamera" → `Aktif`; otherwise verbatim, e.g.
-  `Kamera yok`), a Kamera row with the aç/kapa toggle, and a display-only Mikrofon row
-  (`Aktif` / `Sessiz` / `Bilinmiyor`; read at `PresentHub` + a 2000 ms timer while the body is
+  closed (host off → `Off`; status "Camera" → `Active`; otherwise verbatim, e.g.
+  `No camera`), a Camera row with the on/off toggle, and a display-only Microphone row
+  (`Active` / `Muted` / `Unknown`; read at `PresentHub` + a 2000 ms timer while the body is
   visible). The toggle raises `CameraMirrorRequested` only; the window handler applies
   `PluginCatalog.SetEnabled` + `CameraMirrorHost.Apply` + config save — the same three steps the
   widget-gallery toggle uses (one `island.cameraMirror` bool). `CameraMirrorHost` keeps being the
@@ -147,26 +146,61 @@
   `IslandHubTests` camera rows (`Normalize_StringValue_ReturnsExpectedTab`, `ToConfig_Camera_WritesCameraId`,
   `Resolve_SavedCamera_MusicAvailable_Resolves`),
   `IslandFlyoutHubTabsTests.TabIdForBody_CameraId_MatchesTag`.
-  Manual QA (human, from the phase plan): closed body shows `Kapalı` + placeholder without a
+  Manual QA (human, from the phase plan): closed body shows `Off` + placeholder without a
   crash; body on/off syncs the pill face instantly, both directions, together with
-  Ayarlar > Widgetlar; no capture device → `Bilinmiyor`, mute/active text follows the system mic;
-  `island.json` `"hubTab":"camera"` + `"cameraTab":false` opens on Pano; the 7-button strip still
+  Settings > Widgets; no capture device → `Unknown`, mute/active text follows the system mic;
+  `island.json` `"hubTab":"camera"` + `"cameraTab":false` opens on Clipboard; the 7-button strip still
   folds labels by measurement (no count rule); tab switch / panel close / app detach leaves the
   live subscription + mic timer while the pill keeps its life, and a returning tab re-attaches.
+- **Screen picker facelift — macOS loupe ✓ (code; manual verification pending)** — the
+  `ColorPickerWindow` overlay drops the full-span crosshair + flat swatch card and now covers the
+  **full monitor** (was the work area — the dock/top-bar appbar strips cut the loupe off). The
+  affordance is a cursor-centred round loupe: a `MagnifierGrid` (13×13) crop of the frozen BitBlt
+  frame rendered into a `WriteableBitmap` with nearest-neighbour scaling inside a circular clip,
+  hairline cross + centre dot, a bordered 4 px white ring with a softened drop shadow, a glass
+  HEX chip (swatch + mono HEX) and hint/status line below. The picked colour is now the loupe's
+  exact centre pixel instead of a 3×3 average. New pure seam `ScreenSampler.TryCropBox`
+  (centre-clamped BGRA box crop, tight output stride) — tests in `SnapshotMagnifierTests`.
 - **Island shelf — drag-target chrome + usability ✓ (code; manual verification pending)** — the
   primary pill is a live drop target: a `FileDrop` drag hovering it grows the pill through
   `AnimatePillWidth`, swaps the glyph for the drop arrow (`E73E`), sets the caption to the
-  `Island_DragBadge` string (`Drop → shelf` / `Bırak → raf`), draws the accent stroke + glow, and
+  `Island_DragBadge` string (`Drop → shelf`, localized), draws the accent stroke + glow, and
   collapses the visualizer bars, camera frame, and both satellites for the duration (a cancel via
   `DragLeave`/Esc restores the frozen face; reduced motion gets static states). A drop where at
   least one record landed fires the swallow micro-motion (1 → 0.96 → 1.05 → 1 + accent flash).
   Shelf usability: dropped folders are records too (same `IslandEntryKind.File`, original path, no
   `Drop` copy, folder badge); Ctrl/Shift chip multi-select with batch drag-out of every selected
-  path; a body context menu `Tümünü dışarı sürükle` (press-and-drag); a hover `×` that removes one
-  record; and the chip menu `Dosya konumunu göster` / `Yolu kopyala` / `Dosyayı kopyala` (CF_HDROP
-  through `ClipboardNative`, hidden for folders). Design + plan:
-  `docs/superpowers/specs/2026-11-02-island-shelf-dragtarget-design.md`,
-  `docs/superpowers/plans/2026-11-02-island-shelf-dragtarget.md`.
+  path; a body context menu `Drag all out` (press-and-drag); a hover `×` that removes one
+  record; and the chip menu `Show file location` / `Copy path` / `Copy file` (CF_HDROP
+  through `ClipboardNative`, hidden for folders). The shipped surface is described above and in
+  [`docs/01-architecture.md`](../../docs/01-architecture.md).
+- **Tray mirror — quiet reveal + evidence-only clearing ✓ (code; manual verification pending)** — on
+  Windows 11 25H2 the parked auto-hide taskbar virtualizes its XAML tray buttons, so the periodic
+  pixel refresh now hover-reveals the tray exactly like a click (`TrayAutoHideReveal.TryReveal`:
+  bottom-edge hover with real input, cursor restored, no `ABM_SETSTATE`, no work-area change) before
+  reading. New pure gate `TrayRevealPolicy` (reveal only while the pointer is idle ≥1.5 s or the
+  mirror is still empty, the empty-mirror bypass capped at 3 attempts per shell; 2 consecutive
+  misses back off for 10 min) plus a real-fullscreen skip in `ShouldAttemptQuietRefresh`; the loud
+  state blip stays the gated fallback (maintenance only in a shell that already blipped). The reveal
+  also suppresses WharfBar's own dock edge-band show while it owns the cursor, and restores the mouse
+  only if the user has not moved it. Empty reads are no longer evidence: `TrayBlipOutcome` (`Skipped` /
+  `Inconclusive` / `ConfirmedEmpty` / `Refreshed`) and a 220 ms confirmation read mean only a tray
+  confirmed fully on screen that read back empty clears the mirror (`ShouldHoldSnapshotOnEmptyRead`);
+  unnamed/repeated buttons now get index-suffixed keys
+  (`TrayMirrorOrder.UniqueKeys`) so de-duplication cannot drop them. Tests: `TrayRevealPolicyTests`,
+  `TrayMirrorEmptyReadTests` (rewritten around the evidence rule), `TrayMirrorOrderTests`,
+  `TrayButtonMatcherTests`, `TrayStateBlipGateTests`, `IdleCadenceTests`, `TrayAutoHideRevealTests`. Details: `docs/02`/`docs/04` and
+  [`docs/01-architecture.md`](../../docs/01-architecture.md).
+
+- **Restricted-launch guard — token integrity ✓ (code; manual verification pending)** — a process token
+  below medium integrity (a sandboxed terminal or a low-integrity parent) cannot drive the shell:
+  UIPI silently drops `ShowWindow(Shell_TrayWnd, SW_HIDE)`, `SHAppBarMessage(ABM_NEW/SETPOS)` and
+  `SetWindowLong`, so the taskbar stays visible under a bar that reserves nothing. New
+  `Native/ProcessIntegrity` reads the token's integrity RID (`OpenProcessToken` +
+  `GetTokenInformation(TokenIntegrityLevel)`; unreadable → `-1`, never restricted) and
+  `App.OnStartup` warns before any shell state is touched — OK continues, Cancel quits. New
+  `Startup_RestrictedLaunch_*` strings (en/tr) and `ProcessIntegrityTests`. Details: `docs/02`/`docs/04`
+  and [`docs/01-architecture.md`](../../docs/01-architecture.md).
 
 ## Former to-do list (moved to milestones)
 

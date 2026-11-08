@@ -16,7 +16,7 @@ internal sealed record WifiNetworkInfo(
     uint AuthAlgorithm = 0,
     bool IsConnectable = true);
 
-/// <summary>Wlan API üzerinden ağ listesi ve bağlanma. Sadece Wifi sayfası açıkken poll edilir.</summary>
+/// <summary>Network list and connect via the Wlan API. Polled only while the Wi-Fi page is open.</summary>
 internal sealed class WifiService : IDisposable
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromSeconds(2);
@@ -71,24 +71,24 @@ internal sealed class WifiService : IDisposable
     internal const uint AuthWpa3Sae = 9;
     internal const uint AuthOwe = 10;
     internal const uint AuthWpa3Ent = 11;
-    internal const string HiddenSsidLabel = "(Gizli ağ)";
+    internal const string HiddenSsidLabel = "(Hidden network)";
 
-    /// <summary>Bağlanma denemeden önce elenen ağlar. Şifre eksikliği burada yoktur.</summary>
+    /// <summary>Networks filtered out before a connect attempt. A missing password is not one of them.</summary>
     internal static string? ConnectBlockReason(WifiNetworkInfo network)
     {
         if (network.Ssid == HiddenSsidLabel)
         {
-            return "Gizli ağa buradan bağlanılamaz";
+            return "Cannot connect to a hidden network from here";
         }
 
         if (!network.IsConnectable)
         {
-            return "Bu ağa bağlanılamıyor";
+            return "Cannot connect to this network";
         }
 
         if (IsEnterpriseAuth(network.AuthAlgorithm))
         {
-            return "Kurumsal ağ — Wi-Fi ayarlarından bağlanın";
+            return "Enterprise network — connect from Wi-Fi settings";
         }
 
         return null;
@@ -106,14 +106,14 @@ internal sealed class WifiService : IDisposable
 
         if (!WlanApi.TryOpen(out IntPtr handle))
         {
-            return (false, "Wi-Fi hizmeti açılamadı");
+            return (false, "Wi-Fi service could not be started");
         }
 
         try
         {
             if (!WlanApi.TryGetInterfaceGuid(handle, out Guid guid))
             {
-                return (false, "Adaptör bulunamadı");
+                return (false, "Adapter not found");
             }
 
             string profileName;
@@ -125,13 +125,13 @@ internal sealed class WifiService : IDisposable
             {
                 if (network.IsSecured && string.IsNullOrEmpty(password))
                 {
-                    return (false, "Şifre gerekli");
+                    return (false, "Password required");
                 }
 
                 string xml = BuildProfileXml(network.Ssid, network.IsSecured ? password : null, network.AuthAlgorithm);
                 if (!WlanApi.TrySetProfile(handle, guid, xml, out uint reason))
                 {
-                    return (false, $"Profil oluşturulamadı (hata {reason})");
+                    return (false, $"Could not create profile (error {reason})");
                 }
 
                 profileName = network.Ssid;
@@ -139,7 +139,7 @@ internal sealed class WifiService : IDisposable
 
             return WlanApi.TryConnectProfile(handle, guid, profileName)
                 ? (true, null)
-                : (false, "Bağlanılamadı");
+                : (false, "Could not connect");
         }
         finally
         {
@@ -151,19 +151,19 @@ internal sealed class WifiService : IDisposable
     {
         if (!WlanApi.TryOpen(out IntPtr handle))
         {
-            return (false, "Wi-Fi hizmeti açılamadı");
+            return (false, "Wi-Fi service could not be started");
         }
 
         try
         {
             if (!WlanApi.TryGetInterfaceGuid(handle, out Guid guid))
             {
-                return (false, "Adaptör bulunamadı");
+                return (false, "Adapter not found");
             }
 
             return WlanApi.TryDisconnect(handle, guid)
                 ? (true, null)
-                : (false, "Bağlantı kesilemedi");
+                : (false, "Could not disconnect");
         }
         finally
         {
@@ -172,8 +172,8 @@ internal sealed class WifiService : IDisposable
     }
 
     /// <summary>
-    /// <c>WlanConnect</c> isteği kabul etmek ile ilişkilendirme aynı şey değildir.
-    /// Yanlış parolada API yine başarı döner; SSID gerçekten bağlanana kadar beklenir.
+    /// <c>WlanConnect</c> accepting the request is not the same as association.
+    /// With a wrong password the API still returns success; we wait until the SSID actually connects.
     /// </summary>
     internal bool WaitUntilConnected(string ssid, TimeSpan timeout)
     {
@@ -234,7 +234,7 @@ internal sealed class WifiService : IDisposable
         int len = Math.Min(Math.Max(length, 0), Math.Min(ssid.Length, 32));
         if (len == 0)
         {
-            // Boş SSID = yayınını kapatmış AP (gizli ağ).
+            // Empty SSID = an AP that turned off its broadcast (hidden network).
             return HiddenSsidLabel;
         }
 
@@ -251,7 +251,7 @@ internal sealed class WifiService : IDisposable
         _ => 1,
     };
 
-    /// <summary>Aynı SSID bir kez: bağlı, sonra kayıtlı, sonra en güçlü sinyal.</summary>
+    /// <summary>Each SSID once: connected, then known, then strongest signal.</summary>
     internal static IReadOnlyList<WifiNetworkInfo> DedupeNetworks(IEnumerable<WifiNetworkInfo> networks) =>
         networks
             .GroupBy(n => n.Ssid, StringComparer.Ordinal)
@@ -262,7 +262,7 @@ internal sealed class WifiService : IDisposable
                 .First())
             .ToList();
 
-    /// <summary>Bağlı ağ en üste; ardından sinyal gücüne göre azalan.</summary>
+    /// <summary>Connected network on top; then descending by signal strength.</summary>
     internal static IReadOnlyList<WifiNetworkInfo> SortNetworks(IEnumerable<WifiNetworkInfo> networks) =>
         networks
             .OrderByDescending(n => n.IsConnected)
@@ -270,8 +270,8 @@ internal sealed class WifiService : IDisposable
             .ToList();
 
     /// <summary>
-    /// Düz metin parola <c>protected=false</c> ister. <c>true</c> şifreli anahtar blob'u demektir
-    /// ve WlanSetProfile düz metni reddeder.
+    /// A plain-text password requires <c>protected=false</c>. <c>true</c> means an encrypted key blob,
+    /// and WlanSetProfile rejects plain text.
     /// </summary>
     internal static string BuildProfileXml(string ssid, string? password, uint authAlgorithm = 0)
     {
@@ -368,7 +368,7 @@ internal sealed class WifiService : IDisposable
                 return (false, []);
             }
 
-            // Tarama asenkron tamamlanır; sonuç sonraki poll'ların cache'inde görünür.
+            // The scan completes asynchronously; the result appears in later polls' cache.
             WlanApi.Scan(handle, guid);
             if (!WlanApi.TryGetNetworks(handle, guid, out List<WlanApi.RawNetwork> raw))
             {

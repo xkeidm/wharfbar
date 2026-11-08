@@ -2238,5 +2238,53 @@ namespace WharfBar.Resources {
                 return ResourceManager.GetString("Island_Camera", resourceCulture);
             }
         }
+
+        public static string Startup_RestrictedLaunch_Title {
+            get {
+                return ResourceManager.GetString("Startup_RestrictedLaunch_Title", resourceCulture);
+            }
+        }
+
+        public static string Startup_RestrictedLaunch_Message {
+            get {
+                return ResourceManager.GetString("Startup_RestrictedLaunch_Message", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_Title {
+            get {
+                return ResourceManager.GetString("ColorPicker_Title", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_Hint {
+            get {
+                return ResourceManager.GetString("ColorPicker_Hint", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_ReadFailed {
+            get {
+                return ResourceManager.GetString("ColorPicker_ReadFailed", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_WriteFailed {
+            get {
+                return ResourceManager.GetString("ColorPicker_WriteFailed", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_Writing {
+            get {
+                return ResourceManager.GetString("ColorPicker_Writing", resourceCulture);
+            }
+        }
+
+        public static string ColorPicker_CopiedFormat {
+            get {
+                return ResourceManager.GetString("ColorPicker_CopiedFormat", resourceCulture);
+            }
+        }
     }
 }

@@ -117,7 +117,7 @@ internal sealed class MonitorBrightnessService : IDisposable
 
                                 string monitorName = !string.IsNullOrWhiteSpace(description)
                                     ? description.Trim()
-                                    : (!string.IsNullOrWhiteSpace(friendlyName) ? friendlyName : $"Monitör ({deviceName})");
+                                    : (!string.IsNullOrWhiteSpace(friendlyName) ? friendlyName : $"Monitor ({deviceName})");
 
                                 if (count > 1)
                                 {
@@ -163,7 +163,7 @@ internal sealed class MonitorBrightnessService : IDisposable
                             newMonitors.Add(new MonitorItem
                             {
                                 Id = $"WMI_{instanceName.GetHashCode():X}",
-                                Name = "Dahili Ekran",
+                                Name = "Internal Display",
                                 DeviceName = "DISPLAY_INTERNAL",
                                 CurrentBrightness = curB,
                                 MinBrightness = 0,

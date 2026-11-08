@@ -1,8 +1,8 @@
 namespace WharfBar.Services;
 
 /// <summary>
-/// Karo ışığı, yazma isteğinin kendisinden değil okunan durumdan gelir.
-/// Anahtar değeri yalnız Ayarlar anahtarının geri okumasıdır; yazma başarısızsa null kalır.
+/// The tile's light comes from the read state, not from the write request itself.
+/// The switch value is only the read-back of the Settings switch; if the write fails it stays null.
 /// </summary>
 internal static class EnergySaverTile
 {

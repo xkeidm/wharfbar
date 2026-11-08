@@ -10,33 +10,33 @@ using WharfBar.Models;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Island'ın tüm saf mantığı: kabul kuralı, dedupe, budama, arama eşleştirme, önizleme
-/// biçimlendirme ve bırakma dosya adı üretimi. Win32 ve dosya sistemi burada değildir —
-/// bu yüzden tamamı birim testlenebilir. Canlı servisler (<c>IslandService</c>,
-/// <c>IslandStore</c>) yalnızca çağırır.
+/// All of the island's pure logic: the accept rule, dedupe, pruning, search matching, preview
+/// formatting, and dropped-file name generation. Win32 and the file system are not here —
+/// which is why all of it is unit-testable. The live services (<c>IslandService</c>,
+/// <c>IslandStore</c>) only call into it.
 /// </summary>
 internal static class IslandPruner
 {
-    /// <summary>Bu boyutu aşan pano içeriği kaydedilmez.</summary>
+    /// <summary>Clipboard content larger than this is not saved.</summary>
     internal const int MaxTextBytes = 64 * 1024;
 
-    /// <summary>Pill ve liste önizlemesinde gösterilen karakter sayısı.</summary>
+    /// <summary>Number of characters shown in the pill and list preview.</summary>
     internal const int PreviewChars = 40;
 
-    /// <summary>Listede kaynak uygulama adının uzunluk sınırı.</summary>
+    /// <summary>Length limit for the source app name in the list.</summary>
     internal const int SourceAppMaxChars = 24;
 
     /// <summary>
-    /// Yakalanan bir pano içeriğinin geçmişe alınıp alınmayacağı.
+    /// Whether a captured clipboard item is taken into history.
     /// </summary>
     /// <param name="historyOptOut">
-    /// <c>CanIncludeInClipboardHistory</c> formatı 0 ise <c>true</c> — parola yöneticileri
-    /// kopyalarını bu işaretle kendi dışında tutar, biz de tutarız. Çağıran ayrıca
-    /// <b>formatı hiç kaydedemediyse</b> de <c>true</c> geçmeli (fail-closed): opt-out
-    /// okunamıyorsa içeriği almak, parola yöneticisinin isteğini çiğnemek olurdu.
+    /// <c>true</c> if the <c>CanIncludeInClipboardHistory</c> format is 0 — password managers
+    /// keep their copies out of history with this flag, and we keep them out too. The caller must
+    /// also pass <c>true</c> when it <b>could not save the format at all</b> (fail-closed): taking
+    /// the content when the opt-out cannot be read would override the password manager's request.
     /// </param>
-    /// <param name="text">Okunan metin.</param>
-    /// <param name="byteCount">Metnin UTF-8 bayt uzunluğu.</param>
+    /// <param name="text">The text that was read.</param>
+    /// <param name="byteCount">UTF-8 byte length of the text.</param>
     internal static bool ShouldCapture(bool historyOptOut, string? text, int byteCount)
     {
         if (historyOptOut || text is null)
@@ -53,9 +53,10 @@ internal static class IslandPruner
     }
 
     /// <summary>
-    /// Yeni kaydı başa ekler. <paramref name="current"/> en yenisi başta olacak şekilde
-    /// sıralı beklenir. Ardışık aynı metin kopyalanmışsa kopya açılmaz, mevcut kayıt
-    /// yalnız başa taşınır (Windows geçmişinin davranışı). Sonra budama uygulanır.
+    /// Prepends the new entry. <paramref name="current"/> is expected to be sorted with the
+    /// newest first. If the same text was copied consecutively, no duplicate is created; the
+    /// existing entry is only moved to the front (the behavior of Windows history). Pruning is
+    /// applied afterwards.
     /// </summary>
     internal static IReadOnlyList<IslandEntry> Prepend(
         IReadOnlyList<IslandEntry> current,
@@ -78,18 +79,18 @@ internal static class IslandPruner
     }
 
     /// <summary>
-    /// Gün limiti + kayıt sayısı tavanını uygular. <paramref name="entries"/> en yenisi başta
-    /// olacak şekilde sıralı beklenir: <c>Take</c> baştan kestiği için sıra korunur, kayıtlar
-    /// yeniden sıralanmaz. <paramref name="persistent"/> false ise gün limiti yok sayılır
-    /// (oturumluk modda eski kayıtlar da tutulur).
+    /// Applies the day limit + entry-count ceiling. <paramref name="entries"/> is expected to be
+    /// sorted with the newest first: <c>Take</c> cuts from the front, so the order is preserved and
+    /// the entries are not re-sorted. If <paramref name="persistent"/> is false the day limit is
+    /// ignored (in session-only mode older entries are kept as well).
     /// </summary>
     /// <remarks>
-    /// <paramref name="retentionDays"/> 0 (veya altı) "sınırsız" <b>anlamına gelmez</b>:
-    /// ayar yolu (<c>IslandNormalizer.ClampRetentionDays</c>) değeri 1..3650'e sıkıştırdığı
-    /// için <c>&gt; 0</c> dalı her zaman alınır; <c>&lt;= 0</c> yalnızca bu metodu doğrudan
-    /// çağıran testler için geçerlidir ve gün limitini uygulamaz. Sınırın tam kendisindeki
-    /// kayıt (<c>&gt;=</c> karşılaştırması) <b>kalır</b>. <paramref name="maxItems"/> 0 veya
-    /// altıysa sonuç boştur — tavan 1'e yükseltilmez.
+    /// <paramref name="retentionDays"/> of 0 (or less) does <b>not</b> mean "unlimited":
+    /// the settings path (<c>IslandNormalizer.ClampRetentionDays</c>) clamps the value to 1..3650,
+    /// so the <c>&gt; 0</c> branch is always taken; <c>&lt;= 0</c> applies only to tests that call
+    /// this method directly and does not apply the day limit. An entry exactly at the boundary
+    /// (<c>&gt;=</c> comparison) <b>stays</b>. If <paramref name="maxItems"/> is 0 or
+    /// less the result is empty — the ceiling is not raised to 1.
     /// </remarks>
     internal static IReadOnlyList<IslandEntry> Prune(
         IReadOnlyList<IslandEntry> entries,
@@ -109,7 +110,7 @@ internal static class IslandPruner
         return kept.Take(Math.Max(0, maxItems)).ToList();
     }
 
-    /// <summary>Kaydın arama sorgusuyla eşleşip eşleşmediği. Boş sorgu her şeyi eşleştirir.</summary>
+    /// <summary>Whether the entry matches the search query. An empty query matches everything.</summary>
     internal static bool Matches(IslandEntry entry, string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -127,7 +128,7 @@ internal static class IslandPruner
         !string.IsNullOrEmpty(haystack)
         && haystack.Contains(needle, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Satır sonlarını ve fazla boşlukları tek satıra indirir, uzun metni kısar.</summary>
+    /// <summary>Collapses line breaks and extra whitespace into a single line and truncates long text.</summary>
     internal static string FormatPreview(string text)
     {
         if (string.IsNullOrEmpty(text))
@@ -160,13 +161,13 @@ internal static class IslandPruner
             return single;
         }
 
-        // Kesme UTF-16 biriminde yapılır; 40. karakter bir yüksek surrogate ise (emoji vb.)
-        // çiftin yarısı kalır ve önizlemede boş kutu çıkar. Birim geri çekilir.
+        // The cut is made on a UTF-16 unit; if the 40th character is a high surrogate (emoji etc.)
+        // half of the pair remains and an empty box shows in the preview. The unit is stepped back.
         int cut = char.IsHighSurrogate(single[PreviewChars - 1]) ? PreviewChars - 1 : PreviewChars;
         return string.Concat(single.AsSpan(0, cut), "…");
     }
 
-    /// <summary>Listede gösterilen göreli zaman etiketi.</summary>
+    /// <summary>Relative time label shown in the list.</summary>
     internal static string FormatRelativeTime(DateTime capturedAtUtc, DateTimeOffset now)
     {
         TimeSpan delta = now.UtcDateTime - capturedAtUtc;
@@ -194,12 +195,12 @@ internal static class IslandPruner
     }
 
     /// <summary>
-    /// Ad çakışması için dosya adı üretir. Kural <b>yalnızca dosya adı</b> üzerinde uygulanır:
-    /// önce <c>Path.GetFileName</c> ile yol bileşeni atılır, sonra <paramref name="suffix"/>
-    /// 0 ise ad olduğu gibi döner, aksi halde uzantıdan önce " (n)" eklenir (uzantısız adlar
-    /// dahil). Dönen değer daima yalın bir dosya adıdır — yol, çağıran taraf
-    /// <c>Path.Combine(DropRoot, sonuç)</c> ile kurulur. Böylece nokta içeren bir dizin adı
-    /// (<c>my.dir</c>) yol biçimini bozamaz.
+    /// Generates a file name for a name collision. The rule is applied to the <b>file name only</b>:
+    /// first the path component is dropped with <c>Path.GetFileName</c>, then if <paramref name="suffix"/>
+    /// is 0 the name is returned as is, otherwise " (n)" is inserted before the extension (including
+    /// names without an extension). The returned value is always a bare file name — the path is built
+    /// by the caller with <c>Path.Combine(DropRoot, result)</c>. That way a directory name containing
+    /// a dot (<c>my.dir</c>) cannot break the path shape.
     /// </summary>
     internal static string BuildDropFileName(string fileName, int suffix)
     {

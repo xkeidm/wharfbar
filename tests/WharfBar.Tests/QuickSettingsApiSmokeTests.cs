@@ -3,7 +3,7 @@ using Xunit;
 
 namespace WharfBar.Tests;
 
-/// <summary>Bu oturumda ekran varsa QueryDisplayConfig topoloji kimliği döndürmeli.</summary>
+/// <summary>If a display is present in this session, QueryDisplayConfig should return a topology id.</summary>
 public class QuickSettingsApiSmokeTests
 {
     [Fact]

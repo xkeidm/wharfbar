@@ -464,10 +464,10 @@ internal static class CoreAudioSessions
 
         if (isSystem)
         {
-            return "Sistem sesleri";
+            return "System sounds";
         }
 
-        return "Uygulama";
+        return "Application";
     }
 
     private static string? TryGetProcessPath(int pid)

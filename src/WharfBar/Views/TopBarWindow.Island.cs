@@ -53,9 +53,9 @@ public partial class TopBarWindow
     private const double IslandSwallowReleaseScale = 1.05;
 
     private bool _islandClosePending;
-    // Okur oynatma pimi: true iken panel otomatik kapanamaz; pim olay (Task 3) taşır.
+    // Prompter playback pin: while true the panel cannot auto-close; the pin carries the event (Task 3).
     private bool _islandPrompterPinned;
-    // Hap/uydu/klavye tıklamasından gelen kapanış pimi tek seferliğine aşar (CloseIsland yolundan gelir).
+    // A close coming from a pill/satellite/keyboard click overrides the pin one time (it comes through the CloseIsland path).
     private bool _islandPrompterCloseOnce;
     private bool _islandAwaitingReveal;
     private bool _islandMeasuring;
@@ -440,7 +440,7 @@ public partial class TopBarWindow
     }
 
     /// <summary>
-    /// Uydu tıklaması hapın kendisine de düşmesin diye <see cref="MouseButtonEventArgs.Handled"/> işaretlenir.
+    /// <see cref="MouseButtonEventArgs.Handled"/> is marked so a satellite click does not land on the pill itself.
     /// </summary>
     private void ActivateSatellite(bool first, MouseButtonEventArgs e)
     {
@@ -466,8 +466,8 @@ public partial class TopBarWindow
             return;
         }
 
-        // Tıklamayla gelen kapanış pimi aşar: işaret her tıklamada tazelenir
-        // (tıklama kapatmadıysa kalan işaret motor-pimli panelde otomatik kapanış üretmez).
+        // A click-driven close overrides the pin: the flag is refreshed on every click
+        // (if the click did not close, the leftover flag does not produce an auto-close on a motor-pinned panel).
         _islandPrompterCloseOnce = _islandPrompterPinned;
 
         switch (command)
@@ -508,11 +508,11 @@ public partial class TopBarWindow
     }
 
     /// <summary>
-    /// Panel açılış sekmeyi seçer. Son yüz <see cref="IslandPillFace.Drop"/> ise raf gövdesi
-    /// gelir (<see cref="IslandConfig.ShelfTab"/> açıkken): dosya bırakıldıysa kullanıcı
-    /// bırakmayı rafında görmek ister. Raf ya da Renk ya da Okur ya da Kamera sekmesi
-    /// kapalıysa kayıtlı sekme rafsıza çözülürse yedek sıra aynı kalır (Pano → Duvar
-    /// kağıdı → Müzik; bilinmezse Pano). Aynı şekilde ikincil monitör yalnız Müzik taşır.
+    /// Panel opening picks the tab. If the last face was <see cref="IslandPillFace.Drop"/> the shelf body
+    /// comes up (while <see cref="IslandConfig.ShelfTab"/> is on): if a file was dropped the user
+    /// wants to see the drop in the shelf. If the Shelf or Color or Prompter or Camera tab
+    /// is off, the saved tab resolves to Clipboard while the fallback order stays the same (Clipboard → Wallpaper
+    /// → Music; Clipboard if unknown). Likewise the secondary monitor carries Music only.
     /// </summary>
     private IslandHubTab ResolveHubTab(bool musicAvailable)
     {
@@ -535,15 +535,15 @@ public partial class TopBarWindow
             : tab;
     }
 
-    /// <summary>Onaylanan ya da reddedilen seçim sonrası Renk gövdesinin flash hedefi.</summary>
+    /// <summary>Flash target of the Color body after an accepted or rejected pick.</summary>
     private bool? _pendingPickerWritten;
 
     private ColorPickerWindow? _screenPicker;
 
     /// <summary>
-    /// "Ekran rengini seç": ada paneli KAPANIR, örtü çalışma alanını kaplar (kullanıcının
-    /// onayladığı tek örtü istisnası), seçim bittikten sonra hub geri sergilenir. Örtü
-    /// açıkken başka topmost pencere açılmaz.
+    /// "Pick screen color": the island panel CLOSES, the overlay covers the work area (the single overlay
+    /// exception the user approved), and the hub is presented again once the pick is done. While the overlay
+    /// is open no other topmost window opens.
     /// </summary>
     private void OnIslandScreenPickerRequested(object? sender, EventArgs e)
     {
@@ -558,10 +558,10 @@ public partial class TopBarWindow
     }
 
     /// <summary>
-    /// Kamera aç/kapat tek Apply yolu: katalog kaydı + ana bilgisayarın tek sahipli
-    /// Apply'ı + kayıt. Klasör galerisi aynı üçlü adımı uygular; gövde tarafı yalnız
-    /// <see cref="IslandFlyout.CameraMirrorRequested"/> olayını kaldırır. Cevap
-    /// <see cref="CameraMirrorHost.Updated"/> ile gövdeye ve hap görüntüsüne döner.
+    /// Camera on/off single Apply path: catalog record + the host's single-owner
+    /// Apply + save. The folder gallery applies the same three-step sequence; the body side only
+    /// raises the <see cref="IslandFlyout.CameraMirrorRequested"/> event. The answer
+    /// returns to the body and the pill face via <see cref="CameraMirrorHost.Updated"/>.
     /// </summary>
     private void OnIslandCameraMirrorRequested(object? sender, bool enable)
     {
@@ -573,8 +573,8 @@ public partial class TopBarWindow
     private void StartScreenPicker()
     {
         IntPtr hwnd = _source?.Handle ?? IntPtr.Zero;
-        // IsOpen seçim sonrası "yerleşiyor" aralığında (0.9-1.6 sn) falsified düşer;
-        // IsLoaded ise pencere kapanana kadar true kalır — ikinci örtüyü o aralıkta da yasaklar.
+        // IsOpen drops to false during the "settling" interval after a pick (0.9-1.6 s);
+        // IsLoaded stays true until the window closes — which also forbids a second overlay in that interval.
         if (hwnd == IntPtr.Zero || _screenPicker is { IsLoaded: true })
         {
             return;
@@ -586,7 +586,7 @@ public partial class TopBarWindow
         _screenPicker.Closed += OnScreenPickerWindowClosed;
         if (!_screenPicker.Start(hwnd, _engine.Island))
         {
-            // Örtü açılamadı: hub'ı yeniden sergileyip kullanıcının bağlamına geri dönelim.
+            // The overlay could not open: present the hub again and return to the user's context.
             _screenPicker = null;
             ReopenIslandAfterPicker(pickerWritten: null);
         }
@@ -604,14 +604,14 @@ public partial class TopBarWindow
 
     private void OnScreenPickerCancelled()
     {
-        // Reopen, pencerenin Closed'unda tek noktadan yapılır (Cancelled da Close'un önünde gelir).
+        // Reopen is done from a single point in the window's Closed (Cancelled also arrives before Close).
         _pendingPickerWritten = null;
     }
 
     /// <summary>
-    /// Örtü kapandıktan sonra hub'ı geri açar: kayıtlı sekme "colorpicker" olduğundan
-    /// gövde Renk'te gelir. <see cref="_pendingPickerWritten"/> yalnız seçim sonu taşır
-    /// (null: vazgeç); flash gövde sunulduktan sonraki durakta yazılır.
+    /// Reopens the hub after the overlay closes: because the saved tab is "colorpicker" the
+    /// body comes up in Color. <see cref="_pendingPickerWritten"/> carries only the pick result
+    /// (null: cancelled); the flash is written at the stop after the body is presented.
     /// </summary>
     private void OnScreenPickerWindowClosed(object? sender, EventArgs e)
     {
@@ -674,10 +674,10 @@ public partial class TopBarWindow
             return;
         }
 
-        // Popup açılışı bazen hapta sahte MouseLeave üretir. İmleç hâlâ
-        // hapta ya da paneldeyse kapanış süresini Tick'ten önce geri yükle.
-        // Panel kapalıyken PointerEnter çağrılmaz: hover açılışı 150 ms'lik
-        // süreye bağlı ve her tikte yeniden girmek o süreyi sıfırlardı.
+        // Popup opening sometimes produces a fake MouseLeave on the pill. If the cursor is still
+        // on the pill or the panel, restore the close delay before Tick.
+        // PointerEnter is not called while the panel is closed: the hover open depends on the 150 ms
+        // delay and re-entering on every tick would reset it.
         long now = IslandNow();
         bool panelOpen = _presence.View.Panel != IslandPanelBody.None;
         if (panelOpen)
@@ -867,8 +867,8 @@ public partial class TopBarWindow
     }
 
     /// <summary>
-    /// Kapalı ada her barda çöker. Birincil, açıkken boşta da durur.
-    /// İkincil yalnız müzik, sayaç veya açık panel varken görünür.
+    /// The closed island collapses on every bar. The primary also stays while idle when it is on.
+    /// The secondary is visible only while there is music, a counter or an open panel.
     /// </summary>
     private bool IslandShouldShow(IslandPresenceView snap)
     {
@@ -1314,9 +1314,9 @@ public partial class TopBarWindow
 
         if (snap.Panel == IslandPanelBody.None)
         {
-            // Okur oynatma pimi: motorun otomatik kapanışı (hover çıkışı süresi /
-            // geçici tutma bitti) paneli kapatmaz. Açık kapanış (CloseIsland doğrudan
-            // CloseIslandPopupOnly'yi çağırır; hap tıklaması tek atımlık işaretle gelir) buraya uğramaz.
+            // Prompter playback pin: the engine's automatic close (hover-exit delay /
+            // temporary hold finished) does not close the panel. An explicit close (CloseIsland calls
+            // CloseIslandPopupOnly directly; a pill click arrives with the one-shot flag) does not come here.
             if (_islandPrompterPinned && IslandPopup.IsOpen && !_islandPrompterCloseOnce)
             {
                 return;
@@ -1443,10 +1443,10 @@ public partial class TopBarWindow
     }
 
     /// <summary>
-    /// Okur oynatma pimi: oynatma açıkken panelin otomatik kapanışı baskılanır, pim
-    /// serbest kalınca normal akış döner (pimliyken baskılanan Panel=None durumunda
-    /// kapanış hemen izlenir). Açık kapanışa (CloseIsland) dokunulmaz; hap tıklaması
-    /// tek atımlık işaretle alır.
+    /// Prompter playback pin: while playback is on, the panel's automatic close is suppressed; once the pin
+    /// is released the normal flow returns (in the Panel=None state suppressed while pinned the
+    /// close is observed immediately). The explicit close (CloseIsland) is not touched; a pill click
+    /// arrives with the one-shot flag.
     /// </summary>
     private void OnIslandPrompterPinnedChanged(bool pinned)
     {
@@ -1459,13 +1459,13 @@ public partial class TopBarWindow
         _islandPrompterCloseOnce = false;
         if (pinned)
         {
-            // Pim anında bekleyen otomatik kapanışı geri çek: kapama animasyonu iptal,
-            // panel tam açık karede kalır (bölgenin kendi CancelPendingClose ilkesiyle aynı).
+            // Pull back the auto-close pending at the moment of pinning: the closing animation is cancelled and
+            // the panel stays on a fully open frame (same as the region's own CancelPendingClose principle).
             CancelIslandMotion();
             return;
         }
 
-        // Pimsizken kayıtlı panel None olabilir (pimliyken baskılanmıştı): normal akış kapatır.
+        // Without the pin the recorded panel may be None (it was suppressed while pinned): the normal flow closes it.
         if (_presence is not null && IslandPopup.IsOpen)
         {
             ApplyIslandChrome(focusMusic: false);
@@ -1858,7 +1858,7 @@ public partial class TopBarWindow
                 CloseIsland(animate: false);
             }
 
-            // Ada kapandıysa seçim örtüsü de bayat bir maskenin altında kalmamalı.
+            // If the island is closed the picker overlay must not stay under a stale mask.
             _screenPicker?.Close();
             _islandClock?.Stop();
             ApplyCaptureAffinity(default, pillShown: false);
@@ -2014,8 +2014,8 @@ public partial class TopBarWindow
 
             foreach (string path in paths)
             {
-                // Klasör de rafa düşer (B1): adı "atlandı" sayılmaz. Sonunda ayırıcı taşıyan
-                // klasör yolu Path.GetFileName'de boş döner, o yüzden ayırıcı kırpılarak okunur.
+                // A folder drops into the shelf too (B1): its name is not counted as "skipped". A folder path
+                // with a trailing separator comes back empty from Path.GetFileName, so it is read with the separator trimmed.
                 if (string.IsNullOrWhiteSpace(path))
                 {
                     continue;
@@ -2029,9 +2029,9 @@ public partial class TopBarWindow
                 }
             }
 
-            // Geri bildirim yükün dizelerine değil servisin SAYDIĞI kayda dayanır: sürükleme
-            // sırasında silinen/yeniden adlandırılan yol kayıt üretmez, yani HUD ve yutma
-            // animasyonu "hiçbir şey düşmedi" durumunda çalışmamalı (sahte başarı geri bildirimi).
+            // The feedback rests on the entry COUNTED by the service, not on the payload strings: a path
+            // deleted or renamed during the drag produces no entry, so the HUD and the swallow
+            // animation must not run in the "nothing was dropped" case (a fake success feedback).
             int added = island.AddDroppedFiles(paths);
             if (added <= 0)
             {
@@ -2436,7 +2436,7 @@ public partial class TopBarWindow
 
     /// <summary>
     /// Last-clip preview parks the pill in its own window and drops only that HWND
-    /// from capture. The top bar stays in the shot. A plain "Pano" label, music, and
+    /// from capture. The top bar stays in the shot. A plain "Clipboard" label, music, and
     /// meters stay in the bar.
     /// </summary>
     private void ApplyCaptureAffinity(IslandPresenceView snap, bool pillShown)

@@ -67,7 +67,7 @@
                 </Border>
             </Border>
 
-            <!-- Sistem İstatistikleri Section -->
+            <!-- System Stats Section -->
             <TextBlock Text="{x:Static res:Strings.TopBarPage_StatsSection}" Style="{StaticResource SectionHeader}" />
             <TextBlock Text="{x:Static res:Strings.TopBarPage_StatsDescription}"
                        Style="{StaticResource SectionDescription}" />
@@ -91,7 +91,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Durum Öğeleri Section -->
+            <!-- Status Items Section -->
             <TextBlock Text="{x:Static res:Strings.TopBarPage_StatusItemsSection}" Style="{StaticResource SectionHeader}" />
             <TextBlock Text="{x:Static res:Strings.TopBarPage_StatusItemsDescription}"
                        Style="{StaticResource SectionDescription}" />

@@ -1,31 +1,31 @@
 namespace WharfBar.Models;
 
-/// <summary>Island kaydının türü: kopyalanan metin ya da island'a bırakılan dosya.</summary>
+/// <summary>Island entry type: copied text or a file dropped onto the island.</summary>
 internal enum IslandEntryKind
 {
-    /// <summary>Panodan yakalanan metin.</summary>
+    /// <summary>Text captured from the clipboard.</summary>
     Text,
 
     /// <summary>
-    /// Island'a bırakılan dosya. Yeni kayıtlar orijinal yolu tutar; eski kayıtlarda
-    /// <c>Drop</c> kopyası da olabilir.
+    /// A file dropped onto the island. New entries keep the original path; older entries
+    /// may also hold a <c>Drop</c> copy.
     /// </summary>
     File,
 }
 
 /// <summary>
-/// Island zaman çizelgesinin tek bir kaydı. <see cref="FilePath"/> yalnız
-/// <see cref="IslandEntryKind.File"/> türünde doludur.
+/// A single entry of the island timeline. <see cref="FilePath"/> is populated only for the
+/// <see cref="IslandEntryKind.File"/> kind.
 /// </summary>
-/// <param name="Id">Servis tarafından artan sayıcıdan verilir.</param>
-/// <param name="Kind">Kayıt türü.</param>
-/// <param name="Text">Görüntülenecek metin (dosyalarda dosya adı).</param>
+/// <param name="Id">Assigned by the service from an incrementing counter.</param>
+/// <param name="Kind">Entry type.</param>
+/// <param name="Text">Text to display (the file name for files).</param>
 /// <param name="FilePath">
-/// Dosyanın tam yolu. Yeni bırakmalar orijinal yolu tutar; eski kayıtlarda
-/// <c>%AppData%\WharfBar\Drop</c> altındaki kopya da olabilir.
+/// Full path of the file. New drops keep the original path; older entries
+/// may also hold a copy under <c>%AppData%\WharfBar\Drop</c>.
 /// </param>
-/// <param name="CapturedAtUtc">Kaydın yakalandığı an (UTC).</param>
-/// <param name="SourceApp">Kaynağın süreç adı; dosya kayıtlarında boştur.</param>
+/// <param name="CapturedAtUtc">The moment the entry was captured (UTC).</param>
+/// <param name="SourceApp">Process name of the source; empty for file entries.</param>
 internal sealed record IslandEntry(
     long Id,
     IslandEntryKind Kind,

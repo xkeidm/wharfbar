@@ -532,11 +532,11 @@ internal static class TaskbarNative
     /// (no SPIF_SENDCHANGE) except when <paramref name="broadcast"/> is true.
     /// </summary>
     /// <remarks>
-    /// Yalnız birincil monitör devre kesicisini besler (<paramref name="feedsBreaker"/> =
-    /// <c>false</c> buradan). Aksi halde ikincil monitörün genişletmesi, ki o monitörün
-    /// work-area'sı doğru okunsa bile "etki uygulanmadı" sayılabilecek tek bir çağrıyla devreyi
-    /// 10 dakika açık tutup <see cref="TrySetPrimaryWorkArea"/>'ı — yani çıkıştaki work-area
-    /// geri yüklemesini — erken çıkmaya zorlayabilirdi. Bkz. <c>boundaries.md</c> "Asla".
+    /// Only the primary monitor feeds the circuit breaker (<paramref name="feedsBreaker"/> =
+    /// <c>false</c> from here). Otherwise a secondary monitor's expansion, even when that monitor's
+    /// work area is read correctly, could hold the circuit open for 10 minutes with a single call
+    /// that counts as "effect not applied" and force <see cref="TrySetPrimaryWorkArea"/> — that is,
+    /// the work-area restore on exit — to bail out early. See <c>boundaries.md</c> "Never".
     /// </remarks>
     internal static bool TryExpandWorkAreaBottom(
         MonitorInfo monitor,
@@ -578,11 +578,11 @@ internal static class TaskbarNative
 
     /// <summary>Restores a previously captured primary work area (exit / crash restore).</summary>
     /// <remarks>
-    /// Devre kesicinin "SPI bu shell'de ölü" dediği durumda bile <b>denenir</b>: devre
-    /// kesicisi yalnız genişletme yolunu susturur, restore yolunu susturmaz. Çıkışta tek bir
-    /// ölü çağrının bedeli yoktur, ama kesik bir restore'un bedeli alt boşlukta kalan bir
-    /// görev çubuğudur — <c>boundaries.md</c> "Asla" listesi. 25H2'de ölü olan API
-    /// <c>TRUE</c> döndüp hiçbir şey yapmadığı için (ölçüldü) bu çağrı zararsızdır.
+    /// It is still <b>attempted</b> even when the circuit breaker says "SPI is dead on this shell":
+    /// the breaker silences only the expand path, not the restore path. A single dead call on exit
+    /// costs nothing, but a skipped restore costs a taskbar left stuck in the bottom gap — the
+    /// <c>boundaries.md</c> "Never" list. Because the API that is dead on 25H2 returns <c>TRUE</c>
+    /// and does nothing (measured), this call is harmless.
     /// </remarks>
     internal static bool TrySetPrimaryWorkArea(RECT work)
     {
@@ -629,12 +629,13 @@ internal static class TaskbarNative
     /// belongs to (<c>MonitorFromRect</c> + <c>GetMonitorInfo.rcWork</c>).
     /// </summary>
     /// <remarks>
-    /// <c>SPI_GETWORKAREA</c> <b>yalnız birincil</b> monitörü okur (uiParam = 0), ama
-    /// <c>SPI_SETWORKAREA</c> yazılan dikdörtgenin içinde bulunduğu monitöre uygulanır ve
-    /// <see cref="TryExpandWorkAreaBottom"/> her monitör için çağrılır. Birincil okuma
-    /// ikincinin başarılı genişlemesini "etki uygulanmadı" sayar; iki hata sonrası devre
-    /// kesicisi açılır ve çıkıştaki restore work area'yı geri yükleyemez. Monitör çözülemezse
-    /// birincil okumaya düşülür — bu yol yalnız birincil dikdörtgenler için doğrudur.
+    /// <c>SPI_GETWORKAREA</c> reads <b>only the primary</b> monitor (uiParam = 0), but
+    /// <c>SPI_SETWORKAREA</c> applies to the monitor that contains the written rect, and
+    /// <see cref="TryExpandWorkAreaBottom"/> is called for every monitor. A primary-only read
+    /// counts the secondary's successful expansion as "effect not applied"; after two failures the
+    /// circuit breaker opens and the restore work area on exit cannot put it back. If the monitor
+    /// cannot be resolved it falls back to the primary read — that path is correct only for
+    /// primary rects.
     /// </remarks>
     private static bool TryReadBackWorkAreaBottom(RECT written, out int bottom)
     {

@@ -1,4 +1,5 @@
 using WharfBar.Models;
+using WharfBar.Resources;
 
 namespace WharfBar.Services;
 
@@ -38,7 +39,7 @@ internal enum IslandSatellite
     Music,
 }
 
-/// <summary>Idle chip text. An empty title means the window draws "Pano".</summary>
+/// <summary>Idle chip text. An empty title means the window draws "Clipboard".</summary>
 internal enum IslandIdleLabel
 {
     ClipboardName,
@@ -147,7 +148,7 @@ internal sealed class IslandPresence
     private IslandPillFace _hudFace;
     private string _hudTitle = string.Empty;
     private bool _cameraOn;
-    private string _cameraTitle = "Kamera";
+    private string _cameraTitle = Strings.Island_Camera;
     private int _meter;
     private bool _hudMuted;
 
@@ -430,7 +431,7 @@ internal sealed class IslandPresence
     {
         Expire(nowMs);
         _cameraOn = on;
-        _cameraTitle = string.IsNullOrWhiteSpace(title) ? "Kamera" : title.Trim();
+        _cameraTitle = string.IsNullOrWhiteSpace(title) ? Strings.Island_Camera : title.Trim();
         Publish();
     }
 

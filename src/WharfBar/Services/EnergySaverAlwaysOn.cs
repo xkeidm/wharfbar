@@ -5,9 +5,9 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>
-/// "Her zaman enerji tasarrufu kullan" anahtarını UI Automation ile çevirir.
-/// Belgelenmiş bir yazma API'si yok; Ayarlar penceresi ekran dışına alınır ve
-/// bu çağrı açtıysa kapanır. Anahtarın yeni hali geri okunur.
+/// Toggles the "Always use energy saver" switch via UI Automation.
+/// There is no documented write API; the Settings window is moved off-screen and
+/// is closed if this call opened it. The switch's new state is read back.
 /// </summary>
 internal static class EnergySaverAlwaysOn
 {
@@ -208,7 +208,7 @@ internal static class EnergySaverAlwaysOn
         }
         catch (ElementNotAvailableException)
         {
-            // Pencere kapanmışsa park etmeye gerek yok.
+            // If the window is already closed, there is no need to park it.
         }
     }
 

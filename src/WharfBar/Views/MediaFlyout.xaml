@@ -42,7 +42,7 @@
             Margin="0,0,12,0"
             SnapsToDevicePixels="True">
         <StackPanel>
-            <!-- Oturum seçici (yalnızca 1'den fazla oturum varsa) -->
+            <!-- Session selector (only when there is more than 1 session) -->
             <Grid x:Name="SelectorPanel" Margin="0,0,0,10" Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="PreviousSessionButton"
@@ -70,7 +70,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Şu an çalan: kapak + başlık/sanatçı -->
+            <!-- Now playing: cover + title/artist -->
             <Grid x:Name="NowPlayingPanel">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -109,7 +109,7 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Boş durum -->
+            <!-- Empty state -->
             <TextBlock x:Name="EmptyText"
                        Text="{x:Static res:Strings.Media_NothingPlaying}"
                        FontSize="12"
@@ -118,7 +118,7 @@
                        Margin="0,8,0,0"
                        Visibility="Collapsed" />
 
-            <!-- Taşıma kontrolleri -->
+            <!-- Transport controls -->
             <StackPanel x:Name="TransportPanel"
                         Orientation="Horizontal"
                         HorizontalAlignment="Center"

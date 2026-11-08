@@ -637,7 +637,7 @@ internal static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
-    /// <summary>PKEY_AppUserModel_ID — .lnk kısayolunun AppUserModelID property'si (pid 5).</summary>
+    /// <summary>PKEY_AppUserModel_ID — the AppUserModelID property of a .lnk shortcut (pid 5).</summary>
     internal static readonly Guid PKEY_AppUserModelId = new("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
 
     internal const int VT_LPWSTR = 31;
@@ -821,8 +821,8 @@ internal struct BITMAP
 }
 
 /// <summary>
-/// PROPVARIANT — union; string değerler (VT_LPWSTR) offset 8'de <see cref="pwszVal"/> tutar.
-/// Alma yapıldıktan sonra <see cref="NativeMethods.PropVariantClear"/> ile serbest bırakılır.
+/// PROPVARIANT — union; string values (VT_LPWSTR) hold <see cref="pwszVal"/> at offset 8.
+/// After the value is taken it is released with <see cref="NativeMethods.PropVariantClear"/>.
 /// </summary>
 [StructLayout(LayoutKind.Explicit)]
 internal struct PROPVARIANT

@@ -6,16 +6,16 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Pano değişimlerini dinleyen mesaj-only pencere. Mevcut <see cref="MonitorMessageWindow"/>
-/// kalıbının aynısı: masaüstünde görünmez, yalnız mesaj alır. Pencere UI thread'inde
-/// açılır; dinleyici <c>WM_CLIPBOARDUPDATE</c>'i orada alır, okuma işi çağıranın sorumluluğundadır.
+/// Message-only window that listens for clipboard changes. The same pattern as the existing
+/// <see cref="MonitorMessageWindow"/>: invisible on the desktop, receives messages only. The window
+/// is created on the UI thread; the listener receives <c>WM_CLIPBOARDUPDATE</c> there, and reading the content is the caller's responsibility.
 /// </summary>
 internal sealed class ClipboardMessageWindow : IDisposable
 {
     private HwndSource? _source;
     private bool _disposed;
 
-    /// <summary>Klipboard içeriği değişti. UI thread'inde tetiklenir.</summary>
+    /// <summary>Clipboard content changed. Raised on the UI thread.</summary>
     internal event EventHandler? ClipboardChanged;
 
     internal ClipboardMessageWindow()

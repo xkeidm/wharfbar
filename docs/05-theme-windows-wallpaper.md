@@ -4,7 +4,7 @@
 **Status:** Implemented  
 **Product:** WharfBar
 
-> Canonical committed design for this feature. Local agent scratch under `docs/superpowers/` is gitignored.
+> Canonical committed design for this feature.
 
 ## Goal
 

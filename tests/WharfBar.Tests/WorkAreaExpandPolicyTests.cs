@@ -65,7 +65,7 @@ public class WorkAreaExpandPolicyTests
         policy.RecordResult(false, WorkAreaExpandPolicy.ErrorInvalidParameter, false, T0.AddSeconds(1));
         Assert.True(policy.IsCircuitOpen(T0.AddSeconds(2)));
 
-        // A later re-probe (after the interval) succeeded â€” the shell accepts the API again.
+        // A later re-probe (after the interval) succeeded — the shell accepts the API again.
         policy.RecordResult(true, 0, true, T0.AddSeconds(2).Add(WorkAreaExpandPolicy.ReprobeInterval));
         Assert.False(policy.IsCircuitOpen(T0.AddMinutes(30)));
         Assert.True(policy.ShouldAttempt(T0.AddMinutes(30)));

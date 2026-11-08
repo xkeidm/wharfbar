@@ -18,13 +18,13 @@ internal static class DisplayTopology
     internal const uint QDC_VIRTUAL_MODE_AWARE = 0x10;
     private const int ERROR_SUCCESS = 0;
 
-    // Pointer içermeyen native boyutlar. Bu makinede QueryDisplayConfig 0 döndü.
+    // Native sizes that contain no pointers. QueryDisplayConfig returned 0 on this machine.
     private const int PathInfoBytes = 72;
     private const int ModeInfoBytes = 64;
 
     /// <summary>
-    /// Mevcut topoloji kimliği. Sıfır tampon bu sistemde 87 döner; önce
-    /// <c>GetDisplayConfigBufferSizes</c>, sonra gerçek tampon gerekir.
+    /// Current topology id. A zero buffer returns 87 on this system; <c>GetDisplayConfigBufferSizes</c>
+    /// is needed first, then the real buffer.
     /// </summary>
     internal static int QueryCurrentTopology(out uint topologyId)
     {
@@ -63,7 +63,7 @@ internal static class DisplayTopology
     private const int SM_CYVIRTUALSCREEN = 79;
     private const int SM_CMONITORS = 80;
 
-    /// <summary>Aktif monitör sayısı + sanal/primary ekran geometrisi (GuessCurrentMode girdisi).</summary>
+    /// <summary>Active monitor count + virtual/primary screen geometry (GuessCurrentMode input).</summary>
     internal static (int Monitors, int VX, int VY, int VW, int VH, int PW, int PH) ReadMonitorMetrics() =>
         (
             GetSystemMetrics(SM_CMONITORS),
@@ -79,9 +79,9 @@ internal static class DisplayTopology
     private static extern int GetSystemMetrics(int nIndex);
 
     /// <summary>
-    /// Topoloji değiştirmenin kanıtlanmış tek güvenilir kombinasyonu:
-    /// <c>topologyFlag | SDC_APPLY</c>. Eklenen her ekstra flag (SUPPLIED / ALLOW_CHANGES /
-    /// SAVE_TO_DATABASE) bu makinede ERROR_INVALID_PARAMETER döndürür.
+    /// The only combination proven reliable for changing topology:
+    /// <c>topologyFlag | SDC_APPLY</c>. Every extra flag added (SUPPLIED / ALLOW_CHANGES /
+    /// SAVE_TO_DATABASE) returns ERROR_INVALID_PARAMETER on this machine.
     /// </summary>
     internal static bool TryApplyTopology(uint topologyFlag) =>
         SetDisplayConfig(

@@ -36,9 +36,9 @@ internal sealed record NetworkDetails(
 
 /// <summary>
 /// Quick Settings actions: network details, documented WinRT radio toggles where available,
-/// Settings URIs for the rest; Project opens the native Yansıt panel (no tray-icon mirroring).
-/// Radyo nesneleri bir kez keşfedilip cache'lenir ve StateChanged event'leriyle canlı tutulur —
-/// her toggle'da RequestAccessAsync + GetRadiosAsync turu atmak toggle'ı saniyelerce geciktiriyordu.
+/// Settings URIs for the rest; the Project tile opens the native Windows Project panel (no tray-icon mirroring).
+/// Radio objects are discovered once and cached, and kept live by StateChanged events —
+/// doing a RequestAccessAsync + GetRadiosAsync round on every toggle delayed the toggle by seconds.
 /// </summary>
 internal sealed class QuickSettingsService : IDisposable
 {
@@ -64,12 +64,12 @@ internal sealed class QuickSettingsService : IDisposable
     /// </summary>
     private bool? _airplaneSessionOverride;
 
-    /// <summary>Karo ışığı: API, sistem bayrağı veya Ayarlar anahtarının geri okuması.</summary>
+    /// <summary>Tile light: the API, the system flag, or the Settings switch's read-back.</summary>
     private bool _energySaverOn;
 
     /// <summary>
-    /// "Her zaman enerji tasarrufu kullan" anahtarının son geri okuması.
-    /// Yazma başarısızsa değişmez. Pil yokken API <c>Disabled</c> kaldığı için karo bunu da sayar.
+    /// The last read-back of the "Always use energy saver" switch.
+    /// It does not change if the write fails. With no battery the API stays <c>Disabled</c>, so the tile counts that too.
     /// </summary>
     private bool? _alwaysOnSwitch;
 
@@ -323,7 +323,7 @@ internal sealed class QuickSettingsService : IDisposable
         ];
     }
 
-    /// <summary>Radyoları bir kez keşfeder, cache'ler ve StateChanged'e abone olur.</summary>
+    /// <summary>Discovers the radios once, caches them, and subscribes to StateChanged.</summary>
     private async Task InitializeRadiosAsync()
     {
         if (Interlocked.Exchange(ref _radioInitBusy, 1) != 0)
@@ -418,9 +418,9 @@ internal sealed class QuickSettingsService : IDisposable
     }
 
     /// <summary>
-    /// Optimistik toggle: karoyu hemen çevir (Changed fırlat), sonra radyoyu arkada çevir.
-    /// Radyo değişimi ~100 ms sürüyor; eski akış tüm WinRT turunu bekleyip ondan sonra
-    /// UI'ı güncellediği için toggle saniyeler alıyormuş gibi hissettiriyordu.
+    /// Optimistic toggle: flip the tile immediately (raise Changed), then flip the radio in the background.
+    /// The radio change takes ~100 ms; the old flow waited for the whole WinRT round and only
+    /// then updated the UI, which made the toggle feel like it took seconds.
     /// </summary>
     private async Task ToggleRadioKindAsync(Windows.Devices.Radios.RadioKind kind)
     {

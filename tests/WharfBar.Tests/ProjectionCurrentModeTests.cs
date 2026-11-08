@@ -4,7 +4,7 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// QueryDisplayConfig başarısız olursa mevcut yansıtma modu GetSystemMetrics geometrisinden tahmin edilir.
+/// If QueryDisplayConfig fails, the current projection mode is inferred from the GetSystemMetrics geometry.
 /// </summary>
 public class ProjectionCurrentModeTests
 {

@@ -9,35 +9,34 @@ using WharfBar.Models;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Island geçmişinin kalıcı deposu. <c>config.json</c> kullanılmaz: <c>ConfigService.Save</c>
-/// her çağrıda dosyanın tamamını yeniden yazar, pano değişiklikleri ise yüksek
-/// frekanslıdır. Yazma <b>atomik değiştirilir</b> (tmp + <c>File.Replace</c>: okuyucu ya eski
-/// dosyanın tamamını ya yenisinin tamamını görür), bozuk dosya <c>.bak</c> olarak korunur ve
-/// açılış asla kilitlenmez.
+/// Persistent store for island history. <c>config.json</c> is not used: <c>ConfigService.Save</c>
+/// rewrites the whole file on every call, while clipboard changes are high-frequency.
+/// Writes are <b>replaced atomically</b> (tmp + <c>File.Replace</c>: a reader sees either the whole
+/// old file or the whole new one), a corrupt file is kept as <c>.bak</c>, and startup never hangs.
 /// </summary>
 /// <remarks>
-/// <para><b>Sıra sözleşmesi:</b> depo <b>sıralamaz</b> — serileştiricidir, sıralamak elle
-/// düzenlenmiş dosyayı kullanıcıdan gizlice değiştirmek olurdu. <see cref="Load"/> dosyadaki
-/// sırayı korur ama onu <b>garanti etmez</b>; tüketicinin (bugün <c>IslandService</c>)
-/// <see cref="IslandEntry.CapturedAtUtc"/>'ye göre sıralaması gerekir, çünkü
-/// <c>IslandPruner.Prune</c>/<c>Prepend</c> "en yenisi başta"yı ön koşul olarak alır ve
-/// <c>Take</c> kullandığı için yanlış sırada sessizce yanlış kayıtları budar.</para>
-/// <para><b>Eşzamanlılık:</b> <see cref="Load"/> ve <see cref="Save"/> aynı kilidi paylaşır.
-/// Kilit olmadan yarışan bir <see cref="Save"/>, sabit <c>.tmp</c> yolunu kullandığı için
-/// ya <see cref="File.WriteAllText(string, string)"/>'te <see cref="IOException"/> alıp
-/// hatanın yutulmasına (o yazıcının snapshot'ı sessizce kaybolur) ya da açılış kilidini
-/// beklemesine yol açardı; yarışan bir <see cref="Load"/> ise dosyayı silme/taşıma payı olmadan
-/// açtığı için <see cref="File.Replace"/>'i <see cref="IOException"/> ile bozabilirdi. Kilit
-/// depoyu çağıran servisin davranışından bağımsız olarak güvenli kılar.</para>
+/// <para><b>Order contract:</b> the store does <b>not</b> sort — it is a serializer, and sorting
+/// would silently change a hand-edited file behind the user's back. <see cref="Load"/> preserves the
+/// file order but does <b>not guarantee</b> it; the consumer (today <c>IslandService</c>) must sort
+/// by <see cref="IslandEntry.CapturedAtUtc"/>, because <c>IslandPruner.Prune</c>/<c>Prepend</c>
+/// take "newest first" as a precondition and use <c>Take</c>, so in the wrong order they silently
+/// prune the wrong entries.</para>
+/// <para><b>Concurrency:</b> <see cref="Load"/> and <see cref="Save"/> share the same lock.
+/// Without the lock, a racing <see cref="Save"/> — because it uses a fixed <c>.tmp</c> path — would
+/// either get an <see cref="IOException"/> from <see cref="File.WriteAllText(string, string)"/> and
+/// have the error swallowed (that writer's snapshot is silently lost) or wait on the startup lock;
+/// a racing <see cref="Load"/> would open the file without delete/move sharing and could break
+/// <see cref="File.Replace"/> with an <see cref="IOException"/>. The lock keeps the store safe
+/// regardless of how the calling service behaves.</para>
 /// </remarks>
 internal sealed class IslandStore
 {
     /// <summary>
-    /// Okunmadan önce uygulanan boyut tavanı. Geçmişin en kötü meşru hâli
-    /// <c>IslandConfig.ClampMaxItems</c> (≤5000 kayıt) × <c>IslandPruner.MaxTextBytes</c>
-    /// (64 KB) mertebesindedir; bu tavan onun çok üstünde ama <see cref="File.ReadAllText"/>
-    /// için ~1 milyar karakterlik dize sınırına (OOM) uzakta kalır. Aşan dosya bozuk sayılır:
-    /// <c>.bak</c>'a alınır ve boş döner, böylece <c>Load</c> hiçbir koşulda dışarı taşmaz.
+    /// Size ceiling applied before reading. The worst legitimate history is on the order of
+    /// <c>IslandConfig.ClampMaxItems</c> (≤5000 entries) × <c>IslandPruner.MaxTextBytes</c>
+    /// (64 KB); this ceiling is far above that yet stays well below the ~1 billion character
+    /// string limit (OOM) for <see cref="File.ReadAllText"/>. A file that exceeds it is treated as
+    /// corrupt: it is moved to <c>.bak</c> and an empty list is returned, so <c>Load</c> never overflows.
     /// </summary>
     private const long MaxStoreBytes = 64L * 1024 * 1024;
 
@@ -58,13 +57,13 @@ internal sealed class IslandStore
         DropRoot = Path.Combine(appDataRoot, "Drop");
     }
 
-    /// <summary>Geçmişin tutulduğu JSON dosyasının tam yolu.</summary>
+    /// <summary>Full path of the JSON file that holds the history.</summary>
     internal string StorePath { get; }
 
-    /// <summary>Island'a bırakılan dosyaların kopyalandığı klasör.</summary>
+    /// <summary>Folder that files dropped onto the island are copied to.</summary>
     internal string DropRoot { get; }
 
-    /// <summary>Zaman damgası alanını UTC olarak yorumlayan kayıt sarmalayıcısı.</summary>
+    /// <summary>Entry wrapper that interprets the timestamp field as UTC.</summary>
     private sealed class EntryDocument
     {
         public long Id { get; set; }
@@ -88,9 +87,9 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// Okuma tarafındaki karşılığı: dizi elemanları <see cref="JsonElement"/> olarak çözülür,
-    /// <see cref="EntryDocument"/> dönüşümü <see cref="Load"/> içinde kayıt kayıt denenir (tek bir
-    /// bozuk alan bütün dosyayı düşürmesin diye).
+    /// Read-side counterpart: array elements are parsed as <see cref="JsonElement"/> and the
+    /// <see cref="EntryDocument"/> conversion is attempted entry by entry inside <see cref="Load"/>
+    /// (so one bad field does not take down the whole file).
     /// </summary>
     private sealed class StoreDocumentRaw
     {
@@ -100,11 +99,11 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// <c>kind</c> alanını okurken toleranslıdır: bilinmeyen bir değer (dosya elle düzenlenmiş
-    /// ya da daha yeni sürümde eklenmiş bir tür) tüm dosyayı bozuk sayıp <c>.bak</c>'a atmak yerine
-    /// <see cref="IslandEntryKind.Text"/> olarak yorumlanır — <c>JsonStringEnumConverter</c>'ın
-    /// <see cref="JsonException"/> davranışı bu dosyada istenen değildir. Yazarken üretilen JSON
-    /// önceki sürümlerle birebir aynıdır (tür adı).
+    /// Tolerant when reading the <c>kind</c> field: an unknown value (the file was hand-edited, or the
+    /// kind was added in a newer version) is interpreted as <see cref="IslandEntryKind.Text"/> instead
+    /// of treating the whole file as corrupt and throwing it to <c>.bak</c> — the
+    /// <see cref="JsonException"/> behavior of <c>JsonStringEnumConverter</c> is not what this file
+    /// wants. The JSON written is identical to earlier versions (the kind name).
     /// </summary>
     private sealed class TolerantKindConverter : JsonConverter<IslandEntryKind>
     {
@@ -115,7 +114,7 @@ internal sealed class IslandStore
                 return IslandEntryKind.Text;
             }
 
-            // Enum.TryParse("999") tanımsız bir değeri de "başarılı" saydığı için IsDefined şart.
+            // IsDefined is required because Enum.TryParse("999") also counts an undefined value as "success".
             return Enum.TryParse(reader.GetString(), ignoreCase: true, out IslandEntryKind parsed)
                 && Enum.IsDefined(parsed)
                     ? parsed
@@ -127,13 +126,13 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// Geçmişi ham olarak okur — budama uygulanmaz. Dosya yoksa boş liste döner; bozuksa
-    /// <c>.bak</c> olarak korunur ve boş döner (açılış kilitlenmez).
+    /// Reads the history raw — no pruning is applied. Returns an empty list if the file is missing;
+    /// if it is corrupt it is kept as <c>.bak</c> and an empty list is returned (startup does not hang).
     /// </summary>
     /// <remarks>
-    /// Dizi içindeki sıra korunur ama <b>garanti değildir</b>: bu depo sıralamaz. Tüketici
-    /// <see cref="IslandEntry.CapturedAtUtc"/>'ye göre sıralamak zorundadır (bkz.
-    /// <c>IslandPruner.Prune</c> "en yenisi başta" ön koşulu).
+    /// The order inside the array is preserved but <b>not guaranteed</b>: this store does not sort.
+    /// The consumer must sort by <see cref="IslandEntry.CapturedAtUtc"/> (see the
+    /// <c>IslandPruner.Prune</c> "newest first" precondition).
     /// </remarks>
     internal IReadOnlyList<IslandEntry> Load()
     {
@@ -148,7 +147,7 @@ internal sealed class IslandStore
             {
                 if (new FileInfo(StorePath).Length > MaxStoreBytes)
                 {
-                    // ReadAllText OOM atabilir; filtrede olmayan istisnadır, önceden kesiyoruz.
+                    // ReadAllText can throw OOM; that is not in the filter, so we cut it off beforehand.
                     BackupCorrupt();
                     return [];
                 }
@@ -163,8 +162,8 @@ internal sealed class IslandStore
                 var entries = new List<IslandEntry>(doc.Entries.Count);
                 foreach (JsonElement element in doc.Entries)
                 {
-                    // Tek bir bozuk alan tüm geçmişi görünmez yapmamalı: çözümlenemeyen kayıt
-                    // atılır, kardeşleri okunur, dosya .bak'a gitmez.
+                    // A single bad field must not make the whole history invisible: an entry that
+                    // cannot be parsed is dropped, its siblings are read, and the file does not go to .bak.
                     if (element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
                     {
                         continue;
@@ -187,8 +186,8 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// Tek bir kaydı okur; alanlarından biri çözümlenemiyorsa (<c>kind</c> dışındaki bir alan için
-    /// <see cref="JsonException"/>) <see langword="null"/> döner — çağıran bu kaydı atar.
+    /// Reads a single entry; if one of its fields cannot be parsed (<see cref="JsonException"/> for
+    /// any field other than <c>kind</c>) it returns <see langword="null"/> — the caller drops that entry.
     /// </summary>
     private static IslandEntry? TryReadEntry(JsonElement element)
     {
@@ -216,15 +215,15 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// Geçmişi atomik değiştirilen bir dosyaya yazar (tmp + replace). Hata çağırana yansımaz:
-    /// arka planda yüksek frekanslı çalışır, yazma kaybı panonun kendisinden daha önemli
-    /// değildir.
+    /// Writes the history to an atomically replaced file (tmp + replace). Errors do not surface to the
+    /// caller: this runs in the background at high frequency, and a lost write matters less than the
+    /// clipboard itself.
     /// </summary>
     /// <remarks>
-    /// <c>File.Move(overwrite: true)</c> yerine <c>File.Replace</c> bilinçlidir: ikisi de NTFS'de
-    /// atomiktir (<c>MoveFileEx(MOVEFILE_REPLACE_EXISTING)</c>), ama <c>File.Replace</c> hedefin
-    /// ACL/özniteliklerini korur (taşıma yeni dosyanın varsayılanlarını devralır) ve
-    /// <c>ConfigService.Save</c> ile aynı kalıptır.
+    /// <c>File.Replace</c> instead of <c>File.Move(overwrite: true)</c> is deliberate: both are atomic
+    /// on NTFS (<c>MoveFileEx(MOVEFILE_REPLACE_EXISTING)</c>), but <c>File.Replace</c> preserves the
+    /// target's ACLs/attributes (a move inherits the new file's defaults) and is the same pattern as
+    /// <c>ConfigService.Save</c>.
     /// </remarks>
     internal void Save(IReadOnlyList<IslandEntry> entries)
     {
@@ -270,8 +269,8 @@ internal sealed class IslandStore
                     }
                     catch (FileNotFoundException)
                     {
-                        // Dosya File.Exists ile kontrol edildikten sonra kaybolduysa yazma
-                        // sessizce kaybolmasın; MoveFileEx da atomik.
+                        // If the file vanished after the File.Exists check, the write must not be
+                        // silently lost; MoveFileEx is atomic too.
                         File.Move(tmp, StorePath, overwrite: true);
                     }
                 }
@@ -288,14 +287,14 @@ internal sealed class IslandStore
     }
 
     /// <summary>
-    /// Bozuk dosyayı <c>.bak</c> adıyla saklar. <c>.bak</c> bir kurtarma noktasıdır, yalnız bozuk
-    /// dosya arşivi değil: ikinci bir bozulmada ilk bozulmanın geçmişi kaybolmasın diye mevcut
-    /// <c>.bak</c> <c>.bak.1</c>'e döndürülür.
+    /// Keeps a corrupt file under the name <c>.bak</c>. The <c>.bak</c> is a recovery point, not just a
+    /// corrupt-file archive: so that a second corruption does not lose the first one's history, the
+    /// existing <c>.bak</c> is rotated to <c>.bak.1</c>.
     /// </summary>
     /// <remarks>
-    /// Döndürme <c>File.Copy</c> + silme yerine iki <c>Move</c>'tur: her adım NTFS'de atomiktir ve
-    /// kopyanın yarım kalma riski yoktur. İki hamle arasında bir çökme olursa bozuk dosya
-    /// <c>island.json</c>'de durur ve sonraki <see cref="Load"/> yeniden dener.
+    /// Rotation is two <c>Move</c>s instead of <c>File.Copy</c> + delete: each step is atomic on NTFS
+    /// and there is no risk of a half-finished copy. If a crash happens between the two steps, the
+    /// corrupt file stays in <c>island.json</c> and the next <see cref="Load"/> retries.
     /// </remarks>
     private void BackupCorrupt()
     {

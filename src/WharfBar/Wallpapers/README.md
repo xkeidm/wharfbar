@@ -1,6 +1,6 @@
 # Bundled wallpapers
 
-Copied next to the executable at build (`WharfBar.csproj`). Shown in the island hub under **WharfBar**. User images go in `%AppData%/WharfBar/wallpapers/` (**Senin**).
+Copied next to the executable at build (`WharfBar.csproj`). Shown in the island hub under **WharfBar**. User images go in `%AppData%/WharfBar/wallpapers/` (**Yours**).
 
 Gallery order follows file name (ordinal, case-insensitive).
 

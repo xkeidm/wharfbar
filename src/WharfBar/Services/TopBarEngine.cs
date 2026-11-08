@@ -26,9 +26,9 @@ internal sealed class TopBarEngine : IDisposable
     internal SystemStatsService SystemStats { get; }
 
     /// <summary>
-    /// Clipboard geçmişi + bırakılan dosyalar servisi. Her zaman kurulur; <c>Enabled</c> ayarı
-    /// servis içinde yönetilir, böylece ayardan sonradan açmak da çalışır. Nitelik null olabilir
-    /// tutuldu çünkü <see cref="Dispose"/> sırasında temizlenir.
+    /// Clipboard history + dropped files service. Always constructed; the <c>Enabled</c> setting
+    /// is managed inside the service, so turning it on later from settings works too. The property
+    /// is kept nullable because it is cleared in <see cref="Dispose"/>.
     /// </summary>
     internal IslandService? Island { get; private set; }
 
@@ -57,10 +57,10 @@ internal sealed class TopBarEngine : IDisposable
         TrayMirror = new TrayMirrorService(dispatcher, taskbar);
         SystemStats = new SystemStatsService();
 
-        // Island her zaman kurulur: yalnizca burada kurulsaydi, kullanici ayarlardan sonradan
-        // actiginda servis hic dogmazdi ("acitim ama hicbir sey olmadi"). Kapaliyken kurucu ne
-        // pano dinleyicisi kurar ne de island.json'a dokunur (IslandService.LoadPersisted'in
-        // !Config.Enabled guard'i); acma/kapama IslandService.ApplyConfig icindir.
+        // Island is always constructed: if it were only built here, enabling it later from settings
+        // would never create the service at all ("I turned it on and nothing happened"). While disabled
+        // the constructor neither installs the clipboard listener nor touches island.json (the
+        // !Config.Enabled guard in IslandService.LoadPersisted); on/off is handled by IslandService.ApplyConfig.
         Island = new IslandService(
             dispatcher,
             new IslandStore(config.ConfigDirectory),

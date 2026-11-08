@@ -30,9 +30,9 @@ public class WifiServiceTests
     [Fact]
     public void SsidToString_EmptyOrAllNulls_ReturnsHiddenNetwork()
     {
-        // Boş SSID = gizli ağ (SSID yayınını kapatmış AP); "(Bilinmeyen ağ)" yanıltıcıydı.
-        Assert.Equal("(Gizli ağ)", WifiService.SsidToString(Array.Empty<byte>()));
-        Assert.Equal("(Gizli ağ)", WifiService.SsidToString(new byte[32]));
+        // Empty SSID = hidden network (an AP that turned off SSID broadcast); "(Unknown network)" was misleading.
+        Assert.Equal("(Hidden network)", WifiService.SsidToString(Array.Empty<byte>()));
+        Assert.Equal("(Hidden network)", WifiService.SsidToString(new byte[32]));
     }
 
     [Fact]
@@ -125,7 +125,7 @@ public class WifiServiceTests
     [Fact]
     public void ConnectBlockReason_HiddenEnterpriseAndUnconnectable()
     {
-        Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("(Gizli ağ)", 10, true, false, false, null)));
+        Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("(Hidden network)", 10, true, false, false, null)));
         Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("Corp", 10, true, false, false, null, WifiService.AuthRsna)));
         Assert.NotNull(WifiService.ConnectBlockReason(new WifiNetworkInfo("Nope", 10, true, false, false, null, IsConnectable: false)));
         Assert.Null(WifiService.ConnectBlockReason(new WifiNetworkInfo("Cafe", 10, true, false, false, null, WifiService.AuthRsnaPsk)));

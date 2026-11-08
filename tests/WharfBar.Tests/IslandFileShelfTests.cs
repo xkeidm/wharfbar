@@ -7,9 +7,9 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Bırakılan dosya <c>Drop</c> klasörüne kopyalanmaz; kayıt orijinal yolu tutar. Klasör de
-/// aynı sözleşmeyle rafa düşer (B1). Silme hâlâ fail-closed: <c>Drop</c> dışındaki dosya
-/// listeden düşer ama diskte kalır, <c>Drop</c> altında duran eski kopya silinmeye devam eder.
+/// A dropped file is not copied into the <c>Drop</c> folder; the record keeps the original path. A folder
+/// also lands on the shelf under the same contract (B1). Deletion is still fail-closed: a file outside
+/// <c>Drop</c> drops out of the list but stays on disk, while an old copy living under <c>Drop</c> is still deleted.
 /// </summary>
 public sealed class IslandFileShelfTests
 {
@@ -31,7 +31,7 @@ public sealed class IslandFileShelfTests
 
             Assert.Equal(1, addedNotifications);
 
-            // Klasör de kaydedilir (B1): yalnız "ne dosya ne klasör" olan yol elenir.
+            // Folders are recorded too (B1): only a path that is neither a file nor a folder is filtered out.
             Assert.Equal(3, service.Entries.Count);
 
             IslandEntry last = service.Entries[0];
@@ -121,9 +121,9 @@ public sealed class IslandFileShelfTests
     }
 
     /// <summary>
-    /// B1: klasör de rafa düşer. Kayıt sözleşmesi değişmez — <see cref="IslandEntryKind.File"/>
-    /// ve orijinal tam yol — yalnız <see cref="File.Exists"/> kapısı klasörleri de kabul eder.
-    /// Kopyalama yok: <c>Drop</c> klasörü hâlâ hiç açılmaz.
+    /// B1: a folder also lands on the shelf. The record contract does not change — <see cref="IslandEntryKind.File"/>
+    /// and the original full path — only the <see cref="File.Exists"/> gate now accepts folders too.
+    /// No copying: the <c>Drop</c> folder is still never created.
     /// </summary>
     [Fact]
     public void AddDroppedFiles_RecordsFolder_NoFileRequired()
@@ -141,16 +141,16 @@ public sealed class IslandFileShelfTests
             Assert.Equal(Path.GetFileName(dir), entry.Text);
             Assert.Null(entry.SourceApp);
 
-            // Kopya yok: Drop klasörü bu yüzden hiç oluşturulmaz.
+            // No copy: that is why the Drop folder is never created here.
             Assert.False(Directory.Exists(store.DropRoot));
         });
     }
 
     /// <summary>
-    /// Açma kapısı gerçek klasörü kabul eder (<c>Process.Start { UseShellExecute = true }</c>
-    /// klasörde Explorer'ı açar). Reparse-point klasör reddi burada tekrarlanmaz: kalıcı
-    /// kapsam <c>IslandDropPathGuardTests.CanOpenShelfFile_RejectsJunctionEscape</c>'te, junction
-    /// kurulumu gerektirdiği için orada tutulur.
+    /// The open gate accepts a real folder (<c>Process.Start { UseShellExecute = true }</c>
+    /// opens Explorer on the folder). Rejection of a reparse-point folder is not repeated here: the permanent
+    /// coverage is in <c>IslandDropPathGuardTests.CanOpenShelfFile_RejectsJunctionEscape</c>, kept there
+    /// because it requires setting up a junction.
     /// </summary>
     [Fact]
     public void CanOpenShelfFile_AllowsRealFolder()
@@ -162,16 +162,16 @@ public sealed class IslandFileShelfTests
 
             Assert.True(service.CanOpenShelfFile(dir));
 
-            // Klasörün kendisi gerçek bir yol olmalı: silinmiş klasör açılmaz.
+            // The folder itself must be a real path: a deleted folder is not opened.
             string missing = Path.Combine(root, "NoSuchFolder");
             Assert.False(service.CanOpenShelfFile(missing));
         });
     }
 
     /// <summary>
-    /// Çözümleme sırası: kaydın kendi yolu (dosya ya da klasör) kazanır; o yol yoksa
-    /// <c>Drop</c> kökündeki <b>aynı adlı</b> kopya döner — kopyalama kaldırılmadan önce
-    /// yazılmış eski kayıtların tek açılabilir hedefi budur. Hiçbiri yoksa fail-closed.
+    /// Resolution order: the record's own path (file or folder) wins; if that path does not exist,
+    /// the copy with the <b>same name</b> under the <c>Drop</c> root is returned — that is the only
+    /// openable target for old records written before copying was removed. If neither exists, fail-closed.
     /// </summary>
     [Fact]
     public void TryGetExistingShelfPath_PrefersOriginal_AndFallsBackToDropCopy()
@@ -185,7 +185,7 @@ public sealed class IslandFileShelfTests
             Assert.True(service.TryGetExistingShelfPath(entry.FilePath, out string resolved));
             Assert.Equal(Path.GetFullPath(real), Path.GetFullPath(resolved));
 
-            // Drop altında aynı adlı eski bir kopya dursa bile orijinal yol kazanır.
+            // Even if a stale copy with the same name sits under Drop, the original path wins.
             Directory.CreateDirectory(store.DropRoot);
             string staleCopy = Path.Combine(store.DropRoot, "keep.txt");
             File.WriteAllText(staleCopy, "stale");
@@ -193,7 +193,7 @@ public sealed class IslandFileShelfTests
             Assert.Equal(Path.GetFullPath(real), Path.GetFullPath(stillOriginal));
             File.Delete(staleCopy);
 
-            // Fallback dalı: kayıt orijinal yolu tutar, o yol silinmiştir, geriye Drop kopyası kalır.
+            // Fallback branch: the record keeps the original path, that path has been deleted, only the Drop copy remains.
             string gone = Path.Combine(root, "gone.txt");
             File.WriteAllText(gone, "legacy");
             string dropCopy = Path.Combine(store.DropRoot, "gone.txt");
@@ -202,7 +202,7 @@ public sealed class IslandFileShelfTests
             Assert.True(service.TryGetExistingShelfPath(gone, out string fallback));
             Assert.Equal(Path.GetFullPath(dropCopy), Path.GetFullPath(fallback));
 
-            // Ne orijinal ne kopya: çözümleme yok (fail-closed).
+            // Neither the original nor a copy: no resolution (fail-closed).
             Assert.False(service.TryGetExistingShelfPath(Path.Combine(root, "never.txt"), out string missing));
             Assert.Equal(string.Empty, missing);
             Assert.False(service.TryGetExistingShelfPath(null, out _));
@@ -211,8 +211,8 @@ public sealed class IslandFileShelfTests
     }
 
     /// <summary>
-    /// Sondaki ayırıcıyı taşıyan klasör yolu da kaydedilir; ad <see cref="Path.GetFileName(string)"/>
-    /// için kırpılır ve çağıranın "gerçekten eklendi" geri bildirimi sayıyla döner (0 = hiç kayıt yok).
+    /// A folder path carrying a trailing separator is recorded too; the name is trimmed for
+    /// <see cref="Path.GetFileName(string)"/> and the caller's "really added" feedback comes back as a count (0 = no record at all).
     /// </summary>
     [Fact]
     public void AddDroppedFiles_FolderWithTrailingSeparator_CountsOneAndTrimsName()
@@ -230,15 +230,15 @@ public sealed class IslandFileShelfTests
             Assert.Equal(IslandEntryKind.File, entry.Kind);
             Assert.True(Directory.Exists(entry.FilePath));
 
-            // Hiçbir yol gerçek değilse sayı 0'dır: geri bildirim kapısı buna dayanır.
+            // If no path is real the count is 0: the feedback gate relies on this.
             Assert.Equal(0, service.AddDroppedFiles([Path.Combine(root, "missing.txt")]));
             Assert.Single(service.Entries);
         });
     }
 
     /// <summary>
-    /// Klasör kaydı da çözümlenir (<see cref="Directory.Exists"/> dalı) ve çözülen yol diskteki
-    /// klasördür; aygıt yolu yine fail-closed reddedilir.
+    /// A folder record is resolved too (the <see cref="Directory.Exists"/> branch) and the resolved path is the
+    /// folder on disk; a device path is still rejected fail-closed.
     /// </summary>
     [Fact]
     public void TryGetExistingShelfPath_ResolvesDirectoryRecord()
@@ -260,9 +260,9 @@ public sealed class IslandFileShelfTests
     }
 
     /// <summary>
-    /// Explorer'a "konumu göster" argümanı tek öğedir ve tırnak içermez: tırnaklamayı
-    /// <see cref="System.Diagnostics.ProcessStartInfo.ArgumentList"/> yapar. Sondaki ayırıcı
-    /// (kök yol hariç) kırpılır; kök <c>C:\</c> ayırıcısını korur.
+    /// The "show location" argument for Explorer is a single element and contains no quotes: quoting is
+    /// done by <see cref="System.Diagnostics.ProcessStartInfo.ArgumentList"/>. The trailing separator
+    /// is trimmed (except for a root path); a root such as <c>C:\</c> keeps its separator.
     /// </summary>
     [Fact]
     public void BuildRevealArguments_TrimsTrailingSeparator_AndKeepsRoot()

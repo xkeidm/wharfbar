@@ -28,7 +28,7 @@ While the application is open, continuous work is sparse. While a panel is close
 | Clock | 1 s | The UI is not refreshed if the text is the same |
 | Window census | 3 s, single pass | `WindowCensus`. Each dock does not run its own `EnumWindows` round; the process path is in the pid cache |
 | CPU / GPU / RAM / network speed | 4 s, off the UI | `SystemStatsService`. The PDH GPU wildcard counter is expensive. If the visible text and the network label have not changed, there is no `Changed`. If `showSystemStats` is off, the timer stops |
-| Tray mirror | 4 s | No new timer; the 4 s poll schedules the pixel refresh. Icons are cached by pixel signature; an unchanged snapshot raises no `Changed`. Pixel refresh (one `PrintWindow` per peek): show-only peek every 60 s (20 s while icons are changing); one extra show-only refresh ≥15 s apart after a mirror click, a theme/accent change, or an inconclusive peek. Where show-only cannot read the parked tray it latches off and the work-area-flapping state blip runs only via `TrayStateBlipGate`: once per explorer instance (bootstrap, not while maximized), then ≥10 min (empty mirror) / ≥20 min (upkeep) **and** user idle ≥3 min **and** no maximized/bottom-touching window — never from a click, theme or retry request. A click session re-captures the strip when the last capture is ≥15 s old (no extra timer). Re-anchor: a bounded 2.5 s watch + 1.5 s re-assert per click only |
+| Tray mirror | 4 s | No new timer; the 4 s poll schedules the pixel refresh. Icons are cached by pixel signature; an unchanged snapshot raises no `Changed`. Pixel refresh (one `PrintWindow` per peek): a **quiet read** every 60 s (20 s while icons are changing). Because explorer parks the auto-hide tray in a ~2 px sliver and virtualizes its XAML buttons, the read first hover-reveals the tray exactly like a click does (`TrayAutoHideReveal.TryReveal`, cursor restored, no `ABM_SETSTATE`, no work-area change) while the pointer is idle (`TrayRevealPolicy.ShouldAttemptReveal`, ≥1.5 s) or the mirror is still empty (bypass capped at 3 attempts per shell), and is skipped while a real fullscreen app covers the primary monitor; after 2 consecutive reveal misses it backs off for 10 min (`TrayRevealPolicy.IsRevealBackedOff`), and WharfBar's own auto-hide dock suppresses its edge-band show while the stealth peek owns the cursor (`DockAutoHideController.ShouldShowForCursor`); one extra refresh ≥15 s apart after a mirror click, a theme/accent change, or an inconclusive peek. Where the quiet read cannot run or read, the work-area-flapping state blip runs only via `TrayStateBlipGate`: once per explorer instance (bootstrap, not while maximized), then ≥10 min (empty mirror) / ≥20 min (upkeep) **and** user idle ≥3 min **and** no maximized/bottom-touching window — never from a click, theme or retry request. Only `TrayBlipOutcome.ConfirmedEmpty` (a revealed tray that read back zero buttons, after a 220 ms second read) is evidence and clears the mirror; a refresh that never looked keeps the last good snapshot. Unnamed/repeated UIA buttons get distinct keys (`TrayMirrorOrder.UniqueKeys`). A click session re-captures the strip when the last capture is ≥15 s old (no extra timer). Re-anchor: a bounded 2.5 s watch + 1.5 s re-assert per click only |
 | Dock auto-hide | 200 ms while hidden, 50 ms while visible | While hidden, the hide timer does not run |
 | Dock progress | 2 s / 20 s | UI Automation is 2 s only while there is a running application and the tray button is open; otherwise 20 s |
 | Bluetooth notification | 10 s | If the list is the same, the island is not refreshed. 2 s while the Quick Settings Bluetooth page is open |
@@ -57,11 +57,11 @@ src/WharfBar/
  QuickSettingsFlyout.xaml(.cs) # Win11-style quick settings (volume/network; ADR-006)
  BrightnessFlyout.xaml(.cs) # Monitor brightness flyout (DDC/CI + WMI Monitorian)
  MediaFlyout.xaml(.cs) # Media flyout: cover/title/artist/controls + session picker (ADR-008)
- IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Pano / Duvar kağıdı / Müzik / Raf / Prompter / Kamera / Renk) + body host (clipboard, wallpaper, music, shelf, prompter, camera, color picker; ADR-010)
- ColorPickerWindow.xaml(.cs) # Screen color picker overlay: fullscreen work-area topmost (frozen BitBlt frame + loupe; ADR-010 addendum)
+ IslandFlyout.xaml(.cs) # Island hub panel: tab strip (Clipboard / Wallpaper / Music / Shelf / Prompter / Camera / Color) + body host (clipboard, wallpaper, music, shelf, prompter, camera, color picker; ADR-010)
+ ColorPickerWindow.xaml(.cs) # Screen color picker overlay: fullscreen monitor topmost (frozen BitBlt frame + loupe; ADR-010 addendum)
  WallpaperGalleryView.xaml(.cs) # Wallpaper hub body: thumbnail grid, click apply, Open folder
  WallpaperTransitionWindow.xaml(.cs) # WorkerW wallpaper crossfade (SPI after fade; 1×1 then parent)
- AboutWindow.xaml(.cs) # About (`Hakkında`) dialog (no AppBar)
+ AboutWindow.xaml(.cs) # About dialog (no AppBar)
  DockWindow.xaml(.cs) # bottom overlay; a three-section dock strip from its own list; plate (Mica / transparent / tinted); fullscreen / work-area
  VeilWindow.xaml(.cs) # fullscreen overlay (click-through, fade; ADR-007)
  SettingsWindow.xaml(.cs) # Settings main window (NavigationView)
@@ -80,10 +80,10 @@ src/WharfBar/
  AppearancePage.xaml(.cs) # Settings: appearance (theme → WharfBar + optional Windows via SystemThemeWriter; wallpaper pair sync)
  DockPage.xaml(.cs) # Settings: dock (content list, auto-hide, icon size, background, position, running apps)
  TopBarPage.xaml(.cs) # Settings: top bar (status items)
- VeilPage.xaml(.cs) # Settings: Overlay (`Kaplama`) (color/opacity/shortcut; ADR-007)
- IslandPage.xaml(.cs) # Settings: Island (`Ada`) (visibility/persistence/limits/maintenance; ADR-010)
+ VeilPage.xaml(.cs) # Settings: Overlay (color/opacity/shortcut; ADR-007)
+ IslandPage.xaml(.cs) # Settings: Island (visibility/persistence/limits/maintenance; ADR-010)
  PluginsPage.xaml(.cs) # Settings: plugin and widget catalog (ADR-017)
- AboutPage.xaml(.cs) # Settings: about (`Hakkında`)
+ AboutPage.xaml(.cs) # Settings: about
  Native/
  NativeMethods.cs # DllImports, RECT / APPBARDATA / MONITORINFO / MARGINS
  MonitorNative.cs # dxva2.dll (DDC/CI) + user32.dll monitor P/Invoke
@@ -93,6 +93,7 @@ src/WharfBar/
  Dwm.cs # corner, immersive dark, backdrop fallback, frame extend
  ShellIcon.cs # IShellItemImageFactory + SHGetFileInfo icon extraction / Destroy
  TaskbarNative.cs # Shell_TrayWnd + ABM_GETSTATE/SETSTATE wrapper
+ ProcessIntegrity.cs # token integrity RID; below medium → restricted-launch warning (UIPI cannot drive the shell)
  SendInputKeys.cs # Win+B / Win+N / Win+P / Space / Enter
  TrayOverflowNative.cs # overflow window / TrayNotifyWnd chevron / Win+B
  TrayToolbar.cs # real tray toolbar TB_* reader + click forward (ADR-009)
@@ -133,7 +134,7 @@ src/WharfBar/
  WindowActivationService.cs # focusing / minimize toggle on a repeated click
  FullscreenState.cs # in-process fullscreen signal (TopBar → Dock)
  WorkAreaChanged.cs # dock reposition event after AppBar placement
- DockAutoHideController.cs # edge-band poll, show/hide animation, state machine
+ DockAutoHideController.cs # edge-band poll, show/hide animation, state machine; tray-peek edge-band suppression
  AutostartService.cs # Startup-folder.lnk; synced with AppConfig.autostart
  StatusService.cs # Clock + network/battery (.NET / GetSystemPowerStatus)
  SystemStatsService.cs # CPU/GPU/RAM sampling (GetSystemTimes / GlobalMemoryStatusEx / PDH)
@@ -144,7 +145,7 @@ src/WharfBar/
  AudioMixerService.cs # device + application mixer
  QuickSettingsService.cs # quick-setting tiles / network actions (including the veil tile)
  WifiService.cs # network list + connect via the Wlan API (QS Wifi page)
- NetworkDetailsService.cs # Network page "Properties" (`Özellikler`): IP/gateway/DNS/MAC/link speed + live ↓/↑ (IPv4 byte delta)
+ NetworkDetailsService.cs # Network page "Properties": IP/gateway/DNS/MAC/link speed + live ↓/↑ (IPv4 byte delta)
  BluetoothService.cs # paired BT devices + connected state (QS Bluetooth page)
  NightLightService.cs # CloudStore best-effort night-light read/write + session override
  ProjectionService.cs # projection modes via SetDisplayConfig (QS Project page)
@@ -153,7 +154,7 @@ src/WharfBar/
  IslandPruner.cs # the island's PURE core: accept/dedupe/prune/search/preview/drop name — ADR-010
  IslandStore.cs # atomic write of %AppData%/WharfBar/island.json + %AppData%/WharfBar/Drop — ADR-010
  IslandHub.cs # hub tab enum + config normalize/resolve (Music-unavailable → Clipboard; flag gating in TopBarWindow) — unit tested
- ScreenSampler.cs # 3 px screen-box sample (pure AverageBgra/RgbAt math; GDI via ScreenBitBlt)
+ ScreenSampler.cs # picker math: pure TryCropBox (centre-clamped 13×13 BGRA crop, size-guarded) / TrySample live-box fallback + AverageBgra (test seam); GDI via ScreenBitBlt
  WallpaperCatalog.cs # PURE merge/list of bundled + AppData wallpaper paths (.jpg/.jpeg/.png/.webp)
  WallpaperAccent.cs # PURE-ish: decode wallpaper → IslandPalette.Dominant → luminance window
  WallpaperAccentApplier.cs # after SPI success: WPF-UI Apply + ApplyLogoChanges + SystemAccentWriter
@@ -186,8 +187,9 @@ src/WharfBar/
  LaunchpadWarmup.cs # decodes the cached catalog's icons in idle UI-thread slices (8 per pass, first 64) into the shared `AppIconService`
  TrayOverflowInvoker.cs # peek-show + native overflow + hide again
  TrayMirrorService.cs # polls the tray toolbar, filters system icons, publishes a `TrayMirrorItem` snapshot (ADR-009)
+ TrayRevealPolicy.cs # PURE quiet-read gate: reveal only while the pointer is idle (≥1.5 s) or the mirror is empty (bypass capped at 3/shell); 2 misses → 10 min backoff
  NotificationCenterInvoker.cs # Win+N
- App.xaml(.cs) # Startup: taskbar hide → TopBar + Dock + tray
+ App.xaml(.cs) # Startup: restricted-launch guard → taskbar hide → TopBar + Dock + tray
  app.manifest # PerMonitorV2 + longPathAware + asInvoker
  WharfBar.csproj
 ```
@@ -208,18 +210,18 @@ The island (clipboard history + dropped files) is ADR-010.
 | `TopBarWindow` | AppBar; **brand logo: left click opens the Launchpad, right click the app menu**; **island in the center** (`IslandPill` + `IslandPopup`); right cluster; quick settings; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (hidden when there is no session); `network` → QS Network |
 | `QuickSettingsFlyout` | Win11-style quick settings (tiles / volume mixer / network). Page changes in an open panel are a 220 ms slide+fade (`QuickSettingsPageMotion`); there is none on the first open — ADR-006 |
 | `BrightnessFlyout` | Monitorian-style monitor brightness popover (master slider + independent monitor cards) |
-| `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot (cover/title/artist/playback state), commands (Play/Pause (`Oynat/Duraklat`), Next/Previous (`İleri`/`Geri`)), session selection; events are marshaled to the Dispatcher where it was created; init failure retries in 10 s; `Changed` / `SessionsChanged` (ADR-008) |
+| `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot (cover/title/artist/playback state), commands (Play/Pause, Next/Previous), session selection; events are marshaled to the Dispatcher where it was created; init failure retries in 10 s; `Changed` / `SessionsChanged` (ADR-008) |
 | `MediaSessionSelector` | Pure selection policy: the most recently active session is first; advance in the picker ring with `MoveCurrent`; only playing/paused sessions — unit tested (ADR-008) |
 | `MediaAppNameResolver` | AUMID → Windows application name (layered): Start Menu shortcut AUMID match (e.g. "Zen", "YouTube Music"), then the running process's `FileDescription` (e.g. `chrome.exe` → "Google Chrome"), then a simplified exe name; a cache per AUMID — unit tested (ADR-008) |
-| `MediaFlyout` | Flyout content: session picker (if there is more than one), cover + title/artist, Play/Pause (`Oynat/Duraklat`) + Next/Previous (`İleri`/`Geri`); fixed 340px width; when there is no session, "No media playing" (`Çalan medya yok`) (the popup does not close) |
+| `MediaFlyout` | Flyout content: session picker (if there is more than one), cover + title/artist, Play/Pause + Next/Previous; fixed 340px width; when there is no session, "No media playing" (the popup does not close) |
 | `IslandService` | The island's lifecycle: a message-only clipboard listener, a **separate STA read thread**, a single unified timeline, disk writes debounced by 750 ms; `Changed` / `EntryAdded` are raised on the UI dispatcher; file copy/delete is on the STA; `Dispose` → flush the pending write (ADR-010) |
 | `IslandPruner` | The island's **pure** core: accept rule (opt-out, 64 KB, empty/whitespace), moving consecutive identical content up, day/`MaxItems` pruning, search matching, preview/relative-time formatting, drop file-name generation — unit tested (ADR-010) |
 | `IslandStore` | Atomic **replacement** of `%AppData%/WharfBar/island.json` (metadata) (tmp + `File.Replace`) + `%AppData%/WharfBar/Drop` (dropped files); a single `_ioGate` lock; a corrupt file becomes `.bak` (`.bak.1` on a second corruption), a 64 MB size cap, tolerant per-entry reading; **does not sort** (ADR-010) |
 | `ClipboardNative` | Documented clipboard P/Invokes; `CanIncludeInClipboardHistory` opt-out read **and** write; clipboard-owner process name (`GetClipboardOwner` → pid → `QueryFullProcessImageName`) (ADR-010) |
 | `ClipboardMessageWindow` | Message-only `HwndSource` (`ParentWindow = -3`) + `AddClipboardFormatListener`; `WM_CLIPBOARDUPDATE` → `ClipboardChanged`; `Dispose` removes the listener **once** (the API is not idempotent) (ADR-010) |
 | `IslandFlyout` | Hub shell: horizontal tab strip + `BodyHost` swaps clipboard / wallpaper / music / **shelf chips** / **prompter reading editor** / **camera** / **color picker** inside the same popup (no nested `Popup`). `PresentHub` restores `island.hubTab` on open (primary); Music tab hidden without SMTC; secondary bars keep only Music. The tab strip keeps label text while it fits and folds labels to icon-only (tooltips + automation names keep the names) once all seven tabs converge — the panel cannot hold that many labeled tabs. Clipboard body: search + list (`MaxRenderedRows = 200`); wallpaper body → `WallpaperGalleryView`; shelf body: chips with context menu + OLE drag-out; camera body: the mirror preview + status, toggle via `CameraMirrorRequested` (event only); picker body: recent colors + `ScreenPickerRequested`; music body unchanged (ADR-010) |
-| `PrompterMotion` / island **Prompter** body | Pure motion engine (`BaseSpeedDip 66`, `ReadingFontDip 17`, `Toggle`, `ClampMultiplier 0.5–3.0`, `SpeedDipPerSec` zero with client-area animation off, `UpdateOffset`, `ClampOffset`, `EndEpsilonDip 0.25`, `CanStartPlayback` — the single play gate) — unit tested — plus the read-view body: multiline editor on top; Playing locks it read-only, bumps the font to `ReadingFontDip`, auto-scrolls the editor's **inner** ScrollViewer (`PART_ContentHost`) on a 16 ms `DispatcherTimer` (started only while Playing and the body is visible; demoted Paused on tab switch and stopped+Editing on panel close); reaching the bottom returns to Editing and fires `PrompterPinnedChanged(false)`; manual vertical drag scrolls the same offset without pausing. Control bar: play/pause toggle (+ label swap `Oynat`/`Duraklat`; disabled with a reason tooltip while `CanStartPlayback` is false — text fully fits → `Kaydırılacak bölüm yok…`, scroll at the bottom → `Kaydırma en altta…`; refresh rides the inner ScrollViewer's `ScrollChanged`, deferred once at tab open so the first measurement sees settled layout), speed slider 0.5–3.0 with a live `1.0×` label, `Başa dön` (rescroll, keep text), `.txt` loader, `Panodan al` (.IslandService.TryLastClipboardText, gentle no-op when empty) (island prompter phase 2) |
-| `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Senin** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Klasörü aç`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
+| `PrompterMotion` / island **Prompter** body | Pure motion engine (`BaseSpeedDip 66`, `ReadingFontDip 17`, `Toggle`, `ClampMultiplier 0.5–3.0`, `SpeedDipPerSec` zero with client-area animation off, `UpdateOffset`, `ClampOffset`, `EndEpsilonDip 0.25`, `CanStartPlayback` — the single play gate) — unit tested — plus the read-view body: multiline editor on top; Playing locks it read-only, bumps the font to `ReadingFontDip`, auto-scrolls the editor's **inner** ScrollViewer (`PART_ContentHost`) on a 16 ms `DispatcherTimer` (started only while Playing and the body is visible; demoted Paused on tab switch and stopped+Editing on panel close); reaching the bottom returns to Editing and fires `PrompterPinnedChanged(false)`; manual vertical drag scrolls the same offset without pausing. Control bar: play/pause toggle (+ label swap `Play`/`Pause`; disabled with a reason tooltip while `CanStartPlayback` is false — text fully fits → `Nothing to scroll…`, scroll at the bottom → `Scroll is at the bottom…`; refresh rides the inner ScrollViewer's `ScrollChanged`, deferred once at tab open so the first measurement sees settled layout), speed slider 0.5–3.0 with a live `1.0×` label, `Back to start` (rescroll, keep text), `.txt` loader, `Paste from clipboard` (.IslandService.TryLastClipboardText, gentle no-op when empty) (island prompter phase 2) |
+| `WallpaperGalleryView` | Thumbnail grid (**WharfBar** bundled + **Yours** AppData groups); click → `WallpaperService.TryApply`; selection chrome when the current desktop path matches a catalog entry; **`Open folder`** → Explorer on `%AppData%/WharfBar/wallpapers/` |
 | `WallpaperCatalog` | **Pure** file listing from two roots; extension filter; stable sort by file name — unit tested |
 | `WallpaperService` | `TryApply` / `TryGetCurrentPath`; rejects paths outside bundled `Wallpapers/` and `%AppData%/WharfBar/wallpapers/`. When `TransitionRequest` + policy allow: WorkerW crossfade first, **SPI on fade complete**; else instant SPI. Cancels/replaces an in-flight overlay on re-apply. After successful apply, if `island.wallpaperAccent`: `WallpaperAccentApplier` (SPI path unchanged). Hub apply raises `HubApplied` → `WallpaperThemeSync.Remember` (and partner auto-apply updates the same field) |
 | `WallpaperAccent` / `WallpaperAccentApplier` | Sample dominant color from the applied image (same luminance window as island album tint); WharfBar accent via `ApplicationAccentColorManager.Apply(..., systemAccentColor: false)` + `App.ApplyLogoChanges`; then `SystemAccentWriter.TryApply` (best-effort HKCU) |
@@ -231,16 +233,16 @@ The island (clipboard history + dropped files) is ADR-010.
 | `DesktopWallpaper` | Documented `SystemParametersInfo` only; v1 does not change Windows wallpaper style (Fill/Fit/…) |
 | `IslandHub` | `IslandHubTab` + `Normalize` / `Resolve(saved, musicAvailable)`; maps to `island.hubTab` soft strings — unit tested |
 | `ScreenBitBlt` | Documented GDI capture: `BitBlt` (SRCCOPY) + `GetDIBits` (32bpp top-down BGRA) via `GetDC`/`CreateCompatibleDC`/`CreateCompatibleBitmap`; `TryCapture` / `TryCaptureRect` in physical pixels clamped into the virtual screen; every DC / bitmap / selection released in `finally` |
-| `ScreenSampler` | Small screen box read for the picker: `TrySample` (clamped box at physical px), pure `AverageBgra` (3 px box — a stray sub-pixel edge does not dominate), low-quality fallback `RgbAt` |
+| `ScreenSampler` | Picker sampling: pure `TryCropBox` (centre-clamped 13×13 BGRA crop of the frozen frame that feeds the loupe; the pick is the crop's centre pixel, up to 6 px from the cursor when the crop clamps at a frame edge), `TrySample` (clamped physical-px live box — the low-quality fallback) and pure `AverageBgra` (test-only seam) |
 | `ColorMath` | Pure formatting: `ToHex` (#RRGGBB, uppercase) / `ToRgb` (`rgb(r,g,b)`) — unit tested |
 | `IslandPickedColors` | Session-scoped recent colors for the picker body (top 8, pure `Pushed`: newest first, duplicate → move up, prune from the oldest; transparent is not stored); never written to disk — unit tested |
 | `VeilService` | Overlay state + fade + hotkey host (message-only `HwndSource`); `SetEnabled` → `Config.Save`; `UnregisterHotKey` on exit (ADR-007) |
 | `VeilWindow` | Fullscreen layered overlay (solid color fill, `Topmost`, permanent `WS_EX_TRANSPARENT` passthrough, 280 ms fade); primary-monitor rect + re-placement on `WM_DISPLAYCHANGE` / `WM_DPICHANGED` |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
-| `AboutWindow` | About (`Hakkında`) dialog; no shell registration |
+| `AboutWindow` | About dialog; no shell registration |
 | `MonitorBrightnessService` | DDC/CI (desktop `dxva2.dll`) + WMI (`WmiMonitorBrightness`) scan; a 50ms debounced background write |
 | `MonitorNative` | `dxva2.dll` P/Invoke functions + `user32.dll` monitor queries |
-| `VolumeService` / `AudioEndpointVolume` | Default render-endpoint volume / mute (Core Audio) + a **read-only** default capture-endpoint mute read (`TryGetCaptureMute`; the island camera body's Mikrofon row — no write method) |
+| `VolumeService` / `AudioEndpointVolume` | Default render-endpoint volume / mute (Core Audio) + a **read-only** default capture-endpoint mute read (`TryGetCaptureMute`; the island camera body's Microphone row — no write method) |
 | `AudioMixerService` / `CoreAudioDevices` / `CoreAudioSessions` | A single device + dropdown + application session volumes (ADR-006) |
 | `QuickSettingsService` | Network detail, WinRT radio, Settings URI / Win+P |
 | `NotificationCenterInvoker` | Native notification center (`Win+N`) |
@@ -251,12 +253,12 @@ The island (clipboard history + dropped files) is ADR-010.
 | `Dwm` | Corner preference, immersive dark, backdrop fallback, frame extend |
 | `WindowAppearance` | WPF-UI theme + Mica; DWM fine-tuning; theme refresh |
 | `SingleInstanceGuard` | Named Mutex; blocks a second instance |
-| `DockWindow` | Bottom overlay; read-only taskbar pins + `dock.items` on the left, unpinned running apps on the right, one icon per application; button rhythm (icon 24, button 40, gap 4, plate padding 10×8), no magnification; background `mica` (DWM, window = plate) or `transparent`/`tint` (layered, corner 14); drag-reorder, file drop, position (bottom-left/center/right), a "Windows" (`Pencereler`) submenu; no AppBar |
+| `DockWindow` | Bottom overlay; read-only taskbar pins + `dock.items` on the left, unpinned running apps on the right, one icon per application; button rhythm (icon 24, button 40, gap 4, plate padding 10×8), no magnification; background `mica` (DWM, window = plate) or `transparent`/`tint` (layered, corner 14); drag-reorder, file drop, position (bottom-left/center/right), a "Windows" submenu; no AppBar |
 | `TaskbarVisibilityService` | Capture the taskbar baseline at startup; hide `Shell_TrayWnd` / secondary; keep-hidden monitoring (no `ReapplyHide` inside `ApplyPlacement`); restore on exit. The baseline is written to the watchdog state file, the `--taskbar-watchdog` child process is spawned; if a stale file exists, the tray is shown first at startup (self-heal) |
 | `TaskbarWatchdog` | Headless mode (`Program.Main` branches, WPF does not start): watches PID + start-time, and applies the baseline if the process dies without a restore. Safe against PID reuse and a new instance rewriting the file |
 | `RunningAppsSource` | `EnumWindows` background thread + `IsHungAppWindow`. Windows are merged on application identity: canonical exe path, AppUserModelId, or pid (transitive). A second process is not dropped; `WindowCount` counts the windows |
 | `WindowCensus` | A **single** `EnumWindows` pass for all docks, 3 s, background thread. The process path stays in the cache until the pid disappears. `RunningAppsSource` and `MinimizedWindowsSource` share this snapshot |
-| `MinimizedWindowsSource` | Holds the minimized subset of the `WindowCensus` table; `ForProcess(pid)` from the `Windows` cache — the "Windows" (`Pencereler`) menu does **not** call `EnumWindows` on the UI thread (it locks on a hung HWND) |
+| `MinimizedWindowsSource` | Holds the minimized subset of the `WindowCensus` table; `ForProcess(pid)` from the `Windows` cache — the "Windows" menu does **not** call `EnumWindows` on the UI thread (it locks on a hung HWND) |
 | `DockItemStore` | The dock's write list: ordered, deduplicated by normalized path, a persistent fixed list (`dock.items`); `TryAdd`/`Remove`/`Move`/`Reload` + `Changed`. The list core is in the `*Core` statics → tested without touching the disk. The key is **always** the normalized path, not `Id` (in a pinned-and-running box, `Id` comes from the running application). Also owns `dock.itemOrder` (frozen left-group display order): `SetOrder`/`ReorderOnStrip` persist it, `Move` unfreezes the moved key |
 | `TaskbarPinnedAppsSource` | `User Pinned\TaskBar\*.lnk` **read-only**. The order is the file name in the `Taskband\Favorites` blob; otherwise the file name. It writes neither to the folder nor to the registry |
 | `DockAppsComposer` | Left: taskbar pin order, then those that exist only in `dock.items` (the same target once) — unless `dock.itemOrder` freezes a sequence: mentioned tiles in that order, unmentioned trail behind, stale keys ignored. Right: unpinned running apps. Match: full path (`\\?\` is stripped), AppUserModelId, or a resolved `.lnk`; folder pins do not merge with `explorer.exe`. A closed pin has `IsRunning` false. The same application (path / AUMID / pid) is a single box; a count badge while `WindowCount` > 1. A minimized window, or a window behind, does not become a second box |
@@ -269,7 +271,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `ProcessLauncherService` | `Process.Start` on a pin click |
 | `FullscreenState` | `TopBarWindow` `ABN_FULLSCREENAPP` → hide/show the dock |
 | `WorkAreaChanged` | Reposition the dock after top-bar AppBar placement |
-| `DockAutoHideController` | `dock.autoHide` state + edge-band poll; show/hide animation; fullscreen bridge |
+| `DockAutoHideController` | `dock.autoHide` state + edge-band poll; show/hide animation; fullscreen bridge; a stealth tray peek suppresses the edge-band show (`ShouldShowForCursor`) |
 | `DockHitTest` | `ApplyInteractive` / `ApplyPassthrough` — `WS_EX_TRANSPARENT` toggle |
 | `DemoPinnedApps` | The default 4 pins — the first `config.json` seed |
 | `AppConfig` / `DockConfig` | JSON schema (`schemaVersion` 2) |
@@ -283,10 +285,10 @@ The island (clipboard history + dropped files) is ADR-010.
 | `AutostartService` | Startup-folder `WharfBar.lnk`; create/delete with `autostart` true/false |
 | `LocalizationService` | Normalizes `config.language` (`system` \| `en` \| `tr`); `ResolveCulture` maps `system` → OS UI culture (`tr*` → `tr-TR`, else `en-US`); `Apply` sets `CurrentCulture` / `CurrentUICulture` and default thread cultures **before** the first window (beside theme). Changing language in Settings → General saves immediately and takes effect on the **next launch** (optional Quit now); there is no live UI rebuild |
 | `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus`; clock/date formatting uses `CurrentCulture` (follows UI language) |
-| `NetworkDetailsService` | Network-page "Properties" (`Özellikler`) (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
+| `NetworkDetailsService` | Network-page "Properties" (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
 | `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
 | `TrayIconService` / `NotifyIconHost` | Its own tray icon + Quit menu (`Shell_NotifyIcon`) |
-| `TrayMirrorService` | Polls the tray toolbar every 4 s, filters system icons, and publishes a `TrayMirrorItem` snapshot only when it changed; icon pixels live in `TrayIconCache` (keyed by `TrayIconSignature`) and a refresh peek on the `TrayIconRefreshPolicy` cadence re-captures them; click forward (ADR-009) |
+| `TrayMirrorService` | Polls the tray toolbar every 4 s, filters system icons, and publishes a `TrayMirrorItem` snapshot only when it changed; icon pixels live in `TrayIconCache` (keyed by `TrayIconSignature`) and a refresh peek on the `TrayIconRefreshPolicy` cadence re-captures them. On Windows 11 25H2 the parked auto-hide tray reads empty until it is hover-revealed, so the quiet read reveals it while the pointer is idle (`TrayRevealPolicy.ShouldAttemptReveal`) or the mirror is empty (bypass capped at 3 per shell), backing off 10 min after 2 misses, with the dock's edge-band show suppressed for the duration; only a read that found the tray **fully on screen** and empty (`TrayBlipOutcome.ConfirmedEmpty`, 220 ms confirm) clears the snapshot — a read that never looked holds it, and a quiet-refresh-filled mirror never triggers a maintenance state blip. Click forward (ADR-009) |
 | `PowerStatus` | Battery / AC line (`GetSystemPowerStatus`) |
 
 ## Island (ADR-010)
@@ -359,7 +361,7 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Services/IslandPresence.cs` | Pill face, music-panel duration, HUD priority (no WPF). `TitleMaxWidth` is the narrow-monitor cap |
 | `Services/IslandStore.cs` | A separate persistence file: `island.json` (tmp + `File.Replace`), the `Drop` folder; a single `_ioGate` lock; `.bak` / `.bak.1`; a 64 MB size cap; one corrupt field does not drop the whole history; **does not sort** (order is the consumer's job) |
 | `Services/ClipboardMessageWindow.cs` | Message-only `HwndSource` (`ParentWindow = -3`, the existing `MonitorMessageWindow` pattern); `WM_CLIPBOARDUPDATE` raises `ClipboardChanged` on the UI thread |
-| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `TryLastClipboardText` (prompter `Panodan al`; read-only newest-text pick), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
+| `Services/IslandService.cs` | Lifecycle + orchestration: the STA read thread, `Entries`/`Latest`, `ApplyConfig`, `AddDroppedFiles`, `PutBack`, `OpenShelfFile` (guarded by `CanOpenShelfFile`), `PutOnClipboard` (picker copy; separate writer twin of `PutBack`), `TryLastClipboardText` (prompter `Paste from clipboard`; read-only newest-text pick), `Remove`, `Clear`, `DeleteDroppedFiles`, `Changed`/`EntryAdded`, `Dispose` |
 | `Views/IslandFlyout.xaml(.cs)` | Hub panel: tab strip + seven bodies; `Attach(service)` for clipboard while open; `AttachWallpaper` on primary only; `PresentHub` / `HubTabChanged` (user tab click → config save); shelf chips (context menu + OLE drag-out), the prompter reading body (`PrompterMotion` + playback pin), the camera body (`CameraMirrorRequested` — event only, the window applies), and the picker body (`ScreenPickerRequested`, `ShowPickerCopyFeedback`) |
 | `Views/WallpaperGalleryView.xaml(.cs)` | Wallpaper hub body; `Attach(WallpaperService)`; bundled pack under `Wallpapers/` (abstract/scenic pairs, solids, Turkey city photos, brand marks — see that folder’s README; copy-to-output beside the exe) |
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
@@ -367,9 +369,9 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Native/DesktopWallpaper.cs` | `SPI_SETDESKWALLPAPER` / `SPI_GETDESKWALLPAPER` |
 | `Services/IslandHub.cs` | Tab enum + config normalization |
 | `Native/ScreenBitBlt.cs` | GDI capture (`BitBlt` + `GetDIBits`, top-down BGRA): `TryCapture` / `TryCaptureRect`; no `GetPixel` |
-| `Views/ColorPickerWindow.xaml(.cs)` | Screen color picker overlay: fullscreen work-area topmost, loupe + HEX card, `Settled`/`Cancelled`; a frozen BitBlt frame is captured before the dim mask shows |
-| `Services/ScreenSampler.cs` / `ColorMath.cs` / `IslandPickedColors.cs` | Sampling (3 px box average) + pure formatting + session-scoped recent-colors store |
-| `Views/Pages/IslandPage.xaml(.cs)` | Settings page: visibility, persistence, days/limit, wallpaper transition ComboBox + **Windows animasyonunu takip et** + **Match accent to wallpaper** toggles, maintenance actions; island service fields need `Config.Save` **+** `IslandService.ApplyConfig` where applicable |
+| `Views/ColorPickerWindow.xaml(.cs)` | Screen color picker overlay: fullscreen monitor topmost, loupe + HEX card, `Settled`/`Cancelled`; a frozen BitBlt frame is captured before the dim mask shows |
+| `Services/ScreenSampler.cs` / `ColorMath.cs` / `IslandPickedColors.cs` | Sampling (frozen-frame 13×13 loupe crop, centre-pixel pick — up to 6 px off the cursor at a frame edge; live-box `TrySample` fallback when there is no frozen frame) + pure formatting + session-scoped recent-colors store |
+| `Views/Pages/IslandPage.xaml(.cs)` | Settings page: visibility, persistence, days/limit, wallpaper transition ComboBox + **Follow Windows animation** + **Match accent to wallpaper** toggles, maintenance actions; island service fields need `Config.Save` **+** `IslandService.ApplyConfig` where applicable |
 
 ### Clipboard reading on the STA thread
 
@@ -419,32 +421,32 @@ action scans the `Drop` folder so it also covers orphans.
 
 ### Island widgets phase 1 — shelf + screen color picker (ADR-010 addendum)
 
-- **Decision:** the hub grows two more tabs on the primary bar: **Raf** (`shelf`, the existing
-  dropped-file timeline rendered as chips) and **Renk** (`colorpicker`, a screen color picker).
+- **Decision:** the hub grows two more tabs on the primary bar: **Shelf** (`shelf`, the existing
+  dropped-file timeline rendered as chips) and **Color** (`colorpicker`, a screen color picker).
   Soft fields: `island.hubTab` accepts `shelf` / `colorpicker`, and two new soft bools
   `island.shelfTab` / `island.colorpickerTab` (default **`true`**) gate the tabs; `schemaVersion` stays **2**.
 - **Tab resolve (`TopBarWindow.Island.ResolveHubTab`):** on the primary bar, when the latest pill face
-  is the **Drop** face and the shelf tab is on, the panel opens on the **Raf** tab (the user just
+  is the **Drop** face and the shelf tab is on, the panel opens on the **Shelf** tab (the user just
   dropped files, they want to see them). Otherwise the saved tab goes through `IslandHub.Resolve`
   (unknown → Clipboard; Music saved without an SMTC session → Clipboard, unchanged), and afterwards
   a `Shelf`/`Prompter`/`Camera`/`ColorPicker` resolve whose config flag is off falls back to **Clipboard**. All four
   flag-arms live in `ResolveHubTab`; secondary bars keep Music only.
 - **Shelf tab:** each dropped entry is a chip — a 3-letter extension badge + the file name.
-  Chip context menu: **`Uygulama ile aç`** (guarded by `IslandService.CanOpenShelfFile` →
-  `OpenShelfFile`; the `Drop`-prefix and device-namespace guards unchanged) and **`Listeden kaldır`**.
-  Panel footer **`Rafını boşalt`** → `DeleteDroppedFiles` (the same `Drop`-folder orphan scan).
+  Chip context menu: **`Open with app`** (guarded by `IslandService.CanOpenShelfFile` →
+  `OpenShelfFile`; the `Drop`-prefix and device-namespace guards unchanged) and **`Remove from list`**.
+  Panel footer **`Empty shelf`** → `DeleteDroppedFiles` (the same `Drop`-folder orphan scan).
   The chip is also a drag **source**: a real OLE drag-out (`DragDrop.DoDragDrop`,
   `DataFormats.FileDrop`, the file path) drops a copy into Explorer/folder windows.
 - **Color picker tab:** session-scoped recent colors (`IslandPickedColors`, top 8, pure `Pushed`
-  — no disk, never enters `island.json`). **`Ekran seçici`** closes the island panel first and
-  opens `ColorPickerWindow`: a transparent topmost covering the primary monitor's **work area**
+  — no disk, never enters `island.json`). **`Screen picker`** closes the island panel first and
+  opens `ColorPickerWindow`: a transparent topmost covering the primary **monitor**
   (`WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`, `ShowActivated=false`, `Dwm.SetSystemBackdrop(None)` —
   no Mica on a layered window). A frozen `BitBlt` frame of the monitor is captured **before**
   the dim mask shows and every sample comes from that frame (sampling after the mask sits down
   returns darkened colors — see `docs/04-gotchas.md`). Pick → `ColorMath.ToHex` → `IslandService.PutOnClipboard`
   (a dedicated clipboard **write** twin on the STA thread; `TryWriteText` marks its own record with
   `CanIncludeInClipboardHistory=0`, so the pick never enters Win+V history — paste flow is `Ctrl+V`);
-  the hub comes back after the overlay closes and lights a ✓/✗ copy feedback in the Renk body
+  the hub comes back after the overlay closes and lights a ✓/✗ copy feedback in the Color body
   (the overlay closes on feedback after 900 ms success / 1.6 s failure, with a 3 s failsafe).
 - **Motion:** the pill→panel morph gets a ratio-driven duration — `IslandMotion.MorphOpenMs` /
   `MorphCloseMs` lerp **230→170 ms** (open) and **150→110 ms** (close) as the pill/panel width
@@ -458,8 +460,8 @@ action scans the `Drop` folder so it also covers orphans.
 
 - **Decision:** the hub grows a sixth primary-bar tab, **Prompter** (`prompter`): a reading
   auto-scroll view. Soft field `island.prompterTab` (default **`true`**) gates the tab;
-  `schemaVersion` stays **2**. Primary bar only (config flag + `_primarySurface` — the Faz 1
-  Raf/Renk clone); secondary bars keep Music only.
+  `schemaVersion` stays **2**. Primary bar only (config flag + `_primarySurface` — the phase 1
+  Shelf/Color clone); secondary bars keep Music only.
 - **Tab order / resolve:** the enum order is Clipboard → Wallpaper → Music → Shelf → Prompter →
   Camera → ColorPicker (phase 3 inserts Camera after Prompter, before ColorPicker).
   `IslandHub.Resolve` is unchanged (unknown → Clipboard; Music saved without an SMTC
@@ -467,15 +469,15 @@ action scans the `Drop` folder so it also covers orphans.
   config flag is off falls back to **Clipboard**. (Phase 3 adds a fourth arm: a saved `camera`
   tab with `island.cameraTab` off also falls back to **Clipboard**.)
 - **Body + playback:** a multiline reading editor over a control bar — play/pause toggle (label
-  swap `Oynat`/`Duraklat`), speed slider 0.5–3.0 (tick 0.1, live `1.0×` label), `Başa dön`,
-  `.txt` load (`OpenFileDialog`, `.txt` filter), and `Panodan al` → the additive read-only
+  swap `Play`/`Pause`), speed slider 0.5–3.0 (tick 0.1, live `1.0×` label), `Back to start`,
+  `.txt` load (`OpenFileDialog`, `.txt` filter), and `Paste from clipboard` → the additive read-only
   `IslandService.TryLastClipboardText` (the newest text record of the island history; gentle
   no-op when empty — no clipboard read). Playing locks the editor read-only, bumps the font to
   17 DIP and auto-scrolls its inner `ScrollViewer` on a 16 ms `DispatcherTimer`; reaching the
-  bottom returns to Editing and unpins; manual vertical drag never pauses. Oynat is gated by the
+  bottom returns to Editing and unpins; manual vertical drag never pauses. Play is gated by the
   pure `CanStartPlayback`: with nothing to scroll below the current offset the request returns to
   Editing, and the button side of the same decision disables the toggle with a reason tooltip
-  (`Kaydırılacak bölüm yok…` / `Kaydırma en altta…`) — short text and end-of-reading are spoken
+  (`Nothing to scroll…` / `Scroll is at the bottom…`) — short text and end-of-reading are spoken
   dead ends, not silent ones (refresh rides `ScrollChanged`, deferred at tab open). The math is
   `PrompterMotion` (pure: `BaseSpeedDip` 66 px/s @1×, `ReadingFontDip` 17, `Toggle`,
   `ClampMultiplier` 0.5–3.0, `SpeedDipPerSec`, `UpdateOffset`, `ClampOffset`,
@@ -490,10 +492,10 @@ action scans the `Drop` folder so it also covers orphans.
 
 ### Island camera tab (ADR-010 addendum, phase 3)
 
-- **Decision:** the hub grows a seventh primary-bar tab, **Kamera** (`camera`), between Prompter
+- **Decision:** the hub grows a seventh primary-bar tab, **Camera** (`camera`), between Prompter
   and ColorPicker: a live preview of the running camera mirror plus a display-only microphone
   read. Soft field `island.cameraTab` (default **`true`**) gates the tab; `schemaVersion` stays
-  **2**. Primary bar only (config flag + `_primarySurface` — the Raf/Prompter/Renk clone);
+  **2**. Primary bar only (config flag + `_primarySurface` — the Shelf/Prompter/Color clone);
   secondary bars keep Music only.
 - **Tab order / resolve:** the enum order becomes Clipboard → Wallpaper → Music → Shelf →
   Prompter → Camera → ColorPicker, and `ResolveHubTab` gains a fourth flag-arm: a saved
@@ -502,20 +504,20 @@ action scans the `Drop` folder so it also covers orphans.
 - **Body:** a rounded preview — `CameraPreviewHost` (`Height=180`, corner clip rebuilt from the
   live size on `SizeChanged`, 14 DIP, the MusicCover clip pattern) around
   `CameraPreviewImage` (`Stretch=Uniform`); when closed, a placeholder glyph + status instead of
-  a picture. Below: a **Kamera** row with `CameraToggleButton` (aç/kapat) and a **Mikrofon** row
+  a picture. Below: a **Camera** row with `CameraToggleButton` (on/off) and a **Microphone** row
   that is display-only (no control, no write).
-- **Status mapping:** `CameraMirrorHost.Preview == null` → `Kapalı`; `preview.Status == "Kamera"`
-  → `Aktif`; anything else shows verbatim (e.g. `Kamera yok`). Mikrofon:
-  `AudioEndpointVolume.TryGetCaptureMute` true + not muted → `Aktif`; true + muted → `Sessiz`;
-  a failed read (no capture device) → `Bilinmiyor`. The body reads both at `PresentHub` and then
+- **Status mapping:** `CameraMirrorHost.Preview == null` → `Closed`; `preview.Status == "Camera"`
+  → `Active`; anything else shows verbatim (e.g. `No camera`). Microphone:
+  `AudioEndpointVolume.TryGetCaptureMute` true + not muted → `Active`; true + muted → `Muted`;
+  a failed read (no capture device) → `Unknown`. The body reads both at `PresentHub` and then
   on a 2000 ms `DispatcherTimer` (started only while the camera body is visible; the
   `CameraMirrorHost.Updated` subscription rides the same lifecycle and is torn down on tab
   switch and on the panel-close paths).
-- **Aç/Kapa path:** the toggle only raises the `CameraMirrorRequested` event — the body never
+- **On/off path:** the toggle only raises the `CameraMirrorRequested` event — the body never
   calls `Apply` itself. The window handler `OnIslandCameraMirrorRequested` does
   `PluginCatalog.SetEnabled(_config.Current, PluginCatalog.CameraMirror, enable)` +
   `CameraMirrorHost.Apply(_config.Current.Island.CameraMirror)` + `_config.Save(_config.Current)` —
-  the same three steps the widget gallery toggle (Ayarlar > Widgetlar) applies; both write the
+  the same three steps the widget gallery toggle (Settings > Widgets) applies; both write the
   same `island.cameraMirror` bool. The pill face and the body refresh through the pre-existing
   `CameraMirrorHost.Updated` pipeline. `CameraMirrorHost` stays the **single capture owner**
   (`Apply(bool)` is the only start/stop path); see `docs/04-gotchas.md` for the mic-read sharp
@@ -537,7 +539,7 @@ action scans the `Drop` folder so it also covers orphans.
   Rounded to the nearest byte; a grey accent has `h = 0`, `s = 0`. `#0078D4` → dark `#182E3F` / `#EAF0F5` / `#306791`, light `#EAF1F6` / `#17374F` / `#9BBBD4` (`BrandPaletteTests`).
 - **Geometry:** WPF vector geometry only (no SVG library, no new package), 128 grid, frozen; tiles are cached `DrawingImage`s keyed by style and palette. The WharfBar mark is the small solid pier + sun at every size (plank gaps and sea lines were dropped for clarity at dock scale).
 - **App identity:** `ApplicationIcon` = `Assets/WharfBar.ico` (multi-size dusk tile); Settings title bar, About, and window chrome use `Assets/WharfBar.png`. Tray falls back to the exe icon via `SHGetFileInfo`. Rebuild rasters with `python tools/render-app-icon.py`.
-- **Live update:** no timer. The dock's existing theme messages (`WM_THEMECHANGED`, `WM_SYSCOLORCHANGE`, `WM_DWMCOLORIZATIONCOLORCHANGED`, `WM_SETTINGCHANGE("ImmersiveColorSet")`) re-apply the surface and then swap the launch cell's glyph. Settings → Görünüm (logo, theme, accent) calls `App.ApplyLogoChanges`. With the system accent on, the tile reads `ApplicationAccentColorManager.GetColorizationColor()` fresh; other WPF-UI accent brushes still update only when `ApplySystemAccent` runs.
+- **Live update:** no timer. The dock's existing theme messages (`WM_THEMECHANGED`, `WM_SYSCOLORCHANGE`, `WM_DWMCOLORIZATIONCOLORCHANGED`, `WM_SETTINGCHANGE("ImmersiveColorSet")`) re-apply the surface and then swap the launch cell's glyph. Settings → Appearance (logo, theme, accent) calls `App.ApplyLogoChanges`. With the system accent on, the tile reads `ApplicationAccentColorManager.GetColorizationColor()` fresh; other WPF-UI accent brushes still update only when `ApplySystemAccent` runs.
 
 ## Window model
 
@@ -708,7 +710,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `dock.backgroundMode` | `mica` \| `transparent` \| `tint`; unknown → `mica`. Independent of the top bar. Mica is real DWM (`AllowsTransparency=false`). Tint/transparent is a layered window; switching rebuilds the dock |
 | `dock.tintOpacity` | 0–100; `tint` only; default **40**. The fill is dark `#202020` / light `#FAFAFA` |
 | `dock.surface` | A retired JSON field (`mica` \| `acrylic`). Pinned to `mica` on load; the choice goes through `backgroundMode` |
-| `dock.items` | An ordered write list (Path/Args/Label). Taskbar pins are read-only in addition; “pin / unpin” (`sabitle` / `kaldır`) changes only this list. The key is the normalized full path |
+| `dock.items` | An ordered write list (Path/Args/Label). Taskbar pins are read-only in addition; “pin / unpin” changes only this list. The key is the normalized full path |
 | `dock.itemOrder` | Frozen left-group display order (normalized paths, taskbar pins included), written by the strip's drag-reorder so a taskbar-pinned tile can move too. The taskbar side stays read-only (ADR-005). Empty = taskbar order, then `dock.items` order; a settings-page row drag unfreezes that key; stale keys are ignored |
 | `dock.position` | `bottom-left` \| `bottom-center` \| `bottom-right`; invalid/empty → `bottom-center`. A side dock is out of scope |
 | `dock.magnification` | It stays in JSON, is clamped to 1.0–2.0 on load (default 1.15), and is **not applied**. The strip scale is 1 |
@@ -716,7 +718,7 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; unknown → `mica` (the default). A Mica ↔ translucent switch requires a TopBar recreate |
 | `topBar.tintOpacity` | 0–100; alpha in tint mode; default **40**; clamped on load |
 | `topBar.statusCatalogVersion` | Soft catalog version (independent of `schemaVersion` 2). Current **5**: a missing `controlCenter` is inserted before `volume`, a missing `brightness` after `volume`, a missing `media` after `brightness` (`Ensure*`; an old version is moved to 5 at startup — ADR-008/009) |
-| `topBar.statusItems` | Visible status-item ids (left→right order). Unknown ids are dropped; empty/missing → `DefaultOrder`. The **default** does not include `volume` / `brightness` / `media` (ADR-011); every catalog item is listed on right-click and in the Top Bar (`Üst Çubuk`) setting, the saved list is not stripped, and a hidden item does not turn itself on. **Show all** (`Tümünü göster`) inserts the missing ones next to their catalog neighbor. Dragging on the bar changes the order with `MoveToInsertion`. `statusCatalogVersion` stays at 5. A soft field (`schemaVersion` 2) |
+| `topBar.statusItems` | Visible status-item ids (left→right order). Unknown ids are dropped; empty/missing → `DefaultOrder`. The **default** does not include `volume` / `brightness` / `media` (ADR-011); every catalog item is listed on right-click and in the Top Bar setting, the saved list is not stripped, and a hidden item does not turn itself on. **Show all** inserts the missing ones next to their catalog neighbor. Dragging on the bar changes the order with `MoveToInsertion`. `statusCatalogVersion` stays at 5. A soft field (`schemaVersion` 2) |
 | `topBar.showSystemStats` | The `CPU x% · GPU y% · RAM z%` reading next to the brand logo in the left cluster (default **`true`**; soft bool — a missing field falls back to the default). If there is no GPU counter, the GPU section is not shown |
 | `topBar.showGpuPerAdapter` | If there is more than one physical GPU, number the GPU sections (`GPU0 x% · GPU1 y%`); when off, a single combined segment (default **`true`**; soft bool). With a single GPU both modes look the same |
 | `veil.enabled` | Overlay on/off (persistent; written by the QS tile + the shortcut + the page toggle). Default **`false`** |
@@ -726,9 +728,9 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.enabled` | Island + clipboard listener on/off (default **`true`**). When `false`, the pill is not drawn, the `WM_CLIPBOARDUPDATE` listener is not set up, and `island.json` is not read; entries are left without touching the disk. Turning it off from the settings page also takes effect on the service via `IslandService.ApplyConfig` (ADR-010) |
 | `island.persistence` | `"session"` \| `"persistent"` (default **`"session"`**). **A string, not an enum** — an enum-typed field threw `JsonException` on the value `"Persistent"` and reset the whole config. `IslandNormalizer.NormalizePersistence` is case-insensitive; an unresolvable value falls back to `"session"` (ADR-010) |
 | `island.retentionDays` | How many days back are kept in persistent mode; clamped with `ClampRetentionDays` to 1–3650 on load (default **30**). Ignored in session mode (ADR-010) |
-| `island.maxItems` | A hard cap on the entry count (independent of the day limit); clamped with `ClampMaxItems` to 10–5000 on load (default **200**). The panel also builds at most 200 rows (`IslandFlyout.MaxRenderedRows`); anything beyond that is reported with the note "N more entries (narrow with search)" (`N kayıt daha var (arama ile daralt)`) (ADR-010) |
+| `island.maxItems` | A hard cap on the entry count (independent of the day limit); clamped with `ClampMaxItems` to 10–5000 on load (default **200**). The panel also builds at most 200 rows (`IslandFlyout.MaxRenderedRows`); anything beyond that is reported with the note "N more entries (narrow with search)" (ADR-010) |
 | `island.musicPresence` | `"persistent"` (default) \| `"transient"`. How music sits on the pill (ADR-011). A soft string; `IslandNormalizer.NormalizeMusicPresence`, unresolvable → `persistent`. `schemaVersion` does not increase |
-| `island.idleLabel` | `"clipboard"` (default, the pill says **Clipboard** (`Pano`)) \| `"lastClip"` (a preview of the last text). A soft string; `IslandNormalizer.NormalizeIdleLabel`, unresolvable → `clipboard`. `schemaVersion` does not increase (ADR-012) |
+| `island.idleLabel` | `"clipboard"` (default, the pill says **Clipboard**) \| `"lastClip"` (a preview of the last text). A soft string; `IslandNormalizer.NormalizeIdleLabel`, unresolvable → `clipboard`. `schemaVersion` does not increase (ADR-012) |
 | `island.visualizer` | Five bars on the island pill while music is playing (default **`true`**). A gallery switch. Soft bool (ADR-015, ADR-017) |
 | `island.colorMode` | `"album"` (default) \| `"system"` \| `"neutral"`. Who is tinted and the fallbacks: `IslandPalette.Tint`. A soft string; `IslandNormalizer.NormalizeColorMode`, unresolvable → `album`. `schemaVersion` stays **2** (ADR-018) |
 | `island.bluetoothNotice` | The name of a newly connected paired device stays on the pill for a short time (default **`true`**). Soft bool (ADR-015) |
@@ -737,14 +739,14 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `island.widgetPlacements` | Saved top-left of the desktop clock and calendar, in WPF DIP (`Window.Left` space). Entries are `{ "id": "clock"\|"calendar", "x", "y" }`. Unknown ids and non-finite numbers are dropped; a duplicate id keeps the last coordinates. Soft field; `schemaVersion` stays **2**. Closing a widget keeps its placement |
 | `island.hubTab` | Last island hub page: `"clipboard"` (default) \| `"wallpaper"` \| `"music"` \| `"shelf"` \| `"prompter"` \| `"camera"` \| `"colorpicker"`. Soft string; `IslandNormalizer.NormalizeHubTab` / `IslandHub.Normalize`, unresolvable → `clipboard`. On open, `IslandHub.Resolve` falls back to Clipboard when Music is saved but no SMTC session exists; `ResolveHubTab` moves to the shelf when the latest pill face is Drop and adds a Clipboard fallback for a `shelf`/`prompter`/`camera`/`colorpicker` tab whose config flag is off. Written on the primary bar when the user clicks a tab (`HubTabChanged`); `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.prompterTab` | The island hub's **Prompter** (reading auto-scroll) tab visible/usable (default **`true`**). Soft bool; a saved `prompter` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island prompter phase 1/2) |
-| `island.cameraTab` | The island hub's **Kamera** (camera preview + display-only mic read) tab visible/usable (default **`true`**). Soft bool; a saved `camera` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island camera phase 3) |
-| `island.shelfTab` | The island hub's **Raf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
-| `island.colorpickerTab` | The island hub's **Renk** (color picker) tab visible/usable (default **`true`**). Soft bool; a saved `colorpicker` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.cameraTab` | The island hub's **Camera** (camera preview + display-only mic read) tab visible/usable (default **`true`**). Soft bool; a saved `camera` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (island camera phase 3) |
+| `island.shelfTab` | The island hub's **Shelf** (shelf) tab visible/usable (default **`true`**). Soft bool; hiding it also drops the Drop-face default to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
+| `island.colorpickerTab` | The island hub's **Color** (color picker) tab visible/usable (default **`true`**). Soft bool; a saved `colorpicker` tab with this off resolves to Clipboard. `schemaVersion` stays **2** (ADR-010 addendum) |
 | `island.wallpaperTransition` | Post-apply animation: `"off"` \| `"fade"` \| `"blurFade"` (default **`blurFade`**). Soft string; `IslandNormalizer.NormalizeWallpaperTransition`, unresolvable → **`blurFade`**. Primary monitor only; overlay shows the **previous** image fading out over the SPI-applied desktop. `schemaVersion` stays **2** |
 | `island.wallpaperRespectSystemAnimation` | When **`true`** (default), skip the overlay if `SystemParameters.ClientAreaAnimation` is false. When **`false`**, `fade`/`blurFade` run even when Windows animation effects are off. Soft bool; `schemaVersion` stays **2** |
 | `island.wallpaperAccent` | After a successful island hub wallpaper apply, sync WharfBar accent (and best-effort Windows HKCU accent) from the image dominant color (default **`true`**). Soft bool; `schemaVersion` stays **2**. Does not alter SPI wallpaper apply or restore accent/wallpaper on exit |
 | `island.lastHubWallpaper` | Full path of the last wallpaper applied through the island hub (default **`""`**). Soft string; normalized to empty when whitespace on load; not path-validated until sync. Drives light/dark **pair** auto-switch only for hub-applied wallpapers with a `-light`/`-dark` sibling; partner apply updates this field. `schemaVersion` stays **2** |
-| `plugins.enabled` | Local manifest ids (`%AppData%/WharfBar/plugins/<klasör>/manifest.json`; `<klasör>` = folder). A soft list; `schemaVersion` stays **2**. Built-in ids do not live here. Registration is not drawing: no assembly is loaded, and top-bar and dock slots are not drawn in v1 (ADR-017) |
+| `plugins.enabled` | Local manifest ids (`%AppData%/WharfBar/plugins/<folder>/manifest.json`). A soft list; `schemaVersion` stays **2**. Built-in ids do not live here. Registration is not drawing: no assembly is loaded, and top-bar and dock slots are not drawn in v1 (ADR-017) |
 | `pinnedApps` | **Legacy.** Read only once, by `ConfigService.MigrateDockItems`, when `dock.items` is empty, and then **cleared**. The live taskbar `.lnk` scan was removed on 2026-10-04 (ADR-005 revision) |
 
 If the file is missing on first run, the default is written with `DemoPinnedApps`. The save is atomic

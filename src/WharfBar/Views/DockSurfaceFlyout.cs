@@ -5,6 +5,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Threading;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 using WharfBar.Views.Controls;
 
@@ -162,7 +163,7 @@ internal sealed class DockSurfaceFlyout : IDisposable
         var stack = new StackPanel();
         if (_folderStack.Count > 1)
         {
-            stack.Children.Add(MakeRow("Geri", () =>
+            stack.Children.Add(MakeRow(Strings.Qs_Back, () =>
             {
                 _folderStack.RemoveAt(_folderStack.Count - 1);
                 _ = ShowFolderPage();
@@ -179,15 +180,15 @@ internal sealed class DockSurfaceFlyout : IDisposable
 
         if (page.Truncated)
         {
-            stack.Children.Add(Note($"İlk {DockFolderListing.MaxVisibleRows} öğe"));
+            stack.Children.Add(Note($"First {DockFolderListing.MaxVisibleRows} items"));
         }
 
         if (page.Entries.Count == 0)
         {
-            stack.Children.Add(Note("Klasör boş"));
+            stack.Children.Add(Note("Folder is empty"));
         }
 
-        stack.Children.Add(MakeRow("Explorer'da aç", () => DockShellOpen.TryOpen(directory)));
+        stack.Children.Add(MakeRow("Open in Explorer", () => DockShellOpen.TryOpen(directory)));
         _body.Children.Add(stack);
         if (Anchor is not null)
         {
@@ -262,7 +263,7 @@ internal sealed class DockSurfaceFlyout : IDisposable
             return column;
         }
 
-        string title = string.IsNullOrWhiteSpace(window.Title) ? "Başlıksız pencere" : window.Title;
+        string title = string.IsNullOrWhiteSpace(window.Title) ? Strings.Dock_UntitledWindow : window.Title;
         column.Children.Add(MakeRow(title, () =>
         {
             _activate(window.Handle);

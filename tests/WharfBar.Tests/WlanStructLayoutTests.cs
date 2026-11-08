@@ -5,10 +5,10 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// WLAN P/Invoke struct'larının native wlanapi.h layout'uyla bayt-bayt uyumu.
-/// Kaynak: Windows SDK 10.0.26100.0 um\wlanapi.h.
-/// Geçmişte struct yanlıştı (sahte wlanProfileFlags ilk alan + eksik dwFlags/dwReserved
-/// + uydurma RSSI alanları) → stride 632 vs native 628 → SSID metni kayıyor, sinyal çöp.
+/// Byte-for-byte compatibility of the WLAN P/Invoke structs with the native wlanapi.h layout.
+/// Source: Windows SDK 10.0.26100.0 um\wlanapi.h.
+/// The struct used to be wrong (a fake wlanProfileFlags as the first field + missing dwFlags/dwReserved
+/// + invented RSSI fields) → stride 632 vs native 628 → the SSID text shifts, the signal is garbage.
 /// </summary>
 public class WlanStructLayoutTests
 {
@@ -45,7 +45,7 @@ public class WlanStructLayoutTests
     [Fact]
     public void WLAN_INTERFACE_INFO_LIST_HeaderIs8Bytes()
     {
-        // dwNumberOfItems + dwIndex → liste öğeleri 8. bayttan başlar.
+        // dwNumberOfItems + dwIndex → the list items start at byte 8.
         Assert.Equal(8, (int)Marshal.OffsetOf<WLAN_INTERFACE_INFO_LIST>(nameof(WLAN_INTERFACE_INFO_LIST.InterfaceInfo)));
     }
 }

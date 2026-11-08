@@ -11,27 +11,27 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Island'ın yaşam döngüsü: pano dinleyicisi, STA okuma thread'i, tek zaman çizelgesi ve
-/// debounce'lu diske yazma. Saf mantık <see cref="IslandPruner"/>'da; burada yalnızca
-/// Win32/disk/thread yönetimi ve orkestrasyon vardır.
+/// The island's lifecycle: the clipboard listener, the STA read thread, the single timeline, and
+/// debounced writing to disk. Pure logic lives in <see cref="IslandPruner"/>; only
+/// Win32/disk/thread management and orchestration live here.
 /// </summary>
 /// <remarks>
-/// <para><b>Tek zaman çizelgesi:</b> <see cref="Entries"/>, <c>Config</c> ve diske yazılan
-/// snapshot <b>yalnızca UI dispatcher'ında</b> okunur/başlanır. Pano okuması STA worker'da
-/// yapılır ama yakalanan kaydı ekleme işi UI thread'ine devredilir; aynı şekilde
-/// debounce sayacının callback'i de UI dispatcher'ına atlanır. <see cref="List{T}"/> eşzamanlı
-/// okuma/yazmaya dayanıksızdır ve bir timer callback'i içinde atılan istisna süreci
-/// düşürürdü.</para>
-/// <para><b>Thread kuralı:</b> kurucu ve <see cref="Dispose"/> UI thread'inde çağrılmalıdır
-/// (mesaj-only <c>HwndSource</c> ve pano dinleyicisi bunu gerektirir).</para>
-/// <para><b>Dosya I/O'su UI thread'inde değil:</b> <c>Drop</c> altında kalan eski kopyaların
-/// silinmesi STA worker'da olur; <c>island.json</c>'un serileştirilip diske yazılması da
-/// STA worker'a verilir (snapshot UI thread'inde alınır). Üst bar kayıtlı bir AppBar olduğu
-/// için UI thread'inde yapılan büyük bir silme ya da ~13 MB'lık bir JSON yazma tüm
-/// masaüstünü dondurur. Yeni bırakmalar kopyalanmaz (<see cref="AddDroppedFiles"/> orijinal
-/// yolu kaydeder, <c>Drop</c> klasörü açılmaz); kopyalama I/O'su olmadığı için bu iş STA
-/// worker'a atlanmaz. Tek istisna <see cref="Dispose"/>'daki son yazma: senkron kalır,
-/// çünkü kuyruğa atmak son yazmayı süreç sonuyla yarıştırıp sessizce düşürüyordu.</para>
+/// <para><b>Single timeline:</b> <see cref="Entries"/>, <c>Config</c> and the snapshot written to
+/// disk are read/modified <b>only on the UI dispatcher</b>. The clipboard read runs on the STA
+/// worker, but adding the captured entry is handed off to the UI thread; likewise the debounce
+/// timer's callback is marshaled to the UI dispatcher. <see cref="List{T}"/> does not tolerate
+/// concurrent read/write, and an exception thrown inside a timer callback would take down the
+/// process.</para>
+/// <para><b>Thread rule:</b> the constructor and <see cref="Dispose"/> must be called on the UI thread
+/// (the message-only <c>HwndSource</c> and the clipboard listener require it).</para>
+/// <para><b>File I/O is not on the UI thread:</b> deleting old copies left under <c>Drop</c> happens
+/// on the STA worker; serializing <c>island.json</c> and writing it to disk is also handed to the
+/// STA worker (the snapshot is taken on the UI thread). Because the top bar is a registered AppBar,
+/// a large delete on the UI thread or a ~13 MB JSON write would freeze the whole desktop. New drops
+/// are not copied (<see cref="AddDroppedFiles"/> records the original path and the <c>Drop</c>
+/// folder is never opened); since there is no copy I/O, that work is not dispatched to the STA
+/// worker. The single exception is the final write in <see cref="Dispose"/>: it stays synchronous,
+/// because queuing it raced the last write against process exit and silently dropped it.</para>
 /// </remarks>
 internal sealed class IslandService : IDisposable
 {
@@ -39,16 +39,16 @@ internal sealed class IslandService : IDisposable
     private const int OpenClipboardRetries = 3;
     private const int OpenClipboardRetryDelayMs = 40;
 
-    /// <summary>STA worker hazır olmadan bu kadar beklenir; sonrası yine de sessiz devam eder.</summary>
+    /// <summary>How long to wait for the STA worker to be ready; after that it proceeds silently anyway.</summary>
     private const int StaReadyTimeoutMs = 1000;
 
     private readonly Dispatcher _dispatcher;
     private readonly IslandStore _store;
     private readonly List<IslandEntry> _entries = [];
 
-    // STA thread'i yazıyor, UI thread'i okuyor: volatile olmadan atama görünmeyebilir ve
-    // pencere ctor'da açıldığı için gelen ilk pano değişimi sta is null görüp sessizce
-    // düşerdi ("ilk kopyalama kayboldu", tekrarlanması zor hata).
+    // The STA thread writes it and the UI thread reads it: without volatile the assignment might not
+    // be visible, and since the window opens in the ctor, the first incoming clipboard change would
+    // see sta as null and be silently dropped ("the first copy was lost", a hard-to-reproduce bug).
     private volatile Dispatcher? _staDispatcher;
     private ClipboardMessageWindow? _listener;
     private System.Threading.Timer? _saveTimer;
@@ -57,24 +57,23 @@ internal sealed class IslandService : IDisposable
     private volatile bool _savePending;
 
     /// <summary>
-    /// Kayıtlı geçmiş bu servis ömründe zaten denendi mi? <see cref="LoadPersisted"/>
-    /// <c>_entries</c>'in boş olduğunu varsayar, bu yüzden ikinci bir çağrı aynı kayıtları
-    /// iki kez listelerdi.
+    /// Has the persisted history already been attempted in this service's lifetime? <see cref="LoadPersisted"/>
+    /// assumes <c>_entries</c> is empty, so a second call would list the same entries twice.
     /// </summary>
     private bool _persistedLoaded;
 
-    /// <summary>UI thread'inde kurulur.</summary>
+    /// <summary>Constructed on the UI thread.</summary>
     internal IslandService(Dispatcher dispatcher, IslandStore store, IslandConfig config)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
         _store = store ?? throw new ArgumentNullException(nameof(store));
         Config = config;
 
-        // Pano okuması STA worker'da: OpenClipboard bloklayabilir, UI thread'i kilitlememek
-        // zorunlu. TrayMirrorService ile aynı kalıp.
-        // Sinyal durumu başlangıçta KAPALI olmalı (STA thread'i atamayı yapıp Set() ile açar);
-        // "ManualResetEventSlim(1)" değil: tek int parametresi spinCount'tir ve ctor zaten
-        // kapalı başlar.
+        // The clipboard read runs on the STA worker: OpenClipboard can block, so keeping the UI
+        // thread unblocked is mandatory. The same pattern as TrayMirrorService.
+        // The signal state must start CLOSED (the STA thread assigns and then opens it with Set());
+        // not "ManualResetEventSlim(1)": the single int parameter is spinCount and the ctor already
+        // starts closed.
         var staReady = new ManualResetEventSlim(initialState: false);
         var staThread = new Thread(() =>
         {
@@ -89,12 +88,12 @@ internal sealed class IslandService : IDisposable
         staThread.SetApartmentState(ApartmentState.STA);
         staThread.Start();
 
-        // Bekleme zaman aşımına uğrarsa hata fırlatmaz: STA thread'i geç başlıyorsa bu
-        // pencere tolere edilir. Ama zaman aşımı gerçekleşirse _staDispatcher null kalır ve
-        // OnClipboardChanged her seferinde erken çıkar — oturum boyunca HİÇBİR yakalama
-        // kaydedilmez. Bu yüzden görünmez kalmaması için burada loglanır. staReady kasıtlı
-        // olarak Dispose edilmiyor — Set() hâlâ çağrılabilir olmalı, yoksa STA thread'inde
-        // ObjectDisposedException işlenmemiş olarak süreci düşürürdü.
+        // A wait timeout does not throw: a late-starting STA thread is tolerated within this window.
+        // But if the timeout does happen, _staDispatcher stays null and OnClipboardChanged returns
+        // early every time — NO capture is recorded for the whole session. So it is logged here to
+        // keep it from being invisible. staReady is deliberately not disposed — Set() must still be
+        // callable, otherwise an ObjectDisposedException on the STA thread would crash the process
+        // unhandled.
         if (!staReady.Wait(StaReadyTimeoutMs))
         {
             Debug.WriteLine("[WharfBar] island STA worker not ready; clipboard capture is skipped until it is");
@@ -103,11 +102,11 @@ internal sealed class IslandService : IDisposable
         _saveTimer = new System.Threading.Timer(
             _ => OnSaveTimerTick(), null, Timeout.Infinite, Timeout.Infinite);
 
-        // Yükleme, dinleyiciyi kurmadan ÖNCE (ApplyConfig ile aynı sıra): StartListening ile
-        // pano dinlemesi açılır açılmaz bir kopyalama gelebilir ve STA worker
-        // Interlocked.Increment(ref _nextId) çalıştırabilir; LoadPersisted'taki Math.Max
-        // yazmayı yutar ve aynı Id iki kayda düşer. Yükleme önce yapılınca pencere tamamen
-        // kapanır (id sayacı yalnız UI'da ilerler).
+        // Loading happens BEFORE setting up the listener (the same order as ApplyConfig): as soon as
+        // StartListening enables clipboard monitoring a copy can arrive and the STA worker can run
+        // Interlocked.Increment(ref _nextId); the Math.Max in LoadPersisted swallows that write and
+        // the same Id lands on two entries. Doing the load first closes the window completely
+        // (the id counter only advances on the UI thread).
         LoadPersisted();
 
         if (Config.Enabled)
@@ -123,13 +122,13 @@ internal sealed class IslandService : IDisposable
     internal IslandEntry? Latest => _entries.Count > 0 ? _entries[0] : null;
 
     /// <summary>
-    /// "Panodan al" (island okur gövdesi) için geçmişteki en yeni düz metin kaydını verir.
-    /// Salt-okunur: geçmişe yazmaz (<see cref="AddEntry"/> çağrılmaz), olay üretmez ve
-    /// gerçek panoya hiç dokunmaz. <see cref="Entries"/> en yeni başta sıralı olduğu
-    /// için ilk metin kaydı en yenisidir — yoksa <c>false</c> ve boş metin döner.
+    /// Returns the newest plain-text entry in the history for "Take from clipboard" (the island
+    /// reader body). Read-only: it does not write to the history (<see cref="AddEntry"/> is not
+    /// called), raises no events, and never touches the real clipboard. Because <see cref="Entries"/>
+    /// is sorted with the newest first, the first text entry is the newest one — otherwise it
+    /// returns <c>false</c> and an empty string.
     /// </summary>
-    /// <remarks>Sınıf zaman çizelgesi kuralı: <see cref="Entries"/> gibi UI
-    /// dispatcher'ında çağrılır.</remarks>
+    /// <remarks>Class timeline rule: called on the UI dispatcher, like <see cref="Entries"/>.</remarks>
     internal bool TryLastClipboardText(out string text)
     {
         foreach (IslandEntry entry in _entries)
@@ -149,33 +148,32 @@ internal sealed class IslandService : IDisposable
 
     internal event EventHandler? Changed;
 
-    /// <summary>Yeni kayıt eklendiğinde pill'in nabzını tetiklemek için dışarıdan okunur.</summary>
+    /// <summary>Read externally to trigger the pill's pulse when a new entry is added.</summary>
     internal event EventHandler? EntryAdded;
 
-    /// <summary>Persistent mod mu? Karşılaştırma her zaman normalize edilmiş değerle yapılır.</summary>
+    /// <summary>Persistent mode? The comparison is always made against the normalized value.</summary>
     private bool IsPersistent =>
         IslandNormalizer.NormalizePersistence(Config.Persistence) == IslandConfig.PersistencePersistent;
 
     /// <summary>
-    /// Persistent modda kayıtlı geçmişi geri yükler. Depo ham kayıt döndürür ve sıra garantisi
-    /// vermez (serileştiricidir; elle düzenlenmiş dosyayı gizlice yeniden sıralamak
-    /// kullanıcının dosyasını değiştirmek olurdu) — bu yüzden sıralama ve budama burada,
-    /// kullanicinin ayarlariyla yapilir.
+    /// Restores the persisted history in persistent mode. The store returns raw entries and gives no
+    /// ordering guarantee (it is a serializer; silently re-sorting a hand-edited file would change the
+    /// user's file) — so sorting and pruning happen here, using the user's settings.
     /// </summary>
     private void LoadPersisted()
     {
-        // !Config.Enabled şart: servis artık ayar kapalıyken de kurulur (ayardan sonradan
-        // açılabilsin diye), ama kapalıyken island.json'a dokunmak ayak izi bırakır.
+        // The !Config.Enabled check is required: the service is now constructed even while the setting
+        // is off (so it can be enabled later from settings), but touching island.json while off
+        // would leave a trace.
         if (_disposed || !Config.Enabled || !IsPersistent)
         {
             return;
         }
 
-        // Servis ömrü boyunca en çok bir kez. Yukleme geçmişi _entries'in üstüne ekler
-        // (AddRange), _entries'le birleştirir ya da tamamen değiştirir (Commit), yani ikinci
-        // bir çağrı aynı kayıtları iki kez listelerdi. Bekleyen tek istisna: yukarıdaki
-        // kapıdan elenen çağrı bayrağı yakmaz, çünkü koşullar sonraki ApplyConfig'de
-        // değişebilir.
+        // At most once per service lifetime. Loading prepends to _entries (AddRange), merges with
+        // _entries, or replaces it entirely (Commit), so a second call would list the same entries
+        // twice. The one caveat: a call rejected by the gate above does not set the flag, because
+        // the conditions can change in a later ApplyConfig.
         if (_persistedLoaded)
         {
             return;
@@ -193,15 +191,15 @@ internal sealed class IslandService : IDisposable
             .OrderByDescending(e => e.CapturedAtUtc)
             .ToList();
 
-        // Id monotonik olmali: ilk kurulumda (oturum kaydi yokken) yeni kayitlarin sayaci
-        // 1'den baslar ve yuklenen kayitlarin Id'leriyle cakisir. Math.Max: sayici geri
-        // alinamaz, daha once uretilmis bir Id'ye dusmemek icin yalnizca yuksege cikarilir.
+        // Ids must be monotonic: on a first setup (no session entries) the counter for new entries
+        // starts at 1 and collides with the Ids of the loaded entries. Math.Max: the counter cannot
+        // go back, so it is only ever raised to avoid dropping to an Id that was already produced.
         _nextId = Math.Max(_nextId, ordered.Max(e => e.Id));
 
-        // Oturumluk -> kalici gecisi: oturumun kayitlari hala listede ama diskte YOK
-        // (session modunda ScheduleSave calismaz). Yalnizca diskten okunanlari yazmak
-        // ("degistirmek") kullaniciyi bu oturumda kopyaladiklarindan sessizce atardi,
-        // bu yuzden iki liste tek liste olusturulup birlikte budanir.
+        // Session -> persistent transition: the session's entries are still in the list but NOT on
+        // disk (ScheduleSave does not run in session mode). Writing ("replacing") only what was read
+        // from disk would silently throw away what the user copied in this session, so the two lists
+        // are merged into one and pruned together.
         bool merging = _entries.Count > 0;
         if (merging)
         {
@@ -213,43 +211,45 @@ internal sealed class IslandService : IDisposable
 
         if (!merging && pruned.Count == ordered.Count)
         {
-            // Budama hicbir seyi atmadi. Prune yalnizca eler (sirayi degistirmez), yani
-            // sayim esitse listeler birebir ayni demektir: Commit'e gidemek her acilista
-            // gereksiz bir disk yazmasi ve bir Changed bildirimi uretirdi.
+            // Pruning discarded nothing. Prune only eliminates (it does not reorder), so equal counts
+            // mean the lists are exactly the same: going to Commit would produce a pointless disk
+            // write and a Changed notification on every open.
             _entries.AddRange(ordered);
 
-            // Ama bildirim atlanamaz: AddRange Commit'i (ve RaiseChanged'i) atlar. Kapali
-            // baslatilan ada ayardan acildiginda liste burada sessizce dolarsa pencere
-            // abone degilse pill bayat kalir — "gecmis var ama gosterilmiyor".
+            // But the notification cannot be skipped: AddRange bypasses Commit (and RaiseChanged).
+            // If the list silently fills here when an island started disabled is enabled from
+            // settings, and the window is not subscribed, the pill stays stale — "there is history
+            // but it is not shown".
             RaiseChanged();
             return;
         }
 
-        // Budanmış hâli diske geri yaz: kullanıcı tavanı düşürdüyse (ya da gün limiti
-        // dolduysa) dosya bir sonraki açılışta aynı budanmış listeyi verir.
+        // Write the pruned form back to disk: if the user lowered the ceiling (or the day limit ran
+        // out), the file yields the same pruned list on the next launch.
         Commit(pruned, added: null, raiseEntryAdded: false);
     }
 
     /// <summary>
-    /// Oturum kayıtlarıyla diske yazılmış geçmişi tek listede birleştirir (en yenisi başta).
-    /// UI thread'inde çağrılır.
+    /// Merges the session entries with the history written to disk into a single list (newest first).
+    /// Called on the UI thread.
     /// </summary>
     /// <remarks>
-    /// <para><b>Id birleştirme anahtarı olamaz.</b> Her süreç 1'den başladığı için oturum ve
-    /// kalıcı kayıtlar aynı Id'yi taşır; <c>DistinctBy(e =&gt; e.Id)</c> ilkini (oturum kaydını)
-    /// saklayıp kalıcı kaydı sessizce düşürüyordu. Varsayılan kalıcılık modu <c>session</c>
-    /// (<c>AppConfig.Persistence</c>) olduğu için bu yaygın yoldu: ölçüldü — 10 kalıcı + 3
-    /// oturum kaydı → 10 kayıt; <c>kalici-1..3</c> hem listeden hem <c>island.json</c>'dan
-    /// silindi (<c>Commit</c> → <c>ScheduleSave</c> dosyayı geri yazdı, diskte 7/10 kaldı).</para>
-    /// <para><b>Kimlik yerine içerik:</b> <c>(Kind, Text, FilePath)</c> üçlüsü —
-    /// <c>IslandPruner.IsSameContent</c> ile aynı kurallar (<c>Text</c> ordinal,
-    /// <c>FilePath</c> ordinal-ignore-case). Liste yeniden eskiye sıralandığı için ilk görülen
-    /// kayıt en yenisidir ve kazanır.</para>
-    /// <para><b>Yüklenen kayıtların Id'si <c>_nextId</c>'nin üstüne kaydırılır.</b> Önceki süreç
-    /// neslinin sayacı anlamsızdır (her açılışta 1'den başlar), ama aynı Id iki kayıtta durursa
-    /// <see cref="Remove"/>'un Id karşılaştırması ve <see cref="QueueDeleteOfDropped"/>'in üyelik
-    /// hesabı yanılır. Oturum kayıtlarının Id'si korunur: UI'da tutulan kayıt referansları
-    /// (seçili öğe, <c>Remove</c>/<c>PutBack</c> argümanı) geçerli kalsın.</para>
+    /// <para><b>Id cannot be the merge key.</b> Because every process starts at 1, session and
+    /// persistent entries carry the same Ids; <c>DistinctBy(e =&gt; e.Id)</c> kept the first one (the
+    /// session entry) and silently dropped the persistent one. Since the default persistence mode is
+    /// <c>session</c> (<c>AppConfig.Persistence</c>), this was the common path: measured — 10
+    /// persistent + 3 session entries → 10 entries; <c>kalici-1..3</c> were deleted from both the
+    /// list and <c>island.json</c> (<c>Commit</c> → <c>ScheduleSave</c> wrote the file back, leaving
+    /// 7/10 on disk).</para>
+    /// <para><b>Content instead of identity:</b> the <c>(Kind, Text, FilePath)</c> triple — the same
+    /// rules as <c>IslandPruner.IsSameContent</c> (<c>Text</c> ordinal, <c>FilePath</c>
+    /// ordinal-ignore-case). Because the list is sorted newest to oldest, the first entry seen is the
+    /// newest and wins.</para>
+    /// <para><b>Loaded entries' Ids are shifted above <c>_nextId</c>.</b> The counter from the previous
+    /// process generation is meaningless (it starts at 1 on every launch), but if the same Id sits on
+    /// two entries, <see cref="Remove"/>'s Id comparison and <see cref="QueueDeleteOfDropped"/>'s
+    /// membership check go wrong. Session entries keep their Ids: so that the entry references held by
+    /// the UI (selected item, <c>Remove</c>/<c>PutBack</c> argument) stay valid.</para>
     /// </remarks>
     private List<IslandEntry> MergeWithSession(IReadOnlyList<IslandEntry> loaded)
     {
@@ -274,7 +274,7 @@ internal sealed class IslandService : IDisposable
         return merged;
     }
 
-    /// <summary>UI thread'inde çağrılır.</summary>
+    /// <summary>Called on the UI thread.</summary>
     internal void ApplyConfig(IslandConfig config)
     {
         bool wasEnabled = Config.Enabled;
@@ -282,17 +282,16 @@ internal sealed class IslandService : IDisposable
         Config = config;
         if (Config.Enabled)
         {
-            // Yükleme, dinleyiciyi kurmadan ÖNCE. StartListening ile pano dinlemesi
-            // açılır açılmaz bir kopyalama gelebilir ve STA worker
-            // Interlocked.Increment(ref _nextId) çalıştırabilir; LoadPersisted'taki
-            // Math.Max yazmayı yutar ve aynı Id iki kayda düşer. Yükleme önce
-            // yapılınca pencere tamamen kapanır (id sayacı yalnız UI'da ilerler).
+            // Loading happens BEFORE setting up the listener. As soon as StartListening enables
+            // clipboard monitoring a copy can arrive and the STA worker can run
+            // Interlocked.Increment(ref _nextId); the Math.Max in LoadPersisted swallows that write
+            // and the same Id lands on two entries. Doing the load first closes the window
+            // completely (the id counter only advances on the UI thread).
             //
-            // Tetikleyici iki geçişi de kapsar:
-            //  - false -> true: kapalı başlatılan ada ayardan açıldı (round 2).
-            //  - session -> persistent: varsayılan mod oturumluk olduğu için bu yol
-            //    hiç yükleme yapmıyordu ve kayıtlı geçmiş ancak yeniden başlatmada
-            //    görünüyordu.
+            // The trigger covers both transitions:
+            //  - false -> true: an island started disabled was enabled from settings (round 2).
+            //  - session -> persistent: because the default mode is session-only, this path did no
+            //    loading at all and the persisted history only appeared after a restart.
             if ((!wasEnabled || (!wasPersistent && IsPersistent)) && !_persistedLoaded)
             {
                 LoadPersisted();
@@ -305,16 +304,16 @@ internal sealed class IslandService : IDisposable
             StopListening();
         }
 
-        // Sayisal ayarlar (MaxItems / RetentionDays) yalnizca bir sonraki yakalamada
-        // uygulanirdi: kullanici tavani 200'den 20'ye indirdiginde liste 200 gostermeye
-        // devam ederdi. Ayar degisimi budamayi da hemen uygulamali.
+        // Numeric settings (MaxItems / RetentionDays) used to apply only on the next capture: when
+        // the user lowered the ceiling from 200 to 20 the list kept showing 200. A settings change
+        // must apply pruning immediately too.
         IReadOnlyList<IslandEntry> pruned = IslandPruner.Prune(
             _entries, Config.MaxItems, DateTimeOffset.UtcNow, Config.RetentionDays, IsPersistent);
         if (pruned.Count != _entries.Count)
         {
-            // Yukleme yukarida, gecis tetiklemesiyle yapildi; burada tekrar yuklenmez
-            // (_persistedLoaded) ve Commit zaten RaiseChanged cagirdigi icin ikinci bir
-            // bildirim olurdu.
+            // Loading already happened above, triggered by the transition; it is not repeated here
+            // (_persistedLoaded) and Commit already calls RaiseChanged, so calling it again would be
+            // a second notification.
             Commit(pruned, added: null, raiseEntryAdded: false);
             return;
         }
@@ -345,7 +344,7 @@ internal sealed class IslandService : IDisposable
         _listener = null;
     }
 
-    /// <summary>UI thread'inde tetiklenir; okuma işini STA worker'a devreder.</summary>
+    /// <summary>Raised on the UI thread; hands the read work off to the STA worker.</summary>
     private void OnClipboardChanged(object? sender, EventArgs e)
     {
         Dispatcher? sta = _staDispatcher;
@@ -369,7 +368,7 @@ internal sealed class IslandService : IDisposable
             DispatcherPriority.Background);
     }
 
-    /// <summary>STA worker'da çalışır.</summary>
+    /// <summary>Runs on the STA worker.</summary>
     private void CaptureFromClipboard()
     {
         if (!TryReadWithRetry(out string? text, out bool optOut, out int byteCount))
@@ -400,7 +399,7 @@ internal sealed class IslandService : IDisposable
                 return true;
             }
 
-            // Opt-out işareti içerik boşluğu değildir: yeniden denemek kaydı engellemez.
+            // The opt-out flag is not the same as missing content: retrying would not capture it.
             if (optOut)
             {
                 return false;
@@ -412,8 +411,8 @@ internal sealed class IslandService : IDisposable
             }
         }
 
-        // Pano saniyede bir kez başka bir uygulama tarafından kilitli olabiliyor; bu bir
-        // kullanıcı hatası değil, bu yüzden üç denemeden sonra sessizce düşürülür.
+        // The clipboard can be locked by another application once a second; that is not a user error,
+        // so it is dropped silently after three attempts.
         text = null;
         optOut = false;
         byteCount = 0;
@@ -421,8 +420,8 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Yeni kaydı başa ekler. STA worker'dan da çağrılabilir; zaman çizelgesi hesabı UI
-    /// thread'inde yapılır (<see cref="_entries"/> yalnızca orada okunur).
+    /// Prepends the new entry. It can also be called from the STA worker; the timeline computation
+    /// is done on the UI thread (<see cref="_entries"/> is only read there).
     /// </summary>
     private void AddEntry(IslandEntry entry)
     {
@@ -449,28 +448,27 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// UI thread'inde çağrılır. Bırakılan dosya ya da <b>klasörü</b> <c>Drop</c> klasörüne
-    /// kopyalamaz; <see cref="IslandEntryKind.File"/> kaydının
-    /// <see cref="IslandEntry.FilePath"/>'i orijinal tam yoldur, <see cref="IslandEntry.Text"/>
-    /// dosya/klasör adıdır. Klasör kaydı ayrı bir tür açmaz: raf onu da aynı çip olarak
-    /// gösterir, açma <see cref="CanOpenShelfFile"/> kapısından Explorer'a gider. <c>Drop</c>
-    /// klasörü bu yüzden oluşturulmaz. Ne dosya ne klasör olan yollar
-    /// (<see cref="File.Exists"/> ve <see cref="Directory.Exists"/> ikisi de false) elenir.
-    /// Birden fazla dosya <see cref="MergeDroppedFiles"/> ile birleşir; "eklendi" bildirimi
-    /// yalnız son kayıt içindir.
+    /// Called on the UI thread. Does not copy the dropped file or <b>folder</b> into the <c>Drop</c>
+    /// folder; the <see cref="IslandEntry.FilePath"/> of an <see cref="IslandEntryKind.File"/> entry is
+    /// the original full path, and <see cref="IslandEntry.Text"/> is the file/folder name. A folder
+    /// entry does not open a separate kind: the shelf shows it as the same chip too, and opening goes
+    /// to Explorer through the <see cref="CanOpenShelfFile"/> gate. That is why the <c>Drop</c> folder
+    /// is not created. Paths that are neither a file nor a folder (<see cref="File.Exists"/> and
+    /// <see cref="Directory.Exists"/> both false) are filtered out. Multiple files are merged with
+    /// <see cref="MergeDroppedFiles"/>; the "added" notification is only for the last entry.
     /// </summary>
     /// <remarks>
-    /// Kopyalama kalkınca STA worker'a atlamak için bir dosya I/O'su kalmadı
-    /// (<c>File.Exists</c> metadata kontrolüdür). İş çağıranın thread'inde, yani UI
-    /// dispatcher'ında biter. UI dışında çağrılırsa kayıt listesi orada yazılmasın diye
-    /// iş UI'ya devredilir — zaman çizelgesi sözleşmesi değişmez; asenkron devirde gerçek
-    /// sayı çağırana dönemez, bu yüzden 0 döner.
+    /// Once the copy was removed there is no file I/O left to justify hopping to the STA worker
+    /// (<c>File.Exists</c> is a metadata check). The work finishes on the caller's thread, i.e. the UI
+    /// dispatcher. If it is called off the UI thread, the work is handed to the UI so the entry list
+    /// is not written there — the timeline contract does not change; in an async hand-off the real
+    /// count cannot come back to the caller, so it returns 0.
     /// </remarks>
     /// <returns>
-    /// Raf listesine <b>gerçekten</b> eklenen kayıt sayısı. Yol boyunca hiçbir kayıt
-    /// eklenmediyse (silinmiş/yeniden adlandırılmış yol, ne dosya ne klasör) 0 döner.
-    /// Bırakma geri bildirimi (HUD + yutma animasyonu) yükün dizelerine değil bu sayıya
-    /// kapılanmalıdır: sürükleme sırasında silinen bir yol "bırakıldı" sanılmamalı.
+    /// The number of entries <b>actually</b> added to the shelf list. Returns 0 if no entry was added
+    /// along the way (deleted/renamed path, neither a file nor a folder). The drop feedback (HUD +
+    /// swallow animation) must be gated on this count, not on the payload strings: a path deleted
+    /// during the drag must not be assumed to have been "dropped".
     /// </returns>
     internal int AddDroppedFiles(IReadOnlyList<string> sourcePaths)
     {
@@ -498,9 +496,9 @@ internal sealed class IslandService : IDisposable
         List<IslandEntry> added = [];
         foreach (string source in sourcePaths)
         {
-            // Klasör de raf hedefidir (B1): File.Exists klasörlerde false döner, bu yüzden
-            // iki kontrol birlikte "gerçek bir yol" kapısıdır. Ne dosya ne klasör olan yol
-            // (silinmiş, erişilemeyen) sessizce elenir — fail-closed.
+            // A folder is a shelf target too (B1): File.Exists returns false for folders, so the two
+            // checks together form the "real path" gate. A path that is neither a file nor a folder
+            // (deleted, inaccessible) is filtered out silently — fail-closed.
             if (string.IsNullOrWhiteSpace(source) || (!File.Exists(source) && !Directory.Exists(source)))
             {
                 continue;
@@ -542,11 +540,10 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Raf kaydının görünen adı: dosya ya da klasör adı. Sonunda ayırıcı taşıyan klasör yolu
-    /// (<c>C:\a\b\</c>) <see cref="Path.GetFileName(string)"/> ile boş döner; ad ayırıcı
-    /// kırpılarak okunur, yoksa klasör sessizce kaydedilmezdi. Kök yol da boş kalır.
-    /// <see cref="TryGetExistingShelfPath"/> bu adı <c>Drop</c> kopyasıyla eşleştirmek için
-    /// kullanır.
+    /// Display name of a shelf entry: the file or folder name. A folder path ending in a separator
+    /// (<c>C:\a\b\</c>) comes back empty from <see cref="Path.GetFileName(string)"/>; the name is read
+    /// with the separator trimmed, otherwise the folder would silently not be saved. A root path stays
+    /// empty too. <see cref="TryGetExistingShelfPath"/> uses this name to match the <c>Drop</c> copy.
     /// </summary>
     private static string GetShelfName(string full)
     {
@@ -556,7 +553,7 @@ internal sealed class IslandService : IDisposable
             : Path.GetFileName(full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     }
 
-    /// <summary>UI thread'inde çalışır.</summary>
+    /// <summary>Runs on the UI thread.</summary>
     private void MergeDroppedFiles(List<IslandEntry> added)
     {
         IReadOnlyList<IslandEntry> merged = _entries;
@@ -569,15 +566,15 @@ internal sealed class IslandService : IDisposable
             last = e;
         }
 
-        // Yalnızca sonuncusu "eklendi" sayılır: tek bildirim, tek nabız.
+        // Only the last one counts as "added": one notification, one pulse.
         ApplySnapshot(merged, last, raiseEntryAdded: true);
     }
 
-    /// <summary>UI thread'inde çağrılır. Metni panoya yazar (yapıştırma yapılmaz).</summary>
+    /// <summary>Called on the UI thread. Writes the text to the clipboard (no paste is performed).</summary>
     internal void PutBack(IslandEntry entry)
     {
-        // Kapalı bir island'da geri koymak kullanıcının istemediği bir pano değişikliğidir:
-        // pano, görünmeyen bir listeden gelen istekle sessizce değişmiş olur.
+        // Putting back while the island is disabled is a clipboard change the user did not ask for:
+        // the clipboard would silently change on a request from an invisible list.
         if (entry.Kind == IslandEntryKind.File || !Config.Enabled)
         {
             return;
@@ -608,29 +605,29 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// UI thread'inde çağrılır. Metni panoya yazar (yapıştırma yapılmaz) — renk seçicinin
-    /// HEX/RGB kopyalaması için <see cref="PutBack"/>'in yazarının bağımsız girişi
-    /// (denetim kararı: PutBack'in STA yazma bloğu refaktör edilmez, yazar ikiz kalır).
+    /// Called on the UI thread. Writes the text to the clipboard (no paste is performed) — the color
+    /// picker's HEX/RGB copy uses this independent entry point alongside <see cref="PutBack"/>'s writer
+    /// (review decision: PutBack's STA write block is not refactored, the writer stays duplicated).
     /// </summary>
     /// <remarks>
-    /// <para><b>Kapı:</b> island kapalı, metin boş ya da servis atılmışsa yazma hiç
-    /// denenmez ve <paramref name="completed"/>'a <c>false</c> bildirilir — PutBack'in
-    /// "görünmeyen bir listeden gelen istekle pano sessizce değiştirilmez" ilkesinin
-    /// kardeşi: seçici sadece açılmış bir adadan gelir, kapalıyken gelen tıklama bayat
-    /// bir yoldur ve pano sessiz durur.</para>
-    /// <para><b>Sonuç bildirimi:</b> yazma STA worker'da biter; <paramref name="completed"/>
-    /// UI thread'inden çağrılır (<see cref="RaiseChanged"/>'in UI'ya atlama kalıbı).
-    /// UI dispatcher kapanmışsa bildirim sessizce düşürülür.</para>
-    /// <para><b>Kendi yazımın geri yakalanması:</b> <see cref="ClipboardNative.TryWriteText"/>
-    /// yazdığı kaydı <c>CanIncludeInClipboardHistory = 0</c> bloğuyla opt-out işaretler,
-    /// yani kendi dinleyicimiz (<c>AddClipboardFormatListener</c>) bu yazımı yeniden
-    /// kaydetmez. Bir şekilde yakalanırsa yakalama zaten <see
-    /// cref="CaptureFromClipboard"/> → <see cref="AddEntry"/> yolunu (kayıt-ekleme kodu)
-    /// kullanır — bu metot kaydı elle eklemez, sadece yazar.</para>
+    /// <para><b>Gate:</b> if the island is disabled, the text is empty, or the service has been
+    /// disposed, the write is never attempted and <c>false</c> is reported to <paramref name="completed"/> —
+    /// the sibling of PutBack's "do not silently change the clipboard on a request from an invisible
+    /// list" principle: the picker only comes from an island that was opened, and a click that arrives
+    /// while it is disabled is a stale path, so the clipboard stays put.</para>
+    /// <para><b>Result reporting:</b> the write finishes on the STA worker; <paramref name="completed"/>
+    /// is invoked from the UI thread (the pattern <see cref="RaiseChanged"/> uses to marshal to the UI).
+    /// If the UI dispatcher has shut down, the notification is dropped silently.</para>
+    /// <para><b>Recapturing our own write:</b> <see cref="ClipboardNative.TryWriteText"/>
+    /// marks the entry it writes as opt-out with a <c>CanIncludeInClipboardHistory = 0</c> block,
+    /// so our own listener (<c>AddClipboardFormatListener</c>) does not record this write again.
+    /// If it somehow is captured, the capture already uses <see
+    /// cref="CaptureFromClipboard"/> → <see cref="AddEntry"/> (the entry-adding code)
+    /// — this method never adds the entry by hand, it only writes.</para>
     /// </remarks>
     internal void PutOnClipboard(string text, Action<bool>? completed = null)
     {
-        // TryWriteText'in boş-metin kuralıyla aynı kapı: boş metin yazılamaz.
+        // The same gate as TryWriteText's empty-text rule: empty text cannot be written.
         if (string.IsNullOrEmpty(text) || !Config.Enabled)
         {
             ReportWriteResult(completed, success: false);
@@ -667,9 +664,9 @@ internal sealed class IslandService : IDisposable
             DispatcherPriority.Background);
     }
 
-    /// <summary>Yazma sonucunu <paramref name="completed"/>'a UI thread'inde bildirir.
-    /// Kapı yolları bunu çağıranın thread'inde (UI) senkron çağırır; STA yolu result'ı
-    /// UI'ya atlar. UI dispatcher kapanmışsa bildirim sessizce düşürülür.</summary>
+    /// <summary>Reports the write result to <paramref name="completed"/> on the UI thread.
+    /// The gate paths call it synchronously on the caller's thread (UI); the STA path marshals the
+    /// result to the UI. If the UI dispatcher has shut down, the notification is dropped silently.</summary>
     private void ReportWriteResult(Action<bool>? completed, bool success)
     {
         if (completed is null)
@@ -688,63 +685,66 @@ internal sealed class IslandService : IDisposable
                 DispatcherPriority.Background);
         }
 
-        // UI yok (dispose / shutdown yarışı): bildirim sessizce düşer — CanPostToUi'in
-        // gerekçesiyle aynı.
+        // No UI (dispose / shutdown race): the notification is dropped silently — the same reasoning
+        // as CanPostToUi.
     }
 
-    /// <summary>UI thread'inde çağrılır.</summary>
+    /// <summary>Called on the UI thread.</summary>
     internal void Remove(IslandEntry entry)
     {
         IReadOnlyList<IslandEntry> next = _entries.Where(e => e.Id != entry.Id).ToList();
 
-        // added: null — kaldırılan kayıt "eklendi" değildir, raiseEntryAdded da false.
+        // added: null — a removed entry is not "added", and raiseEntryAdded is false too.
         ApplySnapshot(next, null, raiseEntryAdded: false);
     }
 
     /// <summary>
-    /// UI thread'inde çağrılır. Tüm kayıtları listeden düşürür ama dosyaları silmez:
-    /// rafın orijinal yolu da, <c>Drop</c> altındaki eski kopya da diskte kalır.
-    /// Ayarlarda "Bırakılan dosyaları sil" ile "Tüm geçmişi temizle" iki ayrı butondur
-    /// ve <c>Drop</c> altındaki kopyaları yalnız ilki siler. Önceki davranışta
-    /// "geçmişi temizle" diyen kullanıcı dosya kopyalarını haberi olmadan kaybediyordu
-    /// ve iki buton gereksiz bir tekrar oluyordu. Kopyaların diskte kalması geri
-    /// alınamaz veri kaybı değildir; <see cref="DeleteDroppedFiles"/> onları temizler.
-    /// <c>Drop</c> dışındaki bir raf dosyası bu eylemle de silinmez.
+    /// Called on the UI thread. Drops all entries from the list but does not delete the files:
+    /// both the shelf's original path and the old copy under <c>Drop</c> stay on disk.
+    /// In settings "Delete dropped files" and "Clear all history" are two separate buttons, and only
+    /// the first deletes the copies under <c>Drop</c>. In the previous behavior a user who chose
+    /// "clear history" lost the file copies without knowing, and the two buttons were a pointless
+    /// duplicate. Leaving the copies on disk is not irreversible data loss;
+    /// <see cref="DeleteDroppedFiles"/> cleans them up. A shelf file outside <c>Drop</c> is not
+    /// deleted by this action either.
     /// </summary>
     internal void Clear() =>
         ApplySnapshot([], null, raiseEntryAdded: false, deleteDroppedFiles: false);
 
     /// <summary>
-    /// UI thread'inde çağrılır. <c>Drop</c> klasörünü <b>tümüyle</b> boşaltır (alt klasörler
-    /// dâhil) ve dosya kayıtlarını listeden düşürür; panoya dokunmaz. Raf kaydı
-    /// <c>Drop</c> dışındaysa yalnız listeden çıkar — orijinal dosya silinmez.
+    /// Called on the UI thread. Empties the <c>Drop</c> folder <b>completely</b> (including
+    /// subfolders) and drops the file entries from the list; it does not touch the clipboard.
+    /// If a shelf entry is outside <c>Drop</c> it is only removed from the list — the original file
+    /// is not deleted.
     /// </summary>
     /// <remarks>
-    /// <para><b>Klasör taranır, <c>_entries</c> taranmaz.</b> <see cref="Clear"/> dosya
-    /// kopyalarını silmez (R30); "Tüm geçmişi temizle"ye önce basıldığında kayıtlar düşer ve
-    /// liste boşalır — yalnız listeye bakan bir temizlik o andan sonra hiçbir şey silmeden
-    /// çıkar, yani ayar sayfasındaki buton sessizce işlevsiz kalır. Aynı sebeple tek listeden
-    /// hesaplanamayan yetimler de (MaxItems/retention budamasıyla düşenler dâhil) kapsanır;
-    /// kayıt–dosya eşleşmesi kurmaya gerek kalmaz. Tarama <c>Drop</c> kökünün dışına çıkmaz:
-    /// rafın orijinal yolu bu klasörde değilse dosya durur.</para>
-    /// <para>Silme STA worker'da olur (sınıf kuralı: dosya I/O'su UI thread'inde olmaz);
-    /// kayıtların listeden düşürülmesi ise <c>_entries</c> UI-only olduğu için çağıranın
-    /// thread'inde olur. Sıralama önemsiz: kaydın düşürülmesi kopyanın silinmesinden bağımsız,
-    /// ikisi de aynı kullanıcı eyleminin parçası.</para>
+    /// <para><b>The folder is scanned, <c>_entries</c> is not.</b> <see cref="Clear"/> does not delete
+    /// the file copies (R30); when "Clear all history" is pressed first, the entries are dropped and
+    /// the list empties — a cleanup that only looks at the list would then exit without deleting
+    /// anything, i.e. the button on the settings page would silently do nothing. For the same reason
+    /// orphans that cannot be computed from a single list (including those dropped by
+    /// MaxItems/retention pruning) are covered; there is no need to pair entries with files. The scan
+    /// never leaves the <c>Drop</c> root: if the shelf's original path is not in this folder, the file
+    /// stays.</para>
+    /// <para>The delete happens on the STA worker (class rule: file I/O never runs on the UI thread);
+    /// dropping the entries from the list happens on the caller's thread because <c>_entries</c> is
+    /// UI-only. The order does not matter: dropping the entry is independent of deleting the copy, and
+    /// both are part of the same user action.</para>
     /// </remarks>
     internal void DeleteDroppedFiles()
     {
-        // Kayıtlar burada düşürülür: kopya silindikten sonra listede kalan bir dosya kaydı
-        // var olmayan bir dosyayı gösterirdi. Dosya silme aşağıda STA'da.
+        // Entries are dropped here: a file entry left in the list after its copy was deleted would
+        // point at a nonexistent file. The file deletion happens below, on the STA thread.
         IReadOnlyList<IslandEntry> next = _entries.Where(e => e.Kind != IslandEntryKind.File).ToList();
         if (next.Count != _entries.Count)
         {
-            // deleteDroppedFiles: false — Commit'in "listeden düşen kayıtın kopyasını sil"
-            // yolu burada yanlış ve gereksiz: aynı dosyaları ikinci kez kuyruğa atardı.
+            // deleteDroppedFiles: false — Commit's "delete the copy of an entry dropped from the list"
+            // path is wrong and unnecessary here: it would queue the same files a second time.
             ApplySnapshot(next, null, raiseEntryAdded: false, deleteDroppedFiles: false);
         }
 
-        // Kayıt yoksa da klasör taranır: "Tüm geçmişi temizle" sonrası asıl durum budur.
+        // The folder is scanned even when there are no entries: that is the actual state after
+        // "Clear all history".
         Dispatcher? sta = _staDispatcher;
         if (sta is null || _disposed)
         {
@@ -755,8 +755,8 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <c>Drop</c> klasörünü tarayarak boşaltır (STA worker). Klasör yoksa sessizce çıkar —
-    /// hiç dosya bırakılmamış olmak normal durumdur.
+    /// Empties the <c>Drop</c> folder by scanning it (STA worker). If the folder does not exist it
+    /// exits silently — having never dropped a file is the normal case.
     /// </summary>
     private void DeleteDropFolderContents()
     {
@@ -773,14 +773,13 @@ internal sealed class IslandService : IDisposable
         int deleted = 0;
         try
         {
-            // ReparsePoint işaretli dizinlere (junction / sembolik bağ) GİRİLMEZ.
-            // Path.GetFullPath reparse noktalarını çözmediği için Drop içine yerleştirilmiş
-            // bir junction, taramayı Drop DIŞINA çıkarıyor (ölçüldü: …\Drop\baglanti\
-            // tehlikeli.docx listeleniyordu) ve TryDeleteDropCopy'nin ön ek kontrolü o yolu
-            // "Drop altında" sayıyor — yani Drop dışındaki dosya sessizce siliniyordu.
-            // Uygulama Drop'a düz dosya yazdığı için burada yalnız kullanıcının koyduğu
-            // bağ vardır; Hidden/System atlanması önceki SearchOption aşırı yüklemesiyle
-            // aynı davranışı korur.
+            // Directories marked ReparsePoint (junction / symbolic link) are NOT entered.
+            // Because Path.GetFullPath does not resolve reparse points, a junction placed inside Drop
+            // took the scan OUTSIDE Drop (measured: …\Drop\baglanti\
+            // tehlikeli.docx was being listed) and TryDeleteDropCopy's prefix check counted that path
+            // as "under Drop" — i.e. a file outside Drop was silently deleted.
+            // Since the app writes plain files into Drop, the only link here is one the user placed;
+            // skipping Hidden/System keeps the same behavior as the previous SearchOption overload.
             var options = new EnumerationOptions
             {
                 RecurseSubdirectories = true,
@@ -790,10 +789,10 @@ internal sealed class IslandService : IDisposable
                 AttributesToSkip = FileAttributes.Hidden | FileAttributes.System | FileAttributes.ReparsePoint,
             };
 
-            // Bırakma kopyaları DÜZ yazılır (Drop\<ad>, ad çakışmasında " (2)"), tarih-saat
-            // alt klasörü yok. Enumeratörün verdiği yollar zaten Drop altındadır ama aynı guard
-            // yine de uygulanır: tek doğrulama noktası (TryDeleteDropCopy) iki yol için de
-            // geçerli.
+            // Drop copies are written FLAT (Drop\<name>, " (2)" on a name collision); there is no
+            // date-time subfolder. The paths from the enumerator are already under Drop, but the same
+            // guard is applied anyway: the single validation point (TryDeleteDropCopy) holds for
+            // both paths.
             foreach (string path in Directory.EnumerateFiles(root, "*", options))
             {
                 if (TryDeleteDropCopy(path, prefix))
@@ -804,7 +803,7 @@ internal sealed class IslandService : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Sayım yarıda kalabilir; o da görünmez olmamalı.
+            // The count may be left half-done; that should not be invisible either.
             Debug.WriteLine($"[WharfBar] island drop scan failed: {ex.Message}");
         }
 
@@ -812,11 +811,12 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Verilen kayıtların <c>Drop</c> altındaki eski kopyalarını siler. Raf kaydının yolu
-    /// <c>Drop</c> dışındaysa dosyaya dokunulmaz; kayıt zaten listeden düşmüştür. Eski kopya
-    /// listeden çıktığı anda silinmezse <c>%AppData%\WharfBar\Drop</c> kalıcı olarak büyür:
-    /// <c>MaxItems</c> 200 iken 300 dosya bırakılan kullanıcıda 100 kopya geride kalır. Bu yol
-    /// yalnızca kayıt yoluyla ilgili — <see cref="DeleteDroppedFiles"/> klasörün tamamını tarar.
+    /// Deletes the old copies under <c>Drop</c> for the given entries. If the shelf entry's path is
+    /// outside <c>Drop</c> the file is left alone; the entry has already been dropped from the list.
+    /// If the old copy is not deleted the moment the entry leaves the list,
+    /// <c>%AppData%\WharfBar\Drop</c> grows permanently: a user with <c>MaxItems</c> at 200 who
+    /// dropped 300 files keeps 100 copies behind. This path only concerns the entry path —
+    /// <see cref="DeleteDroppedFiles"/> scans the whole folder.
     /// </summary>
     private void DeleteFilesOf(IEnumerable<IslandEntry> dropped)
     {
@@ -837,8 +837,9 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <c>Drop</c> klasörünü verir: tam yol (arama tabanı) ve altındaki yollarla karşılaştırma
-    /// için ayırıcı eklenmiş ön ek. Klasörün <b>kendisi</b> "Drop altında" sayılmaz.
+    /// Yields the <c>Drop</c> folder: the full path (search base) and, for comparing against paths
+    /// underneath, the prefix with a separator appended. The folder <b>itself</b> does not count as
+    /// "under Drop".
     /// </summary>
     private bool TryGetDropRoot(out string root, out string prefix)
     {
@@ -859,11 +860,12 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Bir kayıt yolunun <c>Drop</c> kökü altında olduğunu doğrular ve tam yolünü verir.
-    /// <b>Silme sınırı</b>: kayıt <c>FilePath</c>'i diskin kendisinden geldiği için güvenilmezdir
-    /// (<c>island.json</c> elle düzenlenebilir, <c>IslandStore.TryReadEntry</c> DropRoot kontrolü
-    /// yapmaz). Sınırın olmaması Drop dışındaki bir dosyayı geri dönüşsüz siler. Açma bu ön eki
-    /// kullanmaz — raf orijinal yolu tutar; açma kapısı <see cref="CanOpenShelfFile"/>'dır.
+    /// Verifies that an entry path is under the <c>Drop</c> root and returns its full path.
+    /// <b>Delete boundary</b>: an entry's <c>FilePath</c> is untrustworthy because it came from the
+    /// disk itself (<c>island.json</c> can be hand-edited and <c>IslandStore.TryReadEntry</c> performs
+    /// no DropRoot check). Without the boundary, a file outside Drop would be deleted irreversibly.
+    /// Opening does not use this prefix — the shelf keeps the original path; the open gate is
+    /// <see cref="CanOpenShelfFile"/>.
     /// </summary>
     internal bool TryResolveInsideDrop(string? path, out string full)
     {
@@ -877,29 +879,29 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Kayıt yolu <c>Drop</c> altında mı? Silme yolunun sınırı
-    /// (<see cref="TryResolveInsideDrop"/>). Açma için <see cref="CanOpenShelfFile"/>.
+    /// Is the entry path under <c>Drop</c>? The delete path's boundary
+    /// (<see cref="TryResolveInsideDrop"/>). For opening, use <see cref="CanOpenShelfFile"/>.
     /// </summary>
     internal bool IsInsideDropRoot(string? path) => TryResolveInsideDrop(path, out _);
 
     /// <summary>
-    /// Raf kaydının <b>bugün var olan</b> yolunu çözer: önce kaydın kendi yolu (dosya ya da
-    /// klasör), o yoksa <c>Drop</c> kökündeki <b>aynı adlı</b> kopya. Eski kayıtlar kopyayı
-    /// <c>Drop</c> altında tutuyordu; kopyalama kaldırıldıktan sonra orijinali silinen bir
-    /// kaydın açılabilir tek hedefi bu kopyadır. Eşleşme silme yoluyla aynı sınırdadır
-    /// (<see cref="TryResolveInsideDrop"/>: <c>Drop</c> ön eki), yani <c>Drop</c> dışına
-    /// çıkan bir çözümleme yoktur. Kayıt değiştirilmez; bu yalnız bir okumadır.
+    /// Resolves the <b>currently existing</b> path of a shelf entry: first the entry's own path (file
+    /// or folder), and if that is gone, the copy with the <b>same name</b> under the <c>Drop</c> root.
+    /// Older entries kept their copy under <c>Drop</c>; after the copy step was removed, this copy is
+    /// the only openable target for an entry whose original was deleted. Matching is bounded the same
+    /// way as the delete path (<see cref="TryResolveInsideDrop"/>: the <c>Drop</c> prefix), so no
+    /// resolution escapes <c>Drop</c>. The entry is not modified; this is a read only.
     /// </summary>
     /// <param name="existing">
-    /// Çözülen tam yol; çözümleme yoksa boş dize.
+    /// The resolved full path; an empty string if nothing was resolved.
     /// </param>
-    /// <returns>Var olan bir yol çözüldüyse <c>true</c>; aksi hâlde <c>false</c> (fail-closed).</returns>
+    /// <returns><c>true</c> if an existing path was resolved; otherwise <c>false</c> (fail-closed).</returns>
     /// <remarks>
-    /// Dönen yol yalnızca "diskte bir şey var" demektir; kayıt yolu <c>island.json</c>'dan
-    /// geldiği için <b>güvenilmezdir</b>. Açma, gösterme ve kopyalama çağıranı sonucu
-    /// <see cref="CanOpenShelfFile"/> kapısından <b>yeniden geçirmek zorundadır</b>: aygıt
-    /// yolu, reparse noktalı klasör ve kaçış bileşeni orada elenir. Bu metot tek başına
-    /// işlem başlatmaz.
+    /// The returned path only means "something exists on disk"; the entry path came from
+    /// <c>island.json</c>, so it is <b>untrustworthy</b>. The open, reveal, and copy callers
+    /// <b>must pass the result through the <see cref="CanOpenShelfFile"/> gate again</b>: device
+    /// paths, reparse-point folders, and traversal components are filtered out there. This method
+    /// never starts an operation on its own.
     /// </remarks>
     internal bool TryGetExistingShelfPath(string? filePath, out string existing)
     {
@@ -915,8 +917,9 @@ internal sealed class IslandService : IDisposable
             return true;
         }
 
-        // Fallback: kopya DÜZ yazılır (<c>Drop\&lt;ad&gt;</c>), yani ad Drop kökünde aranır.
-        // Ad tek bileşendir; yine de birleşik yol tek doğrulama noktasından geçirilir.
+        // Fallback: the copy is written FLAT (<c>Drop\&lt;name&gt;</c>), so the name is looked up in
+        // the Drop root. The name is a single component; even so, the combined path goes through the
+        // single validation point.
         string fileName = GetShelfName(full);
         if (fileName.Length == 0 || !TryResolveInsideDrop(Path.Combine(_store.DropRoot, fileName), out string copy))
         {
@@ -933,11 +936,11 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Raf kaydı varsayılan uygulamayla açılabilir mi? <c>island.json</c> güvenilmezdir;
-    /// açmaya yalnız bu kapı izin verir. <c>Drop</c> öneki aranmaz. Yol mevcut bir dosya ya da
-    /// <b>klasör</b> olmalıdır: <see langword="null"/>, boş, olmayan yol, aygıt yolu, reparse
-    /// noktalı klasör (junction / sembolik bağ) ve dizin reparse kaçışı reddedilir. Hiçbir şey
-    /// çalıştırılmaz.
+    /// Can the shelf entry be opened with its default application? <c>island.json</c> is untrustworthy;
+    /// only this gate allows opening. The <c>Drop</c> prefix is not required. The path must be an
+    /// existing file or <b>folder</b>: <see langword="null"/>, an empty or nonexistent path, a device
+    /// path, a reparse-point folder (junction / symbolic link), and directory reparse escapes are
+    /// rejected. Nothing is executed.
     /// </summary>
     internal bool CanOpenShelfFile(string? path)
     {
@@ -948,19 +951,20 @@ internal sealed class IslandService : IDisposable
 
         try
         {
-            // Klasör de açma hedefidir (B1): Process.Start(UseShellExecute) klasörde Explorer'ı
-            // açar. File.Exists klasörlerde false döndüğü için iki kontrol birlikte "var olan
-            // yol" demektir; hiçbiri yoksa fail-closed.
+            // A folder is an open target too (B1): Process.Start(UseShellExecute) opens Explorer for
+            // a folder. Because File.Exists returns false for folders, the two checks together mean
+            // "existing path"; if neither holds, fail-closed.
             bool isDirectory = Directory.Exists(full);
             if (!isDirectory && !File.Exists(full))
             {
                 return false;
             }
 
-            // Klasörün KENDİSİ reparse noktasıysa reddedilir: açma bağı izler, yani Drop içine
-            // konan bir junction Drop dışındaki klasörü açtırırdı. Dosyada bu kontrol yok —
-            // bulut yer tutucusu da reparse noktasıdır ve açılması gerekir (macOS/OneDrive);
-            // dosya yolundaki dizin bileşenlerini zaten AllDirectoryComponentsAreReal süzüyor.
+            // If the folder ITSELF is a reparse point it is rejected: opening follows the link, so a
+            // junction placed inside Drop would open a folder outside Drop. Files do not get this
+            // check — a cloud placeholder is a reparse point too and must open (macOS/OneDrive); the
+            // directory components in the file path are already filtered by
+            // AllDirectoryComponentsAreReal.
             if (isDirectory && (File.GetAttributes(full) & FileAttributes.ReparsePoint) != 0)
             {
                 Debug.WriteLine($"[WharfBar] island open skipped, reparse-point folder: {full}");
@@ -978,10 +982,10 @@ internal sealed class IslandService : IDisposable
             return false;
         }
 
-        // Silme guard'ıyla aynı sınıf: yol üzerindeki her dizin bileşeni gerçek olmalı.
-        // Dosyanın/klasörün kendisi bileşen sayılmaz (klasör için kendi reparse kontrolü
-        // yukarıda; dosyada bulut yer tutucusu reparse noktası olabilir). Drop öneki yok —
-        // kök, sürücü veya UNC paylaşımıdır.
+        // Same class as the delete guard: every directory component on the path must be real.
+        // The file/folder itself does not count as a component (a folder has its own reparse check
+        // above; for a file, a cloud placeholder may be a reparse point). There is no Drop prefix —
+        // the root is a drive or a UNC share.
         if (!AllDirectoryComponentsAreReal(volumePrefix, full, out string? reparseDir))
         {
             Debug.WriteLine(
@@ -994,12 +998,12 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Raf kaydını varsayılan uygulamasıyla açar. Kapı <see cref="CanOpenShelfFile"/>'dır:
-    /// açmadan önce yine girdi doğrulaması yapılır. Dosya silinmez; klasör kaydında
-    /// <c>UseShellExecute</c> Explorer'ı açar.
+    /// Opens the shelf entry with its default application. The gate is <see cref="CanOpenShelfFile"/>:
+    /// input validation runs once more before opening. The file is not deleted; for a folder entry
+    /// <c>UseShellExecute</c> opens Explorer.
     /// </summary>
-    /// <returns>Kapıyı geçtiyse ve başlatma denediyse <c>true</c>; kapı reddeyse ya da varsayılan
-    /// uygulama bulunamadıysa <c>false</c> (kayıt listede kalır).</returns>
+    /// <returns><c>true</c> if it passed the gate and a launch was attempted; <c>false</c> if the gate
+    /// rejected it or no default application was found (the entry stays in the list).</returns>
     internal bool OpenShelfFile(string path)
     {
         if (!CanOpenShelfFile(path))
@@ -1014,15 +1018,16 @@ internal sealed class IslandService : IDisposable
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
-            // Bozuk kısayol, erişim yok, varsayılan uygulama yok.
+            // Broken shortcut, no access, no default application.
             Debug.WriteLine($"[WharfBar] island open failed: {ex.Message}");
             return false;
         }
     }
 
     /// <summary>
-    /// Açılacak yolu tam yola çevirir. Aygıt ad alanı (<c>\\.\</c>, <c>\\?\</c> çözülmeden
-    /// kalanlar) ve ayrılmış DOS aygıt adları (<c>NUL</c>, <c>CON</c>, <c>COM1</c> …) reddedilir.
+    /// Converts the path to be opened into a full path. The device namespace (<c>\\.\</c>,
+    /// <c>\\?\</c> that stays unresolved) and reserved DOS device names (<c>NUL</c>, <c>CON</c>,
+    /// <c>COM1</c> …) are rejected.
     /// </summary>
     private static bool TryNormalizeOpenablePath(string? path, out string full)
     {
@@ -1042,8 +1047,8 @@ internal sealed class IslandService : IDisposable
             return false;
         }
 
-        // \\.\ aygıt ad alanıdır (NUL, PhysicalDrive). \\?\ geniş yol öneki GetFullPath
-        // ile normal bir dosyaya çözülebilir; çözülmeden kalırsa aşağıdaki kontrol reddeder.
+        // \\.\ is the device namespace (NUL, PhysicalDrive). The \\?\ long-path prefix can be
+        // resolved to a normal file by GetFullPath; if it stays unresolved, the check below rejects it.
         if (IsWin32DeviceNamespace(path) || IsWin32DevicePath(full) || ContainsReservedDeviceName(full))
         {
             Debug.WriteLine($"[WharfBar] island open skipped, device path: {path}");
@@ -1055,17 +1060,17 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Explorer'ın "dosya konumunu göster" çağrısı için <see cref="ProcessStartInfo.ArgumentList"/>'e
-    /// eklenecek argümanları üretir: tek öğe, <c>/select,&lt;tam yol&gt;</c>. Yol <b>tırnaklanmaz</b>;
-    /// tırnaklama ve kaçış <see cref="ProcessStartInfo.ArgumentList"/>'e bırakılır çünkü eski
-    /// <c>Arguments = $"/select,\"{path}\""</c> biçiminde sondaki ayırıcı (<c>C:\klasör\</c>)
-    /// kapanış tırnağını kaçırıyordu ve Explorer varsayılan klasörü açıyordu.
+    /// Produces the arguments to add to <see cref="ProcessStartInfo.ArgumentList"/> for Explorer's
+    /// "show file location": a single element, <c>/select,&lt;full path&gt;</c>. The path is <b>not
+    /// quoted</b>; quoting and escaping are left to <see cref="ProcessStartInfo.ArgumentList"/>
+    /// because the old <c>Arguments = $"/select,\"{path}\""</c> form let a trailing separator
+    /// (<c>C:\folder\</c>) escape the closing quote and Explorer opened the default folder.
     /// </summary>
     /// <remarks>
-    /// Sondaki ayırıcı, kök yol (<c>C:\</c>, <c>\\sunucu\paylaşım\</c>) hariç kırpılır: kök
-    /// ayırıcısız geçersiz bir yola (<c>C:</c>) dönerdi. <c>/select,</c> önekiyle birleşik tek
-    /// öğe olması, yolun boşluk içermesi hâlinde dahi <see cref="ProcessStartInfo.ArgumentList"/>'in
-    /// tüm öğeyi doğru tırnaklamasını sağlar.
+    /// The trailing separator is trimmed except for a root path (<c>C:\</c>, <c>\\server\share\</c>):
+    /// a root without its separator would turn into an invalid path (<c>C:</c>). Being a single element
+    /// combined with the <c>/select,</c> prefix lets <see cref="ProcessStartInfo.ArgumentList"/> quote
+    /// the whole element correctly even when the path contains spaces.
     /// </remarks>
     internal static string[] BuildRevealArguments(string path)
     {
@@ -1086,8 +1091,8 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <see cref="AllDirectoryComponentsAreReal"/> için ayırıcı eklenmiş birim kökü.
-    /// <c>C:\</c> veya <c>\\sunucu\paylaşım\</c>. Aygıt kökü kabul edilmez.
+    /// Volume root with a trailing separator, for <see cref="AllDirectoryComponentsAreReal"/>.
+    /// <c>C:\</c> or <c>\\server\share\</c>. A device root is not accepted.
     /// </summary>
     private static bool TryGetVolumePrefix(string full, out string prefix)
     {
@@ -1104,7 +1109,7 @@ internal sealed class IslandService : IDisposable
         return true;
     }
 
-    /// <summary><c>\\.\</c> aygıt ad alanı. Geniş yol öneki <c>\\?\</c> buna girmez.</summary>
+    /// <summary>The <c>\\.\</c> device namespace. The <c>\\?\</c> long-path prefix is not part of it.</summary>
     private static bool IsWin32DeviceNamespace(string path) =>
         path.StartsWith(@"\\.\", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("//./", StringComparison.Ordinal);
@@ -1115,8 +1120,8 @@ internal sealed class IslandService : IDisposable
         || path.StartsWith("//?/", StringComparison.Ordinal);
 
     /// <summary>
-    /// Yol parçalarından biri ayrılmış DOS aygıt adı mı (<c>NUL</c>, <c>CON</c>, <c>COM1</c>–<c>COM9</c>,
-    /// <c>LPT1</c>–<c>LPT9</c>, uzantılı biçimler dahil)?
+    /// Is one of the path segments a reserved DOS device name (<c>NUL</c>, <c>CON</c>,
+    /// <c>COM1</c>–<c>COM9</c>, <c>LPT1</c>–<c>LPT9</c>, including forms with an extension)?
     /// </summary>
     private static bool ContainsReservedDeviceName(string path)
     {
@@ -1174,12 +1179,12 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Yalnız sınır kontrolü: servis/mağaza olmadan test edilebilir saf kısım.
+    /// Boundary check only: the pure part, testable without the service or the store.
     /// </summary>
     /// <param name="rootPrefix">
-    /// <see cref="TryGetDropRoot"/>'in ürettiği ayırıcı eklenmiş ön ek. Ayırıcının eklenmiş
-    /// olması şart: "…\Drop" ile "…\DropYedek" kardeş klasörler, ayırıcısız ön ek
-    /// kontrolünde ikisi de "Drop" altında sayılırdı.
+    /// The separator-appended prefix produced by <see cref="TryGetDropRoot"/>. Including the separator
+    /// is mandatory: the sibling folders "…\Drop" and "…\DropYedek" would both count as under "Drop"
+    /// in a prefix check without the separator.
     /// </param>
     internal static bool IsInsideDropPrefix(string? path, string rootPrefix, out string full)
     {
@@ -1211,14 +1216,14 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Tek bir bırakma kopyasını siler. Yalnızca <c>%AppData%\WharfBar\Drop</c> altındaki
-    /// yollar silinir; dışarıdaki bir yol loglanıp atlanır. Kayıt <c>FilePath</c>'i diskin
-    /// kendisinden geldiği için güvenilir değildir (<c>island.json</c> elle düzenlenebilir):
-    /// <c>IslandStore.TryReadEntry</c> DropRoot kontrolü yapmaz, yani
-    /// <c>{"kind":"File","filePath":"C:\\…\\Documents\\tehlikeli.docx"}</c> girdisi onaysız ve
-    /// geri alınamaz biçimde silinirdi.
+    /// Deletes a single drop copy. Only paths under <c>%AppData%\WharfBar\Drop</c> are deleted; a path
+    /// outside is logged and skipped. The entry's <c>FilePath</c> is not trustworthy because it came
+    /// from the disk itself (<c>island.json</c> can be hand-edited): <c>IslandStore.TryReadEntry</c>
+    /// performs no DropRoot check, so an entry like
+    /// <c>{"kind":"File","filePath":"C:\\…\\Documents\\dangerous.docx"}</c> would be deleted without
+    /// confirmation and irreversibly.
     /// </summary>
-    /// <returns>Dosya gerçekten silindiyse <c>true</c>.</returns>
+    /// <returns><c>true</c> if the file was actually deleted.</returns>
     private static bool TryDeleteDropCopy(string path, string rootPrefix)
     {
         if (!IsInsideDropPrefix(path, rootPrefix, out string full))
@@ -1226,11 +1231,11 @@ internal sealed class IslandService : IDisposable
             return false;
         }
 
-        // Ön ek kontrolü yeterli DEĞİL: Drop içine kullanıcının koyduğu bir junction
-        // (…\Drop\baglanti\ → C:\Users\…\Documents) ön ek testini geçer, ama File.Delete
-        // junction'ı izler ve Drop DIŞINDAKİ dosyayı siler. Tarama yolu bunu zaten
-        // ReparsePoint'i atlayarak engelliyor (DeleteDropFolderContents); kayıt yolu da aynı
-        // güvenceyi almalı, yoksa iki yol aynı girdi için farklı güvenlik sınırı uygular.
+        // The prefix check alone is NOT enough: a junction the user placed inside Drop
+        // (…\Drop\baglanti\ → C:\Users\…\Documents) passes the prefix test, but File.Delete follows the
+        // junction and deletes the file OUTSIDE Drop. The scan path already prevents this by skipping
+        // ReparsePoint (DeleteDropFolderContents); the entry path must get the same guarantee,
+        // otherwise the two paths apply different security boundaries to the same input.
         if (!AllDirectoryComponentsAreReal(rootPrefix, full, out string? reparseDir))
         {
             Debug.WriteLine(
@@ -1258,24 +1263,24 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <paramref name="rootPrefix"/> ile <paramref name="full"/> arasındaki <b>her dizin
-    /// bileşeni</b> gerçek bir dizin mi, yani <c>ReparsePoint</c> ile işaretli bir junction /
-    /// sembolik bağ mı?
+    /// Is <b>every directory component</b> between <paramref name="rootPrefix"/> and
+    /// <paramref name="full"/> a real directory, i.e. not a <c>ReparsePoint</c>-marked junction /
+    /// symbolic link?
     /// </summary>
     /// <param name="offender">
-    /// Bağlantı işaretli bileşenin yolu, yoksa <see langword="null"/>.
+    /// The path of the link-marked component, otherwise <see langword="null"/>.
     /// </param>
     /// <returns>
-    /// Güvenliyse <c>true</c>. Bağlantılı ya da <b>okunamayan</b> bir bileşende <c>false</c> —
-    /// belirsizlikte silme yapılmaz (opt-out'un fail-closed kuralıyla aynı seçim).
+    /// <c>true</c> if safe. <c>false</c> on a linked or <b>unreadable</b> component — in case of
+    /// doubt no deletion happens (the same choice as the opt-out fail-closed rule).
     /// </returns>
     internal static bool AllDirectoryComponentsAreReal(string rootPrefix, string full, out string? offender)
     {
         offender = null;
 
-        // Kökün kendisi (…\Drop) kullanıcının/uygulamanın klasörü; bileşen sayımı onun
-        // ALTINDAN başlar. Dosyanın kendisi kontrol edilmez: File.Delete bir dosya sembolik
-        // bağında bağın KENDİSİNİ siler, hedefi değil — sadece dizin bağı izlenir.
+        // The root itself (…\Drop) is the user's/app's folder; component counting starts BELOW it.
+        // The file itself is not checked: for a file symlink File.Delete removes the link ITSELF, not
+        // the target — only directory links are followed.
         int start = rootPrefix.Length;
         for (int i = start; i < full.Length; i++)
         {
@@ -1300,16 +1305,16 @@ internal sealed class IslandService : IDisposable
             }
             catch (FileNotFoundException)
             {
-                // Bileşen yok: File.Exists(full) zaten false dönecek, silme olmayacak. Temiz
-                // sayıp devam etmek güvenli — takip eden adımda zaten eleniyor.
+                // Component missing: File.Exists(full) will return false anyway, so no deletion happens.
+                // Treating it as clean and continuing is safe — the following step already filters it out.
             }
             catch (DirectoryNotFoundException)
             {
-                // Aynı gerekçe, ara dizin yok.
+                // Same reasoning: an intermediate directory is missing.
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                // Erişilemeyen bileşenin bağ olup olmadığı bilinemez -> fail-closed.
+                // Whether an inaccessible component is a link cannot be known -> fail-closed.
                 offender = dir;
                 Debug.WriteLine($"[WharfBar] island drop component unreadable: {dir} ({ex.Message})");
                 return false;
@@ -1320,10 +1325,10 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <param name="deleteDroppedFiles">
-    /// Listeden düşen bırakma kayıtlarının kopyaları da silinsin mi? <c>true</c> budama ve
-    /// <see cref="Remove"/> yollarıdır (kayıt gittiği için kopya yetim olurdu);
-    /// <c>false</c> <see cref="Clear"/> ve <see cref="DeleteDroppedFiles"/> — dosya silmek
-    /// açık bir eylemdir ve bu iki yol silgiyi zaten kendi yönetir.
+    /// Should copies of drop entries that left the list be deleted too? <c>true</c> for the pruning and
+    /// <see cref="Remove"/> paths (the copy would be orphaned because the entry is gone);
+    /// <c>false</c> for <see cref="Clear"/> and <see cref="DeleteDroppedFiles"/> — deleting files is an
+    /// explicit action and those two paths already manage the deleter themselves.
     /// </param>
     private void ApplySnapshot(
         IReadOnlyList<IslandEntry> next,
@@ -1344,24 +1349,24 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// UI dispatcher'ına iş atılabilir mi? Dispose/kapanma yarışında <c>BeginInvoke</c>
-    /// <see cref="InvalidOperationException"/> fırlatırdı: Dispose sonrası UI dışından gelen bir
-    /// <see cref="Remove"/>/<see cref="Clear"/> tam olarak bu yolu kullanır.
+    /// Can work be posted to the UI dispatcher? During a dispose/shutdown race <c>BeginInvoke</c> would
+    /// throw <see cref="InvalidOperationException"/>: a <see cref="Remove"/>/<see cref="Clear"/> coming
+    /// from off the UI thread after Dispose uses exactly this path.
     /// </summary>
     private bool CanPostToUi =>
         !_disposed && !_dispatcher.HasShutdownStarted && !_dispatcher.HasShutdownFinished;
 
-    /// <summary>UI thread'inde çalışır: tek noktada liste değiştir, kaydet, bildir.</summary>
+    /// <summary>Runs on the UI thread: change the list, save, and notify in one place.</summary>
     private void Commit(
         IReadOnlyList<IslandEntry> next,
         IslandEntry? added,
         bool raiseEntryAdded,
         bool deleteDroppedFiles = true)
     {
-        // Commit tek choke point: Remove, Clear, budama ve ApplyConfig hepsi buradan geçer,
-        // yani "listeden düşen kayıt" hesabı da tek yerde yapılır. Clear bu hesabı
-        // devre dışı bırakır: budama kopyaları silmeye devam eder (aksi halde yetim kalırdı),
-        // açık "dosyaları sil" eylemi ise DeleteDroppedFiles.
+        // Commit is the single choke point: Remove, Clear, pruning, and ApplyConfig all pass through
+        // here, so the "entries dropped from the list" computation also happens in one place. Clear
+        // disables that computation: pruning keeps deleting copies (otherwise they would be orphaned),
+        // while the explicit "delete files" action is DeleteDroppedFiles.
         if (deleteDroppedFiles)
         {
             QueueDeleteOfDropped(next);
@@ -1384,20 +1389,20 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <paramref name="next"/>'te olmayan kayıtların bırakma kopyalarını silmeyi STA worker'a
-    /// devreder (dosya I/O'su UI thread'inde olmaz — üst bar kayıtlı bir AppBar'dır, bloklanan
-    /// UI tüm masaüstünü dondurur).
+    /// Hands deletion of the drop copies for entries missing from <paramref name="next"/> to the STA
+    /// worker (file I/O never runs on the UI thread — the top bar is a registered AppBar, and a
+    /// blocked UI freezes the whole desktop).
     /// </summary>
     private void QueueDeleteOfDropped(IReadOnlyList<IslandEntry> next)
     {
-        // Karşılaştırma sayı değil ÜYELİKTİR: tavan taşması tam olarak liste zaten
-        // MaxItems'te doluyken olur, o durumda next.Count == _entries.Count daima eşit
-        // çıkar ve önceki erken çıkış her budamayı atlayıp dosyaları geride bırakıyordu
-        // (ölçüldü: MaxItems=3, 3 dosya + metin, 25 yakalama → 3 dosya sızdı). HashSet
-        // zaten kuruluyordu, yalnız karar sayıya bakıyordu.
+        // The comparison is MEMBERSHIP, not count: a ceiling overflow happens exactly while the list
+        // is already full at MaxItems, and in that case next.Count == _entries.Count is always equal,
+        // so the previous early exit skipped every pruning pass and left the files behind (measured:
+        // MaxItems=3, 3 files + text, 25 captures → 3 files leaked). The HashSet was already being
+        // built; only the decision looked at the count.
         //
-        // Boş listede düşecek kayıt olamaz; bu, yeni adanın ilk yakalamalarındaki tek
-        // maliyetsiz erken çıkıştır (liste büyüdükçe HashSet kurulumu ~MaxItems giriş).
+        // An empty list cannot have entries that drop out; this is the one cost-free early exit in a
+        // new island's first captures (as the list grows, building the HashSet costs ~MaxItems entries).
         if (_entries.Count == 0)
         {
             return;
@@ -1446,9 +1451,9 @@ internal sealed class IslandService : IDisposable
 
     private void ScheduleSave()
     {
-        // Dispose sonrası gelen bir Commit'in sayacı yeniden canlandırmasına gerek yok:
-        // Dispose zaten bekleyen yazmayı senkron olarak boşalttı, üstüne Timer.Change
-        // yapmak ObjectDisposedException fırlatırdı.
+        // A Commit arriving after Dispose has no reason to revive the timer: Dispose already flushed
+        // the pending write synchronously, and calling Timer.Change on top of that would throw
+        // ObjectDisposedException.
         if (_disposed)
         {
             return;
@@ -1459,8 +1464,8 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Timer callback'i threadpool'da çalışır; snapshot'ı UI thread'inde okumak için işi oraya
-    /// atlar. <see cref="_dispatcher"/> kapanmışsa yazma zaten Dispose'ta yapılmıştır.
+    /// The timer callback runs on the threadpool; it hops to the UI thread to read the snapshot.
+    /// If <see cref="_dispatcher"/> has shut down, the write already happened in Dispose.
     /// </summary>
     private void OnSaveTimerTick()
     {
@@ -1475,26 +1480,25 @@ internal sealed class IslandService : IDisposable
         }
         catch (Exception ex)
         {
-            // Kapanma yarışı: dispatcher BeginInvoke'yi reddedebilir. Yazı kaybı panonun
-            // kendisinden daha önemli değil, ama görünmez de olmamalı.
+            // Shutdown race: the dispatcher may reject BeginInvoke. A lost write matters less than the
+            // clipboard itself, but it should not be invisible either.
             Debug.WriteLine($"[WharfBar] island save dispatch failed: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// UI thread'inde çalışır: yalnız <b>snapshot'ı</b> burada alır, serileştirme + diske
-    /// yazma STA worker'a verilir.
+    /// Runs on the UI thread: only the <b>snapshot</b> is taken here; serialization + writing to disk
+    /// is handed to the STA worker.
     /// </summary>
     /// <remarks>
-    /// Varsayılan 200 kayıt × 64 KB ≈ 13 MB'lık bir <c>JsonSerializer.Serialize</c> +
-    /// <c>File.Replace</c> 750 ms debounce ile <b>AppBar UI thread'inde</b> çalışıyordu; üst
-    /// bar kayıtlı bir AppBar olduğu için bu, tüm masaüstünü birkaç saniye donduruyordu.
-    /// Sınıfın kendi gerekçesi dosya kopyalama/silmeyi STA'ya taşımıştı ama diske yazmayı
-    /// burada bırakmıştı.
-    /// <para><b>Sıralama garantisi:</b> <see cref="IslandStore.Save"/> serileştirmeyi de kendi
-    /// <c>_ioGate</c> kilidi içinde yapar, yani iki yazma asla iç içe geçemez. Kuyrukta
-    /// bekleyen eski bir yazma <see cref="Dispose"/>'daki senkron flush'tan sonra
-    /// <c>BeginInvokeShutdown</c> ile düşer — yani diskte en son snapshot kalır.</para>
+    /// By default 200 entries × 64 KB ≈ 13 MB of <c>JsonSerializer.Serialize</c> +
+    /// <c>File.Replace</c> with a 750 ms debounce ran <b>on the AppBar UI thread</b>; because the top
+    /// bar is a registered AppBar, that froze the entire desktop for a few seconds. The class's own
+    /// rationale had already moved file copy/delete to the STA thread but had left the disk write here.
+    /// <para><b>Ordering guarantee:</b> <see cref="IslandStore.Save"/> performs serialization inside its
+    /// own <c>_ioGate</c> lock too, so two writes can never interleave. An older write still queued is
+    /// dropped by <c>BeginInvokeShutdown</c> after the synchronous flush in <see cref="Dispose"/> — so
+    /// the latest snapshot stays on disk.</para>
     /// </remarks>
     private void FlushSaveOffThread()
     {
@@ -1508,9 +1512,9 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// <b>Senkron.</b> Çıkış yolunda kullanılır: kuyruğa atmak son kopyalamayı sessizce
-    /// düşürüyordu (kapanış süreç sonuyla yarışır), bu yüzden buradaki yazma UI thread'inde
-    /// kalmalı. Kuyruktaki eski yazmalar bu flush'tan sonra düşer.
+    /// <b>Synchronous.</b> Used on the exit path: queuing silently dropped the last copy (shutdown
+    /// races process exit), so the write here must stay on the UI thread. Older queued writes are
+    /// dropped after this flush.
     /// </summary>
     private void FlushSave()
     {
@@ -1528,7 +1532,7 @@ internal sealed class IslandService : IDisposable
         Dispatcher? sta = _staDispatcher;
         if (sta is null)
         {
-            // STA worker yoksa (Dispose sonrası) yazmağı sessizce düşürmektense senkron yaz.
+            // If there is no STA worker (after Dispose), write synchronously rather than drop the write silently.
             _store.Save(snapshot);
             return;
         }
@@ -1536,7 +1540,7 @@ internal sealed class IslandService : IDisposable
         _ = sta.BeginInvoke(() => _store.Save(snapshot), DispatcherPriority.Background);
     }
 
-    /// <summary>UI thread'inde çağrılmalıdır (HwndSource.Dispose UI thread'i ister).</summary>
+    /// <summary>Must be called on the UI thread (HwndSource.Dispose requires the UI thread).</summary>
     public void Dispose()
     {
         if (_disposed)
@@ -1556,11 +1560,11 @@ internal sealed class IslandService : IDisposable
     }
 
     /// <summary>
-    /// Kayıt eşitliği <b>içerik</b> üzerinden: aynı <c>(Kind, Text, FilePath)</c> üçlüsü aynı
-    /// kayıttır. Id bilinçli olarak <b>karşılaştırılmaz</b> — her süreç 1'den başladığı için
-    /// oturum ve kalıcı kayıtlar aynı Id'yi taşıyabilir (bkz. <see cref="MergeWithSession"/>).
-    /// Kurallar <c>IslandPruner.IsSameContent</c> ile aynıdır; o metot private olduğu için
-    /// burada tekrarlanıyor (saf karşılaştırma, tek satır).
+    /// Entry equality by <b>content</b>: the same <c>(Kind, Text, FilePath)</c> triple is the same
+    /// entry. Id is deliberately <b>not compared</b> — because every process starts at 1, session and
+    /// persistent entries can carry the same Id (see <see cref="MergeWithSession"/>). The rules match
+    /// <c>IslandPruner.IsSameContent</c>; that method is private, so they are repeated here (a pure
+    /// comparison, one line).
     /// </summary>
     private sealed class EntryContentComparer : IEqualityComparer<IslandEntry>
     {

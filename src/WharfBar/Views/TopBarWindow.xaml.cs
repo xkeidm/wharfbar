@@ -234,10 +234,10 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// Flyoutlar açıkken topbar'a yapılan tıklamaları kapatma animasyonuyla kapatır;
-    /// flyout'u yeniden hedefleyen çapa butonları (QS anchors / brightness / media) ve
-    /// popup içeriğine yapılan tıklamalar hariç tutulur — popup içeriği pencerenin görsel
-    /// ağacında olduğundan tıklamalar buraya kadar tünel açar; onlar kendi tüketir.
+    /// Closes flyouts with the closing animation on clicks made on the top bar while flyouts are open;
+    /// the anchor buttons that re-target the flyout (QS anchors / brightness / media) and clicks on the
+    /// popup content are excluded — because the popup content lives in the window's visual
+    /// tree, clicks tunnel up to here; those consume them themselves.
     /// </summary>
     private void OnTopBarPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
@@ -329,11 +329,11 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// WPF-UI popup'ı gölge payı için ContextMenu'ye 30px'lik effect margin uygular ve popup
-    /// penceresi (content+60 genişliğinde) hedefin sol kenarına hizalanır; buton ekranın en
-    /// solunda olduğundan pencere ekran kenarına clamp edilir ve görünen menü sağa kayar.
-    /// Sol marjı sıfırlayarak pencerenin buton hizasında durmasını ve menünün ikonun sol
-    /// kenarına yapışmasını sağlıyoruz; sağ/alt gölge payı korunur.
+    /// WPF-UI applies a 30 px effect margin to the popup's ContextMenu for the shadow allowance and the popup
+    /// window (content + 60 wide) is aligned to the left edge of the target; since the button is at the far
+    /// left of the screen the window is clamped to the screen edge and the visible menu slides right.
+    /// By zeroing the left margin we make the window stay flush with the button and the menu stick to the
+    /// icon's left edge; the right/bottom shadow allowance is kept.
     /// </summary>
     private void OnAppMenuLoaded(object sender, RoutedEventArgs e)
     {
@@ -484,10 +484,10 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// Flyout kapanışı: açılışın tam tersi — içerik yukarı (barın altına) doğru kayarak
-    /// kaybolur, açılıştan bir tık hızlıdır. Animasyon bitince popup kapanır.
-    /// Bekleyen kapanış, popup yeniden açılırsa <see cref="CancelPendingClose"/> ile iptal edilir
-    /// (animasyon clock'ları temizlenince Completed tetiklenmez, yeni popup kapanmaz).
+    /// Flyout close: the exact reverse of opening — the content slides up (below the bar) and
+    /// disappears, one notch faster than opening. The popup closes once the animation ends.
+    /// A pending close is cancelled by <see cref="CancelPendingClose"/> if the popup reopens
+    /// (once the animation clocks are cleared Completed does not fire, so the new popup does not close).
     /// </summary>
     private static void AnimateFlyoutClose(FrameworkElement content, Action onDone, bool fromChip = false)
     {
@@ -837,10 +837,10 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// Island servisi. Adı bilerek <c>Island</c>, <c>IslandService</c> değil: C#'ta bir özelliğin
-    /// adı tip adıyla aynı olursa sınıf gövdesindeki o ad özelliğe bağlanır ve aynı sınıftaki
-    /// tip referansları bozulur. Engine servisi Dispose sonrası null yapar, o yüzden null
-    /// kontrolü yazılı kalıyor.
+    /// Island service. The name is deliberately <c>Island</c>, not <c>IslandService</c>: in C#, when a property's
+    /// name is the same as a type name, that name in the class body binds to the property and type
+    /// references in the same class break. The engine service sets it to null after Dispose, which is why
+    /// the null check stays written out.
     /// </summary>
     private IslandService? Island => _engine.Island;
 
@@ -853,10 +853,10 @@ public partial class TopBarWindow : Window
             return;
         }
 
-        // Ok/Enter/Delete yalnız panelde tüketilir; dışarıda bırakılırsa arama kutusu da
-        // ok tuşlarını yer. Handled yalnız gerçekten tüketilen tuşta yazılır: e.Handled
-        // false'a sıfırlamak, bu handler'ın bir üst sınıftan gelmiş işlenmiş bir olayı
-        // yeniden açmasına yol açardı.
+        // Arrows/Enter/Delete are consumed only in the panel; if left outside, the search box
+        // would eat the arrow keys too. Handled is set only on a key that is really consumed:
+        // resetting e.Handled to false would let this handler reopen an event already handled
+        // by a base class.
         if (IslandHost.HandleNavigationKey(e.Key))
         {
             e.Handled = true;
@@ -1018,7 +1018,9 @@ public partial class TopBarWindow : Window
                         ? "\uE993"
                         : "\uE767"; // Volume3
 
-            string tip = snapshot.IsMuted ? "Ses (sessiz)" : $"Ses %{snapshot.Percent}";
+            string tip = snapshot.IsMuted
+                ? Strings.Island_VolumeMuted
+                : string.Format(Strings.Island_VolumeFormat, snapshot.Percent);
             SetPlainToolTip(VolumeButton, tip);
         }
         else if (ReferenceEquals(QuickSettingsPopup.PlacementTarget, VolumeButton))
@@ -1688,9 +1690,9 @@ public partial class TopBarWindow : Window
         ApplySystemStats(_engine.SystemStats.Snapshot);
         ApplyBackgroundAppearance();
 
-        // Ayar sayfası IslandService.ApplyConfig(newConfig) çağırmak ZORUNDADIR: ada
-        // görünürlüğü servisin Enabled alanına, canlı liste de Changed aboneliğine bağlı;
-        // ikisi de ayar kaydından sonra bayat kalır. Bu satır yalnız görünürlüğü tazeler.
+        // The settings page MUST call IslandService.ApplyConfig(newConfig): island
+        // visibility depends on the service's Enabled field and the live list on the Changed subscription;
+        // both stay stale after the settings save. This line only refreshes visibility.
         UpdateIslandPill();
         SyncBluetoothWatch();
     }
@@ -2320,8 +2322,8 @@ public partial class TopBarWindow : Window
             return;
         }
 
-        // Preview (tünel) ve bubble aynı metodu paylaşır. İletim yalnız tünelde: bubble ikinci
-        // bir sağ tık basar ve menüyü kapatır. Handled, StatusStrip'in kendi menüsünü keser.
+        // Preview (tunnel) and bubble share the same method. Forwarding only in the tunnel: the bubble would
+        // fire a second right click and close the menu. Handled cuts off StatusStrip's own menu.
         bool forward = e.RoutedEvent == UIElement.PreviewMouseRightButtonUpEvent;
         e.Handled = true;
         if (!forward)

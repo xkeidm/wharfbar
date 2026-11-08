@@ -9,13 +9,13 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Bırakma kopyası yollarının güvenlik sınırı. <c>island.json</c> elle düzenlenebildiği için
-/// <c>FilePath</c> güvenilmezdir; <c>Drop</c> dışındaki hiçbir yol silinmemelidir.
-/// Açma ayrı kapıdadır (<c>CanOpenShelfFile</c>): <c>Drop</c> öneki aranmaz, eksik yol, aygıt
-/// yolu, reparse noktalı klasör ve junction kaçışı reddedilir; gerçek dosya ve gerçek klasör
-/// kabul edilir (raf klasör de barındırır). Testler gerçek dosya sistemi
-/// üzerinde çalışır, çünkü asıl tehlike
-/// (junction'ın Drop dışına taşıması) yalnız diskte görünür.
+/// Security boundary for drop-copy paths. Because <c>island.json</c> can be edited by hand,
+/// <c>FilePath</c> is untrusted; no path outside <c>Drop</c> may ever be deleted.
+/// Opening has a separate gate (<c>CanOpenShelfFile</c>): the <c>Drop</c> prefix is not
+/// required; a missing path, a device path, a folder with a reparse point and a junction
+/// escape are rejected; a real file and a real folder are accepted (the shelf also hosts
+/// folders). The tests run against the real file system, because the actual danger
+/// (a junction leading outside Drop) is only visible on disk.
 /// </summary>
 public sealed class IslandDropPathGuardTests : IDisposable
 {
@@ -35,7 +35,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
     {
         try
         {
-            // Junctions silinirken hedefleri takip edebilir; yalnız kendi ağacımızı temizle.
+            // Junctions may follow their targets when deleted; clean up only our own tree.
             foreach (string dir in Directory.GetDirectories(_root, "*", SearchOption.AllDirectories))
             {
                 if ((File.GetAttributes(dir) & FileAttributes.ReparsePoint) != 0)
@@ -48,7 +48,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            // Geçici klasör; temizlik başarısız olursa testin sonucu etkilenmez.
+            // Temporary folder; a failed cleanup does not affect the test result.
         }
     }
 
@@ -78,7 +78,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         Assert.Equal(string.Empty, full);
     }
 
-    /// <summary>Kardeş klasör: "…\DropYedek" "…\Drop" altında sayılmamalı (ayırıcı şartı).</summary>
+    /// <summary>Sibling folder: "…\DropYedek" must not count as under "…\Drop" (separator requirement).</summary>
     [Fact]
     public void IsInsideDropPrefix_RejectsSiblingFolderWithDropPrefix()
     {
@@ -111,7 +111,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         Assert.Null(offender);
     }
 
-    /// <summary>Drop'ın kendisi bir bileşen sayılmaz — kullanıcı oraya bağ koymamış olabilir.</summary>
+    /// <summary>Drop itself does not count as a component — the user may not have put a link there.</summary>
     [Fact]
     public void AllDirectoryComponentsAreReal_IgnoresTheRootItself()
     {
@@ -122,10 +122,10 @@ public sealed class IslandDropPathGuardTests : IDisposable
     }
 
     /// <summary>
-    /// O3'in çekirdeği: <c>Drop\baglanti\</c> bir junction ise yol ön ek testini geçer, ama
-    /// <c>File.Delete</c> onu izler ve Drop DIŞINDAKİ dosyayı geri dönüşsüz siler. Tarama yolu
-    /// (<c>DeleteDropFolderContents</c>) zaten <c>AttributesToSkip = … | ReparsePoint</c> ile
-    /// bunu engelliyor; kayıt yolunun aynı korumaya sahip olması gerekiyor.
+    /// The core of O3: if <c>Drop\baglanti\</c> is a junction, the path passes the prefix test,
+    /// but <c>File.Delete</c> follows it and irreversibly deletes the file OUTSIDE Drop. The scan
+    /// path (<c>DeleteDropFolderContents</c>) already prevents this with
+    /// <c>AttributesToSkip = … | ReparsePoint</c>; the record path must have the same protection.
     /// </summary>
     [Fact]
     public void AllDirectoryComponentsAreReal_False_ForJunctionInsideDrop()
@@ -141,7 +141,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         string throughLink = Path.Combine(link, "tehlikeli.docx");
         Assert.True(File.Exists(throughLink), "junction hedefe ulaşmıyor");
 
-        // Ön ek kontrolü bu yolu "Drop altında" sayar — yani tek başına yetersiz.
+        // The prefix check counts this path as "under Drop" — so it is not sufficient on its own.
         Assert.True(IslandService.IsInsideDropPrefix(throughLink, Prefix, out _));
 
         Assert.False(IslandService.AllDirectoryComponentsAreReal(Prefix, throughLink, out string? offender));
@@ -166,7 +166,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         Assert.Equal(link, offender);
     }
 
-    /// <summary>Yok olan bileşen "tehlikeli" değildir; asıl dosya zaten yok sayılıyor.</summary>
+    /// <summary>A missing component is not "dangerous"; the file itself is ignored anyway.</summary>
     [Fact]
     public void AllDirectoryComponentsAreReal_True_WhenAComponentIsMissing()
     {
@@ -175,9 +175,9 @@ public sealed class IslandDropPathGuardTests : IDisposable
     }
 
     /// <summary>
-    /// Kapı gerçek dosyayı ve gerçek klasörü kabul eder (raf klasör de barındırır; klasör
-    /// <c>UseShellExecute</c> ile Explorer'da açılır). Reparse noktalı klasörün reddi
-    /// <see cref="CanOpenShelfFile_RejectsJunctionEscape"/>'te — junction kurulumu orada.
+    /// The gate accepts a real file and a real folder (the shelf also hosts folders; a folder
+    /// is opened in Explorer via <c>UseShellExecute</c>). Rejection of a folder with a reparse point
+    /// is covered in <see cref="CanOpenShelfFile_RejectsJunctionEscape"/> — the junction is set up there.
     /// </summary>
     [Fact]
     public void CanOpenShelfFile_AcceptsRegularFileAndRealFolder_RejectsMissingAndDevice()
@@ -193,8 +193,8 @@ public sealed class IslandDropPathGuardTests : IDisposable
             Assert.True(service.CanOpenShelfFile(file));
             Assert.False(IslandService.IsInsideDropPrefix(file, Prefix, out _));
 
-            // Eski Drop kopyası da normal dosyadır; açma Drop önekini şart koşmaz
-            // ama önekin içinde olmak da engel değildir.
+            // A legacy Drop copy is an ordinary file too; opening does not require the Drop prefix,
+            // but being inside the prefix is not an obstacle either.
             Assert.True(service.CanOpenShelfFile(legacy));
 
             Assert.True(service.CanOpenShelfFile(directory));
@@ -211,8 +211,8 @@ public sealed class IslandDropPathGuardTests : IDisposable
     }
 
     /// <summary>
-    /// Junction ön ek testini geçer ama açma hedefi izler. Kapı bunu reddeder ve
-    /// hedef dosyaya dokunmaz.
+    /// The junction passes the prefix test, but opening follows the target. The gate rejects it
+    /// and does not touch the target file.
     /// </summary>
     [Fact]
     public void CanOpenShelfFile_RejectsJunctionEscape()
@@ -270,7 +270,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
                 }
                 catch (InvalidOperationException)
                 {
-                    // Dispatcher hiç kurulmadıysa kapatma da yoktur.
+                    // If the dispatcher was never created, there is nothing to shut down.
                 }
             }
         });
@@ -285,7 +285,7 @@ public sealed class IslandDropPathGuardTests : IDisposable
         }
     }
 
-    /// <summary>Junction kurulumu yönetici yetkisi gerektirmez (mklink /J).</summary>
+    /// <summary>Creating a junction does not require administrator rights (mklink /J).</summary>
     private static bool CreateJunction(string linkPath, string targetPath)
     {
         try

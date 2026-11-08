@@ -4,8 +4,8 @@ using System.Runtime.InteropServices;
 namespace WharfBar.Native;
 
 /// <summary>
-/// <c>SetWindowDisplayAffinity</c> — verilen pencereyi ekran yakalamasından düşürür.
-/// Son kayıt önizlemesinde bu çağrı hapın kendi penceresine gider; üst bar kalır.
+/// <c>SetWindowDisplayAffinity</c> — drops the given window from screen capture.
+/// In the last-entry preview this call targets the pill's own window; the top bar stays.
 /// </summary>
 internal static class WindowCapture
 {

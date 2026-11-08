@@ -6,10 +6,10 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>
-/// SMTC oturumunun AUMID'inden Windows'ta görünen uygulama adını çözer (katmanlı):
-/// 1) Start Menü kısayolu AUMID eşleşmesi — Windows'un gösterdiği ad (ör. Zen, YouTube Music);
-/// 2) çalışan sürecin <c>FileDescription</c>'ı (ör. "chrome.exe" → "Google Chrome");
-/// 3) basitleştirilmiş exe adı. Sonuç AUMID başına önbelleklenir.
+/// Resolves the app name shown in Windows from the SMTC session's AUMID (layered):
+/// 1) Start Menu shortcut AUMID match — the name Windows displays (e.g. Zen, YouTube Music);
+/// 2) the running process's <c>FileDescription</c> (e.g. "chrome.exe" → "Google Chrome");
+/// 3) the simplified exe name. The result is cached per AUMID.
 /// </summary>
 internal sealed class MediaAppNameResolver
 {
@@ -28,7 +28,7 @@ internal sealed class MediaAppNameResolver
     }
 
     /// <summary>
-    /// Katmanlı çözüm — ortam bağımsız çekirdek; testler süreç çözücüsünü taklit eder.
+    /// Layered resolution — environment-independent core; tests fake the process resolver.
     /// </summary>
     internal static string ResolveCore(
         string appUserModelId,
@@ -50,7 +50,7 @@ internal sealed class MediaAppNameResolver
         return string.IsNullOrEmpty(description) ? exeName : description;
     }
 
-    /// <summary>AUMID'den exe adını çıkarır: "!" sonrası segment, ".exe" uzantısı düşülür.</summary>
+    /// <summary>Extracts the exe name from the AUMID: the segment after "!", with the ".exe" extension dropped.</summary>
     internal static string SimplifyExeName(string appUserModelId)
     {
         string name = appUserModelId;
@@ -97,11 +97,11 @@ internal sealed class MediaAppNameResolver
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"[media] kısayol AUMID okunamadı ({lnk}): {ex.GetType().Name}: {ex.Message}");
+                    Debug.WriteLine($"[media] could not read shortcut AUMID ({lnk}): {ex.GetType().Name}: {ex.Message}");
                     continue;
                 }
 
-                // ";PrivateBrowsingAUMID" gibi türevleri atla — tam AUMID isteriz.
+                // Skip derivatives like ";PrivateBrowsingAUMID" — we want the exact AUMID.
                 if (aumid.Contains(';'))
                 {
                     continue;
@@ -133,14 +133,14 @@ internal sealed class MediaAppNameResolver
                     }
                     catch
                     {
-                        // Yükseltilmiş/erişilemeyen süreç — sonrakine geç.
+                        // Elevated/inaccessible process — move on to the next one.
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            Debug.WriteLine($"[media] uygulama adı çözülemedi: {ex.Message}");
+            Debug.WriteLine($"[media] could not resolve app name: {ex.Message}");
         }
 
         return null;

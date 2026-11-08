@@ -115,7 +115,7 @@ The code is in the working tree; a commit and the manual items below are still p
 
 > **On 2026-10-04** the pin source was moved to `dock.items`. **On 2026-10-07** the left group again
 > **reads** the `User Pinned` folder, read-only (`TaskbarPinnedAppsSource`); nothing is written to the folder.
-> “Pin to the dock / remove” (`Dock'a sabitle / kaldır`) stayed as `dock.items` (hide/restore is 9a's subject).
+> “Pin to the dock / remove” stayed as `dock.items` (hide/restore is 9a's subject).
 > What still holds: `EnumWindows` + AUMID running grouping, and the composer's sectioned merge.
 
 - [x] `User Pinned\TaskBar` `.lnk` scan, read-only (`TaskbarPinnedAppsSource`) — removed on 2026-10-04, **reading came back on 2026-10-07**; no writing
@@ -126,7 +126,7 @@ The code is in the working tree; a commit and the manual items below are still p
 
 ### 9c — Tray hybrid button
 
-- [x] A “tray / hidden icons” (`Gizli simgeler`) button on the top bar → native overflow (`TrayOverflowInvoker` / `Win+B`)
+- [x] A “tray / hidden icons” button on the top bar → native overflow (`TrayOverflowInvoker` / `Win+B`)
 - [x] No RPM / undocumented enumeration; foreign-icon drawing only via the documented `TB_*` mirror (ADR-009)
 - [x] Optional: volume indicator + quick settings (ADR-006; extended after 9c)
 - [ ] Manual: the button opens the overflow; third-party icons are mirrored on the top bar (ADR-009)
@@ -140,7 +140,7 @@ Mirrors third-party tray icons on the top bar with documented comctl32 `TB_*` me
 
 Implemented outside the phase order, as a separate feature after Phase 9 (ADR-008).
 - [x] `MediaSnapshot` model (`Idle` + `HasSession`) + `MediaSessionSelector` (most-recently-active policy, `MoveCurrent` ring) — unit tested
-- [x] `MediaSessionService` — SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot + Play/Pause (`Oynat/Duraklat`) / Next/Previous (`İleri`/`Geri`) + `Changed`/`SessionsChanged`; events are marshaled to the UI Dispatcher; init failure retries in 10 s; `Dispose` (`_disposed` guard)
+- [x] `MediaSessionService` — SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot + Play/Pause / Next/Previous + `Changed`/`SessionsChanged`; events are marshaled to the UI Dispatcher; init failure retries in 10 s; `Dispose` (`_disposed` guard)
 - [x] Catalog `media` item + catalog **v4** migration (`EnsureMedia` → after `brightness`)
 - [x] `MediaFlyout` (cover + title/artist + controls + session picker) + top-bar wiring (dynamic visibility, tooltip, animated open/close)
 - [ ] Manual verification: the item appears while media is playing; the controls work; multi-session picker; right-click persistent hide; config migration (the 10-item list in the brief)

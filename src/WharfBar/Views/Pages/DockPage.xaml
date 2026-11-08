@@ -28,7 +28,7 @@
             <!-- Page Title -->
             <TextBlock Text="{x:Static res:Strings.Settings_Dock}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
-            <!-- İçerik Section -->
+            <!-- Content Section -->
             <TextBlock Text="{x:Static res:Strings.DockPage_ContentSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
@@ -57,7 +57,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Davranış Section -->
+            <!-- Behavior Section -->
             <TextBlock Text="{x:Static res:Strings.DockPage_BehaviorSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
@@ -87,7 +87,7 @@
                 </Grid>
             </Border>
 
-            <!-- Görünüm Section -->
+            <!-- Appearance Section -->
             <TextBlock Text="{x:Static res:Strings.DockPage_AppearanceSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 

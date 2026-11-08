@@ -166,7 +166,7 @@ internal sealed class StatusService : IDisposable
 
     private static (string Text, string Tooltip) FormatClock(DateTime now)
     {
-        // Single-line strip: "9 Ağu Paz 21:57" (localized abbreviated month + weekday + time).
+        // Single-line strip: "9 Aug Sun 21:57" (localized abbreviated month + weekday + time).
         string text = now.ToString("d MMM ddd HH:mm", CultureInfo.CurrentCulture);
         string tip = now.ToString("f", CultureInfo.CurrentCulture);
         return (text, tip);

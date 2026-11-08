@@ -9,7 +9,7 @@ public class TopBarContrastPaletteTests
     [Fact]
     public void DarkTextPalette_HasBlackTextOnLightWallpaper()
     {
-        // RED: TopBarContrastPalette sınıfı henüz yok — derleme hatası bekleniyor.
+        // RED: the TopBarContrastPalette class does not exist yet — a compile error is expected.
         var map = TopBarContrastPalette
             .For(BarTextTone.DarkText)
             .ToDictionary(kv => kv.Key, kv => kv.Value);
@@ -55,7 +55,7 @@ public class TopBarContrastPaletteTests
         Assert.Same(strokeBrush, map[TopBarContrastPalette.PillStrokeKey]);
         Assert.Same(hoverBrush, map[TopBarContrastPalette.SubtleFillKey]);
 
-        // Mica/Tint kontrat: eski XAML'de hardcoded olan hover dokunuşu korunur (#1EFFFFFF).
+        // Mica/Tint contract: the hover touch that was hardcoded in the old XAML is preserved (#1EFFFFFF).
         var hit = (SolidColorBrush)map[TopBarContrastPalette.HitFillKey];
         Assert.Equal(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF), hit.Color);
     }

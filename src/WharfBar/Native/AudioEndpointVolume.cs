@@ -215,7 +215,7 @@ internal static class AudioEndpointVolume
         int GetMute(out int pbMute);
     }
 
-    /// <summary>Default capture (mikrofon) mute durumu. Salt okuma — yazma metodu YOK.</summary>
+    /// <summary>Mute state of the default capture (microphone) endpoint. Read-only — there is NO write method.</summary>
     internal static bool TryGetCaptureMute(out bool muted)
     {
         muted = false;

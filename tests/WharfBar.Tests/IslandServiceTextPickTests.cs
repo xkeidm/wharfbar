@@ -9,9 +9,9 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// "Panodan al"ın kaynağı: servis geçmişindeki en yeni düz metin kaydı. Kurgu kayıtlar
-/// yapılandırılmış depo üzerinden verilir (AddEntry STA worker yolu test ortamında
-/// kullanılamaz); gerçek panoya dokunulmaz, OS yazımı yoktur.
+/// Source of "take from clipboard": the newest plain-text record in the service history. Seeded records
+/// are supplied through an initialized store (the AddEntry STA worker path cannot be used in the test
+/// environment); the real clipboard is not touched, there is no OS write.
 /// </summary>
 public sealed class IslandServiceTextPickTests
 {

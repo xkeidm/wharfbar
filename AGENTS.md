@@ -65,3 +65,6 @@ is missing, the build breaks.
 ## Documentation updates
 
 When behavior or architecture changes, update the matching `docs/` and `.agent/` files in the same change. Do not bloat the Cursor rules.
+
+Committed docs, code comments, and UI copy defaults are **English-only**. Turkish exists only in
+`src/WharfBar/Resources/Strings.tr.resx` and `README.tr.md`. See [`.agent/conventions.md`](.agent/conventions.md).

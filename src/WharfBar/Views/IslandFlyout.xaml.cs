@@ -19,33 +19,33 @@ using WharfBar.Services;
 namespace WharfBar.Views;
 
 /// <summary>
-/// Island paneli: arama kutusu + tek birleşik zaman çizelgesi (pano metni ve bırakılan
-/// dosyalar). Projede MVVM yok; satırlar <see cref="Border"/> olarak elle kurulur.
+/// Island panel: search box + a single unified timeline (clipboard text and dropped
+/// files). The project has no MVVM; rows are built by hand as <see cref="Border"/>.
 /// </summary>
 public sealed partial class IslandFlyout : UserControl
 {
     /// <summary>
-    /// Tek seferde kurulan satır tavanı. <c>MaxItems</c> 5000'e kadar çıkabiliyor ve liste
-    /// sanalize değil: her tuş vuruşunda 5000 satır yeniden kurmak kayıtlı bir AppBar olan
-    /// üst barı takar. Kurulmayan kayıt sayısı alt bilgide bildirilir, arama yine tüm kayıtlara
-    /// bakar (sıra "en yeni başta" olduğu için ilk 200 eşleşme en yenilerdir).
+    /// Row ceiling built per pass. <c>MaxItems</c> can go up to 5000 and the list is
+    /// not virtualized: rebuilding 5000 rows on every keystroke hangs the top bar,
+    /// which is a registered AppBar. The number of entries not built is reported in the
+    /// footer; search still covers all entries (order is "newest first", so the first 200 matches are the newest).
     /// </summary>
     private const int MaxRenderedRows = 200;
 
-    /// <summary>Bırakılan dosya kaydı — emoji, font bağımlılığı yok (MDL2 kodu doğrulanmadan yazılmaz).</summary>
+    /// <summary>Dropped-file entry — no emoji, no font dependency (an MDL2 code is never written without verification).</summary>
     internal const string FileGlyph = "\uD83D\uDCC4";
 
-    /// <summary>Pano metni kaydı.</summary>
+    /// <summary>Clipboard text entry.</summary>
     internal const string TextGlyph = "\u2261";
 
-    /// <summary>Satır silme düğmesi (MDL2 Delete).</summary>
+    /// <summary>Row delete button (MDL2 Delete).</summary>
     private const string DeleteGlyph = "\uE74D";
 
-    /// <summary>Klasör rozeti (Segoe MDL2 Assets "Folder"; <c>AppIconFontFamily</c> ile çizilir).</summary>
+    /// <summary>Folder badge (Segoe MDL2 Assets "Folder"; drawn with <c>AppIconFontFamily</c>).</summary>
     private const string FolderGlyph = "\uE8B7";
 
-    /// <summary>Hover "×" düğmesinin erişilebilirlik adı — menüdeki aynı eylemle aynı.</summary>
-    private const string RemoveAccessName = "Listeden kaldır";
+    /// <summary>Accessibility name of the hover "×" button — the same action as in the menu.</summary>
+    private const string RemoveAccessName = "Remove from list";
 
     private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
 
@@ -79,21 +79,22 @@ public sealed partial class IslandFlyout : UserControl
         _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabCameraLabel, TabColorLabel];
         CameraPreviewHost.SizeChanged += OnCameraPreviewSizeChanged;
 
-        // Raf arka plan menüsü gövdenin tamamında (çiplerin altındaki boş alan dâhil) açılsın:
-        // şeffaf fırça olmadan Grid hit test dışıdır, yani iki dosyalık gerçek durumda menüye
-        // ulaşılamazdı. Çipler kendi menüsünü taşıdığı için çip üzerinde çip menüsü kazanır.
+        // Let the shelf background menu open across the entire body (including the empty space
+        // below the chips): without a transparent brush the Grid is outside hit testing, so
+        // the menu would be unreachable in the real two-file case. A chip carries its own menu,
+        // so the chip menu wins on a chip.
         ShelfBody.Background = Brushes.Transparent;
     }
 
     /// <summary>
-    /// Yedi gövde sekmesi aynı anda görünürken etiketli şerit panel içine sığmaz (yaklaşık
-    /// ölçü: yedi etiketli sekme ~515 dip, panel iç genişliği ~448). Etiketler taştığı anda
-    /// katlanır — adlar ToolTip ve otomasyon adlarında kalır — ve yer açıldığında geri döner.
-    /// Beş ve daha az sekmenin Faz 1 görüntüsü hiçbir durumda değişmez.
+    /// With all seven body tabs visible, the labelled strip does not fit inside the panel
+    /// (rough measure: seven labelled tabs ~515 dip, panel inner width ~448). The moment
+    /// the labels overflow they fold — names stay in ToolTip and automation names — and they
+    /// come back when room is made. The Phase 1 look of five or fewer tabs never changes.
     /// </summary>
     private bool _tabStripCompact;
 
-    /// <summary>Etiket genişlikleri katlanmadan ÖNCE yakalanır; tekrar açma hesabı bunu kullanır.</summary>
+    /// <summary>Label widths are captured BEFORE folding; the expand calculation uses them.</summary>
     private readonly double[] _tabLabelWidths = new double[7];
 
     private readonly Button[] _tabStripButtons;
@@ -102,9 +103,9 @@ public sealed partial class IslandFlyout : UserControl
     private void OnHubTabStripSizeChanged(object sender, SizeChangedEventArgs e) => UpdateTabStripCompactness();
 
     /// <summary>
-    /// Sekme görünürlüğü değişimi HubTabs'ın gerçek boyutunu değiştirmez (panel iç genişliği
-    /// hep aynıdır, ActualWidth değişmez), SizeChanged ateşlenmez; karar bir düzen geçişi
-    /// sonrasına ertelenir.
+    /// A tab-visibility change does not change HubTabs' real size (the panel inner width is
+    /// always the same, ActualWidth does not change), so SizeChanged does not fire; the
+    /// decision is deferred until after a layout pass.
     /// </summary>
     private void ScheduleTabStripCompactness()
     {
@@ -123,7 +124,7 @@ public sealed partial class IslandFlyout : UserControl
         {
             if (HubTabs.DesiredSize.Width > available)
             {
-                // Katlanmadan ÖNCE etiket genişliklerini yakala; geri açma hesabı için gerekir.
+                // Capture the label widths BEFORE folding; the expand calculation needs them.
                 for (int i = 0; i < _tabStripLabels.Length; i++)
                 {
                     _tabLabelWidths[i] = _tabStripLabels[i].ActualWidth;
@@ -137,7 +138,7 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
-        // Katlanmış ölçü + görünen etiketlerin genişlikleri: yine taşmayacaksa etiketler döner.
+        // Folded measure + widths of the visible labels: the labels come back if that still fits.
         double expandNeed = HubTabs.DesiredSize.Width;
         for (int i = 0; i < _tabStripLabels.Length; i++)
         {
@@ -151,12 +152,12 @@ public sealed partial class IslandFlyout : UserControl
         {
             _tabStripCompact = false;
             FoldTabStripLabels(false);
-            // Bir sonraki düzen geçişi etiketli ölçüyü getirir; karar tek geçişte kapanır.
+            // The next layout pass brings the labelled measure; the decision closes in one pass.
             HubTabs.InvalidateMeasure();
 
-            // Kestirim yanlış olabilir (ilk katlanmada gizli bir sekmenin etiketi genişlik
-            // 0 almıştı). Açılımdan sonra gerçek etiketli DesiredSize'la yeniden doğrula:
-            // sığıyorsa geçiş sessiz biter, taşarsa şerit yeniden katlanır — döngü kurmaz.
+            // The estimate can be wrong (on the first fold a hidden tab's label had width
+            // 0). Re-check with the real labelled DesiredSize after expanding: if it
+            // fits the transition ends quietly, if it overflows the strip folds again — no loop.
             ScheduleTabStripCompactness();
         }
     }
@@ -170,8 +171,8 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Servisi bağlar; önceki bağlantıyı koparır (idempotent). Listeyi kurmaz;
-    /// açılış kurulumu <see cref="PresentHub"/> ile yapılır.
+    /// Attaches the service and detaches the previous one (idempotent). Does not build
+    /// the list; the opening setup is done by <see cref="PresentHub"/>.
     /// </summary>
     internal void Attach(IslandService service)
     {
@@ -182,8 +183,8 @@ public sealed partial class IslandFlyout : UserControl
 
     internal void Detach()
     {
-        // Değişmez: bağlı olmayan panel oynamaz. Bir sonraki tik zaten kendi kendini
-        // durdurur ama pim serbest bırakımı burada koşulsuz olsun.
+        // Invariant: an unbound panel never plays. The next tick stops itself
+        // anyway, but the pin release should be unconditional here.
         StopPrompterPlayback();
         StopCameraBodyLifecycle();
 
@@ -222,15 +223,15 @@ public sealed partial class IslandFlyout : UserControl
         }
     }
 
-    /// <summary>İkincil monitörde pano düğmesi yok; liste de bağlanmaz.</summary>
+    /// <summary>No clipboard button on the secondary monitor; the list is not attached either.</summary>
     internal void SetClipboardChrome(bool available)
     {
         TabClipboard.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         TabWallpaper.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
-        // Şerit invariantı: ikincil barlar yalnız Müzik taşır, yani config'i açık olsa bile
-        // gövde sekmeleri (Renk, Raf, Kamera) bu yüzey kapısıyla birlikte gizlenir. Renk gövdesi ayrıca
-        // ekran örneklemesini birincilin çalışma alanına kilitler (ScreenSampler tek zamanlama);
-        // Raf gövdesi yalnız birincilde bağlanan bırakma servisine bakar.
+        // Strip invariant: secondary bars carry Music only, so even when the config is on,
+        // body tabs (Color, Shelf, Camera) are hidden by this surface gate. The Color body
+        // also locks screen sampling to the primary's work area (ScreenSampler is single-schedule);
+        // the Shelf body looks at the drop service, which is attached only on the primary.
         _primarySurface = available;
         TabColor.Visibility = available && _pickerTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabShelf.Visibility = available && _shelfTabWanted ? Visibility.Visible : Visibility.Collapsed;
@@ -240,22 +241,22 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Gövde sekmelerinin yüzey kapısı: yalnız birincil barın hub'ı ekran örneklemesi (Renk)
-    /// ve bırakma servisi (Raf) taşıyabildiği için <see cref="SetClipboardChrome"/> küçükken
-    /// iki sekme de config'ten bağımsız gizlenir.
+    /// Surface gate for body tabs: because only the primary bar's hub can carry screen
+    /// sampling (Color) and the drop service (Shelf), while <see cref="SetClipboardChrome"/>
+    /// is small both tabs are hidden independently of config.
     /// </summary>
     private bool _primarySurface;
 
-    /// <summary>Gövde sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    /// <summary>Wanted state of the body tab: the bool setting is combined with the primary surface gate.</summary>
     private bool _pickerTabWanted = IslandConfig.DefaultColorPickerTab;
 
-    /// <summary>Raf sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    /// <summary>Wanted state of the Shelf tab: the bool setting is combined with the primary surface gate.</summary>
     private bool _shelfTabWanted = IslandConfig.DefaultShelfTab;
 
-    /// <summary>Prompter sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    /// <summary>Wanted state of the Prompter tab: the bool setting is combined with the primary surface gate.</summary>
     private bool _prompterTabWanted = IslandConfig.DefaultPrompterTab;
 
-    /// <summary>Kamera sekmesinin istenen durum: bool ayarı primary yüzey kapısıyla birleşir.</summary>
+    /// <summary>Wanted state of the Camera tab: the bool setting is combined with the primary surface gate.</summary>
     private bool _cameraTabWanted = IslandConfig.DefaultCameraTab;
 
     /// <summary>Shows or hides the Color picker tab; gated by <c>IslandConfig.ColorPickerTab</c>.</summary>
@@ -285,7 +286,7 @@ public sealed partial class IslandFlyout : UserControl
         }
     }
 
-    /// <summary>Hap ve panel aynı dolguyu paylaşsın diye silüet bu dolguyla boyanır.</summary>
+    /// <summary>The silhouette is painted with this fill so the pill and the panel share it.</summary>
     internal void ApplySurface()
     {
         _silhouetteFill = FlyoutSurface.Create();
@@ -385,32 +386,33 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// "Ekran rengini seç" tıklaması. Üst bar bu olayı alır: ada paneli önce kapanır, sonra
-    /// tam çalışma alanını kaplayan seçim örtüsü açılır (<see cref="ColorPickerWindow"/> örtüsü
-    /// tek topmost istisnası) ve seçim bittiğinde hub geri döner — paneli yöneten
-    /// <c>TopBarWindow.Island</c> tarafı aynı sınıfta olduğu için düzen oradan gelir.
+    /// The "Pick screen color" click. The top bar handles this event: the island panel closes
+    /// first, then the picker overlay covering the whole work area opens (the
+    /// <see cref="ColorPickerWindow"/> overlay is the only topmost exception) and the hub comes
+    /// back when the pick is done — the panel is managed by
+    /// <c>TopBarWindow.Island</c> in the same class, so the ordering comes from there.
     /// </summary>
     internal event EventHandler? ScreenPickerRequested;
 
     /// <summary>
-    /// Kamera satırındaki aç/kapat düğmesinin isteği (true = aç, false = kapat). Gövde bu
-    /// olaydan fazlasını yapmaz: <see cref="CameraMirrorHost.Apply(bool)"/> yalnız üst barın
-    /// işleyicisinden çağrılır — tek yol. Yanıt <see cref="CameraMirrorHost.Updated"/> ile
-    /// geri döner ve gövdeyi tazeler.
+    /// Request from the on/off button in the camera row (true = on, false = off). The body does
+    /// nothing beyond this event: <see cref="CameraMirrorHost.Apply(bool)"/> is called only from
+    /// the top bar's handler — the single path. The answer comes back via
+    /// <see cref="CameraMirrorHost.Updated"/> and refreshes the body.
     /// </summary>
     internal event EventHandler<bool>? CameraMirrorRequested;
 
     /// <summary>
-    /// Mikrofon satırı salt gösterim: gövde görünürken 2000 ms'de bir sessizlik durumu
-    /// tazelenir (Faz 2 timer ömrü deseni: tek kararla kur, tek kararla bırak).
+    /// The microphone row is display-only: while the body is visible the mute state is
+    /// refreshed every 2000 ms (Phase 2 timer lifetime pattern: set up on one decision, release on one decision).
     /// </summary>
     private DispatcherTimer? _micTimer;
 
     /// <summary>
-    /// Kamera gövdesi görünürken canlı takip kurulur: ana bilgisayarın
-    /// <see cref="CameraMirrorHost.Updated"/> aboneliği + mikrofon sayacı. Sekme
-    /// değişince ve panel kapanma yollarında <see cref="StopCameraBodyLifecycle"/>
-    /// bırakır; ikisi de idempotent, tekrar kurulum zararsız.
+    /// While the camera body is visible, live tracking is set up: the host's
+    /// <see cref="CameraMirrorHost.Updated"/> subscription + the microphone timer. On a tab
+    /// change and on panel close paths <see cref="StopCameraBodyLifecycle"/>
+    /// releases it; both are idempotent, setting it up again is harmless.
     /// </summary>
     private void StartCameraBodyLifecycle()
     {
@@ -422,24 +424,25 @@ public sealed partial class IslandFlyout : UserControl
         _micTimer.Start();
     }
 
-    /// <summary>Gövde görünmezse abonelik + sayaç bırakılır; gizliyken tık taşınmaz.</summary>
+    /// <summary>If the body is not visible, the subscription + timer are released; no tick is carried while hidden.</summary>
     private void StopCameraBodyLifecycle()
     {
         CameraMirrorHost.Updated -= OnCameraMirrorHostUpdated;
         _micTimer?.Stop();
     }
 
-    /// <summary>Önizleme güncellemeleri arka iş parçacığından yükselir: gövde tazelemesi UI'ya taşınır.</summary>
+    /// <summary>Preview updates are raised from a background thread: the body refresh is moved to the UI.</summary>
     private void OnCameraMirrorHostUpdated(object? sender, EventArgs e)
         => _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshCameraBody));
 
     private void OnMicTimerTick(object? sender, EventArgs e) => ReadMicStatus();
 
     /// <summary>
-    /// Gövdeyi ana bilgisayar durumundan tazeler. Ana bilgisayar yoksa "Kapalı"; canlı
-    /// akış ("Kamera" durumu) gövde dilinde "Aktif" der, ör. "Kamera yok" gibi başka
-    /// durumlar aynen gösterilir. Düğme yalnız ana bilgisayar durumunu aynalar — kendi
-    /// <see cref="CameraMirrorRequested"/> olayı haricinde yazma yolunun izni yoktur.
+    /// Refreshes the body from the host state. "Off" when there is no host; the live
+    /// stream ("Camera" status) says "Active" in body language, and other
+    /// states such as "No camera" are shown as-is. The button only mirrors the host
+    /// state — there is no write path other than its own
+    /// <see cref="CameraMirrorRequested"/> event.
     /// </summary>
     private void RefreshCameraBody()
     {
@@ -448,35 +451,35 @@ public sealed partial class IslandFlyout : UserControl
         {
             CameraPreviewImage.Source = null;
             CameraPreviewPlaceholder.Visibility = Visibility.Visible;
-            CameraStatusText.Text = "Kapalı";
+            CameraStatusText.Text = Strings.Qs_Off;
             CameraToggleButton.IsChecked = false;
             return;
         }
 
         CameraPreviewImage.Source = preview.Frame;
         CameraPreviewPlaceholder.Visibility = preview.Frame is null ? Visibility.Visible : Visibility.Collapsed;
-        CameraStatusText.Text = preview.Status == "Kamera" ? "Aktif" : preview.Status;
+        CameraStatusText.Text = preview.Status == "Camera" ? "Active" : preview.Status;
         CameraToggleButton.IsChecked = preview.IsRunning;
     }
 
-    /// <summary>Mikrofon durum yazısı: cevap yok → "Bilinmiyor", sessizde → "Sessiz", değilse "Aktif".</summary>
+    /// <summary>Microphone status text: no answer → "Unknown", muted → "Muted", otherwise "Active".</summary>
     private void ReadMicStatus()
     {
         bool known = AudioEndpointVolume.TryGetCaptureMute(out bool muted);
-        MicStatusText.Text = known ? (muted ? "Sessiz" : "Aktif") : "Bilinmiyor";
+        MicStatusText.Text = known ? (muted ? "Muted" : "Active") : "Unknown";
     }
 
     /// <summary>
-    /// Kamera aç/kapat tıklaması: gövde yalnız OLAY kaldırır; kendi başına
-    /// <see cref="CameraMirrorHost.Apply(bool)"/> ÇAĞIRMAZ — Apply tek yolu üst bar
-    /// işleyicisidir: SetEnabled + Apply + kayıt ve cevap Updated ile geri döner.
+    /// Camera on/off click: the body only RAISES the event; on its own it does
+    /// NOT CALL <see cref="CameraMirrorHost.Apply(bool)"/> — the single path for Apply is the top bar
+    /// handler: SetEnabled + Apply + record, and the answer comes back via Updated.
     /// </summary>
     private void OnCameraToggleClick(object sender, RoutedEventArgs e)
         => CameraMirrorRequested?.Invoke(this, CameraToggleButton.IsChecked ?? false);
 
     /// <summary>
-    /// Önizleme karesini 14 yarıçaplı köşelere kırpar (MusicCover klip deseni, boyuta
-    /// ölçekli — klip kaptersiz kalsaydı kare köşeleri Border'ın yuvarlaklığın taşardı).
+    /// Clips the preview frame to corners of radius 14 (MusicCover clip pattern, scaled
+    /// to size — if the clip had stayed without a radius the square corners would spill past the Border's rounding).
     /// </summary>
     private void OnCameraPreviewSizeChanged(object sender, SizeChangedEventArgs e)
     {
@@ -485,8 +488,8 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Gövde Tag kimlikleri: sekmenin XAML'deki Tag dizgisini verir (<c>Tag="shelf"</c> vb.).
-    /// Bilinmeyen değer <see cref="IslandHub.Normalize"/> gibi Pano'ya döner.
+    /// Body Tag ids: returns the tab's XAML Tag string (<c>Tag="shelf"</c> etc.).
+    /// An unknown value falls back to Clipboard, like <see cref="IslandHub.Normalize"/>.
     /// </summary>
     internal static string TabIdForBody(IslandHubTab tab) => tab switch
     {
@@ -523,23 +526,23 @@ public sealed partial class IslandFlyout : UserControl
         _clipboardShown = tab != IslandHubTab.Music;
         UpdateTabChrome(tab);
 
-        // Şelf seçimi yalnız Şelf gövdesinde yaşar: gövdeden çıkış (sekme tıklaması, ayar
-        // değişimi ya da gövde gizlenmesi) seçimi düşürür. Şelf'e dönüşte yeniden kurulum
-        // zaten seçimsizdir; yeniden kurulumun kendisi seçimi <b>korur</b>.
+        // Shelf selection lives only in the Shelf body: leaving the body (tab click, setting
+        // change or body hide) drops the selection. Returning to the Shelf sets it up
+        // without selection anyway; the rebuild itself <b>preserves</b> the selection.
         if (tab != IslandHubTab.Shelf)
         {
             ClearShelfSelection();
         }
 
-        // Gövde gizlenince tik atmasın: sekme değişirken oynatmayı durdur (pim serbest
-        // kalır; kaydırma konumu Paused'ta korunur, geri dönüşte kaldığı yerden sürer).
+        // Don't tick once the body is hidden: stop playback when the tab changes (the pin stays
+        // released; the scroll position is kept on Paused and resumes from where it left off).
         if (tab != IslandHubTab.Prompter && _prompterState == PrompterMotion.Playback.Playing)
         {
             SetPrompterPlayback(PrompterMotion.Playback.Paused);
         }
 
-        // Kamera gövdesi görünmezken canlı kaynak takibi taşınmaz: sekme değişince
-        // Updated aboneliği + mikrofon sayacı bırakılır; geri dönüşte kamera kolu kurar.
+        // While the camera body is not visible no live source tracking is carried: on a tab change
+        // the Updated subscription + microphone timer are released; the camera path sets them up on return.
         if (tab != IslandHubTab.Camera)
         {
             StopCameraBodyLifecycle();
@@ -570,7 +573,7 @@ public sealed partial class IslandFlyout : UserControl
                 ApplyTint(null);
                 _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                 {
-                    // Gövde görünür + layout oturmuş halde karar verilir: extent/ofset sıfır gelmesin.
+                    // Decide with the body visible + layout settled: extent/offset should not come back zero.
                     HookPrompterScroll();
                     RefreshPrompterPlayAvailability();
                 }));
@@ -684,7 +687,7 @@ public sealed partial class IslandFlyout : UserControl
         RevealBody(show, hide, crossfade);
     }
 
-    /// <summary>Hover ile açılmış panoyu sabitleyen tıklama arama kutusuna odaklar.</summary>
+    /// <summary>Focuses the search box for the click that pins a hover-opened panel.</summary>
     internal void FocusClipboardSearch()
     {
         if (SearchHost.Visibility != Visibility.Visible)
@@ -702,8 +705,8 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Müzik ve pano aynı popup içinde ~150 ms çapraz solar. Yükseklik birlikte akar;
-    /// ilk açılışta panel animasyonu yeter, <paramref name="crossfade"/> kapalı kalır.
+    /// Music and clipboard crossfade over ~150 ms inside the same popup. The height animates along;
+    /// on first open the panel animation is enough and <paramref name="crossfade"/> stays off.
     /// </summary>
     private void RevealBody(FrameworkElement show, FrameworkElement hide, bool crossfade)
     {
@@ -930,8 +933,8 @@ public sealed partial class IslandFlyout : UserControl
     private bool _writingSeek;
 
     /// <summary>
-    /// Çubuk yalnız SMTC konum ve süre verdiğinde. Kaydırıcı ayrıca <see cref="MediaSnapshot.CanSeek"/> ister.
-    /// Sayılar süre metnidir, yüzde değil.
+    /// The bar only when SMTC gives position and duration. The slider additionally requires <see cref="MediaSnapshot.CanSeek"/>.
+    /// The numbers are the duration text, not a percentage.
     /// </summary>
     private void ApplyTimeline(MediaSnapshot snapshot)
     {
@@ -1021,8 +1024,8 @@ public sealed partial class IslandFlyout : UserControl
     private void OnNextSessionClick(object sender, RoutedEventArgs e) => _media?.SelectNext();
 
     /// <summary>
-    /// Panel kapandı. Canlı abonelik bırakılır: gizliyken her kopyalamada listeyi yeniden
-    /// kurmak, kayıtlı bir AppBar olan üst bar için bedava iş değildir.
+    /// Panel closed. The live subscription is released: rebuilding the list on every copy
+    /// while hidden is not free work for the top bar, which is a registered AppBar.
     /// </summary>
     internal void OnPanelClosed()
     {
@@ -1030,20 +1033,20 @@ public sealed partial class IslandFlyout : UserControl
         StopPrompterPlayback();
         Detach();
 
-        // Gövde kapandı: raf seçimi bir sonraki açılışa taşınmaz (çipler zaten yeniden kurulur).
+        // Body closed: the shelf selection does not carry into the next open (the chips are rebuilt anyway).
         ClearShelfSelection();
     }
 
     /// <summary>
-    /// <see cref="IslandService.Changed"/> yalnızca UI dispatcher'ında yükselir
-    /// (<c>IslandService.RaiseChanged</c>); atlamaya gerek yok.
+    /// <see cref="IslandService.Changed"/> is raised only on the UI dispatcher
+    /// (<c>IslandService.RaiseChanged</c>); no hop is needed.
     /// </summary>
     private void OnChanged(object? sender, EventArgs e)
     {
         if (_service is { Config.ShelfTab: false })
         {
-            // Sekme ayardan kapandı: şeritten düşer (Müzik'teki güncelleme ilkesiyle aynı).
-            // Gövdesi hâlâ açıksa beklemeye alınmaz: anında Pano gövdesine döner.
+            // Tab turned off in settings: it drops out of the strip (same principle as the Music update).
+            // If its body is still open it is not deferred: it returns to the Clipboard body immediately.
             SetShelfTabVisible(false);
             if (ShelfBody.Visibility == Visibility.Visible)
             {
@@ -1079,8 +1082,8 @@ public sealed partial class IslandFlyout : UserControl
 
         if (_service is { Config.CameraTab: false })
         {
-            // Kamera sekmesi ayardan kapandı: Şelf/Renk/Okur ilkesiyle şeritten düşer ve
-            // gövde açıksa anında Pano'ya döner (PresentHub yaşam döngüsünü de bırakır).
+            // Camera tab turned off in settings: it drops out of the strip like Shelf/Color/Prompter and
+            // returns to Clipboard immediately if the body is open (PresentHub releases the lifecycle too).
             SetCameraTabVisible(false);
             if (CameraBody.Visibility == Visibility.Visible)
             {
@@ -1122,8 +1125,8 @@ public sealed partial class IslandFlyout : UserControl
             _rows.Add(matches[i]);
         }
 
-        // Tema fırçası her kurulumda değil, her yeniden kurulumda bir kez çözülür: 200 satır
-        // için 200 kez kaynak aramak gereksiz.
+        // The theme brush is resolved once per rebuild, not per row setup: looking up a resource
+        // 200 times for 200 rows is unnecessary.
         Brush selectedBrush = ResolveSelectedBrush();
 
         EntryListPanel.Children.Clear();
@@ -1206,12 +1209,12 @@ public sealed partial class IslandFlyout : UserControl
                 FontFamily = iconFont,
                 FontSize = 12,
             },
-            ToolTip = "Sil",
+            ToolTip = "Delete",
             Focusable = false,
             Visibility = Visibility.Hidden,
             VerticalAlignment = VerticalAlignment.Center,
         };
-        System.Windows.Automation.AutomationProperties.SetName(delete, "Sil");
+        System.Windows.Automation.AutomationProperties.SetName(delete, "Delete");
         if (TryFindResource("IslandIconButton") is Style iconButtonStyle)
         {
             delete.Style = iconButtonStyle;
@@ -1220,7 +1223,7 @@ public sealed partial class IslandFlyout : UserControl
         delete.Click += (_, e) =>
         {
             e.Handled = true;
-            // Rebuild() _selectedIndex'i kendisi kısaltır (Delete tuşu yoluyla aynı).
+            // Rebuild() shortens _selectedIndex itself (same as the Delete key path).
             _service?.Remove(entry);
         };
         Grid.SetColumn(delete, 2);
@@ -1228,8 +1231,8 @@ public sealed partial class IslandFlyout : UserControl
 
         row.Child = grid;
 
-        // Dosya satırında yalnız ad görünür; tam yol tooltip'te (kopyanın nerede olduğu
-        // listeden anlaşılmıyor).
+        // Only the name is visible on a file row; the full path is in the tooltip (where the copy
+        // lives is not obvious from the list).
         if (entry.Kind == IslandEntryKind.File && entry.FilePath is { Length: > 0 } path)
         {
             row.ToolTip = path;
@@ -1247,8 +1250,8 @@ public sealed partial class IslandFlyout : UserControl
         };
         row.MouseLeftButtonUp += (_, e) =>
         {
-            // Button zaten MouseLeftButtonUp'u işler; yine de silme düğmesinden gelen olay
-            // satırı etkinleştirmesin.
+            // Button already handles MouseLeftButtonUp; still, the event coming from the delete
+            // button should not activate the row.
             if (e.OriginalSource is DependencyObject source && IsInside(source, delete))
             {
                 return;
@@ -1279,7 +1282,7 @@ public sealed partial class IslandFlyout : UserControl
     private static FontFamily ResolveIconFont() =>
         Application.Current.TryFindResource("AppIconFontFamily") as FontFamily
         ?? new FontFamily("Segoe MDL2 Assets");
-    /// <summary>Satır sağındaki "kaynak uygulama · göreli zaman" etiketi.</summary>
+    /// <summary>The "source app · relative time" label at the right of the row.</summary>
     private static string BuildMeta(IslandEntry entry)
     {
         string relative = IslandPruner.FormatRelativeTime(entry.CapturedAtUtc, DateTimeOffset.UtcNow);
@@ -1313,13 +1316,13 @@ public sealed partial class IslandFlyout : UserControl
             return brush;
         }
 
-        // Tema sözlüğü yüklenmemişse (ilk açılış yarışı) seçim görünmez olmasın.
+        // Don't let the selection become invisible if the theme dictionary is not loaded (first-open race).
         var fallback = new SolidColorBrush(Color.FromArgb(0x20, 0xFF, 0xFF, 0xFF));
         fallback.Freeze();
         return fallback;
     }
 
-    /// <summary>Alt bilgi satırı: boş liste ya da sınır nedeniyle kurulmayan kayıt sayısı.</summary>
+    /// <summary>Footer line: the empty list, or the number of entries not built because of the limit.</summary>
     private void UpdateHint(int total, int shown)
     {
         if (total == 0)
@@ -1349,7 +1352,7 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
-        // Klavye ile gezinirken seçili satır kaydırma alanının dışında kalabiliyor.
+        // While navigating with the keyboard the selected row can fall outside the scroll area.
         if (EntryListPanel.Children[_selectedIndex] is FrameworkElement row)
         {
             row.BringIntoView();
@@ -1369,20 +1372,20 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
-        // Metin kaydı panoya geri konur. PutBack kendi kopyasını yeniden yakalamaz
-        // (CanIncludeInClipboardHistory=0 yazıyor) — aksi halde aynı kayıt iki kez listelenirdi.
+        // The text entry is put back on the clipboard. PutBack does not re-capture its own copy
+        // (it writes CanIncludeInClipboardHistory=0) — otherwise the same entry would be listed twice.
         _service.PutBack(entry);
     }
 
     /// <summary>
-    /// Raf kaydını varsayılan uygulamayla açar (dosya <b>ya da</b> klasör); dosya silinmez.
+    /// Opens the shelf entry with the default application (a file <b>or</b> a folder); the file is not deleted.
     /// </summary>
     /// <remarks>
-    /// Yol <c>island.json</c>'dan gelir, yani <b>güvenilmez</b> bir girdidir. Açma
-    /// <see cref="IslandService.OpenShelfFile"/> kapısından geçer: gerçek klasör kabul edilir
-    /// (<c>UseShellExecute</c> Explorer'ı açar); aygıt yolu, reparse noktalı klasör ve kaçış
-    /// bileşeni <see cref="IslandService.CanOpenShelfFile"/> tarafında reddedilir; başlatma
-    /// hataları da orada loglanıp <c>false</c> döner.
+    /// The path comes from <c>island.json</c>, i.e. it is an <b>untrusted</b> input. Opening goes
+    /// through the <see cref="IslandService.OpenShelfFile"/> gate: a real folder is accepted
+    /// (<c>UseShellExecute</c> opens Explorer); a device path, a folder with a reparse point and an
+    /// escape component are rejected on the <see cref="IslandService.CanOpenShelfFile"/> side; launch
+    /// failures are logged there too and return <c>false</c>.
     /// </remarks>
     private void OpenFile(string? path)
     {
@@ -1394,41 +1397,41 @@ public sealed partial class IslandFlyout : UserControl
         _ = _service.OpenShelfFile(path);
     }
 
-    #region Şelf gövdesi
+    #region Shelf body
 
     /// <summary>
-    /// Seçili raf çipleri — kayıt <b>kimliği</b> tutulur, çip sırası değil: pano/medya
-    /// bildirimlerinin tetiklediği yeniden kurulumlarda seçim yaşamalı. Listeden düşen ya da
-    /// budanan kaydın kimliği taze listede bulunmayınca sessizce temizlenir.
+    /// Selected shelf chips — the entry <b>id</b> is kept, not the chip order: the selection must
+    /// survive the rebuilds triggered by clipboard/media notifications. The id of an entry that
+    /// drops out of the list or is pruned is cleared silently once it is not found in the fresh list.
     /// </summary>
     private readonly HashSet<long> _shelfSelection = [];
 
-    /// <summary>Shift ile aralık seçiminin çıpası (kayıt kimliği); seçim yokken <c>-1</c>.</summary>
+    /// <summary>Anchor of the Shift range selection (entry id); <c>-1</c> when there is no selection.</summary>
     private long _shelfAnchorId = -1;
 
     /// <summary>
-    /// Son kurulumun görüntüleme sırası (çip sırası = <see cref="IslandService.Entries"/> sırası).
-    /// Aralık seçimi ve toplu sürükleme yükü bu sırayı izler.
+    /// Display order of the last rebuild (chip order = <see cref="IslandService.Entries"/> order).
+    /// Range selection and the batch drag payload follow this order.
     /// </summary>
     private readonly List<IslandEntry> _shelfRows = [];
 
     /// <summary>
-    /// Sürüklemeyle biten hareketin bırakışı seçimi çipe daraltmasın diye ilk bırakışı yer.
-    /// Bırakış sürüklemeyi bitirse de kaynağa teslim edilir (DockWindow'daki
-    /// <c>_suppressNextClick</c> aynı gerekçeyle var), yani toplu sürükleme Esc'le ya da rafın
-    /// üzerine bırakılarak biterse seçim dağılmamalı.
+    /// Swallows the first release so the release that ends a drag does not collapse the selection to
+    /// one chip. The release is handed to the source even when it ends the drag
+    /// (<c>_suppressNextClick</c> in DockWindow exists for the same reason), so a batch drag that
+    /// ends with Esc or by dropping on the shelf must not scatter the selection.
     /// <para>
-    /// Yaşam döngüsü: her yeni çip basışında temizlenir (bırakışı hiç ulaşmayan sürükleme
-    /// sonraki tıklamanın daraltmasını yemesin), <see cref="DragDrop.DoDragDrop"/> dönüşünde
-    /// koşulsuz kurulur — reddedilen sürükleme de sürüklemedir — ve ilk bırakışta tükenir.
+    /// Lifetime: cleared on every new chip press (a drag whose release never arrived must not
+    /// eat the next click's collapse), set unconditionally when <see cref="DragDrop.DoDragDrop"/>
+    /// returns — a rejected drag is still a drag — and consumed on the first release.
     /// </para>
     /// </summary>
     private bool _suppressNextShelfCollapse;
 
     /// <summary>
-    /// Raf gövdesi: bırakılan dosya kayıtları tek satırlık çip olarak — uzantı rozeti + dosya
-    /// adı. Sıra <see cref="IslandService.Entries"/> ile aynı (en yeni başta); pano gövdesinin
-    /// satır tavanı (<see cref="MaxRenderedRows"/>) burada da geçerlidir.
+    /// Shelf body: dropped file entries as single-line chips — extension badge + file
+    /// name. Order matches <see cref="IslandService.Entries"/> (newest first); the row
+    /// ceiling of the clipboard body (<see cref="MaxRenderedRows"/>) applies here too.
     /// </summary>
     private void RebuildShelf()
     {
@@ -1441,9 +1444,9 @@ public sealed partial class IslandFlyout : UserControl
             .Where(entry => entry.Kind == IslandEntryKind.File)
             .ToList();
 
-        // Seçim kimliğe bağlıdır: taze listede olmayan (kaldırılan/budanan) kayıt düşer, kalan
-        // seçim korunur. Arka plan bildirimlerinin sık tetiklediği yeniden kurulumlar seçimi
-        // yemez — seçim yalnız sekme/gövde kapanışında ve bu kimlik süzgecinde temizlenir.
+        // Selection is tied to the id: an entry not in the fresh list (removed/pruned) drops out, the
+        // remaining selection is kept. Rebuilds frequently triggered by background notifications do
+        // not eat the selection — it is cleared only on tab/body close and by this id filter.
         HashSet<long> liveIds = [.. files.Select(entry => entry.Id)];
         _shelfSelection.IntersectWith(liveIds);
         if (_shelfAnchorId >= 0 && !liveIds.Contains(_shelfAnchorId))
@@ -1463,23 +1466,24 @@ public sealed partial class IslandFlyout : UserControl
             IslandEntry entry = files[i];
             _shelfRows.Add(entry);
 
-            // Klasör rozeti diskteki metadata'dan okunur. Sorgu çip başına BİR kez, burada
-            // yapılır: RebuildShelf her pano/medya bildiriminde çalışır, çip kurucusuna iki
-            // ayrı Directory.Exists (rozet + menü çözümü) sızdırmak sıcak yolu ikiye katlardı.
+            // The folder badge is read from on-disk metadata. The query is made ONCE per chip, here:
+            // RebuildShelf runs on every clipboard/media notification, and leaking two separate
+            // Directory.Exists calls (badge + menu resolution) into the chip builder would double the hot path.
             bool isFolder = entry.FilePath is { Length: > 0 } folderPath && Directory.Exists(folderPath);
             ShelfList.Children.Add(BuildShelfChip(entry, isFolder));
         }
 
-        // Arka plan menüsü tembel: eşik kayıt sayısından gelir, diskten değil (yeniden
-        // kurulumda yol sorgusu yok). Menü nesnesi ilk gerektiğinde bir kez kurulur; yük
-        // ise sürükleme gerçekten başlarken canlı listeden çözülür (bkz. GetShelfBatchMenu).
+        // The background menu is lazy: the threshold comes from the entry count, not from disk (no
+        // path query on rebuild). The menu object is created once when first needed; the payload
+        // is resolved from the live list when the drag actually starts (see GetShelfBatchMenu).
         ShelfBody.ContextMenu = files.Count >= 2 ? GetShelfBatchMenu() : null;
     }
 
     /// <summary>
-    /// Rozet metni: uzantının ilk üç harfi büyük harfe (<c>report.PDF → PDF</c>). Uzantısız
-    /// dosyada adın ilk üç harfi okunur — boş rozet bırakılmaz. Klasör kaydında rozet metni
-    /// değil <see cref="FolderGlyph"/> çizilir (bkz. <see cref="BuildShelfChip"/>).
+    /// Badge text: the first three letters of the extension in upper case (<c>report.PDF → PDF</c>). For
+    /// a file without an extension the first three letters of the name are read — an empty badge is
+    /// never left. For a folder entry <see cref="FolderGlyph"/> is drawn instead of badge text
+    /// (see <see cref="BuildShelfChip"/>).
     /// </summary>
     private static string ShelfBadge(string fileName)
     {
@@ -1489,10 +1493,10 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Çip satırı: pano gövdesinin <see cref="BuildRow"/> deseniyle aynı ölçüler (kutu 32,
-    /// köşe 12, iki satır arası 2) — tek fark: ikinci kolonda meta değil ad, seçim tıklaması,
-    /// sağ tık menüsü ve sürükleyerek dışarı taşıma. Dosya açma menüden ya da pano
-    /// gövdesindeki satırdan.
+    /// Chip row: same metrics as the clipboard body's <see cref="BuildRow"/> pattern (tile 32,
+    /// corner 12, 2 between rows) — the only difference: the second column holds the name, not meta;
+    /// plus selection click, right-click menu and drag-out. Files open from the menu or from the
+    /// row in the clipboard body.
     /// </summary>
     private Border BuildShelfChip(IslandEntry entry, bool isFolder)
     {
@@ -1502,13 +1506,13 @@ public sealed partial class IslandFlyout : UserControl
             Margin = new Thickness(0, 0, 0, 2),
             CornerRadius = new CornerRadius(12),
             Background = Brushes.Transparent,
-            // Kenarlık her çipte 1 px'tir; seçimde fırça aksana döner. Kalınlık seçim anında
-            // değişseydi çip 2 px büyür, satır yüksekliği seçimde zıplardı.
+            // The border is 1 px on every chip; on selection the brush switches to accent. If the
+            // thickness changed at selection time the chip would grow 2 px and the row height would jump on selection.
             BorderThickness = new Thickness(1),
             BorderBrush = Brushes.Transparent,
             Cursor = Cursors.Hand,
-            // Spec B2: klavye odağı + Delete/Enter/Space ile kaldırma yolu (aşağıdaki
-            // PreviewKeyDown). Odak görseli aksan çerçevedir; fareyle gelen odak zarar vermez.
+            // Spec B2: keyboard focus + removal path with Delete/Enter/Space (the
+            // PreviewKeyDown below). The focus visual is the accent border; mouse focus does no harm.
             Focusable = true,
             Tag = entry,
         };
@@ -1518,9 +1522,9 @@ public sealed partial class IslandFlyout : UserControl
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        // Klasör rozeti: uzantı üçlüsü yerine klasör glifi. Kayıt türü klasör için ayrı
-        // değildir (IslandEntryKind.File); klasör olup olmadığı RebuildShelf'te kayıt başına
-        // bir kez okunur ve buraya geçirilir (disk sorgusu bu kurucuda tekrarlanmaz).
+        // Folder badge: a folder glyph instead of the three-letter extension. The entry kind is not
+        // separate for a folder (IslandEntryKind.File); whether it is a folder is read once per entry
+        // in RebuildShelf and passed in here (the disk query is not repeated in this builder).
         var badge = new Border
         {
             Width = 36,
@@ -1558,12 +1562,12 @@ public sealed partial class IslandFlyout : UserControl
         Grid.SetColumn(name, 1);
         grid.Children.Add(name);
 
-        // Hover "×": üçüncü (Auto) kolonda, fare çipin üzerindeyken (ya da çip klavye
-        // odağındayken) görünür. Klik kaydı listeden düşürür; kaydın kendi yolu Drop
-        // altındaysa eski kopya temizlenir, Drop dışındaki orijinal dosyaya dokunulmaz
-        // (<see cref="IslandService.Remove"/> kontratı). Arka plan <c>Transparent</c>
-        // (null değil): 16×16 alanı hit-test'e sokar, yani "×" harfinin etrafına da
-        // tıklanabilir.
+        // Hover "×": in the third (Auto) column, visible while the mouse is over the chip (or while
+        // the chip has keyboard focus). The click drops the entry from the list; if the entry's own path
+        // is under Drop the old copy is deleted, while the original file outside Drop is left untouched
+        // (<see cref="IslandService.Remove"/> contract). The background is <c>Transparent</c>
+        // (not null): it puts the 16×16 area into hit testing, i.e. the area around the "×" glyph
+        // is clickable too.
         var removeButton = new Border
         {
             Width = 16,
@@ -1587,11 +1591,11 @@ public sealed partial class IslandFlyout : UserControl
         grid.Children.Add(removeButton);
         chip.Child = grid;
 
-        // Spec B2 erişilebilirlik: çip ve "×" ekran okuyucuda adlarıyla duyurulur.
+        // Spec B2 accessibility: the chip and "×" are announced by name to screen readers.
         System.Windows.Automation.AutomationProperties.SetName(chip, entry.Text);
         System.Windows.Automation.AutomationProperties.SetName(removeButton, RemoveAccessName);
 
-        // Dosya adı listede; kopyanın tam yolu tooltip'te (pano gövdesindeki yerleşimle aynı).
+        // The file name is in the list; the copy's full path is in the tooltip (same placement as in the clipboard body).
         if (entry.FilePath is { Length: > 0 } fullPath)
         {
             chip.ToolTip = fullPath;
@@ -1606,15 +1610,15 @@ public sealed partial class IslandFlyout : UserControl
         };
         chip.MouseLeave += (_, _) =>
         {
-            // Klavye odağı "×" i açık tutar: Enter/Space kaldırma yolu fare ayrıldı diye
-            // sessizce kapanmamalı (odak görseli de odağın kendisinde kalır).
+            // Keyboard focus keeps "×" open: the Enter/Space removal path must not close
+            // silently just because the mouse left (the focus visual stays on the focus itself too).
             removeButton.Visibility = chip.IsKeyboardFocusWithin ? Visibility.Visible : Visibility.Collapsed;
-            // Seçili çip hover dolgusunu bırakışta da korur; seçim çerçevesi tek başına kalmasın.
+            // A selected chip keeps the hover fill on leave too; the selection frame should not be left alone.
             chip.Background = _shelfSelection.Contains(entry.Id) ? hoverBrush : restingBrush;
         };
 
-        // Klavye odağı: aksan çerçeve görünür, "×" açılır. Odak kaybında görsel ve düğme
-        // normal (seçim/hover) duruma döner.
+        // Keyboard focus: the accent border shows, "×" opens. On focus loss the visual and the button
+        // return to the normal (selection/hover) state.
         chip.GotKeyboardFocus += (_, _) =>
         {
             chip.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
@@ -1630,17 +1634,17 @@ public sealed partial class IslandFlyout : UserControl
             UpdateShelfChipSelection(chip, entry);
         };
 
-        // Seçim tıklaması sürükleme yakalamasından bağımsızdır: yol taşımayan kayıt da seçilir.
+        // The selection click is independent of the drag capture: an entry without a path is selected too.
         chip.MouseLeftButtonDown += (_, _) => OnShelfChipPressed(entry);
         chip.MouseLeftButtonUp += (_, _) => OnShelfChipReleased(entry);
 
         UpdateShelfChipSelection(chip, entry);
         Action? cancelShelfDrag = AttachShelfChipDrag(chip, entry);
 
-        // "×" tıklaması çipin seçim/sürükleme yollarına hiç girmez: önizleme (tünel) olayı
-        // burada handled işaretlenince kabarcık <see cref="UIElement.MouseDownEvent"/> çipe
-        // ulaşmaz — ne seçim değişir ne de sürükleme yakalaması kurulur. Yine de olası bir
-        // bayat yakalamayı bırakmak için iptal eylemi çağrılır.
+        // The "×" click never enters the chip's selection/drag paths: once the preview (tunnel) event
+        // is marked handled here, the bubbling <see cref="UIElement.MouseDownEvent"/> does not reach
+        // the chip — neither the selection changes nor a drag capture is set up. Still, the cancel
+        // action is called to release a possibly stale capture.
         removeButton.PreviewMouseLeftButtonDown += (_, args) => args.Handled = true;
         removeButton.PreviewMouseLeftButtonUp += (_, args) =>
         {
@@ -1648,9 +1652,9 @@ public sealed partial class IslandFlyout : UserControl
             RemoveShelfEntry(entry, cancelShelfDrag);
         };
 
-        // Klavye kaldırma (spec B2): Delete her zaman; Enter/Space "×" görünürken (odak ya da
-        // hover) aynı kayıt-only yolu çalıştırır. Basış iptali bayat fare yakalamasını bırakır,
-        // yani klavye kaldırma asla sürükleme başlatmaz.
+        // Keyboard removal (spec B2): Delete always; Enter/Space while "×" is visible (focus or
+        // hover) runs the same entry-only path. Cancelling the press releases a stale mouse capture,
+        // so keyboard removal never starts a drag.
         chip.PreviewKeyDown += (_, args) =>
         {
             bool remove = args.Key == Key.Delete
@@ -1665,23 +1669,23 @@ public sealed partial class IslandFlyout : UserControl
             RemoveShelfEntry(entry, cancelShelfDrag);
         };
 
-        // Menü tembel kurulur: RebuildShelf her pano/medya bildiriminde çalışır; menüyü burada
-        // kurmak her çipte TryGetExistingShelfPath + CanOpenShelfFile (Exists + GetAttributes +
-        // bileşen yürüyüşü) demekti. Sağ tık gerçekten açıldığında kurulur; davranış aynıdır.
+        // The menu is created lazily: RebuildShelf runs on every clipboard/media notification; creating
+        // it here would mean TryGetExistingShelfPath + CanOpenShelfFile (Exists + GetAttributes +
+        // component walk) on every chip. It is created when the right click actually opens; behavior is the same.
         chip.ContextMenuOpening += OnShelfChipContextMenuOpening;
         return chip;
     }
 
     /// <summary>
-    /// Çip basışı seçimi yönetir: Ctrl tek tek açar/kapatır, Shift çıpadan aralık seçer, düz
-    /// basış seçimi düşürür. Düz basışta <b>seçili</b> çip hemen düşürülmez: basış sürüklemeye
-    /// dönüşürse seçim yükü taşınır; tıklama olarak biterse bırakışta tek çipe daralır
-    /// (<see cref="OnShelfChipReleased"/>).
+    /// Chip press manages the selection: Ctrl toggles one by one, Shift selects a range from the anchor, a
+    /// plain press drops the selection. On a plain press a <b>selected</b> chip is not dropped at once: if the
+    /// press turns into a drag the selection payload is carried; if it ends as a click it collapses to a single
+    /// chip on release (<see cref="OnShelfChipReleased"/>).
     /// </summary>
     private void OnShelfChipPressed(IslandEntry entry)
     {
-        // Her yeni basış bayat "sürükleme bitti" işaretini temizler: bırakışı hiç ulaşmamış bir
-        // sürükleme, sonraki tıklamanın seçim daraltmasını yemesin.
+        // Every new press clears the stale "drag finished" flag: a drag whose release never arrived
+        // must not eat the next click's selection collapse.
         _suppressNextShelfCollapse = false;
 
         ModifierKeys modifiers = Keyboard.Modifiers;
@@ -1707,14 +1711,14 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Düz tıklamanın bırakışı: çoklu seçimdeki seçili çipe sürüklemesiz basıldıysa seçim o
-    /// çipe daralır (sürükleme buraya hiç uğramaz; yakalama <see cref="AttachShelfChipDrag"/>
-    /// içinde bırakılır).
+    /// Release of a plain click: if a selected chip in a multi-selection was pressed without dragging, the
+    /// selection collapses to that chip (the drag never reaches here; the capture is released inside
+    /// <see cref="AttachShelfChipDrag"/>).
     /// </summary>
     private void OnShelfChipReleased(IslandEntry entry)
     {
-        // Sürüklemeyi bitiren bırakış da buraya düşer: toplu sürükleme Esc'le ya da rafın
-        // üzerine bırakılarak bittiyse seçim tek çipe daralmasın (yalnız ilk bırakış yutulur).
+        // The release that ends a drag lands here too: if the batch drag ended with Esc or by dropping
+        // on the shelf, the selection must not collapse to one chip (only the first release is swallowed).
         if (_suppressNextShelfCollapse)
         {
             _suppressNextShelfCollapse = false;
@@ -1734,7 +1738,7 @@ public sealed partial class IslandFlyout : UserControl
         RefreshShelfChipSelection();
     }
 
-    /// <summary>Çıpadan tıklanan çipe kadar görüntüleme sırasındaki aralığı seçer.</summary>
+    /// <summary>Selects the range in display order from the anchor up to the clicked chip.</summary>
     private void ExtendShelfSelectionTo(IslandEntry entry)
     {
         int clicked = IndexOfShelfRow(entry.Id);
@@ -1746,7 +1750,7 @@ public sealed partial class IslandFlyout : UserControl
         int anchor = IndexOfShelfRow(_shelfAnchorId);
         if (anchor < 0)
         {
-            // Çıpa listeden düşmüşse aralık tıklanan çipten başlar.
+            // If the anchor dropped out of the list, the range starts at the clicked chip.
             anchor = clicked;
             _shelfAnchorId = entry.Id;
         }
@@ -1774,9 +1778,9 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Seçim görsellerini tek çipte uygular: aksan çerçeve + fare üzerindeyken ya da seçiliyken
-    /// hover dolgusu. Yeniden kurulumda <see cref="BuildShelfChip"/> de bu kapıdan geçer, yani
-    /// seçim yeni çiplere kendiliğinden taşınır.
+    /// Applies the selection visuals on a single chip: accent border + hover fill while the mouse
+    /// is over it or while it is selected. On rebuild <see cref="BuildShelfChip"/> goes through this
+    /// gate too, so the selection carries over to the new chips by itself.
     /// </summary>
     private void UpdateShelfChipSelection(Border chip, IslandEntry entry)
     {
@@ -1792,7 +1796,7 @@ public sealed partial class IslandFlyout : UserControl
         chip.Background = chip.IsMouseOver ? ResolveSelectedBrush() : Brushes.Transparent;
     }
 
-    /// <summary>Seçim değişince tüm çiplerin görselini tazeler (çip sayısı satır tavanıyla sınırlı).</summary>
+    /// <summary>Refreshes every chip's visual when the selection changes (chip count is bounded by the row ceiling).</summary>
     private void RefreshShelfChipSelection()
     {
         foreach (UIElement child in ShelfList.Children)
@@ -1805,8 +1809,8 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Seçimi bırakır. Yalnız sekme/gövde kapanışında ve liste dışına çıkan kimliklerde
-    /// çağrılır; sıradan <see cref="RebuildShelf"/> seçimi korur.
+    /// Clears the selection. It is called only on tab/body close and for ids that leave the list;
+    /// an ordinary <see cref="RebuildShelf"/> preserves the selection.
     /// </summary>
     private void ClearShelfSelection()
     {
@@ -1815,9 +1819,9 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Seçili kayıtları <see cref="DataFormats.FileDrop"/> yüküne çevirir: yalnız diskte hâlâ
-    /// var olan yollar (dosya <b>ya da</b> klasör). Hiçbiri kalmadıysa <see langword="null"/> —
-    /// çağıran sürüklemeyi başlatmaz.
+    /// Converts the selected entries into a <see cref="DataFormats.FileDrop"/> payload: only paths still
+    /// present on disk (a file <b>or</b> a folder). If none remain, <see langword="null"/> —
+    /// the caller does not start a drag.
     /// </summary>
     private static string[]? BuildShelfFileDropPayload(IEnumerable<IslandEntry> entries)
     {
@@ -1834,12 +1838,12 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Raf arka planı menüsü: tek maddelik "Tümünü dışarı sürükle" (seçimden bağımsız,
-    /// <b>tüm</b> raf kayıtları). Menü nesnesi <b>tek örnek</b> ve tembeldir: eşik diskte
-    /// değil kayıt sayısındadır (<see cref="RebuildShelf"/>), böylece her pano/medya
-    /// bildiriminde kayıt başına yol sorgusu yapılmaz. Yük ise sürükleme gerçekten
-    /// başlarken canlı listeden çözülür: menü açıkken diskten düşen yol taşınmaz; hiç yol
-    /// kalmazsa sürükleme başlamaz.
+    /// Shelf background menu: a single item, "Drag all out" (independent of the selection, <b>all</b>
+    /// shelf entries). The menu object is a <b>single instance</b> and lazy: the threshold is the entry
+    /// count rather than disk (<see cref="RebuildShelf"/>), so no per-entry path query runs on every
+    /// clipboard/media notification. The payload, however, is resolved from the live list when the drag
+    /// actually starts: a path dropped from disk while the menu is open is not carried; if no path
+    /// remains, the drag does not start.
     /// </summary>
     private ContextMenu GetShelfBatchMenu()
     {
@@ -1849,22 +1853,22 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         var menu = new ContextMenu();
-        // Tıklama sürükleme başlatamaz (düğme basılı olmalı): ipucu, maddenin basılı tutulup
-        // sürüklenmesi gerektiğini söyler — düz tıklama menüyü kapatır, sürükleme başlatmaz.
+        // A click cannot start a drag (the button must be held): the hint says the item has to be
+        // pressed and dragged — a plain click closes the menu and starts no drag.
         var dragAll = new MenuItem
         {
-            Header = "Tümünü dışarı sürükle",
-            ToolTip = "Basılı tutup bir klasöre sürükleyin",
+            Header = "Drag all out",
+            ToolTip = "Hold and drag to a folder",
         };
 
-        // Sürükleme OLE'de basılı düğme ister: Click fare bırakışından sonra ateşlenir, ilk
-        // QueryContinueDrag düğmeyi basılı görmez ve WPF sürüklemeyi iptal eder. Bu yüzden
-        // madde basışta yalnız "silahlandırılır" (konum), sürükleme eşik aşılınca — düğme hâlâ
-        // basılıyken — menü kapatılıp başlatılır. Yük eşik anında yeniden kurulur (tıklama
-        // anındaki tazelik); sürüklemesiz düz tıklama sürükleme başlatmaz, menü normal kapanır.
-        // Hareket menüden izlenir: menü açıkken fare popup tarafından yakalanır, yani imleç
-        // maddeden çıksa da olay menüye ulaşır (yalnız maddeye bağlanınca çubuk dışına taşan
-        // ilk hareket kaçardı).
+        // Dragging requires a held button in OLE: Click fires after the mouse release, the first
+        // QueryContinueDrag does not see the button held and WPF cancels the drag. That is why the
+        // item is only "armed" on press (position), and the drag starts once the threshold is crossed —
+        // while the button is still held — after closing the menu. The payload is rebuilt at the
+        // threshold (freshness at click time); a plain click without dragging starts no drag and the menu closes normally.
+        // Movement is tracked from the menu: while the menu is open the mouse is captured by the popup, so
+        // the event reaches the menu even when the cursor leaves the item (if bound to the item only,
+        // the first movement outside the bar would be missed).
         Point? armedOrigin = null;
         dragAll.PreviewMouseLeftButtonDown += (_, args) => armedOrigin = args.GetPosition(ShelfBody);
         menu.AddHandler(
@@ -1891,7 +1895,7 @@ public sealed partial class IslandFlyout : UserControl
                 ? service.Entries.Where(entry => entry.Kind == IslandEntryKind.File)
                 : [];
             string[]? paths = BuildShelfFileDropPayload(live);
-            // Popup açıkken OLE döngüsü menüyü kapatamaz: önce menü, sonra sürükleme.
+            // While the popup is open the OLE loop cannot close the menu: menu first, then the drag.
             menu.IsOpen = false;
             if (paths is null)
             {
@@ -1901,7 +1905,7 @@ public sealed partial class IslandFlyout : UserControl
             var payload = new DataObject(DataFormats.FileDrop, paths);
             _ = DragDrop.DoDragDrop(ShelfBody, payload, DragDropEffects.Copy | DragDropEffects.Move);
 
-            // Sürükleme bitti: onu bitiren bırakış seçimi çipe daraltmasın (bkz. alan).
+            // Drag finished: the release that ended it must not collapse the selection to one chip (see field).
             _suppressNextShelfCollapse = true;
         }
 
@@ -1910,21 +1914,21 @@ public sealed partial class IslandFlyout : UserControl
         return menu;
     }
 
-    /// <summary>Arka plan menüsünün tek örneği (menü kayıtlara değil, canlı listeye bakar).</summary>
+    /// <summary>Single instance of the background menu (the menu looks at the live list, not at entries).</summary>
     private ContextMenu? _shelfBatchMenu;
 
     /// <summary>
-    /// Çipi bir klasör penceresine sürükler: <see cref="DataFormats.FileDrop"/> biçiminde
-    /// <see cref="IslandEntry.FilePath"/> taşınır. Çip çoklu seçimin parçasıysa yük <b>seçimin
-    /// tamamıdır</b> (yalnız yolu hâlâ diskte olanlar; hiçbiri kalmadıysa sürükleme başlamaz).
-    /// Sürkleme <b>gerçek taşınımda</b> başlar: sol tuş
-    /// <see cref="UIElement.MouseLeftButtonDownEvent"/>'te yakalanır, eşik aşılınca yakalama
-    /// bırakılıp <see cref="DragDrop.DoDragDrop"/> çağrılır — o çağrı kullanıcı sürüklemeyi
-    /// bırakana kadar engelleyici çalışır (UI thread'i zaten STA'dır).
+    /// Drags the chip into a folder window: <see cref="IslandEntry.FilePath"/> is carried as
+    /// <see cref="DataFormats.FileDrop"/>. If the chip is part of a multi-selection the payload is
+    /// <b>the whole selection</b> (only the paths still on disk; if none remain the drag does not start).
+    /// The drag starts on <b>actual movement</b>: the left button is
+    /// captured on <see cref="UIElement.MouseLeftButtonDownEvent"/>, and once the threshold is crossed the capture is
+    /// released and <see cref="DragDrop.DoDragDrop"/> is called — that call runs blocking until the user
+    /// releases the drag (the UI thread is STA anyway).
     /// </summary>
     /// <returns>
-    /// Basışı iptal eden eylem (bayrağı kapatır, yakalamayı bırakır) — hover "×" tıklaması
-    /// sürükleme başlatmasın diye döner; sürükleme bağlanmadıysa <see langword="null"/>.
+    /// The action that cancels the press (clears the flag, releases the capture) — returned so the hover "×" click
+    /// does not start a drag; <see langword="null"/> when no drag was attached.
     /// </returns>
     private Action? AttachShelfChipDrag(FrameworkElement chip, IslandEntry entry)
     {
@@ -1966,26 +1970,26 @@ public sealed partial class IslandFlyout : UserControl
                 return;
             }
 
-            // DoDragDrop engelleyicidir: bayrak önce kapatılır ki çağrı bittikten sonra
-            // kuyruğa düşen MouseMove'larda sürükleme yeniden başlamasın.
+            // DoDragDrop is blocking: the flag is cleared first so that MouseMove events queued
+            // after the call returns do not start the drag again.
             pressed = false;
             chip.ReleaseMouseCapture();
 
-            // Seçili çip sürükleniyorsa toplu yük; seçim dışı çip tek yol taşır (bugünkü davranış).
+            // If a selected chip is dragged the payload is the batch; a chip outside the selection carries a single path (current behavior).
             bool batch = _shelfSelection.Count > 1 && _shelfSelection.Contains(entry.Id);
             string[]? paths = batch
                 ? BuildShelfFileDropPayload(_shelfRows.Where(row => _shelfSelection.Contains(row.Id)))
                 : [path];
             if (paths is null)
             {
-                // Toplu yükte diskte kalan yol yok: bayat yolla hayalet sürükleme başlatılmaz.
+                // No path in the batch payload is still on disk: a ghost drag is not started with a stale path.
                 return;
             }
 
             var payload = new DataObject(DataFormats.FileDrop, paths);
             _ = DragDrop.DoDragDrop(chip, payload, DragDropEffects.Copy | DragDropEffects.Move);
 
-            // Sürükleme bitti: onu bitiren bırakış seçimi çipe daraltmasın (bkz. alan).
+            // Drag finished: the release that ended it must not collapse the selection to one chip (see field).
             _suppressNextShelfCollapse = true;
         };
         chip.MouseLeftButtonUp += (_, _) => CancelPress();
@@ -1993,12 +1997,12 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Çipteki kaldırma ("×" tıklaması ya da klavyeden Delete/Enter/Space): kaydı listeden
-    /// düşürür, seçimden de çıkarır. Kaydın <b>kendi yolu</b> <c>Drop</c> altındaysa eski
-    /// kopya silinir; <c>Drop</c> dışındaki orijinal dosyaya dokunulmaz (silme sınırı
-    /// <see cref="IslandService.Remove"/> kontratındadır). Tıklama seçim değiştirmez ve
-    /// sürükleme başlatmaz: basış ipi çipe hiç uğramaz (<see cref="BuildShelfChip"/> önizleme
-    /// kapısı), iptal eylemi de bayat yakalamayı bırakır.
+    /// Removal on the chip ("×" click or Delete/Enter/Space from the keyboard): drops the entry from
+    /// the list and removes it from the selection too. If the entry's <b>own path</b> is under <c>Drop</c>
+    /// the old copy is deleted; the original file outside <c>Drop</c> is left untouched (the deletion boundary is
+    /// in the <see cref="IslandService.Remove"/> contract). The click changes no selection and
+    /// starts no drag: the press event never reaches the chip (the <see cref="BuildShelfChip"/> preview
+    /// gate), and the cancel action releases a stale capture as well.
     /// </summary>
     private void RemoveShelfEntry(IslandEntry entry, Action? cancelShelfDrag)
     {
@@ -2009,16 +2013,16 @@ public sealed partial class IslandFlyout : UserControl
             _shelfAnchorId = -1;
         }
 
-        // Changed UI thread'inde eşzamanlı yükselir: çipler burada yeniden kurulur, yani seçim
-        // çerçevesi ve satır sırası ayrıca tazelenmez.
+        // Changed is raised synchronously on the UI thread: the chips are rebuilt here, so the selection
+        // frame and the row order are not refreshed separately.
         _service?.Remove(entry);
     }
 
     /// <summary>
-    /// Çip menüsünü yalnız gerçekten açılırken kurar (sıcak yeniden-kurulum yolunda disk
-    /// sorgusu yok). Menü bu anda atandığı için <c>ContextMenuService</c>'in sınıf işleyicisi
-    /// onu göremez; bu yüzden olay <c>Handled</c> işaretlenir ve menü burada açılır. Yerleşim
-    /// WPF'in otomatik açılışıyla aynıdır: fare imleci, klavye (Shift+F10/Apps) merkez.
+    /// Builds the chip menu only when it actually opens (no disk query on the hot rebuild path). Because
+    /// the menu is assigned at this moment, <c>ContextMenuService</c>'s class handler cannot see
+    /// it; so the event is marked <c>Handled</c> and the menu is opened here. Placement
+    /// is the same as WPF's automatic opening: mouse cursor, keyboard (Shift+F10/Apps) center.
     /// </summary>
     private void OnShelfChipContextMenuOpening(object sender, ContextMenuEventArgs e)
     {
@@ -2036,16 +2040,16 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Çip menüsü. Dosya eylemleri ("Dosya konumunu göster", "Yolu kopyala", "Dosyayı
-    /// kopyala") en üstte; yalnız <see cref="ResolveShelfMenuPath"/> yol çözüp
-    /// <see cref="IslandService.CanOpenShelfFile"/> kapısından geçirdiğinde görünürler.
-    /// "Dosyayı kopyala" klasör kaydında ve klasöre çözülen yolda <b>yoktur</b> (B4 kapsamı:
-    /// menüden kopyalama yalnız gerçek dosya). "Uygulama ile aç" yalnız
-    /// <see cref="IslandService.CanOpenShelfFile"/> izin verdiğinde görünür; her çipte
-    /// "Listeden kaldır" vardır — kayıt listeden düşer, dosyaya dokunulmaz (silme sınırları
-    /// <see cref="IslandService.Remove"/> ve <see cref="IslandService.DeleteDroppedFiles"/>
-    /// kontratlarındadır). "Rafını boşalt" gövde altında tek düğmedir; menüye ikinci kez
-    /// tekrarlanmaz.
+    /// Chip menu. File actions ("Show file location", "Copy path", "Copy
+    /// file") at the top; they appear only when <see cref="ResolveShelfMenuPath"/> resolves a path and
+    /// passes it through the <see cref="IslandService.CanOpenShelfFile"/> gate.
+    /// "Copy file" is <b>absent</b> for a folder entry and for a path that resolves to a folder (B4 scope:
+    /// copying from the menu is only for real files). "Open with" is visible only when
+    /// <see cref="IslandService.CanOpenShelfFile"/> allows it; every chip has
+    /// "Remove from list" — the entry drops from the list, the file is untouched (deletion boundaries are
+    /// in the <see cref="IslandService.Remove"/> and <see cref="IslandService.DeleteDroppedFiles"/>
+    /// contracts). "Empty shelf" is a single button under the body; it is not repeated
+    /// in the menu.
     /// </summary>
     private ContextMenu BuildShelfChipMenu(IslandEntry entry)
     {
@@ -2053,18 +2057,18 @@ public sealed partial class IslandFlyout : UserControl
         string? resolved = ResolveShelfMenuPath(entry);
         if (resolved is not null)
         {
-            var reveal = new MenuItem { Header = "Dosya konumunu göster" };
+            var reveal = new MenuItem { Header = "Open file location" };
             reveal.Click += (_, _) => RevealInExplorer(resolved);
             menu.Items.Add(reveal);
 
-            var copyPath = new MenuItem { Header = "Yolu kopyala" };
+            var copyPath = new MenuItem { Header = "Copy path" };
             copyPath.Click += (_, _) => _ = ClipboardNative.TryWriteText(resolved);
             menu.Items.Add(copyPath);
 
-            // Klasörde gizlenir: bu iterasyonda menüden klasör kopyalama kapsam dışı (B4).
+            // Hidden for a folder: copying a folder from the menu is out of scope in this iteration (B4).
             if (File.Exists(resolved) && !Directory.Exists(resolved))
             {
-                var copyFile = new MenuItem { Header = "Dosyayı kopyala" };
+                var copyFile = new MenuItem { Header = "Copy file" };
                 copyFile.Click += (_, _) => _ = ClipboardNative.TryWriteFileDropList([resolved]);
                 menu.Items.Add(copyFile);
             }
@@ -2072,24 +2076,24 @@ public sealed partial class IslandFlyout : UserControl
 
         if (_service is not null && _service.CanOpenShelfFile(entry.FilePath))
         {
-            var open = new MenuItem { Header = "Uygulama ile aç" };
+            var open = new MenuItem { Header = "Open with app" };
             open.Click += (_, _) => _ = _service?.OpenShelfFile(entry.FilePath!);
             menu.Items.Add(open);
         }
 
-        var remove = new MenuItem { Header = "Listeden kaldır" };
+        var remove = new MenuItem { Header = "Remove from list" };
         remove.Click += (_, _) => _service?.Remove(entry);
         menu.Items.Add(remove);
         return menu;
     }
 
     /// <summary>
-    /// Çip menüsünün dosya eylemleri için <b>çözülen ve kapıdan geçirilmiş</b> yolu verir:
-    /// kaydın kendi yolu (dosya ya da klasör) varsa o, yoksa <c>Drop</c> kökündeki aynı adlı
-    /// kopya. Yol <c>island.json</c>'dan geldiği için <b>güvenilmezdir</b>; gösterme ve
-    /// kopyalama da açma kadar <see cref="IslandService.CanOpenShelfFile"/> kapısını ister
-    /// (aygıt yolu, reparse noktalı klasör, kaçış bileşeni reddedilir). Kapı geçilmezse
-    /// <see langword="null"/> döner ve eylemler menüye hiç eklenmez.
+    /// Gives the <b>resolved and gated</b> path for the chip menu's file actions: if the entry's own
+    /// path (file or folder) exists that one, otherwise the copy with the same name under the <c>Drop</c>
+    /// root. Because the path comes from <c>island.json</c> it is <b>untrusted</b>; revealing and
+    /// copying require the <see cref="IslandService.CanOpenShelfFile"/> gate just like opening
+    /// (device path, folder with a reparse point, escape component are rejected). If the gate is not
+    /// passed, <see langword="null"/> is returned and the actions are never added to the menu.
     /// </summary>
     private string? ResolveShelfMenuPath(IslandEntry entry)
     {
@@ -2102,13 +2106,13 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Explorer'ı <paramref name="path"/> seçili olarak açar. Argümanlar
-    /// <see cref="IslandService.BuildRevealArguments"/> ile üretilir ve
-    /// <see cref="ProcessStartInfo.ArgumentList"/>'e ayrı ayrı eklenir: tırnak kaçışı elle
-    /// yapılmaz, sondaki ayırıcı taşıyan yol da doğru geçer (eski
-    /// <c>Arguments = $"/select,\"{path}\""</c> biçimi Explorer'da varsayılan klasörü
-    /// açıyordu). Yol kapıdan geçmiştir (<see cref="ResolveShelfMenuPath"/>); yine de kabuk
-    /// başlatması düşebilir — hata loglanır, menü tıklaması uygulamayı düşürmez.
+    /// Opens Explorer with <paramref name="path"/> selected. The arguments are produced by
+    /// <see cref="IslandService.BuildRevealArguments"/> and added to
+    /// <see cref="ProcessStartInfo.ArgumentList"/> one by one: quoting is not escaped by hand,
+    /// and a path with a trailing separator still passes correctly (the old
+    /// <c>Arguments = $"/select,\"{path}\""</c> form opened the default folder in Explorer).
+    /// The path has passed the gate (<see cref="ResolveShelfMenuPath"/>); even so the shell
+    /// launch can fail — the error is logged and the menu click does not crash the app.
     /// </summary>
     private static void RevealInExplorer(string path)
     {
@@ -2129,10 +2133,10 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// "Rafını boşalt": listeyi ve <c>Drop</c> kökündeki kopyaları boşaltmadan önce onay ister
-    /// (tek seferde silinen kopyalar geri dönüşsüz). Pano gövdesinin
-    /// <see cref="IslandService.Clear"/> yolu buraya değmez; kayıt yolu <c>Drop</c> dışındaysa
-    /// kayıt yalnız listeden çıkar, orijinal dosyaya dokunulmaz.
+    /// "Empty shelf": asks for confirmation before emptying the list and the copies under the
+    /// <c>Drop</c> root (copies deleted in one go are irreversible). The clipboard body's
+    /// <see cref="IslandService.Clear"/> path does not come here; if an entry's path is outside <c>Drop</c>
+    /// the entry only leaves the list and the original file is untouched.
     /// </summary>
     private void OnShelfClearClick(object sender, RoutedEventArgs e)
     {
@@ -2141,8 +2145,8 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
-        const string title = "Rafını boşalt";
-        const string text = "Raf listesi boşaltılır; %AppData%\\WharfBar\\Drop altındaki kopyalar da silinir. Devam edilsin mi?";
+        const string title = "Empty shelf";
+        const string text = "The shelf list will be cleared; the copies under %AppData%\\WharfBar\\Drop will be deleted too. Continue?";
         Window? owner = Window.GetWindow(this);
         MessageBoxResult choice = owner is null
             ? MessageBox.Show(text, title, MessageBoxButton.YesNo, MessageBoxImage.Warning)
@@ -2157,14 +2161,14 @@ public sealed partial class IslandFlyout : UserControl
 
     #endregion
 
-    #region Renk seçici gövdesi
+    #region Color picker body
 
     private DispatcherTimer? _pickerFeedbackTimer;
 
     /// <summary>
-    /// Renk gövdesi: seçim tıklaması düğme + son renkler şeridi + büyük renk kartı. Renkler
-    /// oturumluk <see cref="IslandPickedColors"/> deposundan gelir (pano gövdesinin
-    /// <see cref="Rebuild"/> yeniden-kuruluş deseniyle aynı ölçüler).
+    /// Color body: pick-click button + recent colors strip + large color card. The colors come
+    /// from the session-scoped <see cref="IslandPickedColors"/> store (same metrics as the clipboard
+    /// body's <see cref="Rebuild"/> rebuild pattern).
     /// </summary>
     private void RebuildPicker()
     {
@@ -2175,7 +2179,7 @@ public sealed partial class IslandFlyout : UserControl
         ApplyPickerSelection(current);
         PickerCopyButton.IsEnabled = any;
 
-        // Yeni sunum eski geri bildirim flaşını da temizler (kalıcı "Kopyalandı" kalıntısı kalmasın).
+        // A new presentation also clears the old feedback flash (no stale "Copied" left behind).
         _pickerFeedbackTimer?.Stop();
         PickerFeedback.Opacity = 0;
 
@@ -2187,15 +2191,15 @@ public sealed partial class IslandFlyout : UserControl
         }
     }
 
-    /// <summary>Büyük kartı verilen renge çeker; boş renk varsayılan görünümü döndürür.</summary>
+    /// <summary>Pulls the large card to the given color; an empty color returns the default look.</summary>
     private void ApplyPickerSelection(Color color)
     {
         if (color.A == 0)
         {
-            // XAML varsayılanına döner (DynamicResource bağını ClearValue sileceği için set edilir).
+            // Returns to the XAML default (set instead of ClearValue, which would drop the DynamicResource link).
             PickerSwatch.SetResourceReference(Border.BackgroundProperty, "ControlFillColorDefaultBrush");
             PickerHex.Text = "—";
-            System.Windows.Automation.AutomationProperties.SetName(PickerHex, "Henüz renk seçilmedi");
+            System.Windows.Automation.AutomationProperties.SetName(PickerHex, "No color selected yet");
             return;
         }
 
@@ -2206,7 +2210,7 @@ public sealed partial class IslandFlyout : UserControl
         System.Windows.Automation.AutomationProperties.SetName(PickerHex, PickerHex.Text);
     }
 
-    /// <summary>Son renkler şeridindeki küçük kutu: tıkla → seçim ona döner. HEX tooltip'te.</summary>
+    /// <summary>Small tile in the recent colors strip: click → the selection returns to it. The HEX is in the tooltip.</summary>
     private FrameworkElement BuildPickerChip(Color color, Brush tileBrush)
     {
         string hex = ColorMath.ToHex(color.R, color.G, color.B);
@@ -2243,7 +2247,7 @@ public sealed partial class IslandFlyout : UserControl
         return brush;
     }
 
-    /// <summary>Kopyala: seçili rengin HEX'i panoya yazılır (Task 7 yolu); sonuç bildirimi ile.</summary>
+    /// <summary>Copy: the selected color's HEX is written to the clipboard (Task 7 path); with a result notification.</summary>
     private void OnPickerCopyClick(object sender, RoutedEventArgs e)
     {
         if (_service is null || _pickerSelected.A == 0)
@@ -2252,15 +2256,15 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         string hex = ColorMath.ToHex(_pickerSelected.R, _pickerSelected.G, _pickerSelected.B);
-        // Yazma aynı Task 7 kapısından geçer: gate path'i senkron false, başarı BeginInvoke
-        // ile birlikte gelir — iki zamanlama da aynı geri bildirimi yazar.
+        // The write goes through the same Task 7 gate: the gate path is synchronously false, success arrives
+        // together with BeginInvoke — both timings write the same feedback.
         _service.PutOnClipboard(hex, completed => ShowPickerCopyFeedback(completed));
     }
 
-    /// <summary>Copy feedback flash ("Kopyalandı" / "Kopyalanamadı"): sessiz false kalmasın.</summary>
+    /// <summary>Copy feedback flash ("Copied" / "Could not copy"): a silent false is not left.</summary>
     internal void ShowPickerCopyFeedback(bool written)
     {
-        ShowPickerFeedback(written ? "Kopyalandı" : "Kopyalanamadı", written);
+        ShowPickerFeedback(written ? "Copied" : "Could not copy", written);
     }
 
     private void ShowPickerFeedback(string text, bool ok)
@@ -2280,7 +2284,7 @@ public sealed partial class IslandFlyout : UserControl
         PickerFeedback.Opacity = 0;
     }
 
-    /// <summary>Seçili renk: gövde kuruluşunda son seçim, çip tıklamalarında o renk.</summary>
+    /// <summary>Selected color: the last selection on body build, that color on chip clicks.</summary>
     private Color _pickerSelected;
 
     private void OnPickerScreenClick(object sender, RoutedEventArgs e)
@@ -2295,22 +2299,22 @@ public sealed partial class IslandFlyout : UserControl
 
     #endregion
 
-    #region Okur (Prompter) gövdesi
+    #region Prompter body
 
     /// <summary>
-    /// Okur oynatma pimi: true = oynatma açık (Task 5 üst bar tarafını kilitler), false =
-    /// serbest. Yalnız gerçek durum değişimlerinde atılır (Editing→Paused geçişinde sessiz).
+    /// Prompter playback pin: true = playback on (locks the Task 5 top bar side), false =
+    /// free. Raised only on real state changes (silent on the Editing→Paused transition).
     /// </summary>
     internal event Action<bool>? PrompterPinnedChanged;
 
-    /// <summary>Oynatma simgeleri (MDL2 belgelenmiş): Play E768, Pause E769.</summary>
+    /// <summary>Playback glyphs (documented MDL2): Play E768, Pause E769.</summary>
     private const string PrompterPlayGlyphText = "\uE768";
     private const string PrompterPauseGlyphText = "\uE769";
 
     /// <summary>
-    /// Okuma tik aralığı ~16 ms. Tek karar: <see cref="DispatcherTimer"/>,
-    /// <c>CompositionTarget.Rendering</c> kancası YOK — gizli gövdede durdurabilen ve
-    /// mevcut <c>_timelineTimer</c> kalııyla aynı ömür desenine uyan baştan oluşturma.
+    /// Reading tick interval ~16 ms. Single decision: <see cref="DispatcherTimer"/>,
+    /// NO <c>CompositionTarget.Rendering</c> hook — a from-scratch creation that can be stopped in a
+    /// hidden body and follows the same lifetime pattern as the existing <c>_timelineTimer</c> idiom.
     /// </summary>
     private static readonly TimeSpan PrompterTickInterval = TimeSpan.FromMilliseconds(16);
 
@@ -2329,15 +2333,15 @@ public sealed partial class IslandFlyout : UserControl
         SetPrompterPlayback(PrompterMotion.Toggle(_prompterState));
 
     /// <summary>
-    /// Okuma tek geçidi. Playing: editör salt-okunur, okuma fontu
-    /// <see cref="PrompterMotion.ReadingFontDip"/>, tik çalışır; Editing/Paused: düzenlenebilir ve
-    /// tik kapalı. Pim (true/false) yalnız oynatmanın açılıp kapandığında fırlar.
+    /// Reading in a single pass. Playing: editor read-only, reading font
+    /// <see cref="PrompterMotion.ReadingFontDip"/>, the tick runs; Editing/Paused: editable and
+    /// the tick off. The pin (true/false) only fires when playback turns on or off.
     /// </summary>
     private void SetPrompterPlayback(PrompterMotion.Playback incoming)
     {
-        // Oynatma kapısı tek kararda: kaydırılacak yer yoksa (metin editöre tam sığar ya
-        // da kaydırma uçta oturur) istek sessizce Editing'e döner — düğme tarafı aynı
-        // kararla kapalı durur (<see cref="RefreshPrompterPlayAvailability"/>).
+        // The playback gate in one decision: if there is nowhere to scroll (the text fits the editor or
+        // the scroll rests at the end) the request silently returns to Editing — the button side stays
+        // disabled by the same decision (<see cref="RefreshPrompterPlayAvailability"/>).
         ScrollViewer? sv = incoming == PrompterMotion.Playback.Playing ? PrompterInnerScroll(PrompterEditor) : null;
         PrompterMotion.Playback state = incoming;
         if (state == PrompterMotion.Playback.Playing
@@ -2358,12 +2362,12 @@ public sealed partial class IslandFlyout : UserControl
         }
         else if (!nowPlaying && wasPlaying && _prompterEditingFontSize > 0)
         {
-            // XAML'daki düzenleme fontu ilk Playing'e girişte yakalanır; buraya geri konur.
+            // The editing font from XAML is captured on the first entry into Playing; it is put back here.
             PrompterEditor.FontSize = _prompterEditingFontSize;
         }
 
         PrompterPlayGlyph.Text = nowPlaying ? PrompterPauseGlyphText : PrompterPlayGlyphText;
-        PrompterPlayLabel.Text = nowPlaying ? "Duraklat" : "Oynat";
+        PrompterPlayLabel.Text = nowPlaying ? "Pause" : "Play";
         PrompterPlayPause.IsChecked = nowPlaying;
 
         if (nowPlaying)
@@ -2385,7 +2389,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void OnPrompterTick(object? sender, EventArgs e)
     {
-        // Kapı 1: gövde gizliyken hiçbir tik dönmez (ikinci duvar <see cref="OnPanelClosed"/>).
+        // Gate 1: while the body is hidden no tick returns (the second wall is <see cref="OnPanelClosed"/>).
         if (PrompterBody.Visibility != Visibility.Visible)
         {
             StopPrompterTick();
@@ -2409,8 +2413,8 @@ public sealed partial class IslandFlyout : UserControl
         double clamped = PrompterMotion.ClampOffset(updated, sv.ExtentHeight, sv.ViewportHeight);
         sv.ScrollToVerticalOffset(clamped);
 
-        // Sonuna varış yalnız gerçek ilerlemede sayılır: animasyon kapalıysa hız 0'dır
-        // (<see cref="PrompterMotion.SpeedDipPerSec"/>) ve okuma olduğumuz yerde bekler.
+        // Reaching the end only counts on real progress: if animations are off the speed is 0
+        // (<see cref="PrompterMotion.SpeedDipPerSec"/>) and reading waits where it is.
         if (updated - current > PrompterMotion.EndEpsilonDip
             && clamped >= sv.ScrollableHeight - PrompterMotion.EndEpsilonDip)
         {
@@ -2429,7 +2433,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void StopPrompterTick() => _prompterTick?.Stop();
 
-    /// <summary>Panel kapandı: tik durur, oynatma Editing'e döner (pim serbest kalır).</summary>
+    /// <summary>Panel closed: the tick stops and playback returns to Editing (the pin is released).</summary>
     private void StopPrompterPlayback()
     {
         _prompterDragging = false;
@@ -2444,9 +2448,9 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Kaydırma kaynağı TextBox'ın İÇ ScrollViewer'ıdır (şablonundaki
-    /// <c>PART_ContentHost</c>): motor ofseti buradan okur ve buraya yazar — dış bir
-    /// kaydırıcı varmadır. Şablon uygulanmadıysa null.
+    /// The scroll source is the TextBox's INNER ScrollViewer (the <c>PART_ContentHost</c> in its
+    /// template): the engine reads the offset from there and writes back to it — there is no external
+    /// scrollbar. Null if the template has not been applied.
     /// </summary>
     private static ScrollViewer? PrompterInnerScroll(TextBox editor) =>
         editor.Template is null
@@ -2454,10 +2458,10 @@ public sealed partial class IslandFlyout : UserControl
             : editor.Template.FindName("PART_ContentHost", editor) as ScrollViewer;
 
     /// <summary>
-    /// Oynat düğmesinin basılabilirliği editörün İÇ ScrollViewer'ından türetilir: yazma,
-    /// elle kaydırma, dosya/pano yükleme ve font geçişi (Playing ↔ Editing) hepsi tek
-    /// <c>ScrollChanged</c> kancasından tazelenir. Playing sırasında düğme Duraklat
-    /// görevi gördüğünden tik başına tazeleme gerekmez (kapalı tutulur).
+    /// The Play button's enabled state is derived from the editor's INNER ScrollViewer: typing,
+    /// manual scrolling, file/clipboard load and the font switch (Playing ↔ Editing) are all
+    /// refreshed from the single <c>ScrollChanged</c> hook. Because during Playing the button acts
+    /// as Pause, a per-tick refresh is not needed (it is kept off).
     /// </summary>
     private void HookPrompterScroll()
     {
@@ -2477,10 +2481,10 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// "Yalan söylemeyen düğme": kaydırılacak yer yokken Oynat disabled olur ve tooltip
-    /// gerekçeyi söyler — kısa metin ve okuma sonu artık sessiz ölü-uç değil. Playing'de
-    /// düğme Duraklat olduğundan her zaman açıktır. Gövde gizliyken ölçüm sıfır gelir;
-    /// karar o an verilmez (ilk açılışı <see cref="PresentHub"/> deferred tazeler).
+    /// "The button that does not lie": when there is nowhere to scroll, Play is disabled and the tooltip
+    /// states the reason — a short text and the end of reading are no longer a silent dead end. During Playing
+    /// the button is Pause, so it is always enabled. While the body is hidden the measure comes back zero;
+    /// the decision is not made then (the first open is refreshed deferred by <see cref="PresentHub"/>).
     /// </summary>
     private void RefreshPrompterPlayAvailability()
     {
@@ -2496,10 +2500,10 @@ public sealed partial class IslandFlyout : UserControl
             || PrompterMotion.CanStartPlayback(scrollable, offset);
         PrompterPlayPause.IsEnabled = canToggle;
         PrompterPlayPause.ToolTip = canToggle
-            ? "Oynat/Duraklat"
+            ? "Play/Pause"
             : scrollable <= 0
-                ? "Kaydırılacak bölüm yok; editöre sığmayan daha uzun bir metin gerekli."
-                : "Kaydırma en altta; Başa dön ile en baştan başla.";
+                ? "Nothing to scroll; a longer text that does not fit the editor is required."
+                : "Scroll is at the bottom; use Back to start to start over.";
     }
 
     private void OnPrompterEditorTextChanged(object sender, TextChangedEventArgs e)
@@ -2510,13 +2514,13 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     /// <summary>
-    /// Okunurken metni tutup sürükleme: dikey fare deltası aynı VerticalOffset'i
-    /// sürükler — oynatma duraklamaz. Editing/Paused'ta TextBox
-    /// kendi metin seçimine döner, biz müdahale etmeyiz.
+    /// Dragging the text by holding it while it is being read: the vertical mouse delta drags the same
+    /// VerticalOffset — playback does not pause. In Editing/Paused the TextBox
+    /// goes back to its own text selection, we do not interfere.
     /// </summary>
     private void OnPrompterEditorPreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
-        // Kaydırma çubuğunun kendi yolu var: metin sürükleme onu ele geçirmeden çalışsın.
+        // The scrollbar has its own path: let it work before the text drag takes it over.
         if (_prompterState != PrompterMotion.Playback.Playing
             || e.OriginalSource is System.Windows.Controls.Primitives.ScrollBar
             || PrompterInnerScroll(PrompterEditor) is not ScrollViewer sv)
@@ -2542,7 +2546,7 @@ public sealed partial class IslandFlyout : UserControl
 
         double dy = e.GetPosition(PrompterEditor).Y - _prompterDragOrigin.Y;
 
-        // Metni tutan el: metin aşağı inerse (dy > 0) okuma geriye döner (ofset küçülür).
+        // The hand holding the text: if the text goes down (dy > 0) reading goes back (the offset shrinks).
         double offset = _prompterDragStartOffset - dy;
         sv.ScrollToVerticalOffset(Math.Clamp(offset, 0, sv.ScrollableHeight));
         e.Handled = true;
@@ -2562,7 +2566,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void OnPrompterResetClick(object sender, RoutedEventArgs e)
     {
-        // Başa dön metne dokunmaz: editörün metni aynı kalır, ofset ilk üstten başlar.
+        // Reset does not touch the text: the editor's text stays the same, the offset starts from the top.
         PrompterInnerScroll(PrompterEditor)?.ScrollToHome();
     }
 
@@ -2573,7 +2577,7 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
-        // Kibar-yok: geçmişte metin yoksa editör ve placeholder olduğu gibi kalır; popup/chat yok.
+        // Polite no-op: if there is no text in history the editor and placeholder stay as they are; no popup/chat.
         if (_service.TryLastClipboardText(out string text))
         {
             LoadPrompterText(text);
@@ -2582,7 +2586,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private void OnPrompterLoadFileClick(object sender, RoutedEventArgs e)
     {
-        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Metin dosyası (*.txt)|*.txt" };
+        var dialog = new Microsoft.Win32.OpenFileDialog { Filter = "Text file (*.txt)|*.txt" };
         bool? chosen = dialog.ShowDialog(Window.GetWindow(this));
         if (chosen != true)
         {
@@ -2595,14 +2599,14 @@ public sealed partial class IslandFlyout : UserControl
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
         {
-            // Bozuk/erişilemeyen dosya kibar-yok: editör mevcut metni tutar, sessiz log.
+            // Corrupt/inaccessible file is a polite no-op: the editor keeps the current text, silent log.
             Debug.WriteLine($"[WharfBar] prompter txt load failed: {ex.Message}");
         }
     }
 
     /// <summary>
-    /// Yeni metin tek yol: oynatma Editing'e döner (pim serbest) ve kaydırma en baştan
-    /// başlar — "Panodan al" ve ".txt" aynı kapıyı kullanır.
+    /// New text in a single path: playback returns to Editing (the pin is free) and scrolling
+    /// restarts from the top — "Take from clipboard" and ".txt" use the same gate.
     /// </summary>
     private void LoadPrompterText(string text)
     {
@@ -2615,7 +2619,7 @@ public sealed partial class IslandFlyout : UserControl
     {
         _prompterSpeed = PrompterMotion.ClampMultiplier(e.NewValue);
 
-        // XAML yüklemesi sırasında etiket henüz kurulmamış olabilir (Slider etiketten önce).
+        // The label may not be built yet during XAML load (the Slider comes before the label).
         if (PrompterSpeedLabel is not null)
         {
             PrompterSpeedLabel.Text = _prompterSpeed.ToString("F1", CultureInfo.InvariantCulture) + "×";
@@ -2625,13 +2629,13 @@ public sealed partial class IslandFlyout : UserControl
     #endregion
 
     /// <summary>
-    /// Panel klavye gezinmesi. Arama kutusu odaktayken <c>PreviewKeyDown</c>'den gelir; tuş
-    /// burada doğrudan servise iletilir, sahte <see cref="KeyEventArgs"/> kurulmaz.
+    /// Panel keyboard navigation. It arrives from <c>PreviewKeyDown</c> while the search box has focus; the key
+    /// is forwarded to the service directly here, no fake <see cref="KeyEventArgs"/> is constructed.
     /// </summary>
-    /// <returns>Tüketilen tuş için <c>true</c> (çağıran <c>e.Handled</c> yapar).</returns>
+    /// <returns><c>true</c> for a consumed key (the caller sets <c>e.Handled</c>).</returns>
     internal bool HandleNavigationKey(Key key)
     {
-        // Arama kutusu odaktayken oklar metin imlecinde kalır. Müzik gövdesinde sol/sağ parça değiştirir.
+        // While the search box has focus the arrows stay with the text caret. In the Music body left/right change track.
         if (!SearchBox.IsKeyboardFocused
             && MusicBody.Visibility == Visibility.Visible
             && ClipboardBody.Visibility != Visibility.Visible)
@@ -2651,7 +2655,7 @@ public sealed partial class IslandFlyout : UserControl
 
         if (CurrentHubTab is IslandHubTab.Wallpaper or IslandHubTab.Shelf or IslandHubTab.Prompter or IslandHubTab.Camera or IslandHubTab.ColorPicker)
         {
-            // Duvar kağıdı, raf, okur ve kamera gövdesi liste gezinmesi taşımaz; şerit tuşları alt bara döner.
+            // Wallpaper, shelf, prompter and camera bodies carry no list navigation; strip keys fall back to the bottom bar.
             return false;
         }
 

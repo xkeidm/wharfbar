@@ -1,6 +1,6 @@
 # Theme ↔ Windows + Wallpaper Pair Sync Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For implementers:** work through this plan one task at a time. Steps use checkbox (`- [ ]`) syntax for tracking; tick each box as the task lands.
 
 **Goal:** Appearance light/dark also writes Windows Personalization theme; hub-applied `-light`/`-dark` wallpaper pairs follow the resolved theme.
 
@@ -712,9 +712,7 @@ EN `Appearance_ThemeDescription`:
 
 `Light or dark also updates Windows personalization. System leaves Windows alone and WharfBar follows it.`
 
-TR:
-
-`Açık veya koyu seçimi Windows kişiselleştirme temasını da günceller. Sistem, Windows'a dokunmaz; WharfBar Windows'u takip eder.`
+TR: the Turkish satellite copy lives in `Strings.tr.resx`; the public English docs do not repeat it.
 
 - [ ] **Step 4: Build**
 

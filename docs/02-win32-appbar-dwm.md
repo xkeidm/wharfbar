@@ -154,13 +154,13 @@ For top-bar indicators:
 **Implemented:** the left brand logo (`BrandLogo.BarGlyph` / `logoStyle`; geometry, not a font glyph — visible on Mica); the exe/tray icon is `Assets/WharfBar.ico` (Dusk solid mark);
 the right cluster's default LTR is `trayMirror · hidden · date/time · notification · controlCenter · network · battery`
 (`topBar.statusItems`; customizable). `volume` / `brightness` / `media` are in the catalog and
-off by default; right-click and the Top Bar (`Üst Çubuk`) setting list every item in the catalog.
-**Show all** (`Tümünü göster`) inserts the missing ones next to their neighbor and does not disturb the saved order. Visible items
+off by default; right-click and the Top Bar setting list every item in the catalog.
+**Show all** inserts the missing ones next to their neighbor and does not disturb the saved order. Visible items
 are ordered by dragging on the bar (a click under the threshold opens the flyout; mouse capture, not OLE).
 Clock/date: a single-line combined label in the **resolved UI culture** (`LocalizationService` / `config.language`; e.g. `tr-TR` → `9 Ağu Paz 21:57`, `en-US` → `9 Aug Sun 21:57`, Segoe UI) + a bell glyph; both open the native Notification Center
 (`Win+N` — calendar + notifications; there is no separate calendar `Popup`; there is no ADR-005 mirror).
 `controlCenter` → QS **Main**; volume → QS **Mixer**; network → QS **Network** — a shared
-**Quick settings** (`Hızlı ayarlar`) flyout (ADR-006); a layered `Popup`
+**Quick settings** flyout (ADR-006); a layered `Popup`
 for `PopupAnimation=Fade` (`AllowsTransparency=true`). The rule is unchanged: Mica + `AllowsTransparency`
 is forbidden **on the main window**; because a popup is a separate window, it does not affect Mica.
 
@@ -201,7 +201,7 @@ the UI goes through `QuickSettingsFlyout`.
 // HICON → CreateBitmapSourceFromHIcon; drawing UseLayoutRounding + SnapsToDevicePixels
 //
 // Application name: SHGetFileInfo(SHGFI_DISPLAYNAME) — not the shortcut's file name, the name the
-// shell shows (File Explorer.lnk → Dosya Gezgini). szDisplayName is not an icon path;
+// shell shows (File Explorer.lnk → File Explorer). szDisplayName is not an icon path;
 // it is not confused with SHGFI_ICONLOCATION. If the result is the same as the file name, the
 // application name in the last " - " piece of the window title is used.
 ```
@@ -277,17 +277,29 @@ and restored on the exit/crash paths (`ABM_REMOVE` discipline). Implementation: 
 
    The tray mirror cannot be read
     on a parked tray (XAML content is virtualized): desktop-root UIA reads are done from a dedicated STA dispatcher
-    thread. Refresh first tries a stateless stealth peek; if that read returns an icon,
-    `ABM_SETSTATE` is not flipped (that flip opens and closes the work area, and the desktop
-    and windows jump). If it is empty, show-only latches off and the state blip is gated by
+    thread. Refresh first tries a **quiet read** (a stateless stealth peek plus a hover reveal); if that read
+    returns an icon, `ABM_SETSTATE` is not flipped (that flip opens and closes the work area, and the desktop
+    and windows jump). Because the parked bar only leaves a ~2 px sliver on screen, the quiet read recreates
+    the click gesture — the cursor is moved to the bottom edge with real input and
+    `TrayAutoHideReveal.TryReveal` waits for explorer to slide the auto-hide tray in; the cursor is restored
+    afterwards — but only while the pointer is idle (`TrayRevealPolicy.ShouldAttemptReveal`, ≥1.5 s) or the
+    mirror is empty (the empty-mirror bypass is capped at 3 silent pointer borrows per shell), and
+    never while a real fullscreen app covers the primary monitor. It changes no work area, and WharfBar's
+    own auto-hide dock suppresses its bottom edge-band show while the stealth peek owns the cursor
+    (`DockAutoHideController.ShouldShowForCursor`), so the reveal cannot drag the dock out. After 2
+    consecutive reveal misses the quiet read is skipped for 10 min (shared with the click path); an empty
+    read is evidence only when the tray was confirmed fully on screen (`TrayAutoHideReveal.IsFullyOnScreenNow`),
+    never merely because the peek opened.
+    If the quiet read cannot run or reads nothing, the fallback state blip is gated by
     `TrayStateBlipGate` (once per explorer instance; later only ≥10/≥20 min apart, user idle ≥3 min via
-    `GetLastInputInfo`, and no maximized/bottom-touching window). Expedited requests never reach it.
-    A mirror click reveals the auto-hide tray by hovering the bottom edge (`SetCursorPos` + an absolute
-    `SendInput` move; no work-area change) and drops the state only as a fallback. Every tray-driven
-    flip is logged as `state-change #N reason=…`. Crops are matted against the taskbar fill
+    `GetLastInputInfo`, and no maximized/bottom-touching window; maintenance additionally runs only in a
+    shell that already blipped once). Expedited requests never reach it.
+    A mirror click uses the same hover reveal and drops the state only as a fallback (after 2 consecutive
+    reveal misses the reveal is skipped for 10 min and the click falls back to the state drop). Every
+    tray-driven flip is logged as `state-change #N reason=…`. Crops are matted against the taskbar fill
     (`TrayIconMatte`, ring-median background, colour-to-alpha).
     The refresh runs on this cadence **whether or not the direct read returned buttons** (pixels need a
-    shown tray; gating the peek on an empty read froze icon state such as Discord's mute icon). Show-only:
+    shown tray; gating the peek on an empty read froze icon state such as Discord's mute icon). Quiet read:
     60 s, 20 s while the last refresh found changed pixels; an out-of-band refresh (floor 15 s) follows a
     mirror click (+6 s), a theme/accent change (`WM_SETTINGCHANGE` `ImmersiveColorSet`,
     `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED` → `NotifyAppearanceChanged`, +3 s) and one
@@ -295,7 +307,13 @@ and restored on the exit/crash paths (`ABM_REMOVE` discipline). Implementation: 
     `IsWindowVisible=False`), per-button crops fingerprinted by `TrayIconSignature`; unchanged pixels
     keep the cached `ImageSource` and an unchanged snapshot is not published. A click whose key is
     missing from the live tray (the app exited, the snapshot was held) is not sent to the old rect.
-    An empty read does not clear the mirror (the last good snapshot is held for a bounded grace). Restore is
+    An empty read is only evidence when the tray was actually shown and read back zero buttons: explorer
+    rebuilds the XAML tray around every show, so a second read 220 ms later confirms it
+    (`TrayBlipOutcome.ConfirmedEmpty`). Every other outcome — throttled, click in flight, user busy,
+    fullscreen, reveal timeout, UIA walk threw — means "never looked" and keeps the last good snapshot:
+    a stale icon beats a blank bar (and the work-area jump needed to re-read it). Unnamed and repeated
+    UIA buttons get index-suffixed keys (`TrayMirrorOrder.UniqueKeys`) so de-duplication does not drop
+    icons. Restore is
     `SetState(baseline)` + `SetTrayVisible(true)`; after a force kill, the stale watchdog
     file restores the baseline state.
 3. **After an AppBar `SETPOS`:** if the shell can write the bottom strip back,
@@ -339,6 +357,31 @@ Multiple monitors: work-area expansion is targeted per monitor, for that monitor
 (see boundaries "Do").
 
 A force kill can skip the restore → [`04-gotchas.md`](04-gotchas.md).
+
+### advapi32.dll — process integrity (restricted launch)
+
+Windows enforces UIPI between integrity levels, so a process **below medium** integrity cannot drive the
+shell: `ShowWindow(Shell_TrayWnd, SW_HIDE)`, `SHAppBarMessage(ABM_NEW/SETPOS)` and `SetWindowLong` are
+silently dropped. `Native/ProcessIntegrity.cs` reads the current token's integrity RID at startup;
+`App.OnStartup` then warns (OK continues, Cancel quits) before any shell state is touched.
+
+```csharp
+// advapi32.dll
+OpenProcessToken(IntPtr process, uint access, out IntPtr token)  // TOKEN_QUERY (0x0008)
+GetTokenInformation(IntPtr token, int infoClass, IntPtr info, int length, out int returned)
+  // TokenIntegrityLevel = 25
+GetLengthSid(IntPtr sid)
+// kernel32.dll
+GetCurrentProcess() / CloseHandle(IntPtr handle)
+```
+
+- `TOKEN_MANDATORY_LABEL` → `SID_AND_ATTRIBUTES.Sid` points at the `S-1-16-N` SID; the last
+  sub-authority is the RID (0 untrusted / 4096 low / 8192 medium / 12288 high). The pure
+  `TryReadLastSubAuthority` validates the SID header and sub-authority count before reading the last
+  little-endian value, so a malformed or authority-only SID is reported as unreadable.
+- `TryGetCurrentRid(out int rid)` returns `false` (and `rid = -1`) when the token cannot be read; an
+  unreadable token is never treated as restricted, so a failed probe cannot block startup. RID `0`
+  (`SECURITY_MANDATORY_UNTRUSTED_RID`) **is** below medium — the restricted-launch warning covers it.
 
 ---
 
@@ -411,7 +454,7 @@ left-group sequence into `dock.itemOrder` (`DockItemStore.ReorderOnStrip`): the 
 level and covers reorder too:** `RegisterDragDrop` is per HWND; if a layered
 (`WS_EX_LAYERED`) `Topmost` window is not accepted as a target, **no**
 `DragOver`/`Drop` arrives on this window — both dropping a file from Explorer and in-app reorder fail.
-A fallback exists only for **file drop** (Add (`Ekle`) in the settings list); reorder has no fallback,
+A fallback exists only for **file drop** (Add in the settings list); reorder has no fallback,
 so acceptance must be **measured** live, and manual verification should try reorder first. The root `Grid`
 is the drop target but it **has no background** — because the window is sized to the widest magnified width,
 a background would have added an ~57 DIP ghost hit area.
@@ -547,7 +590,7 @@ a secondary bar has `AllowDrop=false`.
 
 The pill is not a separate HWND. While `island.idleLabel = lastClip` and the idle face is showing a non-empty preview,
 the pill is taken into its own window and only that window drops out of capture. The top bar
-stays in the frame. During a fixed "Clipboard" (`Pano`), music, and a counter, the pill returns to the bar (ADR-012, ADR-015).
+stays in the frame. During a fixed "Clipboard", music, and a counter, the pill returns to the bar (ADR-012, ADR-015).
 
 ```csharp
 // user32.dll — Native/WindowCapture.cs
@@ -603,7 +646,7 @@ GetDIBits(IntPtr hdc, IntPtr hBitmap, uint startScan, uint scanLines, byte[]? bi
 - `WlanEnumInterfaces` selects the connected one when there is more than one adapter.
 - `WlanFreeMemory` / `WlanCloseHandle`
 
-### user32.dll — display topology (Quick Settings / Project (`Yansıt`))
+### user32.dll — display topology (Quick Settings / Project)
 
 - `GetDisplayConfigBufferSizes(QDC_DATABASE_CURRENT | QDC_VIRTUAL_MODE_AWARE, &paths, &modes)`
   then `QueryDisplayConfig` with the real path/mode buffers — the current topology.

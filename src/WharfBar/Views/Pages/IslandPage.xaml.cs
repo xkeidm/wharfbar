@@ -11,10 +11,10 @@ using WharfBar.Services;
 namespace WharfBar.Views.Pages;
 
 /// <summary>
-/// Ada (pano geçmişi + bırakılan dosyalar) ayarları: görünürlük, saklama modu, limitler ve
-/// bakım eylemleri. Her değişiklik config'i kaydeder ve <see cref="IslandService.ApplyConfig"/>
-/// ile canlı uygular — <c>Config.Enabled</c> yalnızca ApplyConfig üzerinden değiştiği için
-/// pano dinleyicisi bu çağrı olmadan hiç açılmaz, pill görünürlüğü de güncellenmez.
+/// Island (clipboard history + dropped files) settings: visibility, retention mode, limits and
+/// maintenance actions. Every change saves the config and applies it live through <see cref="IslandService.ApplyConfig"/>
+/// — because <c>Config.Enabled</c> changes only via ApplyConfig, the
+/// clipboard listener never starts without this call and the pill visibility is not updated either.
 /// </summary>
 public partial class IslandPage : Page
 {
@@ -58,10 +58,10 @@ public partial class IslandPage : Page
     private AppConfig Cfg => Config.Current;
 
     /// <summary>
-    /// <see cref="MonitorManager.Engine"/> Dispose sonrasında throw eder (App kapanırken ayar
-    /// penceresi hâlâ açık olabiliyor); bu yüzden <see langword="null"/> dönebilir ve bakım
-    /// butonları sessizce no-op olur. <see cref="TopBarEngine.Island"/> aksi hâlde her zaman
-    /// doludur — servis <c>Engine</c> kurucusunda koşulsuz yaratılır.
+    /// <see cref="MonitorManager.Engine"/> throws after Dispose (the settings window can still be open
+    /// while the App closes); therefore it can return <see langword="null"/> and the maintenance
+    /// buttons become silent no-ops. <see cref="TopBarEngine.Island"/> is always
+    /// populated otherwise — the service is created unconditionally in the <c>Engine</c> constructor.
     /// </summary>
     private IslandService? Island
     {
@@ -104,8 +104,8 @@ public partial class IslandPage : Page
         WallpaperAccentDescriptionText.Text = LocalizationService.Get("Island_WallpaperAccent_Description");
         UpdateWallpaperAnimationState();
 
-        // IslandNormalizer her zaman 1..3650 / 10..5000'e sıkıştırır; kutular da aynı değeri
-        // gösterir (elle config.json'a yazılmış taşma değerler kullanıcıyı şaşırtmasın).
+        // IslandNormalizer always clamps to 1..3650 / 10..5000; the boxes show the same value
+        // (so overflow values written into config.json by hand do not surprise the user).
         _syncingLimits = true;
         RetentionBox.Text = IslandNormalizer.ClampRetentionDays(island.RetentionDays)
             .ToString(CultureInfo.InvariantCulture);
@@ -137,8 +137,8 @@ public partial class IslandPage : Page
             return;
         }
 
-        // Persistence bir string ("session" / "persistent"), enum değil: seçim indeksini
-        // normalizasyon katmanından geçirip kanonik sabitlere bağlıyoruz.
+        // Persistence is a string ("session" / "persistent"), not an enum: the selected index
+        // goes through the normalization layer and is bound to the canonical constants.
         Cfg.Island.Persistence = PersistenceCombo.SelectedIndex == 1
             ? IslandConfig.PersistencePersistent
             : IslandConfig.PersistenceSession;
@@ -273,12 +273,12 @@ public partial class IslandPage : Page
     }
 
     /// <summary>
-    /// Kutuya yazılan metni <paramref name="clamp"/> ile sıkıştırıp config'e yazılacak değere
-    /// çevirir; kutuya sıkıştırılmış hâlini geri yazar (kullanıcı sınırı aştığını görsün).
-    /// Ayrıştırılamayan girdide kullanıcının metnine dokunmaz, yalnız hata gösterir — yarım
-    /// yazılmış bir sayı ("36") sessizce 3'e uygulanmasın.
+    /// Converts the text typed into the box into the value to be written to config, clamped with <paramref name="clamp"/>;
+    /// it writes the clamped form back into the box (so the user sees the limit was exceeded).
+    /// For unparsable input it leaves the user's text untouched and only shows an error — a half-typed
+    /// number ("36") must not be silently applied as 3.
     /// </summary>
-    /// <summary>Kutu altindaki aralik yazisiyla ayni — hata mesaji onunla celismemeli.</summary>
+    /// <summary>Same as the range text under the box — the error message must not contradict it.</summary>
     private const string RetentionRangeText = "1–3650";
 
     private const string MaxItemsRangeText = "10–5000";
@@ -312,9 +312,9 @@ public partial class IslandPage : Page
         value = 0;
         if (!int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed))
         {
-            // int.TryParse tasma girdide de false doner ("99999999999" gecerli bir tam sayidir ama
-            // int'e sigmaz), o yuzden mesaj kutunun gercek araligini soylemeli — "gecerli bir tam
-            // sayi girin" ile kutu altindaki aralik yazisi celisirdi.
+            // int.TryParse also returns false on overflow input ("99999999999" is a valid integer but
+            // does not fit in int), so the message must state the box's real range — "enter a valid integer"
+            // would contradict the range text under the box.
             LimitsErrorText.Text = string.Format(Strings.IslandPage_RangeError, rangeText);
             LimitsErrorText.Visibility = Visibility.Visible;
             return false;
@@ -327,9 +327,9 @@ public partial class IslandPage : Page
     }
 
     /// <summary>
-    /// Gün limiti yalnızca kalıcı modda uygulanır (<c>IslandPruner.Prune</c>:
-    /// <c>persistent &amp;&amp; retentionDays &gt; 0</c>), bu yüzden oturumluk modda kutu
-    /// kilitlenir. Kayıt sayısı tavanı her iki modda da çalıştığı için açık kalır.
+    /// The day limit is applied only in persistent mode (<c>IslandPruner.Prune</c>:
+    /// <c>persistent &amp;&amp; retentionDays &gt; 0</c>), so in session mode the box
+    /// is locked. The entry-count ceiling works in both modes, so it stays enabled.
     /// </summary>
     private void UpdateLimitsEnabled()
     {
@@ -338,7 +338,7 @@ public partial class IslandPage : Page
 
     private void OnOpenDropFolderClick(object sender, RoutedEventArgs e)
     {
-        // IslandStore.DropRoot ile aynı yol; ConfigService tek doğruluk kaynağı.
+        // Same path as IslandStore.DropRoot; ConfigService is the single source of truth.
         string root = Path.Combine(Config.ConfigDirectory, "Drop");
         try
         {
@@ -352,15 +352,15 @@ public partial class IslandPage : Page
     }
 
     /// <summary>
-    /// Dosya kayıtlarını listeden düşürür ve <c>Drop</c> klasörünü tarayarak boşaltır. Yalnız
-    /// <c>Clear</c> çağırmak yanlış olurdu: o, pano metinlerini de siler ve kullanıcı "dosyaları
-    /// sil" derken geçmişin tamamını kaybetmiş olur.
+    /// Drops the file entries from the list and empties the <c>Drop</c> folder by scanning it. Calling only
+    /// <c>Clear</c> would be wrong: that also deletes the clipboard texts, and the user would lose the whole
+    /// history when they said "delete the files".
     /// </summary>
     /// <remarks>
-    /// Spec bu eylemi "(onaylı)" diye tanımlıyor. <c>DeleteDroppedFiles</c> <c>Drop</c>
-    /// klasörünü tarayarak <b>geri dönüşsüz</b> boşaltır, yani onaysız çalışması bir veri
-    /// kaybı kuralı ihlalidir. Onay <see cref="ConfirmDestructive"/> ile alınır; onay
-    /// alınamazsa eylem hiç yapılmaz (fail-closed).
+    /// The spec defines this action as "(confirmed)". <c>DeleteDroppedFiles</c> empties the <c>Drop</c>
+    /// folder by scanning it and is <b>irreversible</b>, so running it without confirmation is a data-
+    /// loss rule violation. Confirmation is obtained through <see cref="ConfirmDestructive"/>; if it cannot
+    /// be obtained the action is not performed at all (fail-closed).
     /// </remarks>
     private void OnDeleteDroppedFilesClick(object sender, RoutedEventArgs e)
     {
@@ -379,7 +379,7 @@ public partial class IslandPage : Page
         island.DeleteDroppedFiles();
     }
 
-    /// <summary>Listeyi boşaltır; dosya kopyalarına dokunmaz (bilinçli, bkz. IslandService.Clear).</summary>
+    /// <summary>Empties the list; does not touch the file copies (deliberate, see IslandService.Clear).</summary>
     private void OnClearHistoryClick(object sender, RoutedEventArgs e)
     {
         if (Island is not { } island)
@@ -398,23 +398,23 @@ public partial class IslandPage : Page
     }
 
     /// <summary>
-    /// Geri dönüşsüz bir bakım eylemi için onay ister.
+    /// Asks for confirmation for an irreversible maintenance action.
     /// </summary>
     /// <remarks>
-    /// Depoda daha önce bir onay kalıbı yoktu. WPF-UI <c>ContentDialog</c> denendi ve
-    /// <b>reddedildi</b>: yansımayla ölçüldü — WPF-UI 4.3.0'ın <c>ContentDialog</c>'ında
-    /// <c>XamlRoot</c> özelliği yok, tek halka açık yöntemi <c>ShowAsync(CancellationToken)</c>
-    /// ve barındırmayı <c>ContentDialogHost.GetForWindow(Window)</c> üzerinden çözüyor; oysa
-    /// <c>SettingsWindow</c>'ın içeriği bir <c>NavigationView</c>, <c>ContentDialogHost</c>
-    /// değil. Yani kullanılabilir bir yol, ayar penceresinin XAML'ını yapısal olarak
-    /// değiştirmeyi gerektiriyor — ve sözleşme uygulamayı çalıştırmayı yasakladığı için
-    /// doğrulanamaz. Yanlış bir WPF-UI kontrol adının XAML parse hatasıyla prosesi öldürmesi
-    /// bu dalda kabul edilen risk değil; <c>System.Windows.MessageBox</c> (BCL, derleyiciyle
-    /// doğrulanır) kullanıldı.
+    /// There was no confirmation pattern in the repository before.
+    /// WPF-UI <c>ContentDialog</c> was tried and <b>rejected</b>: measured by reflection — WPF-UI 4.3.0's
+    /// <c>ContentDialog</c> has no <c>XamlRoot</c> property, its only public method is
+    /// <c>ShowAsync(CancellationToken)</c> and it resolves the host through
+    /// <c>ContentDialogHost.GetForWindow(Window)</c>; whereas <c>SettingsWindow</c>'s content is a
+    /// <c>NavigationView</c>, not a <c>ContentDialogHost</c>. So a usable path would require changing
+    /// the settings window's XAML structurally — and it cannot be verified because the contract
+    /// forbids running the app. A wrong WPF-UI control name killing the process with a XAML parse
+    /// error is not an accepted risk on this branch; <c>System.Windows.MessageBox</c> (BCL,
+    /// verified by the compiler) was used.
     /// </remarks>
     /// <returns>
-    /// Kullanıcı onayladıysa <c>true</c>; iptal, kapatma, pencere bulunamaması ya da
-    /// gösterilememesi durumunda <c>false</c> — yani onay alınamadıysa eylem <b>yapılmaz</b>
+    /// <c>true</c> if the user confirmed; <c>false</c> on cancel, close, window not found or
+    /// failure to show — i.e. if confirmation is not obtained the action is <b>not</b> performed
     /// (fail-closed).
     /// </returns>
     private bool ConfirmDestructive(string title, string message)
@@ -438,7 +438,7 @@ public partial class IslandPage : Page
         }
         catch (Exception ex)
         {
-            // Onay gösterilemedi: geri dönüşsüz eylem yapılmaz, ama neden görünmez olmamalı.
+            // The confirmation could not be shown: the irreversible action is not performed, but the reason must not be invisible.
             Debug.WriteLine($"[WharfBar] island confirm failed: {ex.Message}");
             return false;
         }

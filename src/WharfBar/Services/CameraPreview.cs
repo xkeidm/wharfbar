@@ -22,7 +22,7 @@ internal sealed class CameraPreview : IDisposable
 
     internal ImageSource? Frame { get; private set; }
 
-    internal string Status { get; private set; } = "Kamera";
+    internal string Status { get; private set; } = "Camera";
 
     internal bool IsRunning => _capture is not null;
 
@@ -46,13 +46,13 @@ internal sealed class CameraPreview : IDisposable
             };
             await capture.InitializeAsync(settings);
             _capture = capture;
-            Status = "Kamera";
+            Status = "Camera";
             Updated?.Invoke(this, EventArgs.Empty);
             _ = PullAsync();
         }
         catch (Exception)
         {
-            Status = "Kamera yok";
+            Status = "No camera";
             Frame = null;
             await StopAsync();
             Updated?.Invoke(this, EventArgs.Empty);
@@ -106,7 +106,7 @@ internal sealed class CameraPreview : IDisposable
                 SoftwareBitmap? bitmap = frame.SoftwareBitmap;
                 if (bitmap is null)
                 {
-                    Status = "Kamera yok";
+                    Status = "No camera";
                     Frame = null;
                 }
                 else
@@ -122,13 +122,13 @@ internal sealed class CameraPreview : IDisposable
                         image.WritePixels(new System.Windows.Int32Rect(0, 0, width, height), pixels, width * 4, 0);
                         image.Freeze();
                         Frame = image;
-                        Status = "Kamera";
+                        Status = "Camera";
                     });
                 }
             }
             catch (Exception)
             {
-                Status = "Kamera yok";
+                Status = "No camera";
                 Frame = null;
             }
 

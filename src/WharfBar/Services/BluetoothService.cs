@@ -8,9 +8,9 @@ namespace WharfBar.Services;
 internal sealed record BluetoothDeviceInfo(string Id, string Name, bool IsConnected, string? Address = null);
 
 /// <summary>
-/// Eşleşmiş Bluetooth cihazlarını listeler; bağlı olanlar işaretlenir.
-/// Pairing.IsPaired radyo yeni açıldığında / kapalıyken yanlış (false) dönebiliyor
-/// (AEP cache'i cold), bu yüzden System.Devices.Aep.IsPaired property'siyle birleştirilir.
+/// Lists paired Bluetooth devices; connected ones are flagged.
+/// Pairing.IsPaired can wrongly return false right after the radio turns on / while it is off
+/// (the AEP cache is cold), so it is combined with the System.Devices.Aep.IsPaired property.
 /// </summary>
 internal sealed class BluetoothService : IDisposable
 {
@@ -157,13 +157,13 @@ internal sealed class BluetoothService : IDisposable
                     continue;
                 }
 
-                // Aep.IsConnected container bazında güvenilir; yoksa FromIdAsync'e düş.
+                // Aep.IsConnected is reliable per container; fall back to FromIdAsync when absent.
                 bool connected = aepConnected is bool b
                     ? b
                     : await TryGetConnectedAsync(device.Id);
                 raw.Add(new BluetoothDeviceInfo(
                     device.Id,
-                    string.IsNullOrWhiteSpace(device.Name) ? "(Adsız cihaz)" : device.Name,
+                    string.IsNullOrWhiteSpace(device.Name) ? "(Unnamed device)" : device.Name,
                     connected,
                     ReadAddress(device)));
             }
@@ -216,7 +216,7 @@ internal sealed class BluetoothService : IDisposable
         return true;
     }
 
-    /// <summary>Klasik ve LE kayıtlarını adresle, adres yoksa kimlikle birleştirir. Bağlı olan kazanır.</summary>
+    /// <summary>Merges classic and LE records by address, or by id when there is no address. The connected one wins.</summary>
     internal static IReadOnlyList<BluetoothDeviceInfo> MergeDevices(IEnumerable<BluetoothDeviceInfo> devices)
     {
         var byKey = new Dictionary<string, BluetoothDeviceInfo>(StringComparer.OrdinalIgnoreCase);

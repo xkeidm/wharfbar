@@ -40,7 +40,7 @@ public partial class MediaFlyout : UserControl
     internal void OnFlyoutOpened()
     {
         FlyoutRoot.Background = FlyoutSurface.Create();
-        // Açılışta kendi giriş animasyonu oynar; ilk Apply'e oturum geçiş animasyonu yok.
+        // Its own entry animation plays on open; the first Apply has no session-switch animation.
         _currentSessionId = null;
         _sessionSwitchDirection = 0;
     }
@@ -79,8 +79,8 @@ public partial class MediaFlyout : UserControl
         TransportPanel.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Visibility = hasSession ? Visibility.Collapsed : Visibility.Visible;
 
-        // Oturum değişince içerik yönlü kaydırma + fade ile gelir; aynı oturumdaki
-        // parça/oynat-durdur güncellemeleri animasyonsuz kalır.
+        // When the session changes the content arrives with a directional slide + fade; track
+        // and play/pause updates within the same session stay without animation.
         if (hasSession && _currentSessionId is not null && snapshot.SessionId != _currentSessionId)
         {
             AnimateSessionSwitch(_sessionSwitchDirection);
@@ -98,7 +98,7 @@ public partial class MediaFlyout : UserControl
             return;
         }
 
-        // Metadata alınamadıysa uygulama adı fallback.
+        // If metadata is unavailable, fall back to the application name.
         TitleText.Text = string.IsNullOrEmpty(snapshot.Title) ? snapshot.AppName : snapshot.Title;
         ArtistText.Text = snapshot.Artist;
 
@@ -144,9 +144,9 @@ public partial class MediaFlyout : UserControl
     private void OnNextClick(object sender, RoutedEventArgs e) => _service?.Next();
 
     /// <summary>
-    /// Oturum geçişinde içerik yönlü kayarak + fadelenerek gelir: sonraki (chevon ›) sağdan,
-    /// önceki (‹) soldan; otomatik değişimde yönsüz fade. Flyout açılış stiliyle aynı
-    /// CubicEase/EaseOut. Hızlı tekrarlarda önceki animasyon sıfırlanarak yeniden başlar.
+    /// On a session switch the content arrives with a directional slide + fade: next (chevron ›) from
+    /// the right, previous (‹) from the left; an automatic change is a directionless fade. Same
+    /// CubicEase/EaseOut as the flyout opening style. On fast repeats the previous animation resets and restarts.
     /// </summary>
     private void AnimateSessionSwitch(int direction)
     {

@@ -820,4 +820,33 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Island_WallpaperAccent_Description" xml:space="preserve">
     <value>After applying a wallpaper from the island, update WharfBar and Windows accent colors from that image.</value>
   </data>
+  <data name="Startup_RestrictedLaunch_Title" xml:space="preserve">
+    <value>WharfBar: restricted launch</value>
+  </data>
+  <data name="Startup_RestrictedLaunch_Message" xml:space="preserve">
+    <value>WharfBar was started with restricted permissions (for example from a sandboxed terminal). Windows does not let it hide the taskbar or reserve the top edge of the screen, so the desktop will not line up with the bar.
+
+Start WharfBar normally: run.bat, or the built WharfBar.exe from a normal terminal.
+
+OK: continue anyway
+Cancel: quit</value>
+  </data>
+  <data name="ColorPicker_Title" xml:space="preserve">
+    <value>Color picker</value>
+  </data>
+  <data name="ColorPicker_Hint" xml:space="preserve">
+    <value>Click: copy · Esc: cancel</value>
+  </data>
+  <data name="ColorPicker_ReadFailed" xml:space="preserve">
+    <value>Could not read color</value>
+  </data>
+  <data name="ColorPicker_WriteFailed" xml:space="preserve">
+    <value>✗ Could not write to clipboard</value>
+  </data>
+  <data name="ColorPicker_Writing" xml:space="preserve">
+    <value>Writing to clipboard…</value>
+  </data>
+  <data name="ColorPicker_CopiedFormat" xml:space="preserve">
+    <value>✓ {0} copied</value>
+  </data>
 </root>

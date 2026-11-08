@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Enerji tasarrufunun belgelenmiş okumaları. Yazma burada yok.
+/// Documented reads of energy saver state. No writes here.
 /// </summary>
 internal static class EnergySaverRead
 {
@@ -11,7 +11,7 @@ internal static class EnergySaverRead
     {
         try
         {
-            // EnergySaverStatus2 bu hedefin WinRT projeksiyonunda yok (19041).
+            // EnergySaverStatus2 is not in this target's WinRT projection (19041).
             return Windows.System.Power.PowerManager.EnergySaverStatus
                 == Windows.System.Power.EnergySaverStatus.On;
         }
@@ -22,7 +22,7 @@ internal static class EnergySaverRead
         }
     }
 
-    /// <summary><c>SYSTEM_POWER_STATUS.SystemStatusFlag</c> 1 ise tasarruf açıktır.</summary>
+    /// <summary><c>SYSTEM_POWER_STATUS.SystemStatusFlag</c> of 1 means energy saver is on.</summary>
     internal static bool SystemFlagOn()
     {
         try

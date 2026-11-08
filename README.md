@@ -71,9 +71,11 @@ One bar per enabled monitor, each registered as an AppBar. Visibility is the `mo
 
 <br>
 
-On the primary bar the pill idles as **Clipboard** (`Pano`), or shows the last clip when `island.idleLabel` is `lastClip`. It expands for now playing (`island.musicPresence` is `persistent` by default, or `transient`) and briefly for volume, brightness, and battery. At most two satellites sit beside it. Clipboard history and file drops belong to the primary pill. A secondary monitor’s pill shows music and those counters only. The bar stays 30 DIP; the panel opens under the pill.
+On the primary bar the pill idles as **Clipboard**, or shows the last clip when `island.idleLabel` is `lastClip`. It expands for now playing (`island.musicPresence` is `persistent` by default, or `transient`) and briefly for volume, brightness, and battery. At most two satellites sit beside it. Clipboard history and file drops belong to the primary pill. A secondary monitor’s pill shows music and those counters only. The bar stays 30 DIP; the panel opens under the pill.
 
 Low battery uses `island.lowBatteryPercent` (default 20, allowed range 5–50).
+
+The panel under the pill has seven tabs: **Clipboard** (history + search), **Wallpaper** (bundled and your own gallery, with fade / blur transitions), **Music** (now playing + transport), **Shelf** (dropped-file chips: open with the default app, multi-select and drag out, copy path or file, remove one, or empty), **Prompter** (auto-scrolling reading view), **Camera** (mirror preview + on/off + microphone state) and **Color** (recent picks + a macOS-style screen loupe that copies the exact colour under the cursor as HEX). Each body can be hidden in Settings → Island, and a file drop opens the panel on Shelf.
 
 </details>
 
@@ -137,7 +139,7 @@ One flyout, opened from the quick-settings, volume, or network icon: **Main**, *
 
 <br>
 
-WharfBar’s own notification icon has a quit item, **WharfBar'ı kapat** (Quit WharfBar). On the primary bar, third-party tray icons are mirrored with documented toolbar messages and clicks are forwarded. Chosen icons can sit in a pill behind the chevron; the chevron also opens Windows’ hidden icons with `Win+B`. System icons are filtered out. Icons Windows already keeps in the overflow stay there. On Windows 11 25H2 and later, where that toolbar is gone, the mirror uses UI Automation. A secondary bar has the chevron only. Icons are not read from another process’s memory.
+WharfBar’s own notification icon has a quit item, **Quit WharfBar**. On the primary bar, third-party tray icons are mirrored with documented toolbar messages and clicks are forwarded. Chosen icons can sit in a pill behind the chevron; the chevron also opens Windows’ hidden icons with `Win+B`. System icons are filtered out. Icons Windows already keeps in the overflow stay there. On Windows 11 25H2 and later, where that toolbar is gone, the mirror uses UI Automation; because Windows virtualizes the parked tray there, WharfBar refreshes it during idle moments by briefly revealing the tray the way a hover does — the work area does not change, and the pointer only makes that short hop to the bottom edge when you are not using the mouse or keyboard. A parked tray that reads empty never blanks the bar: icons stay until a real empty tray is confirmed. A secondary bar has the chevron only. Icons are not read from another process’s memory.
 
 </details>
 
@@ -182,13 +184,13 @@ dotnet run --project src/WharfBar
 
 Or double-click `run.bat` in the repo root. It builds, then starts `WharfBar.exe` detached, so closing that console does not kill the app.
 
-> **Warning.** Running the app reserves a strip along the top of the screen and hides the Windows taskbar. A force-kill (`Stop-Process -Force`, detaching the debugger, closing a raw `dotnet run` console) skips `ABM_REMOVE`. The taskbar watchdog restores the taskbar in about 0.5 seconds. The reserved strip can stick until `explorer.exe` is restarted. A normal quit (tray **WharfBar'ı kapat** / Quit WharfBar, or Alt+F4) restores both. Prefer `run.bat` to closing a `dotnet run` window.
+> **Warning.** Running the app reserves a strip along the top of the screen and hides the Windows taskbar. A force-kill (`Stop-Process -Force`, detaching the debugger, closing a raw `dotnet run` console) skips `ABM_REMOVE`. The taskbar watchdog restores the taskbar in about 0.5 seconds. The reserved strip can stick until `explorer.exe` is restarted. A normal quit (tray **Quit WharfBar**, or Alt+F4) restores both. Prefer `run.bat` to closing a `dotnet run` window.
 
 A second instance exits because of the named mutex. `dotnet test` runs `tests/WharfBar.Tests` (xUnit).
 
 ## How to quit
 
-Click the WharfBar notification icon and choose **WharfBar'ı kapat** (Quit WharfBar), or focus the bar and press **Alt+F4**. The top-bar logo menu has the same quit item.
+Click the WharfBar notification icon and choose **Quit WharfBar**, or focus the bar and press **Alt+F4**. The top-bar logo menu has the same quit item.
 
 `Process.MainWindowHandle` is `0` for this process (`ShowInTaskbar=false` gives the window a hidden owner), so `CloseMainWindow` from a script does nothing. Find the window by PID and send `WM_CLOSE`.
 

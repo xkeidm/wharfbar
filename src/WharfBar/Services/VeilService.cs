@@ -12,7 +12,7 @@ namespace WharfBar.Services;
 /// </summary>
 internal sealed class VeilService : IDisposable
 {
-    private const int HotkeyId = 0x5645; // "VE"
+    private const int HotkeyId = 0x5645; // 0x5645 = ASCII "V" + "E"
 
     private readonly ConfigService _config;
     private VeilWindow? _window;
@@ -118,10 +118,10 @@ internal sealed class VeilService : IDisposable
         {
             if (!string.IsNullOrWhiteSpace(hotkeyText))
             {
-                HotkeyRegistrationError = "Geçersiz kısayol biçimi.";
+                HotkeyRegistrationError = "Invalid shortcut format.";
             }
 
-            return; // boş veya geçersiz → kısayol yok (soft alan)
+            return; // empty or invalid → no hotkey (soft field)
         }
 
         if (_hotkeySource is null)
@@ -146,7 +146,7 @@ internal sealed class VeilService : IDisposable
         }
         else
         {
-            HotkeyRegistrationError = "Kısayol kullanılamıyor (başka bir uygulama tarafından kullanılıyor olabilir).";
+            HotkeyRegistrationError = "Shortcut unavailable (it may be in use by another app).";
             Debug.WriteLine("[WharfBar] Veil hotkey registration failed.");
         }
     }

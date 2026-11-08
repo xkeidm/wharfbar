@@ -76,9 +76,9 @@ public class TrayCaptureTests
     }
 
     /// <summary>
-    /// K1: tek bir saydam piksel kırpmanın tamamını boş saymaz — doc "fully transparent" diyor.
-    /// Saydam pikselli ama içinde glif olan bir kırpma içeriktir; eski kural burada yanlış
-    /// pozitif veriyor ve harf glifi fallback'i gereksiz yere tetikleniyordu.
+    /// K1: a single transparent pixel does not make the whole crop blank — the doc says "fully transparent".
+    /// A crop that has transparent pixels but contains a glyph is content; the old rule produced a false
+    /// positive here and needlessly triggered the letter-glyph fallback.
     /// </summary>
     [Fact]
     public void IsBlankCapture_False_WhenOnlyOnePixelIsTransparent()
@@ -93,7 +93,7 @@ public class TrayCaptureTests
             pixels[i + 3] = 255;
         }
 
-        // Piksel 0 saydam, piksel 1 farklı renkte (glyph), gerisi tek dolgu.
+        // Pixel 0 is transparent, pixel 1 has a different color (glyph), the rest is a single fill.
         pixels[3] = 0;
         pixels[4] = 200;
         pixels[7] = 255;
@@ -104,8 +104,8 @@ public class TrayCaptureTests
     }
 
     /// <summary>
-    /// Tamamen saydam kırpma: her piksel 0 olduğu için düzgün biçimde "tek dolgu" olarak
-    /// yakalanır (ayrı bir saydam taraması gerekmez).
+    /// A fully transparent crop: since every pixel is 0 it is correctly caught as a "single fill"
+    /// (no separate transparency scan is needed).
     /// </summary>
     [Fact]
     public void IsBlankCapture_True_WhenEveryPixelIsTransparent()

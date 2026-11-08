@@ -16,7 +16,7 @@ internal sealed class ProjectionService
     internal ProjectionMode? Current { get; private set; }
 
     /// <summary>
-    /// DISPLAYCONFIG_TOPOLOGY_ID gerçek değerleri (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8.
+    /// Actual DISPLAYCONFIG_TOPOLOGY_ID values (wingdi.h): INTERNAL=1, CLONE=2, EXTEND=4, EXTERNAL=8.
     /// </summary>
     internal static ProjectionMode? FromTopologyId(uint id) => id switch
     {
@@ -43,7 +43,7 @@ internal sealed class ProjectionService
         }
         else
         {
-            // Veritabanı okunamazsa (bazı hibrit GPU'lar hâlâ 87 döner) geometriden tahmin et.
+            // If the database cannot be read (some hybrid GPUs still return 87), guess from the geometry.
             Debug.WriteLine("WharfBar: QueryDisplayConfig failed — guessing from monitor metrics");
             (int monitors, int vx, int vy, int vw, int vh, int pw, int ph) = DisplayTopology.ReadMonitorMetrics();
             Current = GuessCurrentMode(monitors, vx, vy, vw, vh, pw, ph);
@@ -51,8 +51,8 @@ internal sealed class ProjectionService
     }
 
     /// <summary>
-    /// Aktif monitör sayısı + sanal ekran geometrisinden mod tahmini.
-    /// Tek monitör InternalOnly/ExternalOnly'yi ayırt edemez — InternalOnly varsayar.
+    /// Mode guess from the active monitor count + virtual screen geometry.
+    /// A single monitor cannot distinguish InternalOnly/ExternalOnly — it assumes InternalOnly.
     /// </summary>
     internal static ProjectionMode? GuessCurrentMode(
         int monitors, int virtualX, int virtualY, int virtualW, int virtualH,

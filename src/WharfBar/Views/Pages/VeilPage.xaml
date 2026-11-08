@@ -27,7 +27,7 @@
 
             <TextBlock Text="{x:Static res:Strings.Settings_Veil}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
-            <!-- Etkinleştir -->
+            <!-- Enable -->
             <Border Style="{StaticResource PowerToysCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -54,7 +54,7 @@
                 </Grid>
             </Border>
 
-            <!-- Renk -->
+            <!-- Color -->
             <Border Style="{StaticResource PowerToysCard}">
                 <StackPanel>
                     <TextBlock Text="{x:Static res:Strings.VeilPage_ColorTitle}" FontSize="14" FontWeight="Medium" Margin="0,0,0,10" />
@@ -75,7 +75,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Opaklık -->
+            <!-- Opacity -->
             <Border Style="{StaticResource PowerToysCard}">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -103,7 +103,7 @@
                 </Grid>
             </Border>
 
-            <!-- Kısayol -->
+            <!-- Shortcut -->
             <Border Style="{StaticResource PowerToysCard}">
                 <StackPanel>
                     <TextBlock Text="{x:Static res:Strings.VeilPage_HotkeyTitle}" FontSize="14" FontWeight="Medium" Margin="0,0,0,4" />

@@ -18,16 +18,16 @@ public class TopBarContrastPolicyTests
     [Fact]
     public void Decide_FullyTransparentResemblance()
     {
-        // Koyu duvar kağıdı (siyah) → açık metin.
+        // Dark wallpaper (black) → light text.
         Assert.Equal(BarTextTone.LightText, TopBarContrastPolicy.Decide(0.0));
-        // Tamamen açık duvar kağıdı (beyaz) → koyu metin.
+        // Fully light wallpaper (white) → dark text.
         Assert.Equal(BarTextTone.DarkText, TopBarContrastPolicy.Decide(1.0));
     }
 
     [Fact]
     public void Decide_ThresholdBoundaryUsesDarkText()
     {
-        // Eşik (0.55) dahil ve üstü → koyu metin; eşiğin altı → açık metin.
+        // At or above the threshold (0.55) → dark text; below the threshold → light text.
         Assert.Equal(BarTextTone.DarkText, TopBarContrastPolicy.Decide(TopBarContrastPolicy.LightWallpaperThreshold));
         Assert.Equal(BarTextTone.DarkText, TopBarContrastPolicy.Decide(TopBarContrastPolicy.LightWallpaperThreshold + 0.01));
         Assert.Equal(BarTextTone.LightText, TopBarContrastPolicy.Decide(TopBarContrastPolicy.LightWallpaperThreshold - 0.01));

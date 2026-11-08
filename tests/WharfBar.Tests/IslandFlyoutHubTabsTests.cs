@@ -5,8 +5,8 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Şelf ve renk seçici sekmeleri hub'a bağlanırken tag→gövde eşleşmesi pure yardımcı üzerinden
-/// sınanır: <c>IslandFlyout.TabIdForBody</c> her sekme için gövde Tag'indeki kimliği üretir.
+/// When the shelf and color picker tabs are wired into the hub, the tag→body match is verified
+/// through a pure helper: <c>IslandFlyout.TabIdForBody</c> produces the id stored in the body Tag for each tab.
 /// </summary>
 public class IslandFlyoutHubTabsTests
 {

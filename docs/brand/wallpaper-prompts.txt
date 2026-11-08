@@ -1,45 +1,45 @@
 WHARFBAR WALLPAPER PROMPTS
 ==========================
 
-GENEL KURALLAR
-- Cikti: 3840x2160 (16:9). Ultrawide icin 21:9 iste.
-- AI'a ikonu ASLA cizdirme. Wallpaper'i logosuz uret, logoyu sonra kendin ustune koy.
-- Logo dosyalari (docs/brand/logo/):
-    Koyu arka plan : wharfbar-mark-small-on-dark.svg
-    Acik arka plan : wharfbar-mark-small-on-light.svg
-- Logo boyutu: ekran genisliginin %10-15'i (sade/sonuk versiyonda %6-8, %60-70 opaklik).
-- Orta ve yan bolgeleri sade birak. Ustte top bar, altta dock var.
-- Her prompt icin "REFERANS" satiri: hangi dosyayi AI'a yukleyecegin yazar.
+GENERAL RULES
+- Output: 3840x2160 (16:9). For ultrawide, ask for 21:9.
+- NEVER let the AI draw the icon. Generate the wallpaper without a logo, then place the logo on top yourself.
+- Logo files (docs/brand/logo/):
+    Dark background : wharfbar-mark-small-on-dark.svg
+    Light background : wharfbar-mark-small-on-light.svg
+- Logo size: 10-15% of the screen width (6-8% in the plain/muted version, at 60-70% opacity).
+- Keep the middle and side areas plain: the top bar sits at the top and the dock at the bottom.
+- Every prompt has a "REFERENCE" line that names the file to upload to the AI.
 
-PALET
+PALETTE
 - Dark : bg #182E3F | pier #EAF0F5 | sea lines #306791 | sun #F2B66B
 - Light: bg #EAF1F6 | pier #17374F | sea lines #9BBBD4 | sun #E59A45
 - Accent: #0078D4
 
-NEGATIF PROMPT (destekleyen araclarda)
+NEGATIVE PROMPT (in tools that support it)
 text, logo, watermark, people, boats, buildings, cluttered, oversaturated, lens flare, low contrast
 
 
 ======================================================================
-BOLUM 1 - MARKA SAHNESI (LOGO REFERANSLI, LOGO SONRADAN EKLENMEZ / OPSIYONEL)
+PART 1 - BRAND SCENE (LOGO-REFERENCED, LOGO NOT ADDED AFTERWARD / OPTIONAL)
 ======================================================================
 
-[1A] DARK - Dusk sahnesi
-REFERANS: wharfbar-dock-small-dark.svg (png'ye cevirip yukle) - sadece stil referansi
+[1A] DARK - Dusk scene
+REFERENCE: wharfbar-dock-small-dark.svg (convert to png and upload) - style reference only
 PROMPT:
 Minimal desktop wallpaper, 16:9, 4K. Top-down view of a wooden pier that narrows in perspective toward a vanishing point at the top center, pale planks (#EAF0F5) with thin dark gaps, a half sun (#F2B66B) rising at the vanishing point. Deep navy-teal background (#182E3F) with very soft sea lines (#306791). Flat geometric style matching the attached icon, lots of empty space on both sides. No text, no logo.
 
-[1B] LIGHT - Dawn sahnesi
-REFERANS: wharfbar-dock-small-light.svg - sadece stil referansi
+[1B] LIGHT - Dawn scene
+REFERENCE: wharfbar-dock-small-light.svg - style reference only
 PROMPT:
 Minimal desktop wallpaper, 16:9, 4K. Top-down view of a pier narrowing in perspective toward the top center, deep navy planks (#17374F) with thin light gaps, a half sun (#E59A45) at the vanishing point. Pale background (#EAF1F6) with faint sea lines (#9BBBD4). Flat geometric style matching the attached icon, clean and airy, large empty sides. No text, no logo.
 
-[1C] DENGELI CIFT (ayni kompozisyon, tema ile degisir)
-REFERANS: dark ve light dock-small iconlari
+[1C] BALANCED PAIR (same composition, switches with the theme)
+REFERENCE: dark and light dock-small icons
 PROMPT:
 Using the attached icon as style reference only (pier planks in perspective, half sun at the vanishing point, flat geometric calm look), create a wide desktop wallpaper of the same scene without the icon itself. Keep the pier perspective, plank rhythm and sun size identical. Output a [DARK DUSK / LIGHT DAWN] version. Same composition in both versions so they can be swapped by theme. Minimal, no text.
 
-[1D] YAN SAHNE - ufka uzanan iskele (daha fotografik)
+[1D] SIDE SCENE - pier reaching the horizon (more photographic)
 PROMPT (dark):
 Minimal premium desktop wallpaper, 16:9, 4K. A calm sea at dusk seen from far away, a thin wooden pier extending toward the horizon in the center-right, a low glowing sun (#F2B66B) just above the horizon. Deep navy-teal sky (#182E3F) fading to lighter blue (#306791) near the horizon. Soft horizontal sea lines, subtle film grain, flat-vector meets soft gradient, lots of empty negative space. No text, no logo, no people, no boats.
 PROMPT (light):
@@ -47,35 +47,35 @@ Minimal premium desktop wallpaper, 16:9, 4K. A calm sea at early morning, a thin
 
 
 ======================================================================
-BOLUM 2 - DISTRO TARZI (LOGO SONRADAN KOYULACAK)
+PART 2 - DISTRO STYLE (LOGO ADDED AFTERWARD)
 ======================================================================
 
-[2A] Soyut geometrik (Fedora / Pop!_OS havasi)    -> LOGO: EVET (orta, %12-15)
-REFERANS: yok (logoyu sonra koy)
+[2A] Abstract geometric (Fedora / Pop!_OS vibe)    -> LOGO: YES (center, 12-15%)
+REFERENCE: none (add the logo later)
 PROMPT:
 Abstract desktop wallpaper, 16:9, 4K. Layered geometric shapes inspired by wooden pier planks in perspective, converging toward a vanishing point on the right. Dark navy-teal gradient (#182E3F to #306791) with one warm amber accent glow (#F2B66B). Smooth vector shapes with soft shadows and subtle noise. Clear empty area in the center for a logo. No text.
 LOGO: wharfbar-mark-small-on-dark.svg
 
-[2B] Ubuntu tarzi (canli gradient + dalga)         -> LOGO: EVET (sol-orta)
-REFERANS: yok
+[2B] Ubuntu style (vivid gradient + wave)         -> LOGO: YES (center-left)
+REFERENCE: none
 PROMPT:
 Modern Linux distro release wallpaper, 16:9, 4K. Flowing wave-like ribbons forming a stylized wharf and sea, gradient from deep teal to cobalt blue with a warm orange-gold sun flare near the horizon. Smooth, glossy, slightly 3D paper-cut layers. Center-left kept clean for a logo. No text.
 LOGO: wharfbar-mark-small-on-dark.svg
 
-[2C] Blueprint / teknik                            -> LOGO: EVET (kucuk, sonuk %60-70)
-REFERANS: yok
+[2C] Blueprint / technical                            -> LOGO: YES (small, muted 60-70%)
+REFERENCE: none
 PROMPT:
 Dark technical wallpaper, 16:9, 4K. Navy background with faint blueprint grid, thin line drawing of a pier in perspective and a small sun circle on the horizon, tick marks, very low contrast, amber accent only on the sun. Minimal, lots of empty space. No readable text.
-LOGO: wharfbar-mark-small-on-dark.svg (kose veya orta, %6-8)
+LOGO: wharfbar-mark-small-on-dark.svg (corner or center, 6-8%)
 
-[2D] Graphite monokrom                             -> LOGO: EVET (kucuk, sonuk)
-REFERANS: yok
+[2D] Graphite monochrome                             -> LOGO: YES (small, muted)
+REFERENCE: none
 PROMPT:
 Ultra minimal wallpaper, 16:9, 4K. Soft charcoal-to-graphite gradient, a single thin horizon line and a small warm sun dot, barely visible plank texture fading into the dark. Matte, calm, almost empty.
-LOGO: wharfbar-mark-small-on-dark.svg (%6-8, %60-70 opaklik)
+LOGO: wharfbar-mark-small-on-dark.svg (6-8%, 60-70% opacity)
 
-[2E] Sade arka plan + buyuk emblem                 -> LOGO: EVET (ana oge)
-REFERANS: yok
+[2E] Plain background + large emblem                 -> LOGO: YES (main element)
+REFERENCE: none
 PROMPT (dark):
 Clean dark gradient wallpaper (#182E3F to #0F1C27), subtle radial glow in the center, faint sea lines at the bottom, light grain. Center completely empty for a logo. No objects, no text.
 PROMPT (light):
@@ -84,38 +84,38 @@ LOGO: dark -> wharfbar-mark-small-on-dark.svg | light -> wharfbar-mark-small-on-
 
 
 ======================================================================
-BOLUM 3 - APPLE / WINDOWS TARZI MANZARA (LOGO YOK)
+PART 3 - APPLE / WINDOWS STYLE LANDSCAPE (NO LOGO)
 ======================================================================
 
-[3A] macOS tarzi - altin saat iskelesi
+[3A] macOS style - golden-hour pier
 PROMPT:
 Photorealistic landscape wallpaper, 16:9, 8K look, shot on medium format. A long wooden pier stretching into a still ocean at golden hour, soft mist, distant mountains, warm low sun, dramatic but calm sky, rich color grading in teal and amber. Shallow haze, high dynamic range, no people, no text, no watermark.
 
-[3B] Windows 11 tarzi - soyut 3D bloom
+[3B] Windows 11 style - abstract 3D bloom
 PROMPT:
 Abstract 3D render wallpaper, 16:9, 4K. Soft translucent glass-like ribbons forming a flower-like bloom, colors in cobalt blue (#0078D4) with teal and a hint of warm amber glow, smooth lighting, subtle depth of field, clean light background. Fluent design feeling, no text.
 
-[3C] Windows 11 Light - sabah gol
+[3C] Windows 11 Light - morning lake
 PROMPT:
 Photorealistic landscape, 16:9, 4K. Clear morning at a calm lake, thin wooden dock leading toward soft pastel mountains, pale blue sky with light haze, cool and airy palette, gentle sunrise glow on the horizon. Bright, clean, no people, no text.
 
-[3D] Gun batimi limani (Dark)
+[3D] Sunset harbor (Dark)
 PROMPT:
 Photorealistic twilight harbor wallpaper, 16:9, 4K. Deep blue hour sky with a thin orange line at the horizon, calm water reflecting the light, a long wooden pier with tiny warm lamps, distant hills silhouette. Moody, premium, sharp, no people, no text.
 
-[3E] Dag + gol (Sonoma / Sequoia havasi)
+[3E] Mountain + lake (Sonoma / Sequoia vibe)
 PROMPT:
 Photorealistic wallpaper, 16:9, 8K. Alpine lake at dawn, layered mountain ridges fading into blue haze, a small wooden jetty in the foreground, soft pink-amber light on peaks, perfectly still water reflection. Ultra clean, cinematic, no people, no text.
 
-[3F] Havadan (drone)
+[3F] From the air (drone)
 PROMPT:
 Aerial top-down photograph, 16:9, 4K. A wooden pier cutting diagonally through turquoise-to-deep-blue water, soft foam lines, minimal composition, lots of calm negative space. Natural light, no people, no text.
 
 
 ======================================================================
-ONERILEN SIRA
+RECOMMENDED ORDER
 ======================================================================
-1. 1A + 1B  (dark/light ana set, logosuz)
-2. 2E dark + light, sonra small logoyu uzerine koy (emblemli set)
-3. 3D ve 3C (foto: dark + light)
-4. Begendiysen 2A / 2B / 2D
+1. 1A + 1B  (dark/light main set, no logo)
+2. 2E dark + light, then place the small logo on top (emblem set)
+3. 3D and 3C (photo: dark + light)
+4. If you like them, 2A / 2B / 2D

@@ -3,8 +3,8 @@ using System.Runtime.InteropServices;
 namespace WharfBar.Native;
 
 /// <summary>
-/// Start Menü .lnk kısayollarından AppUserModelID okur. AUMID → Windows görünen adı
-/// eşlemesi için (ör. "com.github.th-ch.youtube-music" → "YouTube Music",
+/// Reads the AppUserModelID from Start Menu .lnk shortcuts. Used for the AUMID → Windows display
+/// name mapping (e.g. "com.github.th-ch.youtube-music" → "YouTube Music",
 /// "F0DC299D809B9700" → "Zen").
 /// </summary>
 internal static class AppShortcut
@@ -16,8 +16,8 @@ internal static class AppShortcut
     private const int GetValueSlot = 5;
 
     /// <summary>
-    /// Kısayolun PKEY_AppUserModel_ID değerini okur. Yoksa/okunamazsa false döner.
-    /// COM marshal'ı buffer'ı bozduğu için PROPERTYKEY/PROPVARIANT elle (ham pointer) iletilir.
+    /// Reads the shortcut's PKEY_AppUserModel_ID value. Returns false if it is missing or unreadable.
+    /// Because COM marshaling corrupts the buffer, PROPERTYKEY/PROPVARIANT are passed by hand (raw pointer).
     /// </summary>
     internal static bool TryGetAppUserModelId(string lnkPath, out string? appUserModelId)
     {
@@ -79,7 +79,7 @@ internal static class AppShortcut
         }
     }
 
-    /// <summary>PROPERTYKEY = GUID (16B, <see cref="Guid.ToByteArray"/> düzeni) + uint pid (4B LE).</summary>
+    /// <summary>PROPERTYKEY = GUID (16B, <see cref="Guid.ToByteArray"/> layout) + uint pid (4B LE).</summary>
     private static IntPtr BuildPropertyKey()
     {
         IntPtr ptr = Marshal.AllocHGlobal(20);

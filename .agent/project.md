@@ -11,21 +11,21 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
 
 ## Product
 
-- **Brand logo (ADR-019):** the WharfBar "Dusk" mark by default (solid small pier + sun; no plank gaps), the Windows logo when `logoStyle` = `windows` (Settings → Görünüm). Top bar: one colour (bar foreground). Dock launch tile: themed from the accent + light/dark (`BrandPalette`), re-tinted on theme/accent messages; vector geometry in `BrandLogo`.
+- **Brand logo (ADR-019):** the WharfBar "Dusk" mark by default (solid small pier + sun; no plank gaps), the Windows logo when `logoStyle` = `windows` (Settings → Appearance). Top bar: one colour (bar foreground). Dock launch tile: themed from the accent + light/dark (`BrandPalette`), re-tinted on theme/accent messages; vector geometry in `BrandLogo`.
 - **Top bar:** logo on the left (drawn, `logoStyle`) + system stats (`CPU x% · GPU y% · RAM z%`;
  on multiple GPUs a `GPU0/GPU1` split: `topBar.showGpuPerAdapter`;
- `topBar.showSystemStats`, `SystemStatsService`; hovering shows the sparkline and network speed, the bar stays 30 DIP) + menu (`Hakkında` (About) / `Kapat` (Close)); on the right, the status strip
+ `topBar.showSystemStats`, `SystemStatsService`; hovering shows the sparkline and network speed, the bar stays 30 DIP) + menu (`About` / `Close`); on the right, the status strip
  (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` →
  `network` → `battery`; customizable). `volume` / `brightness` / `media` stay in the catalog
  but are not in the default order (ADR-011); a saved `statusItems` list is not stripped. Island pill in the center:
- idle `Pano` (Clipboard) or, with `island.idleLabel=lastClip`, the last clip, now playing via `island.musicPresence`
+ idle `Clipboard` or, with `island.idleLabel=lastClip`, the last clip, now playing via `island.musicPresence`
  (`persistent` default / `transient`), a short meter for volume, brightness, and battery,
  at most two satellites (during HUD, persistent music and clipboard together). Low-battery threshold
  `island.lowBatteryPercent` (default 20, accepted 5–50). Optional tint `island.colorMode` (`album` default / `system` / `neutral`, ADR-018). Clipboard history is on the primary bar; the secondary pill is music and meters. The multi-line panel is a single
- popup with a **hub tab strip** (`Pano` / `Duvar kağıdı` / `Müzik` / `Raf` / `Prompter` / `Kamera` / `Renk`; last tab `island.hubTab`, tab visibility via `island.shelfTab` / `island.prompterTab` / `island.cameraTab` / `island.colorpickerTab` — ADR-010 addendum; labels fold to icons when all seven tabs converge); wallpaper is a thumbnail gallery (bundled `Wallpapers/` + `%AppData%/WharfBar/wallpapers/`, click apply via documented SPI, primary bar only; optional **`island.wallpaperAccent`** syncs WharfBar + best-effort Windows accent from the image after apply, default **on**). **Appearance light/dark** also writes Windows Personalization (`SystemThemeWriter`); **system** leaves Windows alone. Bundled `*-light`/`*-dark` pairs auto-switch with the resolved theme when applied from the hub (`island.lastHubWallpaper`; gallery still shows two tiles). Optional transition (`island.wallpaperTransition`: `off` / `fade` / `blurFade`, default blur+fade): when policy allows, a WorkerW-hosted primary-monitor overlay crossfades the **previous** image out (~450 ms, optional blur), then SPI commits the new wallpaper on fade complete (respects Windows via `island.wallpaperRespectSystemAnimation`, default on); otherwise instant SPI. The AppBar stays 30 DIP (ADR-012, ADR-013). Background personalization: `mica` / `transparent` / `tint`
+ popup with a **hub tab strip** (`Clipboard` / `Wallpaper` / `Music` / `Shelf` / `Prompter` / `Camera` / `Color`; last tab `island.hubTab`, tab visibility via `island.shelfTab` / `island.prompterTab` / `island.cameraTab` / `island.colorpickerTab` — ADR-010 addendum; labels fold to icons when all seven tabs converge); wallpaper is a thumbnail gallery (bundled `Wallpapers/` + `%AppData%/WharfBar/wallpapers/`, click apply via documented SPI, primary bar only; optional **`island.wallpaperAccent`** syncs WharfBar + best-effort Windows accent from the image after apply, default **on**). **Appearance light/dark** also writes Windows Personalization (`SystemThemeWriter`); **system** leaves Windows alone. Bundled `*-light`/`*-dark` pairs auto-switch with the resolved theme when applied from the hub (`island.lastHubWallpaper`; gallery still shows two tiles). Optional transition (`island.wallpaperTransition`: `off` / `fade` / `blurFade`, default blur+fade): when policy allows, a WorkerW-hosted primary-monitor overlay crossfades the **previous** image out (~450 ms, optional blur), then SPI commits the new wallpaper on fade complete (respects Windows via `island.wallpaperRespectSystemAnimation`, default on); otherwise instant SPI. The **`Color`** tab keeps session-scoped recent picks; its **screen picker** is a full-monitor overlay with a cursor-centred 13×13 loupe over the frozen frame (the pick is the loupe's exact centre pixel, `ScreenSampler.TryCropBox`; the HEX goes to the clipboard outside Win+V history). The AppBar stays 30 DIP (ADR-012, ADR-013). Background personalization: `mica` / `transparent` / `tint`
  + opacity slider (right-click menu). The clock is a single line formatted with the resolved UI culture (`config.language` → `LocalizationService`; e.g. `tr-TR` or `en-US`); a clock click is notification text + a month calendar; the bell → native `Win+N`;
  `controlCenter` → QS Main; volume → QS Mixer; brightness → `BrightnessFlyout` (Monitorian DDC/CI + WMI hybrid);
- media → `MediaFlyout` (SMTC; hidden when there is no session, ADR-008); network → QS Network (ADR-006); the energy-saver tile lights from the API/flag or from a read-back of `Her zaman enerji tasarrufu kullan` (Always use energy saver), and a click flips that switch (ADR-013); **AppBar** + tray hybrid.
+ media → `MediaFlyout` (SMTC; hidden when there is no session, ADR-008); network → QS Network (ADR-006); the energy-saver tile lights from the API/flag or from a read-back of `Always use energy saver`, and a click flips that switch (ADR-013); **AppBar** + tray hybrid.
 - **Dock:** bottom strip (overlay; Topmost ± auto-hide). On the left, taskbar pins are **read-only**
  (including closed ones, in taskbar order; ADR-005 2026-10-07 — the folder is **not written**)
  plus entries that are in `dock.items` and not there. A running pin stays on that same single icon. On the right,
@@ -34,17 +34,17 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  windows/processes are counted on that box. The icon does not grow.
  Default icon **24 DIP**, button 40, gap **4 DIP**, plate padding 10×8 DIP. Background
  `mica` / `transparent` / `tint` (independent of the top bar).
- `Dock'a sabitle / kaldır` (Pin to Dock / Unpin) writes `dock.items` and, when the target is a file or folder, writes a `.lnk` into
+ `Pin to Dock / Unpin` writes `dock.items` and, when the target is a file or folder, writes a `.lnk` into
  `User Pinned\TaskBar`. `Taskband` is not written. Drag-to-reorder, file drop from Explorer,
- bottom-left/center/right and the left edge; right-click context menu (`Uygulama Başlık Kartı` (application title card), `Dock'a Sabitle`/`Kaldır` (Pin to Dock/Unpin),
- `Görevi Sonlandır` (End task), `Pencereyi Kapat` (Close window), `Yönetici Çalıştır` (Run as administrator), `Dosya Konumunu Aç` (Open file location), `Yeni Pencere` (New window),
- **`Pencereler`** (Windows)).
+ bottom-left/center/right and the left edge; right-click context menu (title card, `Pin to Dock`/`Unpin`,
+ `End task`, `Close window`, `Run as administrator`, `Open file location`, `New window`,
+ **`Windows`**).
  DWM thumbnail on hover; a taskbar progress bar under the icon (no bar when UIA is empty);
  a short accent pulse on an icon that wants attention. The badge, the line, and the thumbnail count only windows on that dock's
  monitor. Launchpad, Downloads, and the trash are built-in tiles
  (not written to the pin folder). Launchpad opens from the dock tile (the themed brand logo tile, ADR-019); the top bar logo opens the menu.
- The face is singular: centered, above the wallpaper; the box opens before the scan finishes, and apps sit under the `Tümü` (All) letter heading (ADR-016).
- The Widget and Plugin tools open the gallery; Settings → `Eklentiler` (Plugins) shows the same list (ADR-017).
+ The face is singular: centered, above the wallpaper; the box opens before the scan finishes, and apps sit under the `All` letter heading (ADR-016).
+ The Widget and Plugin tools open the gallery; Settings → `Plugins` shows the same list (ADR-017).
  Built-in island switches; the gallery still toggles the desktop clock and calendar; each is a fixed card parented to the desktop icon host; a grip moves it; the drop snaps off icons and off the other card; the place is `island.widgetPlacements`. A local `manifest.json` is an on/off record only;
  an assembly is not loaded. Top bar and dock slots are not drawn in v1.
  The phone row appears only while a device is connected: name, battery, and notification count from the YourPhone start card; a missing field is hidden.
@@ -87,10 +87,20 @@ Full structure: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 9. **Tray mirror (ADR-009):** foreign tray icons are read read-only with documented comctl32 `TB_*` messages
  + `SendMessage` click-forward; RPM/injection/undocumented APIs are **forbidden**;
  hidden icons are out of scope (`Win+B` remains); system icons are dropped by the tooltip filter.
+ On Windows 11 25H2 (no classic toolbar) the mirror reads the XAML tray through UI Automation and
+ hover-reveals the parked auto-hide bar for each refresh only while the pointer is idle (or the mirror
+ is still empty) — no `ABM_SETSTATE`, no work-area flip. An empty read is not evidence: only a
+ revealed tray that read back empty clears the snapshot.
 10. **Dock pins (ADR-005, 2026-10-07):** the left group **reads** the `User Pinned` folder
  (it does not write it). `dock.items` remains the pin/unpin path. Hiding/restoring the taskbar
  is the subject of §3. The magnification engine is pure (`DockMagnification` / `DockStripLayout`); the window
  is not resized on hover.
+11. **A sub-medium integrity token cannot drive the shell.** UIPI silently drops
+ `ShowWindow(Shell_TrayWnd, SW_HIDE)`, `SHAppBarMessage(ABM_NEW/ABM_SETPOS)` and `SetWindowLong`, so a
+ WharfBar launched from a sandboxed terminal (or any low-integrity parent) runs with the taskbar
+ visible and no top-edge reservation. `ProcessIntegrity` detects this at startup and warns; the fix
+ is to launch normally (Explorer, or `run.bat` from a normal terminal). See
+ [`docs/04-gotchas.md`](../docs/04-gotchas.md).
 
 ## Document map
 
@@ -111,7 +121,7 @@ AppBar registration + guaranteed `ABM_REMOVE`, `ABN_*` callbacks, re-registratio
 single-instance Mutex, WPF-UI Mica + system light/dark (or config `theme`), square corners
 (`DWMWCP_DONOTROUND`, ADR-004), dock overlay (`DockWindow`; read-only taskbar pins on the left
 + `dock.items`, unpinned running apps on the right, one icon per application; no magnification,
-icon 24 / button 40 / gap 4 DIP, mica or layered tint background, drag-to-reorder, file drop, position choice, process launch / window focus, `Pencereler` (Windows)
+icon 24 / button 40 / gap 4 DIP, mica or layered tint background, drag-to-reorder, file drop, position choice, process launch / window focus, `Windows`
 submenu, live DPI, fullscreen hide, `WorkAreaChanged` reposition, auto-hide +
 hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppData%/WharfBar/config.json`,
 `AutostartService` → Startup folder `WharfBar.lnk` (`AppConfig.autostart`), clock + network + battery
@@ -123,7 +133,7 @@ live running apps (`RunningAppsSource`) + minimized windows (`MinimizedWindowsSo
 Dock default icon **24 DIP** / button **40** / plate **56 DIP** (padding 10×8, the running capsule 8×3 is inside the button), icon gap 4 DIP, the window is the plate size,
 flush to the bottom edge of the monitor (`SHGetFileInfo` + `SHDefExtractIcon`, fallback `IImageList` jumbo/extra-large; 16/32 px are not scaled up).
 Top bar tooltips are Segoe UI (no leftover MDL2 tofu). Overflow: peek-show on a hidden taskbar.
-Left menu: `Hakkında` (About) + `Kapat` (Close) (`Application.Shutdown` → restore + `ABM_REMOVE`). **Quick settings**
+Left menu: `About` + `Close` (`Application.Shutdown` → restore + `ABM_REMOVE`). **Quick settings**
 (ADR-006): a shared flyout from the `controlCenter`/volume/network icon (Main / Mixer / Network);
 single device + dropdown + app sessions; network status / Settings. Page
 changes inside an open panel are a 220 ms slide+fade (`QuickSettingsPageMotion`); none on the first open. Live network features
@@ -133,9 +143,9 @@ night light falls back to Settings when it cannot be written (`NightLightService
 CloudStore best-effort + session override), native project panel with 4 modes (`ProjectionService`,
 `QueryDisplayConfig`/`SetDisplayConfig`), tile animations (in-place pop + color transition).
 **Color overlay (veil):** fullscreen color overlay from the QS tile + a global shortcut (Ctrl+F11);
-`Kaplama` (Overlay) settings page (color/opacity/shortcut).
+`Overlay` settings page (color/opacity/shortcut).
 **Media panel (SMTC):** top bar `media` item (visible only while a session exists) + media
-flyout (art, title/artist, `Oynat`/`Duraklat` (Play/Pause) + `İleri`/`Geri` (Next/Previous), chevron
+flyout (art, title/artist, `Play`/`Pause` + `Next`/`Previous`, chevron
 picker when there are multiple sessions); `MediaSessionService` (Windows SMTC watch + commands + 10 s retry),
 `MediaSessionSelector` (most-recently-active policy), `MediaSnapshot`; catalog **v4**
 migration (`media` is inserted after `brightness`).
@@ -150,10 +160,10 @@ because the classic toolbar was removed, `TrayUiaReader` (SystemTray.NormalButto
 `InvokePattern`/peek click.
 **Monitor brightness control:**
 Monitorian-style DDC/CI + WMI hybrid service (`MonitorBrightnessService`, `MonitorNative`) and
-`BrightnessFlyout` (TopBar brightness glyph `&#xE706;`, master `Tüm Ekranlar` (All displays) slider, independent monitor cards, 50 ms debounced background queue).
+`BrightnessFlyout` (TopBar brightness glyph `&#xE706;`, master `All displays` slider, independent monitor cards, 50 ms debounced background queue).
 **System stats:** in the top bar's left cluster, beside the brand logo,
 `CPU x% · GPU y% · RAM z%` (`SystemStatsService`, 4 s, off the UI thread; not refreshed when the visible text did not change; `topBar.showSystemStats`
-toggle at Settings → `Üst Çubuk` (Top bar)). GPU PDH `\GPU Engine(*)\Utilization Percentage`
+toggle at Settings → `Top bar`). GPU PDH `\GPU Engine(*)\Utilization Percentage`
 (`PdhAddEnglishCounterW`) — engine instances are grouped into a physical adapter by LUID;
 with `topBar.showGpuPerAdapter` on, multiple GPUs show `GPU0 x% · GPU1 y%` (a single
 total when off; no difference on one GPU). If the counter is missing the GPU section is hidden; the first sample is `--`.

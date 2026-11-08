@@ -1,4 +1,5 @@
 using System.Windows;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -10,8 +11,8 @@ public partial class AboutWindow : Window
     {
         InitializeComponent();
         VersionText.Text = AppVersion.IsPrerelease
-            ? $"Sürüm {AppVersion.Current} · Beta"
-            : $"Sürüm {AppVersion.Current}";
+            ? string.Format(Strings.About_VersionBetaFormat, AppVersion.Current)
+            : string.Format(Strings.About_VersionFormat, AppVersion.Current);
     }
 
     private void OnOkClick(object sender, RoutedEventArgs e) => Close();

@@ -4,8 +4,8 @@ using Microsoft.Win32;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Best-effort gece ışığı okuma/yazma. Registry blob tanınmazsa yazılmaz ve karo değişmez;
-/// daha önce yazılmış bir oturum override'ı, okuma tekrar tanıyana kadar durur.
+/// Best-effort night light read/write. If the registry blob is not recognized it is not written and the tile does not change;
+/// a previously written session override stays until a read recognizes it again.
 /// </summary>
 internal sealed class NightLightService
 {
@@ -18,8 +18,8 @@ internal sealed class NightLightService
     internal bool IsEnabled => _override ?? _lastKnown;
 
     /// <summary>
-    /// Registry yazımı tutarsa karo yeni duruma geçer. Blob tanınmıyorsa override kurulmaz;
-    /// çağıran Windows Ayarları'nı açabilir.
+    /// If the registry write sticks, the tile switches to the new state. If the blob is not recognized no override is set;
+    /// the caller may open Windows Settings.
     /// </summary>
     internal bool SetEnabled(bool enabled)
     {
@@ -33,8 +33,8 @@ internal sealed class NightLightService
         return true;
     }
 
-    /// <summary>Registry'yi yeniden okur; dışarıdan değişiklik okunabilir ve override'dan
-    /// farklıysa override düşer (işletim sistemi kazanır).</summary>
+    /// <summary>Re-reads the registry; if the external change is readable and differs from
+    /// the override, the override is dropped (the operating system wins).</summary>
     internal void PollRegistry()
     {
         byte[]? data = ReadData();

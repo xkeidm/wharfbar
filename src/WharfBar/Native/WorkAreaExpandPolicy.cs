@@ -15,7 +15,7 @@ namespace WharfBar.Native;
 ///
 /// Note: <c>ABM_SETSTATE</c> only takes effect when the caller is a registered appbar. Probing it
 /// from an unregistered process returns success and changes nothing — do not "measure" it that
-/// way (2026-09-30'da bu hataya düşüldü).
+/// way (this mistake was made on 2026-09-30).
 ///
 /// The keep-hidden watch must stop hammering a dead API. The circuit re-probes after
 /// <see cref="ReprobeInterval"/> and <see cref="Reset"/> runs when the shell restarts

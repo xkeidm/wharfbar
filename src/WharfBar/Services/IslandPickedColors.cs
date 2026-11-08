@@ -3,31 +3,31 @@ using System.Windows.Media;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Renk seçicinin "son renkler" deposu. Yalnız oturumluk: diske yazılmaz, ada şemasına
-/// girmez — ekran seçicinin her tıklaması buraya düşer, gövde her sunumda yeniden kurar
-/// (<c>IslandService.Changed</c> benzeri bildirim yok: listede değişiklik yalnız seçim
-/// kapandıktan sonra olur ve seçim güzergâhı gövdeyi zaten yeniden sergiler).
-/// Ekleme/budaşma mantığı pure (<see cref="Pushed"/>) — testler doğrudan sınar.
+/// The color picker's "recent colors" store. Session-only: it is not written to disk and does not
+/// enter the island schema — every click of the screen picker lands here, and the body rebuilds it
+/// on every presentation (no notification like <c>IslandService.Changed</c>: the list changes only
+/// after the picker closes, and the picker route already re-renders the body).
+/// Add/prune logic is pure (<see cref="Pushed"/>) — tests exercise it directly.
 /// </summary>
 internal static class IslandPickedColors
 {
-    /// <summary>Tek seferde tutulan renk tavanı (gövde şeridi için de aynı sayı).</summary>
+    /// <summary>Maximum number of colors kept at once (the body strip uses the same count).</summary>
     internal const int MaxItems = 8;
 
     private static IReadOnlyList<Color> _colors = [];
 
     internal static IReadOnlyList<Color> Items => _colors;
 
-    /// <summary>En yeni seçim; hiç seçim yoksa şeffaf (çağıran boş-liste yolunu da sınar).</summary>
+    /// <summary>The newest pick; transparent if nothing was ever picked (the caller also exercises the empty-list path).</summary>
     internal static Color Last => _colors.Count > 0 ? _colors[0] : default;
 
-    /// <summary>UI thread'inde çağrılır. Seçimi listeye alınmış gibi listeyi döndürür.</summary>
+    /// <summary>Called on the UI thread. Returns the list as if the pick had been added.</summary>
     internal static void Add(Color color) => _colors = new List<Color>(Pushed(_colors, color, MaxItems));
 
     /// <summary>
-    /// Pure ekleme kuralı: yeni renk başa geçer, birebir aynı renk çoğaltılmaz (başa taşınır),
-    /// kapasite aşımında en eskiden başlanarak budaşılır. Şeffaf (bir örneklemin başarısız
-    /// olduğu) renk listeye girmez.
+    /// Pure add rule: the new color goes to the front, an exact duplicate is not repeated (it is moved
+    /// to the front), and on capacity overflow the oldest are pruned first. A transparent color
+    /// (meaning a sample failed) never enters the list.
     /// </summary>
     internal static IReadOnlyList<Color> Pushed(IReadOnlyList<Color>? existing, Color added, int capacity)
     {

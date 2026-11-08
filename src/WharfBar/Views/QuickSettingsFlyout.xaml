@@ -301,7 +301,7 @@
                     </DockPanel>
                 </Border>
 
-                <!-- Canlı trafik: ↓ indirme · ↑ yükleme (2 sn'de bir güncellenir) -->
+                <!-- Live traffic: ↓ download · ↑ upload (updated every 2 s) -->
                 <Border Grid.Row="2"
                         Background="{DynamicResource ControlFillColorSecondaryBrush}"
                         CornerRadius="8"
@@ -338,7 +338,7 @@
                     </DockPanel>
                 </Border>
 
-                <!-- Özellikler (Windows ağ özellikleri düzeni) -->
+                <!-- Properties (Windows network properties layout) -->
                 <Border Grid.Row="3"
                         Background="{DynamicResource ControlFillColorDefaultBrush}"
                         BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"

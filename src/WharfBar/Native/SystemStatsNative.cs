@@ -71,11 +71,11 @@ internal static class SystemStatsNative
     private static extern bool GlobalMemoryStatusEx(ref MEMORYSTATUSEX lpBuffer);
 
     /// <summary>
-    /// Yazılımsal adaptörlerin (Microsoft Basic Render Driver / WARP) LUID anahtarlarını
-    /// döndürür — PDH GPU Engine instance'larındaki <c>_luid_0xHHHHHHHH_0xLLLLLLLL</c>
-    /// segmentiyle aynı biçimde. Bu adaptörler fiziksel GPU olmadığı için istatistik
-    /// gösteriminde dışlanır (Görev Yöneticisi de listelemez). DXGI açılamazsa boş küme:
-    /// davranış mevcut haline düşer (ekstra segment görünür, işlev bozulmaz).
+    /// Returns the LUID keys of software adapters (Microsoft Basic Render Driver / WARP) — in the
+    /// same format as the <c>_luid_0xHHHHHHHH_0xLLLLLLLL</c> segment of PDH GPU Engine instances.
+    /// These adapters are not physical GPUs, so they are excluded from the stats display (Task
+    /// Manager does not list them either). Empty set if DXGI cannot be opened: behavior falls back
+    /// to what exists today (an extra segment shows up, functionality is not broken).
     /// </summary>
     internal static IReadOnlySet<string> GetSoftwareAdapterLuidKeys()
     {
@@ -95,7 +95,7 @@ internal static class SystemStatsNative
                     int hr = EnumAdapters1(factory, i, out IntPtr adapter);
                     if (hr != 0)
                     {
-                        break; // DXGI_ERROR_NOT_FOUND — liste sonu
+                        break; // DXGI_ERROR_NOT_FOUND — end of list
                     }
 
                     try
@@ -138,7 +138,7 @@ internal static class SystemStatsNative
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int EnumAdapters1Delegate(IntPtr factory, uint index, out IntPtr adapter);
 
-    // IDXGIAdapter1::GetDesc1 — vtable slot 10: yukarıdaki 7 slot +
+    // IDXGIAdapter1::GetDesc1 — vtable slot 10: the 7 slots above +
     // IDXGIAdapter EnumOutputs(7)/GetDesc(8)/CheckInterfaceSupport(9) → GetDesc1(10).
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int GetDesc1Delegate(IntPtr adapter, out DXGI_ADAPTER_DESC1 desc);

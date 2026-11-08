@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -19,7 +20,7 @@ internal sealed class StatsHoverCard : StackPanel
     private readonly Polyline _gpu = Line();
     private readonly TextBlock _ramLabel = Label("RAM");
     private readonly Polyline _ram = Line();
-    private readonly TextBlock _net = new() { FontSize = 11, Margin = new Thickness(0, 8, 0, 0), Text = "Ağ" };
+    private readonly TextBlock _net = new() { FontSize = 11, Margin = new Thickness(0, 8, 0, 0), Text = Strings.Qs_Network };
 
     internal StatsHoverCard()
     {

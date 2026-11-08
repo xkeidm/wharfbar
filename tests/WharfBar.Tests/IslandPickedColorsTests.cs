@@ -5,8 +5,8 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Renk seçici "son renkler" listesi pure yardımcı üzerinden sınanır: <c>IslandPickedColors.Pushed</c>
-/// yeni rengi başa ekler, aynı rengi çoğaltmaz, kapasiteyi aşınca kuyruğu budar.
+/// The color picker's "recent colors" list is verified through a pure helper: <c>IslandPickedColors.Pushed</c>
+/// prepends the new color, does not duplicate the same color, and trims the tail when capacity is exceeded.
 /// </summary>
 public class IslandPickedColorsTests
 {

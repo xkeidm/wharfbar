@@ -304,8 +304,8 @@ internal sealed class ConfigService
         config.TopBar.BackgroundMode = TopBarBackgroundModes.NormalizeMode(config.TopBar.BackgroundMode);
         config.TopBar.TintOpacity = TopBarBackgroundModes.ClampOpacity(config.TopBar.TintOpacity);
         config.TopBar.StatusItems = TopBarStatusItemIds.Normalize(config.TopBar.StatusItems);
-        // Her öğe kendi tanıtım sürümüyle eşiklenir: kullanıcı gizlemişse (hide must stick)
-        // upgrade'te yeniden eklenmez. controlCenter v1, brightness v2, media v4, trayMirror v5 ile geldi.
+        // Each item is gated by its own introduction version: if the user hid it (hide must stick)
+        // it is not added again on upgrade. controlCenter arrived with v1, brightness with v2, media with v4, trayMirror with v5.
         if (config.TopBar.StatusCatalogVersion < 1)
         {
             TopBarStatusItemIds.EnsureControlCenter(config.TopBar.StatusItems);

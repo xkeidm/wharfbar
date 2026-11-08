@@ -823,4 +823,33 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Island_WallpaperAccent_Description" xml:space="preserve">
     <value>Ada üzerinden duvar kağıdı uygulandıktan sonra WharfBar ve Windows vurgu renklerini görselden günceller.</value>
   </data>
+  <data name="Startup_RestrictedLaunch_Title" xml:space="preserve">
+    <value>WharfBar: kısıtlı başlatma</value>
+  </data>
+  <data name="Startup_RestrictedLaunch_Message" xml:space="preserve">
+    <value>WharfBar kısıtlı izinlerle başlatıldı (örneğin sandbox içindeki bir terminalden). Windows, görev çubuğunu gizlemesine ve ekranın üstündeki alanı ayırmasına izin vermiyor; bu yüzden masaüstü üst çubukla hizalı olmayacak.
+
+WharfBar'ı normal şekilde başlatın: run.bat veya normal bir terminalden derlenmiş WharfBar.exe.
+
+Tamam: yine de devam et
+İptal: çık</value>
+  </data>
+  <data name="ColorPicker_Title" xml:space="preserve">
+    <value>Renk seçici</value>
+  </data>
+  <data name="ColorPicker_Hint" xml:space="preserve">
+    <value>Tıkla: kopyala · Esc: iptal</value>
+  </data>
+  <data name="ColorPicker_ReadFailed" xml:space="preserve">
+    <value>Renk okunamadı</value>
+  </data>
+  <data name="ColorPicker_WriteFailed" xml:space="preserve">
+    <value>✗ Panoya yazılamadı</value>
+  </data>
+  <data name="ColorPicker_Writing" xml:space="preserve">
+    <value>Panoya yazılıyor…</value>
+  </data>
+  <data name="ColorPicker_CopiedFormat" xml:space="preserve">
+    <value>✓ {0} kopyalandı</value>
+  </data>
 </root>

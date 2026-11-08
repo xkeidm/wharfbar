@@ -217,7 +217,7 @@ public partial class VeilPage : Page
         uint modifiers = MapModifiers(Keyboard.Modifiers);
         if (modifiers == 0)
         {
-            return; // en az bir modifier zorunlu
+            return; // at least one modifier is required
         }
 
         string hotkey = HotkeyParser.Format(modifiers, vk);

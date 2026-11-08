@@ -28,11 +28,11 @@
             <!-- Page Title -->
             <TextBlock Text="{x:Static res:Strings.Settings_Appearance}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
-            <!-- Tema ve Renk Stili -->
+            <!-- Theme and Color Style -->
             <TextBlock Text="{x:Static res:Strings.Appearance_ThemeSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
-            <!-- Vurgu Rengi Seçimi -->
+            <!-- Accent Color Selection -->
             <Border Style="{StaticResource PowerToysCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -64,7 +64,7 @@
                 </Grid>
             </Border>
 
-            <!-- Uygulama Teması -->
+            <!-- Application Theme -->
             <Border Style="{StaticResource PowerToysCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -135,7 +135,7 @@
                 </Grid>
             </Border>
 
-            <!-- Üst Çubuk Arka Planı -->
+            <!-- Top Bar Background -->
             <TextBlock Text="{x:Static res:Strings.Appearance_TopBarBackgroundSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 

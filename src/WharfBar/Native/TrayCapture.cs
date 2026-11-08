@@ -242,9 +242,9 @@ internal static class TrayCapture
         int first = 0;
         for (int i = 0; i < buffer.Length; i += 4)
         {
-            // Tek bir saydam piksel tüm kırpımayı boş saymaz: kırpma yalnız TAMAMEN saydam ya da
-            // tek renkli dolgu olduğunda boştur (doc'taki tanım). Saydam pikseller de
-            // karşılaştırmaya girer — hepsi 0 ise düzgün biçimde "tek dolgu" olarak yakalanır.
+            // A single transparent pixel does not make the whole crop blank: the crop is blank only
+            // when it is FULLY transparent or a single-color fill (the definition in the doc). Transparent
+            // pixels enter the comparison too — if all are 0 it is correctly caught as a "single fill".
             int pixel = (buffer[i + 3] << 24) | (buffer[i + 2] << 16) | (buffer[i + 1] << 8) | buffer[i];
             if (i == 0)
             {

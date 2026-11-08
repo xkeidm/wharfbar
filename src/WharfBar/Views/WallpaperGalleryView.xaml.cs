@@ -67,7 +67,7 @@ public partial class WallpaperGalleryView : UserControl
         {
             ContentHost.Children.Add(new TextBlock
             {
-                Text = "Duvar kağıdı yok. Klasöre görsel ekleyebilirsin.",
+                Text = "No wallpapers. You can add images to the folder.",
                 TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(0, 8, 0, 8),
                 Opacity = 0.7,
@@ -77,7 +77,7 @@ public partial class WallpaperGalleryView : UserControl
 
         ShowPreview(current, animate: false);
         AddSection("WharfBar", bundled, current);
-        AddSection("Senin", user, current);
+        AddSection("Yours", user, current);
     }
 
     private void AddSection(string title, List<WallpaperItem> items, string? current)
@@ -144,7 +144,7 @@ public partial class WallpaperGalleryView : UserControl
         var text = new TextBlock();
         text.SetResourceReference(TextBlock.FontFamilyProperty, "AppIconFontFamily");
         text.FontSize = 12;
-        // Scrim çip üstünde her iki temada da okunabilir beyaz glif.
+        // A white glyph that stays readable on the scrim chip in both themes.
         text.Foreground = new SolidColorBrush(Color.FromRgb(0xF5, 0xF5, 0xF5));
         text.Text = glyph;
         return text;
@@ -164,9 +164,9 @@ public partial class WallpaperGalleryView : UserControl
     }
 
     /// <summary>
-    /// Şerit oklarının hedef durumuna geçişi: hedef değişmedikçe animasyonu yeniden başlatmaz.
-    /// Görünmezken opacity 0 + hit-test kapalı (tile'lara tıklamayı engellemesin); Collapsed
-    /// yerine fade kullanılır — ScrollChanged her karede geldiğinde state makinesi bozulmaz.
+    /// Transition of the strip arrows to their target state: does not restart the animation unless the target changes.
+    /// While invisible: opacity 0 + hit testing off (so they do not block clicks on the tiles); a fade is used
+    /// instead of Collapsed — the state machine does not break when ScrollChanged arrives every frame.
     /// </summary>
     private static void ShowArrow(Button arrow, bool wanted)
     {
@@ -189,7 +189,7 @@ public partial class WallpaperGalleryView : UserControl
 
     private void OnStripWheel(ScrollViewer stripViewer, MouseWheelEventArgs e)
     {
-        // Şerit o yöne kayamıyorsa olayı düşür → dıştaki dikey listeyi tekerlek beslemeye devam etsin.
+        // If the strip cannot scroll in that direction drop the event → let the outer vertical list keep feeding the wheel.
         (bool handles, double target) = WallpaperGalleryMotion.WheelTarget(
             stripViewer.ScrollableWidth, stripViewer.HorizontalOffset, e.Delta);
         if (!handles)
@@ -284,10 +284,10 @@ public partial class WallpaperGalleryView : UserControl
             return image;
         }
 
-        // Şerit ilk boyanırken seçili kart hariç hafifçe belirir.
-        // Taban değeri 0'da kalır; animasyon varsayılan HoldEnd ile son değeri tutar.
-        // FillBehavior.Stop kullanırsak WPF opaklığı taban değerine (0) geri çevirir
-        // ve kartlar animasyon biter bitmez kaybolur — Bug A düzeltmesi.
+        // While the strip paints for the first time the cards appear faintly, except the selected one.
+        // The base value stays at 0; the animation holds the final value with the default HoldEnd.
+        // If we used FillBehavior.Stop, WPF would put the opacity back to the base value (0)
+        // and the cards would disappear as soon as the animation ends — the Bug A fix.
         image.Opacity = 0;
         image.Loaded += (_, _) =>
         {
@@ -382,7 +382,7 @@ public partial class WallpaperGalleryView : UserControl
             return;
         }
 
-        // Hafif crossfade: alt katmanda önceki görsel kalır; üst katmandaki yeni opaklık 0 → 1.
+        // Light crossfade: the previous visual stays in the lower layer; the new one in the upper layer goes from opacity 0 → 1.
         if (PreviewTop.Source is not null)
         {
             PreviewBase.Source = PreviewTop.Source;

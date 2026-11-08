@@ -198,13 +198,13 @@ public class IslandPrunerTests
     }
 
     /// <summary>
-    /// K7: kesme UTF-16 biriminde yapıldığı için 40. karakter bir yüksek surrogate ise (emoji
-    /// vb.) çiftin yarısı kalır ve önizlemede boş kutu çıkar. Birim geri çekilir.
+    /// K7: because truncation happens at a UTF-16 unit, if the 40th character is a high surrogate (emoji
+    /// etc.) half of the pair remains and an empty box shows up in the preview. The unit is backed off.
     /// </summary>
     [Fact]
     public void FormatPreview_DoesNotSplitASurrogatePair()
     {
-        // 39 'a' + emoji (yüksek + alçak surrogate) + "sonrası" = 47 UTF-16 birimi.
+        // 39 'a' + emoji (high + low surrogate) + a trailing word = 47 UTF-16 units.
         string text = new string('a', IslandPruner.PreviewChars - 1) + "😀" + "sonrası";
 
         string preview = IslandPruner.FormatPreview(text);
@@ -217,7 +217,7 @@ public class IslandPrunerTests
     [Fact]
     public void FormatPreview_KeepsWholeEmojiThatFitsExactly()
     {
-        // 38 'a' + emoji = sınırda tam durur, kesilmez.
+        // 38 'a' + emoji = stops exactly at the boundary, not truncated.
         string text = new string('a', IslandPruner.PreviewChars - 2) + "😀";
 
         Assert.Equal(text, IslandPruner.FormatPreview(text));

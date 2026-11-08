@@ -15,17 +15,17 @@ namespace WharfBar.Tests;
 public class IslandStoreTests : IDisposable
 {
     /// <summary>
-    /// Panoda gerçekten geçebilen metin: Türkçe karakterler, satır sonu, tırnak, emoji ve
-    /// sağdan sola yönlendirme işareti. Serileştiricide kaçırma (escape) davranışı ileride
-    /// <c>UnsafeRelaxedJsonEscaping</c> gibi bir değişiklikle sessizce bozulursa (mojibake) bu
-    /// test yakalar.
+    /// Text that can genuinely pass through the clipboard: Turkish characters, line breaks, quotes,
+    /// emoji and a right-to-left override mark. If the serializer's escaping behavior is silently
+    /// broken later by a change such as <c>UnsafeRelaxedJsonEscaping</c> (mojibake), this test
+    /// catches it.
     /// </summary>
     private const string AwkwardText = "  çğıöşü\r\n\"yaz\"  😀 \u202Eters";
 
     /// <summary>
-    /// <c>IslandStore.MaxStoreBytes</c> ile eşleşmeli. Sürüklenirse (tavan büyürse) bu test
-    /// kızar: dosya artık tavanın altında kalır, <c>Load</c> kaydı okur ve <c>Assert.Empty</c>
-    /// patlar — yani sapma sessiz kalmaz.
+    /// Must match <c>IslandStore.MaxStoreBytes</c>. If it drifts (the cap grows), this test
+    /// fails: the file then stays under the cap, <c>Load</c> reads the record and <c>Assert.Empty</c>
+    /// blows up — so the drift cannot go unnoticed.
     /// </summary>
     private const long StoreSizeCap = 64L * 1024 * 1024;
 
@@ -92,8 +92,8 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// <c>.bak</c> bir kurtarma noktasıdır, yalnız bozuk dosya arşivi değil: ikinci bir bozulmada
-    /// ilk bozulmanın içeriği kalıcı olarak kaybolmamalı, <c>.bak.1</c>'e dönmeli.
+    /// <c>.bak</c> is a recovery point, not just an archive of corrupt files: on a second corruption
+    /// the content of the first corruption must not be lost permanently, it must rotate to <c>.bak.1</c>.
     /// </summary>
     [Fact]
     public void Load_SecondCorruption_KeepsFirstBackupAsDot1()
@@ -113,9 +113,9 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// Depo yalnız okur: budama servisin işidir, çünkü <c>RetentionDays</c> /
-    /// <c>MaxItems</c> yalnız <c>IslandService</c> tarafından bilinir. Depoda sabit bir
-    /// gün limiti uygulanırsa kullanıcının 3650 gün seçimi sessizce ezilirdi.
+    /// The store only reads: pruning is the service's job, because <c>RetentionDays</c> /
+    /// <c>MaxItems</c> are known only to <c>IslandService</c>. If a fixed day limit were
+    /// applied in the store, the user's 3650-day choice would be silently overridden.
     /// </summary>
     [Fact]
     public void Load_KeepsAgedEntries_PruningBelongsToService()
@@ -155,8 +155,8 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// Bilinmeyen <c>kind</c> (yeni sürümden kalan ya da elle yazılmış dosya) tüm geçmişi
-    /// <c>.bak</c>'a atmamalı: kayıt <c>Text</c> olarak yorumlanır.
+    /// An unknown <c>kind</c> (left over from a newer version or a hand-written file) must not
+    /// push the whole history into <c>.bak</c>: the record is interpreted as <c>Text</c>.
     /// </summary>
     [Fact]
     public void Load_UnknownKindValue_KeepsRecordAsText()
@@ -174,7 +174,7 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// Çözümlenemeyen <c>capturedAtUtc</c> yalnız o kaydı düşürür; kardeşler korunur.
+    /// An unparseable <c>capturedAtUtc</c> drops only that record; its siblings are preserved.
     /// </summary>
     [Fact]
     public void Load_UnparseableCapturedAtUtc_DropsOnlyThatRecord()
@@ -194,7 +194,7 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// Sayı olmayan <c>id</c> yalnız o kaydı düşürür; kardeşler korunur.
+    /// A non-numeric <c>id</c> drops only that record; its siblings are preserved.
     /// </summary>
     [Fact]
     public void Load_NonNumericId_DropsOnlyThatRecord()
@@ -214,10 +214,10 @@ public class IslandStoreTests : IDisposable
     }
 
 /// <summary>
-    /// Boyut tavanı: <c>IslandStore.MaxStoreBytes</c>'ı aşan dosya okunmaz
-    /// (<c>File.ReadAllText</c> OOM atabilirdi ve bu filtre dışında kalırdı — açılış kilitlenirdi).
-    /// Dosya bilerek <b>geçerli</b> JSON'dur (tek kayıt + dolgu): aksi hâlde test yanlış nedenle
-    /// (parse hatası) yeşil kalırdı ve tavanı sınamazdı.
+    /// Size cap: a file exceeding <c>IslandStore.MaxStoreBytes</c> is not read
+    /// (<c>File.ReadAllText</c> could throw OOM and would fall outside this filter — startup would hang).
+    /// The file is deliberately <b>valid</b> JSON (a single record plus padding): otherwise the test
+    /// would stay green for the wrong reason (a parse error) and would not exercise the cap.
     /// </summary>
     [Fact]
     public void Load_OversizedFile_BacksUpAndReturnsEmpty()
@@ -245,8 +245,8 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// İkinci yazma mevcut dosyanın üzerine atomik olarak yapılır (replace dalı) ve
-    /// yarım kalmış <c>.tmp</c> bırakmaz.
+    /// A second write atomically replaces the existing file (the replace branch) and
+    /// leaves no half-written <c>.tmp</c> behind.
     /// </summary>
     [Fact]
     public void Save_OverExistingFile_ReplacesItAndLeavesNoTempFile()
@@ -263,9 +263,9 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// <c>Save</c>'lar eşzamanlı giremez. Sabit <c>StorePath + ".tmp"</c> yolu kilitsizken
-    /// yarışan ikinci yazıcı <see cref="File.WriteAllText"/>'te <see cref="IOException"/> alıyor
-    /// ve <c>Save</c> bunu yutuyordu: o yazıcının snapshot'ı sessizce kayboluyordu.
+    /// <c>Save</c> calls cannot enter concurrently. With the fixed <c>StorePath + ".tmp"</c> path
+    /// unlocked, a competing second writer got an <see cref="IOException"/> in <see cref="File.WriteAllText"/>
+    /// and <c>Save</c> swallowed it: that writer's snapshot silently disappeared.
     /// </summary>
     [Fact]
     public async Task Save_WhileAnotherSaveIsInProgress_WaitsForIt()
@@ -295,8 +295,8 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// <c>Load</c> da aynı kilidi paylaşır: yarışan bir <c>Load</c> dosyayı silme/taşıma payı olmadan
-    /// açtığı için <c>File.Replace</c>'i <see cref="IOException"/> ile bozabilirdi.
+    /// <c>Load</c> shares the same lock: a competing <c>Load</c> opened the file without delete/move
+    /// sharing and could thus break <c>File.Replace</c> with an <see cref="IOException"/>.
     /// </summary>
     [Fact]
     public async Task Load_WhileSaveIsInProgress_WaitsForIt()
@@ -326,9 +326,9 @@ public class IslandStoreTests : IDisposable
     }
 
     /// <summary>
-    /// <c>kind</c> okurken toleranslı olan dönüştürücü yazarken de <b>tür adı</b> üretmeli:
-    /// dosya biçimi sürümler arası sözleşmedir (sıralama, sayı, ad — hepsi ileride okuyucuyu
-    /// etkiler). Bu test sayısal temsilin sessizce yerleşmesini yakalar.
+    /// The converter that is lenient when reading <c>kind</c> must also emit the <b>type name</b> when
+    /// writing: the file format is a contract between versions (ordering, number, name — all of them
+    /// affect the reader later). This test catches a numeric representation settling in silently.
     /// </summary>
     [Fact]
     public void Save_WritesKindAsEnumName_NotNumber()
@@ -346,8 +346,8 @@ public class IslandStoreTests : IDisposable
         new(id, IslandEntryKind.Text, text, null, new DateTime(2026, 10, 1, 10, 0, 0, DateTimeKind.Utc), null);
 
     /// <summary>
-    /// <c>Save</c>'ın kayıt okuma aşamasında bloklanmasını sağlar; eşzamanlılık testlerinin
-    /// kilidi ölçülebilir biçimde sınaması için (zamanlama tahminine dayanmaz).
+    /// Blocks <c>Save</c> at the entry-reading stage so that the concurrency tests exercise the
+    /// lock in a measurable way (it does not rely on timing guesses).
     /// </summary>
     private sealed class BlockingEntryList : IReadOnlyList<IslandEntry>
     {

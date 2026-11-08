@@ -8,7 +8,7 @@ namespace WharfBar.Tests;
 
 public class NetworkDetailsServiceTests
 {
-    // --- Canlı trafik: byte delta → Mbps ---
+    // --- Live traffic: byte delta → Mbps ---
 
     [Fact]
     public void ComputeThroughputMbps_ConvertsByteDelta()
@@ -29,11 +29,11 @@ public class NetworkDetailsServiceTests
     [Fact]
     public void ComputeThroughputMbps_CounterReset_ReturnsNull()
     {
-        // Adaptör değişimi/sayacı sıfırlanması: delta negatif → güvenilir ölçüm yok
+        // Adapter change / counter reset: negative delta → no reliable measurement
         Assert.Null(NetworkDetailsService.ComputeThroughputMbps(5_000, 4_000, 2.0));
     }
 
-    // --- Bağlantı hızı (link speed) ---
+    // --- Link speed ---
 
     [Theory]
     [InlineData(1_000_000_000, "1 Gbps")]
@@ -52,7 +52,7 @@ public class NetworkDetailsServiceTests
         Assert.Null(NetworkDetailsService.FormatLinkSpeed(-1, CultureInfo.InvariantCulture));
     }
 
-    // --- Metin biçimlendirme ---
+    // --- Text formatting ---
 
     [Fact]
     public void FormatDns_JoinsAddresses()
@@ -81,7 +81,7 @@ public class NetworkDetailsServiceTests
         Assert.Null(NetworkDetailsService.FormatMac(PhysicalAddress.None));
     }
 
-    // --- Adres seçimi ---
+    // --- Address selection ---
 
     [Fact]
     public void PickAddress_Ipv4SkipsLoopback()
@@ -108,7 +108,7 @@ public class NetworkDetailsServiceTests
             addresses, System.Net.Sockets.AddressFamily.InterNetwork));
     }
 
-    // --- Canlı hız metni ---
+    // --- Live speed text ---
 
     [Fact]
     public void FormatMbps_OneDecimalSpaceUnit()

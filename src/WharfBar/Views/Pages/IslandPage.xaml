@@ -28,7 +28,7 @@
             <!-- Page Title -->
             <TextBlock Text="{x:Static res:Strings.Settings_Island}" FontSize="28" FontWeight="SemiBold" Margin="0,0,0,24" />
 
-            <!-- Görünürlük -->
+            <!-- Visibility -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_VisibilitySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,0,0,8" />
 
@@ -58,7 +58,7 @@
                 </Grid>
             </Border>
 
-            <!-- Müzik -->
+            <!-- Music -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_MusicSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
@@ -89,7 +89,7 @@
                 </Grid>
             </Border>
 
-            <TextBlock Text="Renk" FontSize="14" FontWeight="SemiBold"
+            <TextBlock Text="Color" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -105,23 +105,23 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Ada rengi" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="Albüm rengi: müzik çalarken kapaktan alınan renk hapı ve paneli boyar. Sistem rengi: her zaman vurgu rengi. Nötr: renk yok."
+                        <TextBlock Text="Island color" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Album color: while music plays, paints the pill and panel with the color taken from the cover art. System color: always the accent color. Neutral: no color."
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
 
                     <ComboBox x:Name="ColorModeCombo" Grid.Column="2" Width="220"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ComboBoxItem Content="Albüm rengi" />
-                        <ComboBoxItem Content="Sistem rengi" />
-                        <ComboBoxItem Content="Nötr" />
+                        <ComboBoxItem Content="Album color" />
+                        <ComboBoxItem Content="System color" />
+                        <ComboBoxItem Content="Neutral" />
                     </ComboBox>
                 </Grid>
             </Border>
 
-            <!-- Duvar kağıdı -->
-            <TextBlock Text="Duvar kağıdı" FontSize="14" FontWeight="SemiBold"
+            <!-- Wallpaper -->
+            <TextBlock Text="Wallpaper" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
@@ -137,15 +137,15 @@
                                    VerticalAlignment="Center" Margin="0,0,16,0" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                        <TextBlock Text="Geçiş efekti" FontSize="14" FontWeight="Medium" />
-                        <TextBlock Text="Duvar kağıdı değişirken uygulanan animasyon."
+                        <TextBlock Text="Transition effect" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="Animation applied while the wallpaper changes."
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
                     </StackPanel>
 
                     <ComboBox x:Name="WallpaperTransitionCombo" Grid.Column="2" Width="220"
                               HorizontalAlignment="Right" VerticalAlignment="Center">
-                        <ComboBoxItem Content="Kapalı" />
+                        <ComboBoxItem Content="Off" />
                         <ComboBoxItem Content="Fade" />
                         <ComboBoxItem Content="Blur + fade" />
                     </ComboBox>
@@ -166,8 +166,8 @@
                                        VerticalAlignment="Center" Margin="0,0,16,0" />
 
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
-                            <TextBlock Text="Windows animasyonunu takip et" FontSize="14" FontWeight="Medium" />
-                            <TextBlock Text="Açıkken, Windows'ta Erişilebilirlik → Görsel efektler → Animasyon efektleri kapalıysa geçiş uygulanmaz."
+                            <TextBlock Text="Follow Windows animation" FontSize="14" FontWeight="Medium" />
+                            <TextBlock Text="When on, the transition is not applied if Accessibility → Visual effects → Animation effects is turned off in Windows."
                                        FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                        TextWrapping="Wrap" Margin="0,2,0,0" />
                         </StackPanel>
@@ -179,7 +179,7 @@
                     </Grid>
 
                     <TextBlock x:Name="WallpaperAnimationInfoText"
-                               Text="Windows'ta animasyon efektleri kapalı — geçiş uygulanmıyor. Takibi kapatarak yine de efekt kullanabilirsin."
+                               Text="Animation effects are off in Windows — the transition is not applied. Turn off tracking to still use the effect."
                                FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                TextWrapping="Wrap" Margin="36,10,0,0" Visibility="Collapsed" />
                 </StackPanel>
@@ -211,7 +211,7 @@
                 </Grid>
             </Border>
 
-            <!-- Boşta yazı -->
+            <!-- Idle text -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_IdleSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
@@ -242,7 +242,7 @@
                 </Grid>
             </Border>
 
-            <!-- Pil -->
+            <!-- Battery -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_BatterySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
@@ -278,14 +278,14 @@
                 </Grid>
             </Border>
 
-            <!-- Geçmiş -->
+            <!-- History -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_HistorySection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 
             <Border Style="{StaticResource PowerToysCard}">
                 <StackPanel>
 
-                    <!-- Saklama modu -->
+                    <!-- Retention mode -->
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -311,7 +311,7 @@
                         </ComboBox>
                     </Grid>
 
-                    <!-- Saklama süresi -->
+                    <!-- Retention period -->
                     <Grid Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -335,7 +335,7 @@
                                  FontFamily="Consolas" />
                     </Grid>
 
-                    <!-- Kayıt sayısı -->
+                    <!-- Entry count -->
                     <Grid Margin="0,14,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -364,7 +364,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Bakım -->
+            <!-- Maintenance -->
             <TextBlock Text="{x:Static res:Strings.IslandPage_MaintenanceSection}" FontSize="14" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
 

@@ -225,8 +225,8 @@ internal static class TopBarStatusItemIds
     }
 
     /// <summary>
-    /// Soft migration helper: eksik <see cref="Media"/>'yı <see cref="Brightness"/> sonrasına ekler
-    /// (brightness yoksa <see cref="Volume"/> sonrası; o da yoksa sona).
+    /// Soft migration helper: inserts a missing <see cref="Media"/> after <see cref="Brightness"/>
+    /// (after <see cref="Volume"/> if brightness is absent; at the end if neither is).
     /// </summary>
     internal static void EnsureMedia(List<string> items)
     {
@@ -256,8 +256,8 @@ internal static class TopBarStatusItemIds
     }
 
     /// <summary>
-    /// Soft migration helper: eksik <see cref="TrayMirror"/>'ı <see cref="TrayOverflow"/> öncesine ekler
-    /// (yoksa sona).
+    /// Soft migration helper: inserts a missing <see cref="TrayMirror"/> before <see cref="TrayOverflow"/>
+    /// (at the end if there is none).
     /// </summary>
     internal static void EnsureTrayMirror(List<string> items)
     {

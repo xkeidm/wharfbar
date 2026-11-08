@@ -28,9 +28,9 @@ internal struct WLAN_INTERFACE_INFO_LIST
 }
 
 /// <summary>
-/// wlanapi.h'taki native layout'un birebir kopyası — alan sırası/boyut testle kilitli
-/// (WlanStructLayoutTests: toplam 628 bayt, dwFlags offset 620). Geçmişte struct sapmıştı
-/// ve SSID metni kayıyordu; değiştirmeden önce testleri güncelle.
+/// An exact copy of the native layout in wlanapi.h — field order/size is locked by tests
+/// (WlanStructLayoutTests: 628 bytes total, dwFlags at offset 620). The struct had drifted in the
+/// past and the SSID text was shifting; update the tests before changing it.
 /// </summary>
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
 internal struct WLAN_AVAILABLE_NETWORK
@@ -218,7 +218,7 @@ internal static class WlanApi
         }
     }
 
-    /// <summary>WlanScan tetikler; sonuç asenkron gelir, sonraki GetAvailableNetworkList çağrılarında görünür.</summary>
+    /// <summary>Triggers WlanScan; the result arrives asynchronously and becomes visible in later GetAvailableNetworkList calls.</summary>
     internal static void Scan(IntPtr handle, Guid guid)
     {
         WlanScan(handle, ref guid, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero);

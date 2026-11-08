@@ -200,8 +200,8 @@ public class SystemStatsTests
     [Fact]
     public void GetSoftwareAdapterLuidKeys_ReturnsWellFormattedKeys()
     {
-        // Canlı DXGI yolu: bozulmamışsa yalnızca 0xHHHHHHHH_0xLLLLLLLL biçiminde anahtarlar
-        // döner; bu makinede WARP (0x00000000_0x0001217E) bulunur ve küme boş olmaz.
+        // Live DXGI path: if intact it returns only keys of the form 0xHHHHHHHH_0xLLLLLLLL;
+        // on this machine WARP (0x00000000_0x0001217E) is present, so the set is not empty.
         IReadOnlySet<string> keys = SystemStatsNative.GetSoftwareAdapterLuidKeys();
 
         Assert.All(keys, key =>
@@ -211,9 +211,9 @@ public class SystemStatsTests
     [Fact]
     public void GroupByAdapters_ExcludesSoftwareAdapterKeys()
     {
-        // Bu makinede kanıtlandı: NVIDIA (0x10FF2) + AMD iGPU (0x121F4) gerçek,
-        // 0x0001217E = Microsoft Basic Render Driver (yazılımsal) — Görev Yöneticisi
-        // de onu listelemez. Widget'ın 3. "GPU" segmenti kaynağı buydu.
+        // Proven on this machine: NVIDIA (0x10FF2) + AMD iGPU (0x121F4) are real,
+        // 0x0001217E = Microsoft Basic Render Driver (software) — Task Manager
+        // does not list it either. This was the source of the widget's 3rd "GPU" segment.
         (string, double)[] instances =
         [
             ("pid_1_luid_0x00000000_0x0000AAAA_phys_0_eng_0_engtype_3D", 4.0),

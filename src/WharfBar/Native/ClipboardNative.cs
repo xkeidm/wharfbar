@@ -8,13 +8,13 @@ using System.Text;
 namespace WharfBar.Native;
 
 /// <summary>
-/// Belgelenmiş pano P/Invoke'ları. Depoda <c>System.Windows.Clipboard</c> kullanılmaz:
-/// UI thread'ine bağlıdır ve <c>OpenClipboard</c> bloklandığında arayüzü dondurur. Buradaki
-/// çağrılar STA worker thread'inden yapılır.
+/// Documented clipboard P/Invoke calls. The repository does not use <c>System.Windows.Clipboard</c>:
+/// it is bound to the UI thread and freezes the UI when <c>OpenClipboard</c> is blocked. The
+/// calls here are made from an STA worker thread.
 /// </summary>
 internal static class ClipboardNative
 {
-    /// <summary>Windows'un "bu içeriği geçmişe alma" opt-out sinyali.</summary>
+    /// <summary>Windows' "do not add this content to history" opt-out signal.</summary>
     private const string CanIncludeInClipboardHistoryFormat = "CanIncludeInClipboardHistory";
 
     internal const int WM_CLIPBOARDUPDATE = 0x031D;
@@ -79,22 +79,21 @@ internal static class ClipboardNative
     private static extern uint RegisterClipboardFormatW(string format);
 
     // OpenProcess / QueryFullProcessImageName / CloseHandle / PROCESS_QUERY_LIMITED_INFORMATION
-    // bilerek burada tekrar edilmiyor: bunlar pano ile ilgili değil, genel süreç adı çözümlemesi.
-    // Kanonik bildirimler için NativeMethods'a bak; aynı işi yapan bir çağrı noktası da
-    // RunningAppsSource.TryGetProcessPath'te (Services/RunningAppsSource.cs:153-181). Buradaki
-    // GetOwnerProcessName, onun Path.GetFileNameWithoutExtension uygulanmış hâlidir.
+    // are deliberately not repeated here: they are not clipboard-related, but general process name
+    // resolution. See NativeMethods for the canonical declarations; a call site that does the same
+    // work is in RunningAppsSource.TryGetProcessPath (Services/RunningAppsSource.cs:153-181). The
+    // GetOwnerProcessName here is that one with Path.GetFileNameWithoutExtension applied.
 
-    /// <summary>Mesaj-only pencereye pano değişim dinleyicisini ekler.</summary>
+    /// <summary>Adds the clipboard change listener to the message-only window.</summary>
     internal static bool AddListener(IntPtr hwnd) => hwnd != IntPtr.Zero && AddClipboardFormatListener(hwnd);
 
     /// <summary>
-    /// Dinleyiciyi kaldırır. <c>RemoveClipboardFormatListener</c> idempotent <b>değildir</b>:
-    /// pencere kayıtlı değilse <c>FALSE</c> + <c>ERROR_INVALID_WINDOW</c> (0x57) döner —
-    /// ölçüldü (5/5 deneme): kayıt varken ilk <c>Remove</c> <c>TRUE</c>, ikinci ve sonrakiler
-    /// <c>0x57</c>; hiç eklenmemiş pencere de <c>0x57</c> verir. Bu yüzden yalnızca <b>kayıtlıyken
-    /// ve yalnızca bir kez</b> çağrılmalıdır; ikinci bir çağrı güvenli bir çağrıyı hata olarak
-    /// raporlar. <c>ClipboardMessageWindow.Dispose</c> <c>_disposed</c> bayrağıyla bunu garanti
-    /// eder.
+    /// Removes the listener. <c>RemoveClipboardFormatListener</c> is <b>not</b> idempotent:
+    /// if the window is not registered it returns <c>FALSE</c> + <c>ERROR_INVALID_WINDOW</c> (0x57) —
+    /// measured (5/5 attempts): while registered the first <c>Remove</c> returns <c>TRUE</c>, the second and later ones
+    /// <c>0x57</c>; a window that was never added also returns <c>0x57</c>. It must therefore be called only
+    /// <b>while registered and only once</b>; a second call reports a safe call as an error.
+    /// <c>ClipboardMessageWindow.Dispose</c> guarantees this with the <c>_disposed</c> flag.
     /// </summary>
     internal static void RemoveListener(IntPtr hwnd)
     {
@@ -105,23 +104,23 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// Panodaki metni okur. <paramref name="historyOptOut"/> true ise kaynak uygulama
-    /// içeriği geçmişe almak istemiyor demektir ve kaydedilmemelidir.
+    /// Reads the text on the clipboard. If <paramref name="historyOptOut"/> is true, the source application
+    /// does not want the content added to history and it must not be saved.
     /// </summary>
     /// <remarks>
-    /// <c>false</c>'in <b>altı</b> ayrı yolu vardır ve hepsi <c>Debug.WriteLine</c> ile loglanır
-    /// (yoksa çağıran taraf teşhis edemez):
+    /// <c>false</c> has <b>six</b> separate paths and all of them are logged with <c>Debug.WriteLine</c>
+    /// (otherwise the caller cannot diagnose the failure):
     /// <list type="number">
-    /// <item><c>OpenClipboard</c> başarısız — pano başka bir süreçte kilitli
-    /// (<c>0x800401D0</c> = <c>CLIPBRD_E_CANT_OPEN</c>, en sık düşüş nedeni);</item>
-    /// <item><c>RegisterClipboardFormatW</c> başarısız — opt-out okunamıyor;</item>
-    /// <item>kaynak uygulama opt-out işareti yazmış (parola yöneticisi, <c>DWORD 0</c>);</item>
-    /// <item>panoda <c>CF_UNICODETEXT</c> yok — metin dışı bir kopya;</item>
-    /// <item><c>GetClipboardData</c> başarısız;</item>
-    /// <item><c>GlobalLock</c> başarısız.</item>
+    /// <item><c>OpenClipboard</c> fails — the clipboard is locked by another process
+    /// (<c>0x800401D0</c> = <c>CLIPBRD_E_CANT_OPEN</c>, the most common failure reason);</item>
+    /// <item><c>RegisterClipboardFormatW</c> fails — the opt-out flag cannot be read;</item>
+    /// <item>the source application wrote the opt-out marker (password manager, <c>DWORD 0</c>);</item>
+    /// <item>the clipboard holds no <c>CF_UNICODETEXT</c> — a non-text copy;</item>
+    /// <item><c>GetClipboardData</c> fails;</item>
+    /// <item><c>GlobalLock</c> fails.</item>
     /// </list>
-    /// İkinci ve üçüncü yol <c>historyOptOut = true</c> ile kapanır, yani belirsizlikte içerik
-    /// kaydedilmez (fail-closed).
+    /// The second and third paths are closed by <c>historyOptOut = true</c>, that is, content is not
+    /// saved when in doubt (fail-closed).
     /// </remarks>
     internal static bool TryReadText(out string? text, out bool historyOptOut, out int byteCount)
     {
@@ -201,19 +200,20 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// Metni panoya yazar (yapıştırma yapılmaz — çağıran uygulamaya bırakılır).
+    /// Writes the text to the clipboard (no paste is performed — that is left to the calling application).
     /// </summary>
     /// <remarks>
-    /// Yazma <b>kendi kaydımızı opt-out olarak işaretler</b>: <c>CanIncludeInClipboardHistory
-    /// = 0</c> bloğu birlikte yazılır. Aksi halde <c>SetClipboardData</c> kendi
-    /// <c>WM_CLIPBOARDUPDATE</c>'imizi tetikler, kendi dinleyicimiz metni yeniden kaydeder ve
-    /// island kendi kopyasını geri yakalar. Okuma yolunun (<see cref="TryReadText"/>)
-    /// <c>ReadDword == 0</c> kontrolü bu bloğu tam olarak "geçmişe alma" diye yorumlar.
-    /// <para><b>Sahiplik:</b> <c>OpenClipboard(IntPtr.Zero)</c> + <c>EmptyClipboard()</c>
-    /// çağrısı pano sahibini NULL yapar, yani önceki sahip (kaynak uygulama) artık sahip
-    /// değildir. Bu <c>EmptyClipboard</c>'in değiştirilemez bir sonucudur ve <c>SetClipboardData
-    /// </c> ile yapılan her yazımda böyledir; opt-out işareti sayesinde en azından bu kayıt
-    /// geçmişe girmez.</para>
+    /// The write <b>marks our own record as opt-out</b>: the <c>CanIncludeInClipboardHistory
+    /// = 0</c> block is written along with it. Otherwise <c>SetClipboardData</c> triggers our own
+    /// <c>WM_CLIPBOARDUPDATE</c>, our own listener records the text again and
+    /// the island captures its own copy back. The <c>ReadDword == 0</c> check of the read path
+    /// (<see cref="TryReadText"/>) interprets this block exactly as "do not add to history".
+    /// <para><b>Ownership:</b> the <c>OpenClipboard(IntPtr.Zero)</c> + <c>EmptyClipboard()</c>
+    /// call makes the clipboard owner NULL, so the previous owner (the source application) is no
+    /// longer the owner. This is an unchangeable consequence of <c>EmptyClipboard</c> and holds for
+    /// every write made with <c>SetClipboardData
+    /// </c>; thanks to the opt-out marker, at least this record
+    /// does not enter the history.</para>
     /// </remarks>
     internal static bool TryWriteText(string text)
     {
@@ -245,8 +245,8 @@ internal static class ClipboardNative
                 return false;
             }
 
-            // Opt-out işareti: DWORD 0 = "bu içeriği geçmişe alma". Format id'i 0 çıkarsa
-            // yazmadan geçilir (okuma yolunda da aynı belirsizlikte içerik kaydedilmez).
+            // Opt-out marker: DWORD 0 = "do not add this content to history". If the format id comes out
+            // 0, the write is skipped (the read path likewise saves no content under the same uncertainty).
             uint optOutId = RegisterFormatId(CanIncludeInClipboardHistoryFormat);
             IntPtr optOutMem = optOutId == 0
                 ? IntPtr.Zero
@@ -275,9 +275,9 @@ internal static class ClipboardNative
 
             if (optOutMem != IntPtr.Zero && SetClipboardData(optOutId, optOutMem) == IntPtr.Zero)
             {
-                // Metin panoya yazıldı; yalnız opt-out işareti kayboldu. Yazma başarılı
-                // sayılır (kullanıcı ne istiyorsa onu aldı) ama kendi kaydımızı geri
-                // yakalama riski var — görünmez olmamalı.
+                // The text was written to the clipboard; only the opt-out marker was lost. The write counts
+                // as successful (the user got what they asked for) but there is a risk of capturing our own
+                // record back — it must not stay invisible.
                 Debug.WriteLine($"[WharfBar] SetClipboardData(CanIncludeInClipboardHistory) failed: 0x{Marshal.GetLastWin32Error():X8}");
                 _ = GlobalFree(optOutMem);
             }
@@ -291,17 +291,17 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// Panoya CF_HDROP (dosya listesi) yazar; yapıştırma çağırana bırakılır. Blok biçimi
-    /// <c>DROPFILES { pFiles = offsetof(char data), fWide = 1 }</c> + çift null'lu UTF-16
-    /// yol listesidir.
+    /// Writes CF_HDROP (a file list) to the clipboard; the paste is left to the caller. The block format
+    /// is <c>DROPFILES { pFiles = offsetof(char data), fWide = 1 }</c> + a double-null-terminated UTF-16
+    /// path list.
     /// </summary>
     /// <remarks>
-    /// Metin yazımındaki (<see cref="TryWriteText"/>) gibi bayat pano sahibi sorunu burada da
-    /// vardır: <c>EmptyClipboard</c> önceki kopyayı geri dönüşsüz atar, bu yüzden blok
-    /// <c>EmptyClipboard</c>'tan <b>önce</b> ayrılır ve doldurulur, sonrasındaki her hata bloğu
-    /// serbest bırakıp loglar. <c>CanIncludeInClipboardHistory = 0</c> işareti <b>yazılmaz</b>:
-    /// ada yakalaması metin tabanlıdır (<see cref="TryReadText"/> yalnız <c>CF_UNICODETEXT</c>
-    /// okur), yani bu yazım ada tarafından geri yakalanamaz.
+    /// The stale clipboard owner problem from the text write (<see cref="TryWriteText"/>) exists here too:
+    /// <c>EmptyClipboard</c> irrevocably discards the previous copy, so the block is
+    /// allocated and filled <b>before</b> <c>EmptyClipboard</c>, and every error after that frees
+    /// the block and logs. The <c>CanIncludeInClipboardHistory = 0</c> marker is <b>not</b> written:
+    /// island capture is text-based (<see cref="TryReadText"/> reads only <c>CF_UNICODETEXT</c>),
+    /// so this write cannot be captured back by the island.
     /// </remarks>
     internal static bool TryWriteFileDropList(IReadOnlyList<string> paths)
     {
@@ -311,7 +311,7 @@ internal static class ClipboardNative
         }
 
         int headerSize = Marshal.SizeOf<DROPFILES>();
-        int byteCount = headerSize + 2; // sonlandırıcı çift null
+        int byteCount = headerSize + 2; // terminating double null
         foreach (string? path in paths)
         {
             if (string.IsNullOrEmpty(path))
@@ -333,8 +333,8 @@ internal static class ClipboardNative
         {
             IntPtr mem = AllocGlobalBlock(new IntPtr(byteCount), block =>
             {
-                // pFiles = offsetof(char data): yol listesi başlığın hemen ardından başlar.
-                // pt = 0 / fNC = 0: kopyalama için sürükleme görüntüsü konumu anlamsız.
+                // pFiles = offsetof(char data): the path list starts right after the header.
+                // pt = 0 / fNC = 0: the drag image position is meaningless for a copy.
                 Marshal.StructureToPtr(
                     new DROPFILES { PFiles = (uint)headerSize, Wide = 1 },
                     block,
@@ -346,12 +346,12 @@ internal static class ClipboardNative
                     byte[] utf16 = Encoding.Unicode.GetBytes(path);
                     Marshal.Copy(utf16, 0, block + cursor, utf16.Length);
                     cursor += utf16.Length;
-                    Marshal.WriteInt16(block, cursor, 0); // yol kendi null'ıyla biter
+                    Marshal.WriteInt16(block, cursor, 0); // the path is terminated by its own null
                     cursor += 2;
                 }
 
-                // AllocGlobalBlock sıfırlanmış bellek garanti etmez: çift null'ın son baytını
-                // açıkça yaz (yol listesinin bittiği yer burasıdır).
+                // AllocGlobalBlock does not guarantee zeroed memory: write the last byte of the double
+                // null explicitly (this is where the path list ends).
                 Marshal.WriteInt16(block, byteCount - 2, 0);
             });
             if (mem == IntPtr.Zero)
@@ -359,8 +359,8 @@ internal static class ClipboardNative
                 return false;
             }
 
-            // EmptyClipboard önceki kopyayı geri dönüşsüz atar: buradan sonraki her hata
-            // bloğu serbest bırakmalı. Blok önceden dolduğu için açık pencere iki API çağrısıdır.
+            // EmptyClipboard irrevocably discards the previous copy: every error after this point
+            // must free the block. Because the block is filled in advance, the open window is two API calls.
             if (!EmptyClipboard())
             {
                 Debug.WriteLine($"[WharfBar] EmptyClipboard failed (file drop list): 0x{Marshal.GetLastWin32Error():X8}");
@@ -385,14 +385,14 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// Panodaki CF_HDROP listesini okur. <see cref="TryWriteFileDropList"/> yürüyüşünün
-    /// simetriğidir: bloktaki yol listesine <c>pFiles</c> ofsetinden girilir, her UTF-16 dize
-    /// kendi null'ında biter ve boş dize (çift null) listeyi bitirir.
+    /// Reads the CF_HDROP list on the clipboard. The mirror image of the <see cref="TryWriteFileDropList"/>
+    /// walk: the path list in the block is entered at the <c>pFiles</c> offset, each UTF-16 string
+    /// ends at its own null, and an empty string (double null) terminates the list.
     /// </summary>
     /// <remarks>
-    /// Okuma <c>GlobalSize</c> ile sınırlıdır; bozuk bir blok taşma okumasına yol açmaz
-    /// (fail-closed). ANSI liste (<c>fWide = 0</c>) reddedilir: bu yazıcı yalnız UTF-16 üretir,
-    /// yabancı bir ANSI bloğun kod sayfası bilinmez.
+    /// Reading is bounded by <c>GlobalSize</c>; a corrupt block cannot cause an over-read
+    /// (fail-closed). An ANSI list (<c>fWide = 0</c>) is rejected: this writer produces only UTF-16,
+    /// and the code page of a foreign ANSI block is unknown.
     /// </remarks>
     internal static bool TryReadFileDropList(out List<string> paths)
     {
@@ -462,7 +462,7 @@ internal static class ClipboardNative
 
                     if (path.Length == 0)
                     {
-                        break; // çift null: liste bitti
+                        break; // double null: the list ended
                     }
 
                     list.Add(path);
@@ -484,9 +484,9 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// <paramref name="block"/> + <paramref name="offset"/> adresindeki null sonlanmış UTF-16
-    /// dizesini <paramref name="end"/> bayt sınırına kadar okur. Sınır içinde null yoksa
-    /// <c>false</c> döner — <c>PtrToStringUni</c>'nin sınırsız okumasına güvenilmez.
+    /// Reads the null-terminated UTF-16 string at <paramref name="block"/> + <paramref name="offset"/>
+    /// up to the <paramref name="end"/> byte boundary. Returns <c>false</c> if there is no null inside the
+    /// boundary — <c>PtrToStringUni</c>'s unbounded read is not trusted.
     /// </summary>
     private static bool TryReadNullTerminatedUtf16(IntPtr block, int offset, int end, out string value)
     {
@@ -506,7 +506,7 @@ internal static class ClipboardNative
         return false;
     }
 
-    /// <summary>Pano sahibi sürecin adı; sahiplik yoksa veya erişilemiyorsa null.</summary>
+    /// <summary>Name of the clipboard owner process; null if there is no owner or it is not accessible.</summary>
     internal static string? GetOwnerProcessName()
     {
         IntPtr owner = GetClipboardOwner();
@@ -561,8 +561,8 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// "CanIncludeInClipboardHistory" bloğundaki DWORD'u okur. Blok 4 bayttan kısaysa okunmaz
-    /// (taşma okuma) ve 0 döner — yani içerik geçmişe alınmaz: güvenli taraf opt-out'tur.
+    /// Reads the DWORD in the "CanIncludeInClipboardHistory" block. If the block is shorter than 4 bytes it is
+    /// not read (over-read) and 0 is returned — that is, the content is not added to history: the safe side is opt-out.
     /// </summary>
     private static int ReadDword(IntPtr handle)
     {
@@ -591,15 +591,15 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// Hareketlenebilir (moveable) bir global blok ayırır, <paramref name="fill"/> ile doldurur
-    /// ve kilidini açarak blok işaretçisini döndürür. Başarısızsa <see cref="IntPtr.Zero"/> döner
-    /// (blok zaten <c>GlobalFree</c> edilmiş olur) ve nedeni loglar.
+    /// Allocates a moveable global block, fills it with <paramref name="fill"/>
+    /// and returns the block pointer after unlocking it. On failure it returns <see cref="IntPtr.Zero"/>
+    /// (the block has already been <c>GlobalFree</c>d) and logs the reason.
     /// </summary>
     /// <remarks>
-    /// <c>SetClipboardData</c> başarıda sahipliği devralır, bu yüzden çağıran
-    /// <c>GlobalFree</c> yapmamalıdır; başarısızlıkta ise çağıran sorumludur. Aynı
-    /// <c>GlobalAlloc</c>/<c>GlobalLock</c> kalıbını paylaşır, böylece metin ve DWORD
-    /// blokları farklı kod yolları yüzünden farklı yazılmaz.
+    /// <c>SetClipboardData</c> takes ownership on success, so the caller must not
+    /// <c>GlobalFree</c>; on failure the caller is responsible. It shares the same
+    /// <c>GlobalAlloc</c>/<c>GlobalLock</c> pattern, so that text and DWORD
+    /// blocks are not written differently because of different code paths.
     /// </remarks>
     private static IntPtr AllocGlobalBlock(IntPtr bytes, Action<IntPtr> fill)
     {
@@ -630,7 +630,7 @@ internal static class ClipboardNative
         return mem;
     }
 
-    /// <summary>Sahiplik devredilmemiş bloğu serbest bırakır; sıfır işaretçi no-op'tur.</summary>
+    /// <summary>Frees a block whose ownership has not been transferred; a zero pointer is a no-op.</summary>
     private static void FreeIfOwned(IntPtr mem)
     {
         if (mem != IntPtr.Zero)
@@ -640,10 +640,10 @@ internal static class ClipboardNative
     }
 
     /// <summary>
-    /// CF_HDROP bloğunun başlığı (<c>DROPFILES</c>): <c>PFiles</c> yol listesinin blok başına
-    /// göre bayt ofsetidir (<c>offsetof(char data)</c>), <c>Wide = 1</c> listenin UTF-16
-    /// olduğunu söyler. <c>PointX/PointY</c> ve <c>NonClient</c> kopyalamada kullanılmaz,
-    /// yalnız sürükleme görüntüsü konumunu taşır.
+    /// Header of the CF_HDROP block (<c>DROPFILES</c>): <c>PFiles</c> is the byte offset of the path list
+    /// relative to the start of the block (<c>offsetof(char data)</c>), <c>Wide = 1</c> says the list is
+    /// UTF-16. <c>PointX/PointY</c> and <c>NonClient</c> are not used for copying, they only carry the
+    /// drag image position.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     private struct DROPFILES

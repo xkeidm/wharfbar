@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Quit WharfBar from the tray (**WharfBar'ı kapat**) or with Alt+F4 before you collect logs.
+        Quit WharfBar from the tray (**Quit WharfBar**) or with Alt+F4 before you collect logs.
         A force-kill skips `ABM_REMOVE`. The taskbar comes back quickly; a stuck top strip needs an `explorer.exe` restart.
   - type: textarea
     id: what

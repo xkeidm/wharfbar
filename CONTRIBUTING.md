@@ -48,7 +48,7 @@ dotnet run --project src/WharfBar
 
 Running the app reserves a strip along the top of the screen and hides the Windows taskbar.
 
-Quit from the tray (**WharfBar'ı kapat**) or with Alt+F4. Both restore the taskbar and remove the AppBar.
+Quit from the tray (**Quit WharfBar**) or with Alt+F4. Both restore the taskbar and remove the AppBar.
 A force-kill (`Stop-Process -Force`, detaching the debugger, closing a raw `dotnet run` window) skips `ABM_REMOVE`.
 The taskbar watchdog restores the taskbar in about 0.5 seconds. The reserved strip can stick until `explorer.exe` is restarted.
 

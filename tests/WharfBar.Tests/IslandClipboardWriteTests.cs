@@ -9,11 +9,11 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// <see cref="IslandService.PutOnClipboard"/> karar katmanı. Gerçek pano yazımı STA
-/// worker'da olur ve CI'da test edilmez (native clipboard yazarı kara kutu); test edilen
-/// davranış: kapılar (kapalı island, boş metin, Dispose) sonucu <c>false</c> olarak
-/// bildirir, listeye kayıt eklemez ve <see cref="IslandService.Changed"/> kabartamaz.
-/// UI dispatcher gitmişse bildirim sessizce düşer.
+/// The <see cref="IslandService.PutOnClipboard"/> decision layer. The actual clipboard write happens on
+/// an STA worker and is not tested in CI (the native clipboard writer is a black box); what is tested
+/// is the behavior: the gates (island disabled, empty text, Dispose) report the result as <c>false</c>,
+/// add no record to the list and cannot raise <see cref="IslandService.Changed"/>.
+/// If the UI dispatcher is gone, the notification is silently dropped.
 /// </summary>
 public sealed class IslandClipboardWriteTests
 {
@@ -33,7 +33,7 @@ public sealed class IslandClipboardWriteTests
                 reported = ok;
             });
 
-            // Kapalı adadan yazma denenmez: sonuç aynı çağrıda bildirilir (UI thread'indeyiz).
+            // No write is attempted from a disabled island: the result is reported on the same call (we are on the UI thread).
             Assert.Equal(1, reports);
             Assert.False(reported);
             Assert.Empty(service.Entries);
@@ -69,7 +69,7 @@ public sealed class IslandClipboardWriteTests
     {
         Run(service =>
         {
-            // completed null iken kapalı yoldan geçmek fırlatmadan çıkar.
+            // Passing through the disabled path with a null completed callback returns without throwing.
             service.PutOnClipboard("#90C7FF");
             service.PutOnClipboard("");
         });
@@ -78,8 +78,8 @@ public sealed class IslandClipboardWriteTests
     [Fact]
     public void PutOnClipboard_AfterDispose_ReportsFailureWithoutWriteAttempt()
     {
-        // Dispose kapısını bir kereden fazla devreye sokmak için island açık kurulur:
-        // kapalı island zaten hiç yazma denemeyeceği için Dispose bilgisi test edilemezdi.
+        // The island is set up as enabled so that the Dispose gate engages more than once:
+        // with a disabled island no write is attempted anyway, so the Dispose information could not be tested.
         Run(service =>
         {
             service.Dispose();
@@ -92,8 +92,8 @@ public sealed class IslandClipboardWriteTests
                 reported = ok;
             });
 
-            // Kapı sonucu bildirir: tek çağrı, false. Sonraki bildirim (CanPostToUi
-            // kapanırsa) sessiz düşer — sözleşme "UI yaşıyorken tam bir bildirim".
+            // The gate reports its result: a single call, false. A later notification (if CanPostToUi
+            // has closed) is silently dropped — the contract is "exactly one notification while the UI is alive".
             Assert.Equal(1, reports);
             Assert.False(reported);
         }, enabled: true);
@@ -102,8 +102,8 @@ public sealed class IslandClipboardWriteTests
     [Fact]
     public void PutBack_DisabledIsland_DoesNotWriteOrReport()
     {
-        // PutBack davranış koruması: PutOnClipboard eklendi ama PutBack yolu aynı kalmalı —
-        // metin kaydı kapalı adada sessizce düşer, sonuç bildirimi yoktur (signature eski).
+        // PutBack behavior guard: PutOnClipboard was added, but the PutBack path must stay the same —
+        // a text record is silently dropped on a disabled island, there is no result notification (the signature is the old one).
         Run(service =>
         {
             var entry = new IslandEntry(1, IslandEntryKind.Text, "keep-out", null, DateTime.UtcNow, null);
@@ -119,9 +119,9 @@ public sealed class IslandClipboardWriteTests
     }
 
     /// <summary>
-    /// CF_HDROP gidiş-dönüşü. "Dosyayı kopyala" menü eyleminin panoya yazdığı dosya listesi
-    /// gerçek panodan okunabilmeli: yazma <c>DROPFILES { pFiles = offsetof(char data),
-    /// fWide = 1 }</c> + çift null'lu UTF-16 listesi, okuma aynı yürüyüşün simetriği.
+    /// CF_HDROP round trip. The file list that the "Copy file" menu action writes to the clipboard
+    /// must be readable back from the real clipboard: the write uses <c>DROPFILES { pFiles = offsetof(char data),
+    /// fWide = 1 }</c> plus a double-null-terminated UTF-16 list, and the read mirrors the same walk.
     /// </summary>
     [Fact]
     public void FileDropList_UserCopyIsReadBack() =>
@@ -136,8 +136,8 @@ public sealed class IslandClipboardWriteTests
                 File.WriteAllText(a, "1");
                 File.WriteAllText(b, "2");
 
-                // Pano başka bir süreçte kilitliyken OpenClipboard başarısız olabilir
-                // (CLIPBRD_E_CANT_OPEN) — geçici bir durum, bu yüzden birkaç deneme yapılır.
+                // OpenClipboard can fail while another process holds the clipboard
+                // (CLIPBRD_E_CANT_OPEN) — a transient condition, hence a few retries.
                 bool wrote = false;
                 bool read = false;
                 List<string> paths = [];
@@ -159,7 +159,7 @@ public sealed class IslandClipboardWriteTests
             }
             finally
             {
-                // Silinecek geçici dosyaları panoda bırakma: metin yazarak listenin üzerine geç.
+                // Do not leave temp files that are about to be deleted on the clipboard: overwrite the list by writing text.
                 _ = ClipboardNative.TryWriteText("wharfbar clipboard test");
                 try
                 {
@@ -232,8 +232,8 @@ public sealed class IslandClipboardWriteTests
     }
 
     /// <summary>
-    /// Panoya dokunan testler için STA iş parçacığı. <see cref="ClipboardNative"/> çağrıları
-    /// STA worker thread'inden yapılır (depo kuralı); xunit'in kendi thread'i MTA'dır.
+    /// STA thread for tests that touch the clipboard. Calls to <see cref="ClipboardNative"/>
+    /// are made from an STA worker thread (repository rule); xunit's own thread is MTA.
     /// </summary>
     private static void RunSta(Action body)
     {

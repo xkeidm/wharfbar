@@ -3,7 +3,7 @@ using System.Windows.Media;
 namespace WharfBar.Models;
 
 /// <summary>
-/// Çalan medyanın anlık görüntüsü (SMTC oturumu). Saf veri kaydı — unit testli.
+/// Snapshot of the playing media (SMTC session). Pure data record — unit-tested.
 /// </summary>
 internal sealed record MediaSnapshot(
     string SessionId,
@@ -16,15 +16,15 @@ internal sealed record MediaSnapshot(
     TimeSpan? Duration = null,
     bool CanSeek = false)
 {
-    /// <summary>Oturum yokken kullanılan boş snapshot.</summary>
+    /// <summary>Empty snapshot used when there is no session.</summary>
     internal static MediaSnapshot Idle { get; } = new(string.Empty, string.Empty, string.Empty, string.Empty, false, null);
 
-    /// <summary>Aktif SMTC oturumu var mı (id boş değil).</summary>
+    /// <summary>Whether there is an active SMTC session (id is not empty).</summary>
     internal bool HasSession => SessionId.Length > 0;
 
     /// <summary>
-    /// SMTC konum ve süre ikisi de varsa <c>m:ss / m:ss</c> (saat varsa <c>h:mm:ss</c>).
-    /// Biri eksikse veya süre 0 ise null — yüzde uydurulmaz.
+    /// <c>m:ss / m:ss</c> when both SMTC position and duration exist (<c>h:mm:ss</c> when there are hours).
+    /// Null if either is missing or the duration is 0 — no percentage is invented.
     /// </summary>
     internal string? TimelineText()
     {

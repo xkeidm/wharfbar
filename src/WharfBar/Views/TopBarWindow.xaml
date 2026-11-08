@@ -166,7 +166,7 @@
                            Text="--" />
             </StackPanel>
 
-            <!-- Island chip: idle indicator (glyph + "Pano"), now-playing title, or a meter.
+            <!-- Island chip: idle indicator (glyph + "Clipboard"), now-playing title, or a meter.
                  Compact states stay inside the 30 DIP bar. The popup below is the
                  only expanded surface. Drop/DragOver/click stay on this control.
                  Width animates in TopBarWindow.Island.cs; title growth is capped there. -->
@@ -176,7 +176,7 @@
                     Visibility="Collapsed"
                     AllowDrop="True"
                     Focusable="True"
-                    AutomationProperties.Name="Pano"
+                    AutomationProperties.Name="{x:Static res:Strings.Island_Clipboard}"
                     MouseEnter="OnIslandPillEnter"
                     MouseLeave="OnIslandPillLeave"
                     MouseLeftButtonUp="OnIslandPillClick"
@@ -216,7 +216,7 @@
                                Margin="8,0,0,0"
                                VerticalAlignment="Center"
                                Foreground="{DynamicResource Bar.TextPrimary}"
-                               Text="Pano" />
+                               Text="{x:Static res:Strings.Island_Clipboard}" />
                     <Image x:Name="IslandCamera"
                            Width="36"
                            Height="16"
@@ -490,7 +490,7 @@
                 <local:ClockPanelFlyout x:Name="ClockPanelHost" />
             </Popup>
 
-            <!-- Media Flyout (SMTC şu an çalan) -->
+            <!-- Media Flyout (SMTC now playing) -->
             <Popup x:Name="MediaPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=MediaButton}"
@@ -514,11 +514,11 @@
                 <local:TrayOverflowFlyout x:Name="TrayOverflowHost" />
             </Popup>
 
-            <!-- Island paneli: aynı Popup kalıbı (StaysOpen=True, PopupAnimation=None —
-                 açılış/kapanış animasyonu code-behind'de). Placement=Bottom solu hizalar;
-                 HorizontalOffset ölçüldükten sonra hapın ortasına çekilir.
+            <!-- Island panel: the same Popup pattern (StaysOpen=True, PopupAnimation=None —
+                 the open/close animation is in code-behind). Placement=Bottom aligns the left;
+                 HorizontalOffset is pulled to the middle of the pill after measuring.
                  VerticalOffset=-12: popup starts 10 DIP above the panel top for the concave fillets; the panel still overlaps the pill by 2 DIP.
-                 Panelin içinde ikinci bir Popup yok (docs/04-gotchas.md). -->
+                 There is no second Popup inside the panel (docs/04-gotchas.md). -->
             <Popup x:Name="IslandPopup"
                    Placement="Bottom"
                    PlacementTarget="{Binding ElementName=IslandPill}"

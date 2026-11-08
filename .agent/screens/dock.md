@@ -3,7 +3,7 @@
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-A Windows 11 taskbar-style strip. The default is the bottom edge. **`Sol kenar` (Left edge)** in settings
+A Windows 11 taskbar-style strip. The default is the bottom edge. **`Left edge`** in settings
 (`dock.position` = `left`) stacks the plate vertically on the left edge, reserves a work area of that thickness
 with `ABE_LEFT`, and shifts auto-hide to the left. Bottom positions (`bottom-left` /
 `bottom-center` / `bottom-right`) stay horizontal. The plate is **not** an AppBar (ADR-001); it is a `Topmost` overlay,
@@ -32,7 +32,7 @@ Windows taskbar layout: **one** icon per application.
   if the name is missing from the blob, the file name). Then entries that are in `dock.items` and
   not on the taskbar. The same target appears once. When the app runs it stays **in the same box**
   (`IsRunning`). Closed pins have no capsule. It does not appear again on the right.
-  `Dock'a sabitle / kaldır` (Pin to Dock / Unpin) writes `dock.items` and, when the target is a real file or folder, writes a `.lnk` into `User Pinned\TaskBar`. `Taskband` is not written.
+  `Pin to Dock / Unpin` writes `dock.items` and, when the target is a real file or folder, writes a `.lnk` into `User Pinned\TaskBar`. `Taskband` is not written.
 - **Right — Running** — unpinned running applications, sorted by name (window handle when names tie).
   While `showRunningApps == false` this side is not produced at all; closed
   pins stay on the left.
@@ -40,7 +40,7 @@ Windows taskbar layout: **one** icon per application.
   Identity merges transitively (`RunningAppsSource.Collapse`): canonical exe path, AppUserModelId,
   or process id. A window of the same exe without an AUMID, and a second process, are the same box too.
   A process that never entered the running list becomes **one box per process** on the right
-  (not per window). The `Pencereler` (Windows) submenu lists windows of **all of the box's processes**
+  (not per window). The `Windows` submenu lists windows of **all of the box's processes**
   (`MinimizedWindowsSource` cache; no `EnumWindows` on the UI thread).
 - Multiple windows or processes stay in one box. While `WindowCount` > 1 a count badge sits at the icon's top
   right; the tooltip becomes `Name (N)`. The running capsule does not change: a long accent line when a window is
@@ -50,10 +50,10 @@ Windows taskbar layout: **one** icon per application.
   rectangle (`rcNormalPosition`), not from the icon point; otherwise an unpinned box would disappear.
   A cloaked minimized window stays running. Another virtual desktop's cloak is not counted.
   The pin list is the same on every monitor.
-- **Launchpad** is at the far left of the strip. The glyph is the **brand logo tile** (ADR-019): a rounded tile (radius 28 on the 128 grid) at the normal icon size, with the solid small WharfBar mark (`logoStyle` = `wharfbar`, default; sun + pier, no plank gaps) or four Windows panes (`windows`). Colours come from `BrandPalette` (accent hue + effective light/dark theme; sun fixed per theme). The tile is a frozen, cached `DrawingImage` (`BrandLogo.DockTile`). On `WM_THEMECHANGED` / `WM_SYSCOLORCHANGE` / `WM_DWMCOLORIZATIONCOLORCHANGED` / `WM_SETTINGCHANGE("ImmersiveColorSet")`, and after a theme/accent/logo change in settings, only this cell's glyph is swapped (`RefreshBrandTile`); menu and tooltip stay. No timer. The icon does not grow on hover. A left click opens the box in the center of the screen; the box is visible before the scan finishes, and apps arrive under a letter heading. The wallpaper shows behind it. If a phone is connected, a vertical panel opens on the right of the box. The screenshot is inside the phone frame. The notification row has the app icon. The Windows logo opens the menu. The account chip always sits on the box's bottom strip. `Belgeler` (Documents), `İndirilenler` (Downloads), `Resimler` (Pictures), `Ayarlar` (Settings), `Widget`, `Eklenti` (Plugin), and `Güç` (Power) are chosen with `launchpad.tools`; a right click on the strip opens a checked menu and the selection is saved immediately. The button is 40 DIP, the glyph is centered; the card padding stays outside the corner curve.
-  An unreachable `Programlar` (Programs) link is skipped. Widget and Plugin open the gallery (ADR-017): built-in items work, a local manifest is a record only. It is not written to `dock.items` or the User Pinned
+- **Launchpad** is at the far left of the strip. The glyph is the **brand logo tile** (ADR-019): a rounded tile (radius 28 on the 128 grid) at the normal icon size, with the solid small WharfBar mark (`logoStyle` = `wharfbar`, default; sun + pier, no plank gaps) or four Windows panes (`windows`). Colours come from `BrandPalette` (accent hue + effective light/dark theme; sun fixed per theme). The tile is a frozen, cached `DrawingImage` (`BrandLogo.DockTile`). On `WM_THEMECHANGED` / `WM_SYSCOLORCHANGE` / `WM_DWMCOLORIZATIONCOLORCHANGED` / `WM_SETTINGCHANGE("ImmersiveColorSet")`, and after a theme/accent/logo change in settings, only this cell's glyph is swapped (`RefreshBrandTile`); menu and tooltip stay. No timer. The icon does not grow on hover. A left click opens the box in the center of the screen; the box is visible before the scan finishes, and apps arrive under a letter heading. The wallpaper shows behind it. If a phone is connected, a vertical panel opens on the right of the box. The screenshot is inside the phone frame. The notification row has the app icon. The Windows logo opens the menu. The account chip always sits on the box's bottom strip. `Documents`, `Downloads`, `Pictures`, `Settings`, `Widget`, `Plugin`, and `Power` are chosen with `launchpad.tools`; a right click on the strip opens a checked menu and the selection is saved immediately. The button is 40 DIP, the glyph is centered; the card padding stays outside the corner curve.
+  An unreachable `Programs` link is skipped. Widget and Plugin open the gallery (ADR-017): built-in items work, a local manifest is a record only. It is not written to `dock.items` or the User Pinned
   folder.
-- **`İndirilenler` (Downloads)** sits immediately after the pin group, and **`Geri Dönüşüm Kutusu` (Recycle Bin)** sits at the far right of
+- **`Downloads`** sits immediately after the pin group, and **`Recycle Bin`** sits at the far right of
   the strip. Neither is written to `dock.items` or the User Pinned folder.
 
 Matching (`PinMatches`): full path, case-insensitive (`\\?\` and `\??\` prefixes
@@ -82,9 +82,9 @@ every window `IsIconic`): no square, a **8×3 DIP** neutral mini line at the bot
 not beside the line. A click still restores
 a backgrounded window. Tooltip uses the system style
 (250 ms delay, 8 s); when the count is greater than 1, `Name (N)`. The name is the shortcut's shell display name
-(`SHGFI_DISPLAYNAME` — a `File Explorer.lnk` file becomes `Dosya Gezgini` (File Explorer)). If the shell name only
+(`SHGFI_DISPLAYNAME` — a `File Explorer.lnk` file becomes `File Explorer`). If the shell name only
 repeats the file name, the application segment of the window title is used
-(`wharfbar - Dosya Gezgini` → `Dosya Gezgini`). The balloon is at the horizontal center of the target; the gap
+(`wharfbar - File Explorer` → `File Explorer`). The balloon is at the horizontal center of the target; the gap
 is 25 DIP and scales with DPI. With a single window and no thumbnail the surface card does not open
 (it would be a second text balloon). While the card is open the tooltip closes. The card has no frame and no top light line.
 
@@ -105,10 +105,10 @@ Hover does not grow the icon; the live strip scale is 1. The dock's first placem
 | Action | Behavior |
 |---|---|
 | Left click | Bring forward / launch; a second click minimizes (`WindowActivationService`) |
-| Left click (folder / `İndirilenler` (Downloads)) | Directory-stack flyout. A file uses `ShellExecuteW` (the registered verb). A folder goes down one level |
+| Left click (folder / `Downloads`) | Directory-stack flyout. A file uses `ShellExecuteW` (the registered verb). A folder goes down one level |
 | Left click (trash) | `shell:RecycleBinFolder` |
 | Hover (running app) | That app's windows, DWM thumbnails side by side. A click is `TryActivate` |
-| Right click (icon) | The menu below. Downloads and the trash have only the title + `Aç` (Open) |
+| Right click (icon) | The menu below. Downloads and the trash have only the title + `Open` |
 | Right click (empty plate) | Background: Mica / Transparent / Tint + opacity (tint) |
 | Drag | Reorder pinned items; an accent line shows the target; the click is suppressed |
 | Drop | Adds `.lnk/.exe/.bat/.cmd`; dedupes by path |
@@ -117,13 +117,13 @@ Hover does not grow the icon; the live strip scale is 1. The dock's first placem
 Right-click menu (`BuildContextMenuForItem`) — item conditions come from the code:
 
 1. **Title card** — icon + application name, always (not clickable).
-2. **`Dock'a sabitle` / `Dock'tan kaldır` (Pin to Dock / Unpin from Dock)** — always; the text follows the pin state.
-3. **`Görevi sonlandır` (End task)** — always visible; **enabled if it is running**, otherwise `IsEnabled=false`.
-4. **`Pencereyi kapat` (Close window)** — the same condition as (3) and the same `IsEnabled` logic.
+2. **`Pin to Dock` / `Unpin from Dock`** — always; the text follows the pin state.
+3. **`End task`** — always visible; **enabled if it is running**, otherwise `IsEnabled=false`.
+4. **`Close window`** — the same condition as (3) and the same `IsEnabled` logic.
 5. After the separator, **only when the path is not empty and the file exists on disk**
-   (`!IsNullOrWhiteSpace(Path) && File.Exists(Path)`): **`Yönetici olarak çalıştır` (Run as administrator)** ·
-   **`Dosya konumunu aç` (Open file location)** · **`Yeni pencere aç` (Open a new window)**. If there is no path these three **are not shown at all**.
-6. **`Pencereler` (Windows)** — the submenu is added only when the cell `IsRunning` **and** it holds a live window
+   (`!IsNullOrWhiteSpace(Path) && File.Exists(Path)`): **`Run as administrator`** ·
+   **`Open file location`** · **`Open a new window`**. If there is no path these three **are not shown at all**.
+6. **`Windows`** — the submenu is added only when the cell `IsRunning` **and** it holds a live window
    (`MainWindowHandle != 0`) **and** **at least one window** remains in the list for that process
    (not by `Section` — a pinned-and-running cell is `IsRunning` too). The menu
    is fed from `MinimizedWindowsSource`'s cache; `EnumWindows` is not called on the UI thread.
@@ -149,7 +149,7 @@ The live strip scale is 1. Hover does not call `SetWindowPos`. The plate is not 
 ## Settings
 
 [Settings → Dock](settings.md#dock): `autoHide`, `iconSize` (16–36, default 24),
-`backgroundMode` (`Mica` / `Saydam` (Transparent) / `Renkli` (Tint)) + opacity 0–100 only for `Renkli` (Tint), `position`
+`backgroundMode` (`Mica` / `Transparent` / `Tint`) + opacity 0–100 only for `Tint`, `position`
 (bottom-left/center/right), `showRunningApps`, content list (add/remove/drag to reorder).
 The same background menu opens by right-clicking the empty plate (not the icon's own menu).
 A Mica ↔ transparent/tint transition recreates the dock. Position is **bottom-edge**
@@ -157,7 +157,7 @@ alignment only; a side dock is out of scope.
 
 ## Gotchas
 
-`docs/04-gotchas.md` → the `Dock'ta...` (On the dock...) entries. Also:
+`docs/04-gotchas.md` → the entries whose titles start with `Dock`. Also:
 
 - OLE drop acceptance was **not measured**. Mica mode is not layered; transparent and tint modes
   are layered. If a layered `Topmost` window is not accepted as a target, file drop **and**

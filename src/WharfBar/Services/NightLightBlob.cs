@@ -5,7 +5,7 @@ internal static class NightLightBlob
     private static readonly byte[] Signature = [0x43, 0x42, 0x01, 0x00];
     private static readonly byte[] ActiveFlag = [0x02, 0x01];
 
-    /// <summary>Best-effort: CloudStore blob layout değişebilir; yapı tanınmazsa false döner.</summary>
+    /// <summary>Best-effort: the CloudStore blob layout may change; returns false if the structure is not recognized.</summary>
     internal static bool TryParse(byte[]? data, out bool enabled)
     {
         enabled = false;
@@ -22,7 +22,7 @@ internal static class NightLightBlob
         return flagIndex >= 0;
     }
 
-    /// <summary>İkinci imzadan hemen sonra 02 01 bayrağı varsa enabled=true; bayrak yoksa false.</summary>
+    /// <summary>If the 02 01 flag follows the second signature immediately, enabled=true; false if the flag is absent.</summary>
     internal static bool TryFindFlag(byte[] data, out int flagIndex, out bool enabled)
     {
         flagIndex = -1;
@@ -52,7 +52,7 @@ internal static class NightLightBlob
         return true;
     }
 
-    /// <summary>Bayrağı ekler/çıkarır; bayrak konumu bulunamazsa girdiyi olduğu gibi döner.</summary>
+    /// <summary>Adds/removes the flag; if the flag position cannot be found, returns the input as is.</summary>
     internal static byte[] ToggleFlag(byte[] data, bool enable)
     {
         if (!TryFindFlag(data, out int flagIndex, out bool currentlyEnabled)
