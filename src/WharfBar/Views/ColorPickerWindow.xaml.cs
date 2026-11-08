@@ -3,48 +3,65 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
 
 /// <summary>
-/// Ekran rengi seçici örtüsü: birincil monitörün <b>çalışma alanını</b> kaplayan şeffaf
-/// topmost pencere. <c>WallpaperTransitionWindow</c>'un pencere-flag kalıbını izler —
-/// AppBar penceresi değildir, Mica ile buluşmaz (<c>AllowsTransparency</c> yanında
-/// <c>DwmSystemBackdrop.None</c> zorunlu), açıkken odak çalmaz
+/// Screen color picker overlay: a transparent topmost window covering the <b>whole</b> of the
+/// primary monitor (including the primary monitor's native appbar strips — top bar, dock —
+/// so the loupe reaches every part of the monitor). Follows the window-flag pattern of
+/// <c>WallpaperTransitionWindow</c> —
+/// it is not an AppBar window and does not go with Mica (<c>DwmSystemBackdrop.None</c> is mandatory
+/// alongside <c>AllowsTransparency</c>), and it does not steal focus while open
 /// (<c>WS_EX_NOACTIVATE</c> + <c>ShowActivated=false</c>).
 ///
-/// <para><b>Örnekleme donmuş kare:</b> karartma maskesinin kendisi katmanlı (layered)
-/// bir penceredir ve GDI <c>BitBlt</c> bileşik masaüstünü okur — maske yerine oturunca
-/// canlı örnekleme maskeli (karartılmış) rengi verir. Bu yüzden örtü gösterilmeden
-/// önce monitörün tek BitBlt karesi alın ve örneklem bu kareden
-/// <see cref="ScreenSampler.AverageBgra"/> ile hesaplanır; kare alınamazsa son çare
-/// canlı <see cref="ScreenSampler.RgbAt"/> (düşük-vasıf, maskeli) kullanılır. Tıklama
-/// noktası <see cref="Window.PointToScreen"/> ile mutlak fiziksel px'e döner (PMv2).</para>
+/// <para><b>Sampling a frozen frame:</b> the dimming mask itself is a layered
+/// window and GDI <c>BitBlt</c> reads the composited desktop — once the mask settles in place
+/// live sampling returns the masked (dimmed) color. That is why, before the overlay is shown,
+/// a single BitBlt frame of the monitor is taken; the magnified pixels inside the loupe and the
+/// color to be picked come from this frame (a grid centered on the cursor, clamped at the frame
+/// edge, via <see cref="ScreenSampler.TryCropBox"/>; the exact center pixel of that grid is the HEX).
+/// If the frame cannot be taken, the last resort is live
+/// <see cref="ScreenSampler"/> sampling (low-quality, masked). The click
+/// point turns into absolute physical px via <see cref="Window.PointToScreen"/> (PMv2).</para>
 ///
-/// <para><b>Kapanış:</b> tıkla (örnekleyip hex'i <see cref="IslandService.PutOnClipboard"/>
-/// ile panoya yaz), Esc (vazgeç) ya da klavye odağının kaybı. Ada paneli bu örtü
-/// açılmadan KAPANIR; seçim tamamlandıktan sonra üst bar hub'ı geri sergiler — örtü
-/// açıkken başka üstmost pencere yoktur, örtü kullanıcı onaylı tek istisnadır.</para>
+/// <para><b>Closing:</b> click (sample and write the hex to the clipboard with <see cref="IslandService.PutOnClipboard"/>),
+/// Esc (cancel) or losing keyboard focus. The island panel CLOSES before this overlay
+/// opens; once the pick is done the top bar presents the hub again — while the overlay
+/// is open there is no other topmost window, the overlay is the single user-approved exception.</para>
 /// </summary>
 public partial class ColorPickerWindow : Window
 {
-    /// <summary>Lupa + HEX kartı imleçten şu kadar DIP ileride durur.</summary>
-    internal const double LoupeOffsetDip = 18;
+    /// <summary>Width of the loupe + chip group (DIP); the loupe center sits on the cursor,
+    /// the group is positioned with Margin (a Grid child: Canvas attached properties are ignored).</summary>
+    internal const double AffordanceGroupWidth = 150;
 
-    private const double LoupeSwatchDip = 72;
+    /// <summary>Loupe body diameter (DIP): carries the magnified pixels inside it.</summary>
+    internal const double LoupeDiameter = 84;
+
+    /// <summary>Source pixel grid inside the loupe; an odd number, so the loupe shows the exact center pixel.</summary>
+    internal const int MagnifierGrid = 13;
+
+    private static readonly PixelFormat LoupePixelFormat = PixelFormats.Bgra32;
 
     private HwndSource? _source;
     private IslandService? _clipboard;
     private DispatcherTimer? _closeTimer;
 
-    /// <summary>Donmuş BitBlt karesi (BGRA, top-down); ekran orijini <c>_snapX/_snapY</c>.</summary>
+    /// <summary>Frozen BitBlt frame (BGRA, top-down); screen origin is <c>_snapX/_snapY</c>.</summary>
     private byte[]? _snapshot;
     private int _snapX, _snapY, _snapW, _snapH, _snapStride;
 
-    /// <summary>Son geçerli örnek: imleç altındaki kutu ortalaması.</summary>
+    /// <summary>Image inside the loupe: a <see cref="MagnifierGrid"/>×grid BGRA block, enlarged inside the
+    /// circle with nearest-neighbor scaling (pixelated blocks).</summary>
+    private WriteableBitmap? _loupeBitmap;
+
+    /// <summary>Last valid sample: the pixel at the loupe center.</summary>
     private Color _lastSample;
     private bool _hasSample;
 
@@ -53,15 +70,36 @@ public partial class ColorPickerWindow : Window
     private bool _settled;
     private bool _closed;
 
-    /// <summary>Bir kez yükselir: kullanıcı rengi onayladı, HEX yazılmış ya da reddedilmiş.</summary>
+    /// <summary>Raised once: the user approved the color, the HEX was written or it was rejected.</summary>
     internal event Action<Color, string, bool>? Settled;
 
-    /// <summary>Örtü bir renk seçmeden kapandı (Esc / klavye odak kaybı).</summary>
+    /// <summary>The overlay closed without picking a color (Esc / keyboard focus loss).</summary>
     internal event Action? Cancelled;
 
     public ColorPickerWindow()
     {
         InitializeComponent();
+        Title = Strings.ColorPicker_Title;
+        HintText.Text = Strings.ColorPicker_Hint;
+        _loupeBitmap = new WriteableBitmap(
+            MagnifierGrid, MagnifierGrid, 96, 96, LoupePixelFormat, null);
+        LoupeImage.Source = _loupeBitmap;
+        // Clip the inner grid to the circle: pixels outside the visible circle do not spill.
+        LoupeContent.SizeChanged += OnLoupeContentSizeChanged;
+    }
+
+    private void OnLoupeContentSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var clip = new EllipseGeometry(
+            new Point(e.NewSize.Width / 2, e.NewSize.Height / 2),
+            e.NewSize.Width / 2,
+            e.NewSize.Height / 2);
+        if (clip.CanFreeze)
+        {
+            clip.Freeze();
+        }
+
+        LoupeContent.Clip = clip;
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -86,18 +124,18 @@ public partial class ColorPickerWindow : Window
             ex | NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW);
     }
 
-    /// <summary>Örtü açıkken üst bar ikinci örtü sorgusu için kullanır (tek örtü kuralı).</summary>
+    /// <summary>Used by the top bar for the second-overlay query while the overlay is open (single overlay rule).</summary>
     internal bool IsOpen => IsLoaded && !_settled;
 
     /// <summary>
-    /// Örtüyü açar: çalışma alanına yerleştirir (önce donmuş kare). Kare alma tek seferlik
-    /// eşzamanlıdır (onlarca ms); ada paneli <see cref="Start"/> çağrısından önce kapanmıştır,
-    /// bu yüzden karede ada kalmaz. Kare alınamazsa örtü canlı örnekleme ile düşük vasıfta
-    /// yine de açılır. <paramref name="clipboard"/> null ise tık hâlâ örnekler ama panoya
-    /// yazma olmadan sonuç belirtilir.
+    /// Opens the overlay: places it over the work area (frozen frame first). The capture is a one-shot
+    /// synchronous operation (tens of ms); the island panel has already closed before <see cref="Start"/> is called,
+    /// so no island remains in the frame. If the frame cannot be taken the overlay still opens with live
+    /// sampling at low quality. If <paramref name="clipboard"/> is null the click still samples but the result
+    /// is reported without writing to the clipboard.
     /// </summary>
-    /// <returns>Gösterim başarısızsa <c>false</c> — üst bar örtüsüz kalır.</returns>
-    /// <param name="anchorHwnd">Birincil monitör çıkarılırken kullanılan üst bar hwnd'i.</param>
+    /// <returns><c>false</c> if showing failed — the top bar stays without an overlay.</returns>
+    /// <param name="anchorHwnd">Top bar hwnd used when the primary monitor is removed.</param>
     internal bool Start(IntPtr anchorHwnd, IslandService? clipboard)
     {
         _clipboard = clipboard;
@@ -116,15 +154,15 @@ public partial class ColorPickerWindow : Window
             return false;
         }
 
-        RECT work = Display.GetPrimaryMonitorWorkArea(anchorHwnd);
-        int widthPx = work.Right - work.Left;
-        int heightPx = work.Bottom - work.Top;
+        RECT monitor = Display.GetMonitorBounds(anchorHwnd);
+        int widthPx = monitor.Right - monitor.Left;
+        int heightPx = monitor.Bottom - monitor.Top;
         if (widthPx < 8 || heightPx < 8)
         {
             return false;
         }
 
-        TakeSnapshot(Display.GetMonitorBounds(anchorHwnd));
+        TakeSnapshot(monitor);
 
         Show();
         IntPtr hwnd = _source?.Handle ?? IntPtr.Zero;
@@ -136,14 +174,14 @@ public partial class ColorPickerWindow : Window
         _ = NativeMethods.SetWindowPos(
             hwnd,
             NativeMethods.HWND_TOPMOST,
-            work.Left,
-            work.Top,
+            monitor.Left,
+            monitor.Top,
             widthPx,
             heightPx,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
 
-        // Klavye odağı, OS aktivasyonu olmadan: WPF InputManager tuşları Keyboard.FocusedElement
-        // olarak yürüttüğü için WM_KEYDOWN hangi kendi penceresine düşerse düşsün Esc çalışır.
+        // Keyboard focus without OS activation: because the WPF InputManager dispatches keys to
+        // Keyboard.FocusedElement, Esc works no matter which of its own windows WM_KEYDOWN lands on.
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
             new Action(() =>
@@ -161,8 +199,8 @@ public partial class ColorPickerWindow : Window
     }
 
     /// <summary>
-    /// Monitör karesi. Kare çalışma alanı değil monitördür — imleç çalışma alanına bağlı,
-    /// ama <c>ScreenSampler.BoxSize</c> kutusu kenara kayabilir; kare geniş kapsar.
+    /// Monitor frame; because the loupe can slide at the edge, the <see cref="MagnifierGrid"/>
+    /// overflow rather than the 3 px sample box goes into the measure.
     /// </summary>
     private void TakeSnapshot(RECT monitor)
     {
@@ -173,7 +211,7 @@ public partial class ColorPickerWindow : Window
             return;
         }
 
-        int size = ScreenSampler.BoxSize;
+        int size = MagnifierGrid;
         (_, _, int virtualWidth, int virtualHeight) = ScreenBitBlt.VirtualScreenBounds();
         if (width < size || height < size || width > virtualWidth || height > virtualHeight)
         {
@@ -216,35 +254,55 @@ public partial class ColorPickerWindow : Window
         _hasSample = true;
         var fill = new SolidColorBrush(sample);
         fill.Freeze();
-        LoupeSwatch.Fill = fill;
+        ChipSwatch.Fill = fill;
         HexText.Text = ColorMath.ToHex(sample.R, sample.G, sample.B);
     }
 
-    /// <summary>Piksel → renk: donmuş kareden; kare yoksa canlı ekran örneklemi (düşük-vasıf).</summary>
+    /// <summary>
+    /// Pixel → color + loupe content: the <see cref="MagnifierGrid"/> grid is cropped from the frozen frame with
+    /// <see cref="ScreenSampler.TryCropBox"/>, written to the WriteableBitmap
+    /// (each cell becomes a single-value-sample pixel block) and the color becomes the exact center
+    /// pixel of the grid. If there is no frame the live screen sample (low-quality, masked) is used.
+    /// </summary>
     private Color SampleAtPx(int pxX, int pxY)
     {
-        if (_snapshot is null)
+        byte[] bgra;
+        int stride;
+
+        if (_snapshot is not null)
         {
-            return ScreenSampler.RgbAt(pxX, pxY);
+            int relX = pxX - _snapX;
+            int relY = pxY - _snapY;
+            if (!ScreenSampler.TryCropBox(
+                    _snapshot, _snapStride, _snapW, _snapH, relX, relY, MagnifierGrid, out byte[]? crop))
+            {
+                return Color.FromArgb(0, 0, 0, 0);
+            }
+
+            bgra = crop!;
+            stride = MagnifierGrid * 4;
+        }
+        else
+        {
+            // If there is no frame, live BitBlt of a small box; size = grid, center = cursor.
+            int origin = MagnifierGrid / 2;
+            if (!ScreenSampler.TrySample(pxX - origin, pxY - origin, MagnifierGrid, out bgra, out stride))
+            {
+                return Color.FromArgb(0, 0, 0, 0);
+            }
+
+            if (stride < MagnifierGrid * 4)
+            {
+                return Color.FromArgb(0, 0, 0, 0);
+            }
         }
 
-        int size = ScreenSampler.BoxSize;
-        int relX = pxX - _snapX;
-        int relY = pxY - _snapY;
-        if (relX < 0 || relY < 0 || relX >= _snapW || relY >= _snapH)
-        {
-            return Color.FromArgb(0, 0, 0, 0);
-        }
+        _loupeBitmap?.WritePixels(new Int32Rect(0, 0, MagnifierGrid, MagnifierGrid), bgra, stride, 0);
 
-        int x0 = Math.Clamp(relX - size / 2, 0, Math.Max(0, _snapW - size));
-        int y0 = Math.Clamp(relY - size / 2, 0, Math.Max(0, _snapH - size));
-        var crop = new byte[size * size * 4];
-        for (int row = 0; row < size; row++)
-        {
-            Buffer.BlockCopy(_snapshot, (y0 + row) * _snapStride + x0 * 4, crop, row * 4 * size, 4 * size);
-        }
-
-        return ScreenSampler.AverageBgra(crop, size * 4, size);
+        // The color is the crop's exact center pixel. Pressed against a frame edge the crop start
+        // clamps, so the reported pixel can sit up to MagnifierGrid / 2 px away from the cursor.
+        int centerOffset = ((MagnifierGrid / 2) * stride) + ((MagnifierGrid / 2) * 4);
+        return Color.FromRgb(bgra[centerOffset + 2], bgra[centerOffset + 1], bgra[centerOffset]);
     }
 
     private void PositionAffordances(Point point)
@@ -252,18 +310,18 @@ public partial class ColorPickerWindow : Window
         double clampW = Math.Max(1, ActualWidth);
         double clampH = Math.Max(1, ActualHeight);
 
-        Canvas.SetLeft(CrossV, Math.Clamp(point.X, 0, clampW));
-        CrossV.Height = clampH;
-        Canvas.SetLeft(CrossH, 0);
-        Canvas.SetTop(CrossH, Math.Clamp(point.Y, 0, clampH));
-        CrossH.Width = clampW;
+        double groupWidth = AffordanceGroup.ActualWidth is > 0 ? AffordanceGroup.ActualWidth : AffordanceGroupWidth;
+        double groupHeight = AffordanceGroup.ActualHeight;
+        if (groupHeight <= 0)
+        {
+            // If the measure has not arrived on the first frame, use a rough one: loupe + diff chip + hint line.
+            groupHeight = LoupeDiameter + 12 + 30 + 8 + 30;
+        }
 
-        double loupeW = LoupeSwatchDip;
-        double loupeH = LoupeSwatchDip + 8 + Math.Max(1, HexCard.ActualHeight);
-        double left = Math.Clamp(point.X + LoupeOffsetDip, 0, Math.Max(0, clampW - loupeW));
-        double top = Math.Clamp(point.Y + LoupeOffsetDip, 0, Math.Max(0, clampH - loupeH));
-        // Grid child: Canvas attached özellikleri yok sayılır; Margin ile yerleşir.
-        LoupeLayer.Margin = new Thickness(left, top, 0, 0);
+        // Loupe center on the cursor: align by the loupe middle, not the group center.
+        double left = Math.Clamp(point.X - (groupWidth / 2), 0, Math.Max(0, clampW - groupWidth));
+        double top = Math.Clamp(point.Y - (LoupeDiameter / 2), 0, Math.Max(0, clampH - groupHeight));
+        AffordanceGroup.Margin = new Thickness(left, top, 0, 0);
     }
 
     private void OnRootPreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -277,18 +335,18 @@ public partial class ColorPickerWindow : Window
         Pick();
     }
 
-    /// <summary>Tık: imleç altındaki örnek onaylanır, HEX panoya yazılır, örtü kapanır.</summary>
+    /// <summary>Click: the sample under the cursor is approved, the HEX is written to the clipboard, the overlay closes.</summary>
     private void Pick()
     {
         if (!_hasSample)
         {
-            Settle(Color.FromArgb(0, 0, 0, 0), false, "Renk okunamadı");
+            Settle(Color.FromArgb(0, 0, 0, 0), false, Strings.ColorPicker_ReadFailed);
             return;
         }
 
         if (_clipboard is null)
         {
-            Settle(_lastSample, false, "✗ Panoya yazılamadı");
+            Settle(_lastSample, false, Strings.ColorPicker_WriteFailed);
             return;
         }
 
@@ -296,19 +354,24 @@ public partial class ColorPickerWindow : Window
         string hex = ColorMath.ToHex(_lastSample.R, _lastSample.G, _lastSample.B);
         HexText.Text = hex;
         HintText.Visibility = Visibility.Collapsed;
-        SetStatus("Panoya yazılıyor…");
+        SetStatus(Strings.ColorPicker_Writing);
 
-        // Yazma Task 7 kapısından geçer: gate yolları senkron false, başarı BeginInvoke ile
-        // gelir — sessiz kalan false olmaz, her iki sonuç bu karta yazılır (Task 7 inceleme
-        // notu). Yazılan HEX bilinçli olarak Win+V geçmişine girmez (CanIncludeInClipboardHistory=0,
-        // ürün kararı); doğrulama Ctrl+V yapıştırmayla yapılır.
-        ArmClose(TimeSpan.FromSeconds(3)); // başarı bildirimi asılı kalırsa kapanış
+        // The write goes through the Task 7 gate: the gate paths are synchronously false and success arrives with
+        // BeginInvoke — a silent false never happens, both outcomes are written on this chip (Task 7 review
+        // note). The written HEX deliberately does not enter the Win+V history (CanIncludeInClipboardHistory=0,
+        // product decision); verification is done by pasting with Ctrl+V.
+        ArmClose(TimeSpan.FromSeconds(3)); // close if the success notification hangs
         _clipboard.PutOnClipboard(
             hex,
-            completed => Settle(_lastSample, completed, completed ? $"✓ {hex} kopyalandı" : "✗ Panoya yazılamadı"));
+            completed => Settle(
+                _lastSample,
+                completed,
+                completed
+                    ? string.Format(Strings.ColorPicker_CopiedFormat, hex)
+                    : Strings.ColorPicker_WriteFailed));
     }
 
-    /// <summary>Sonucu karta yazar, <see cref="Settled"/> yolunu yükseltir, kapanışı zamanlar.</summary>
+    /// <summary>Writes the result to the chip, raises the <see cref="Settled"/> path, schedules the close.</summary>
     private void Settle(Color color, bool written, string status)
     {
         if (_settled)
@@ -323,7 +386,7 @@ public partial class ColorPickerWindow : Window
         ArmClose(TimeSpan.FromMilliseconds(written ? 900 : 1600));
     }
 
-    /// <summary>Yazma sağlıklı bitmezse karta yazı durur; zaman kırarak örtüyü kapatır.</summary>
+    /// <summary>If the write does not finish healthily the chip text stops where it is; the timer breaks in and closes the overlay.</summary>
     private void SetStatus(string text)
     {
         StatusText.Text = text;
@@ -345,25 +408,29 @@ public partial class ColorPickerWindow : Window
         _closeTimer?.Stop();
         if (!_settled)
         {
-            // Bildirim hiç gelmediyse sessiz false kalmasın: "yazılamadı" ile kapan.
-            Settle(_lastSample, false, "✗ Panoya yazılamadı");
+            // If the notification never arrived, do not leave a silent false: close with "could not write".
+            Settle(_lastSample, false, Strings.ColorPicker_WriteFailed);
         }
 
         Close();
     }
 
-    private void OnRootPreviewKeyDown(object sender, KeyEventArgs e)
+    /// <summary>
+    /// Esc is caught only at window level: when <c>Keyboard.Focus(this)</c> gives focus to the window,
+    /// the KeyDown event route does not go down into the window; a handler bound to Root therefore
+    /// never fires. OnPreviewKeyDown sees every key that lands on the window.
+    /// </summary>
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (e.Key != Key.Escape || _picking || _settled)
+        base.OnPreviewKeyDown(e);
+        if (e.Key == Key.Escape && !_picking && !_settled)
         {
-            return;
+            e.Handled = true;
+            Cancel();
         }
-
-        e.Handled = true;
-        Cancel();
     }
 
-    /// <summary>Odak kaybı = kullanıcı başka pencereye döndü; bayat maskenin altında kalmasın.</summary>
+    /// <summary>Focus loss = the user went back to another window; it must not stay under a stale mask.</summary>
     private void OnWindowLostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
     {
         if (!_armed || _picking || _settled)
@@ -386,6 +453,7 @@ public partial class ColorPickerWindow : Window
         _closed = true;
         _closeTimer?.Stop();
         _snapshot = null;
+        _loupeBitmap = null;
         _source = null;
         base.OnClosed(e);
     }

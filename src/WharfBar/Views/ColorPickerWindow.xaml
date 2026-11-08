@@ -1,7 +1,6 @@
 <Window x:Class="WharfBar.Views.ColorPickerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Renk seçici"
         Left="-32000"
         Top="-32000"
         AllowsTransparency="True"
@@ -19,52 +18,115 @@
          layered window is shown, so the mask never darkens a sample. -->
     <Grid x:Name="Root" Background="#59000000"
           MouseMove="OnRootMouseMove"
-          PreviewMouseLeftButtonDown="OnRootPreviewMouseDown"
-          PreviewKeyDown="OnRootPreviewKeyDown">
-        <!-- Full-span crosshair at the cursor; hairlines only hit-test nothing. -->
-        <Canvas x:Name="CrosshairLayer" IsHitTestVisible="False">
-            <Rectangle x:Name="CrossH" Height="1" Fill="#CCFFFFFF" />
-            <Rectangle x:Name="CrossV" Width="1" Fill="#CCFFFFFF" />
-        </Canvas>
+          PreviewMouseLeftButtonDown="OnRootPreviewMouseDown">
+        <!-- macOS color-meter loupe: carries the magnified pixel interior centered on the cursor (from the
+             frozen frame, WriteableBitmap + NearestNeighbor), a thin crosshair and a center dot;
+             below it the glass HEX chip. The body is positioned with Margin (a Grid child: Canvas attached
+             properties are ignored). -->
+        <Canvas IsHitTestVisible="False">
+            <Grid x:Name="AffordanceGroup" Width="150">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top">
+                    <!-- Loupe: a 1 px dark outer frame + a 2 px light ring; the inner circle is clipped
+                         with a code-behind EllipseGeometry. -->
+                    <Border Width="84"
+                            Height="84"
+                            CornerRadius="999"
+                            BorderThickness="1"
+                            BorderBrush="#40000000">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="14"
+                                              ShadowDepth="0"
+                                              Opacity="0.5" />
+                        </Border.Effect>
+                        <Border CornerRadius="999"
+                                BorderThickness="2"
+                                BorderBrush="#F2FFFFFF"
+                                Background="#FF101214">
+                            <Grid x:Name="LoupeContent">
+                                <Image x:Name="LoupeImage"
+                                       Stretch="Fill"
+                                       RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                <!-- Lens depth: a glass vignette that darkens slightly toward the edge. -->
+                                <Ellipse>
+                                    <Ellipse.Fill>
+                                        <RadialGradientBrush>
+                                            <GradientStop Color="#00000000" Offset="0.55" />
+                                            <GradientStop Color="#59000000" Offset="1" />
+                                        </RadialGradientBrush>
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <!-- Two-tone reticle: a thin dark line + a white line 1 px below it;
+                                     stays legible on both light and dark pixels. -->
+                                <Rectangle Height="1"
+                                           Fill="#70000000"
+                                           VerticalAlignment="Center"
+                                           Margin="0,1,0,0" />
+                                <Rectangle Width="1"
+                                           Fill="#70000000"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,1,0" />
+                                <Rectangle Height="1"
+                                           Fill="#D9FFFFFF"
+                                           VerticalAlignment="Center" />
+                                <Rectangle Width="1"
+                                           Fill="#D9FFFFFF"
+                                           HorizontalAlignment="Center" />
+                                <!-- Center pixel marker: white fill + dark outline. -->
+                                <Ellipse Width="8"
+                                         Height="8"
+                                         Fill="#FFFFFFFF"
+                                         Stroke="#A6000000"
+                                         StrokeThickness="1"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         Panel.ZIndex="1" />
+                            </Grid>
+                        </Border>
+                    </Border>
 
-        <!-- Loupe swatch + HEX card, offset below-right of the cursor so the sampled
-             point itself stays unobstructed. Placed via Margin (Grid child: attached
-             Canvas properties would be ignored). -->
-        <Canvas x:Name="LoupeLayer" IsHitTestVisible="False"
-                HorizontalAlignment="Left" VerticalAlignment="Top">
-            <StackPanel AllowDrop="False">
-                <Ellipse x:Name="LoupeSwatch"
-                         Width="72"
-                         Height="72"
-                         Stroke="#B3FFFFFF"
-                         StrokeThickness="2"
-                         Fill="{DynamicResource ControlFillColorDefaultBrush}" />
-                <Border x:Name="HexCard"
-                        Margin="0,8,0,0"
-                        Padding="10,6"
-                        CornerRadius="8"
-                        Background="#F00D0D0D"
-                        BorderBrush="#40FFFFFF"
-                        BorderThickness="1">
-                    <StackPanel>
-                        <TextBlock x:Name="HexText"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#FFFFFFFF"
-                                   Text="…" />
-                        <TextBlock x:Name="HintText"
-                                   Margin="0,2,0,0"
-                                   FontSize="11"
-                                   Foreground="#B3FFFFFF"
-                                   Text="Tıkla: HEX'i panoya yaz · Esc: vazgeç" />
-                        <TextBlock x:Name="StatusText"
-                                   Margin="0,2,0,0"
-                                   FontSize="11"
-                                   Foreground="#FFFFFFFF"
-                                   Visibility="Collapsed" />
-                    </StackPanel>
-                </Border>
-            </StackPanel>
+                    <!-- Glass HEX chip + hint/status line: the copy result lives here. -->
+                    <Border Margin="0,12,0,0"
+                            Padding="12,7"
+                            CornerRadius="999"
+                            Background="#CC14151A"
+                            BorderBrush="#24FFFFFF"
+                            BorderThickness="1"
+                            HorizontalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <Rectangle x:Name="ChipSwatch"
+                                       Width="12"
+                                       Height="12"
+                                       RadiusX="4"
+                                       RadiusY="4"
+                                       Stroke="#40FFFFFF"
+                                       StrokeThickness="1" />
+                            <TextBlock x:Name="HexText"
+                                       Margin="8,0,0,0"
+                                       FontFamily="Consolas"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="#FFFFFFFF"
+                                       VerticalAlignment="Center"
+                                       Text="…" />
+                        </StackPanel>
+                    </Border>
+                    <TextBlock x:Name="HintText"
+                               Margin="0,8,0,0"
+                               MaxWidth="150"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               FontSize="10.5"
+                               Foreground="#B3FFFFFF" />
+                    <TextBlock x:Name="StatusText"
+                               Margin="0,8,0,0"
+                               MaxWidth="150"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               FontSize="10.5"
+                               Foreground="#FFFFFFFF"
+                               Visibility="Collapsed" />
+                </StackPanel>
+            </Grid>
         </Canvas>
     </Grid>
 </Window>
