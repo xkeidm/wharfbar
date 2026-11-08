@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Interop;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 using WharfBar.Views;
 using Wpf.Ui.Appearance;
@@ -138,6 +139,19 @@ public partial class App : Application
         AppConfig config = _config.LoadOrCreate();
         LocalizationService.Apply(config.Language);
 
+        // A token below medium integrity means a restricted launcher (sandboxed terminal or
+        // low-integrity parent). UIPI then drops every shell call this process makes — the
+        // taskbar SW_HIDE, ABM_NEW/ABM_SETPOS, SetWindowLong — so WharfBar would run with the
+        // taskbar still visible and no top-edge reservation, silently. Warn instead, and let
+        // the user decide; quitting here leaves no taskbar/AppBar state behind.
+        if (ProcessIntegrity.TryGetCurrentRid(out int integrityRid)
+            && ProcessIntegrity.IsBelowMedium(integrityRid)
+            && !ConfirmRestrictedLaunch())
+        {
+            Shutdown();
+            return;
+        }
+
         // Before _monitors.Initialize() creates the dock windows: they read this same store.
         _dockItems = new DockItemStore(_config);
 
@@ -194,6 +208,21 @@ public partial class App : Application
         Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.ApplicationIdle,
             () => _veil?.ReassertBackdrop());
+    }
+
+    /// <summary>
+    /// The process token is below medium integrity, so Windows will not let it manage the
+    /// shell (UIPI). Returns true when the user chooses to continue anyway.
+    /// </summary>
+    private static bool ConfirmRestrictedLaunch()
+    {
+        MessageBoxResult choice = MessageBox.Show(
+            Strings.Startup_RestrictedLaunch_Message,
+            Strings.Startup_RestrictedLaunch_Title,
+            MessageBoxButton.OKCancel,
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel);
+        return choice == MessageBoxResult.OK;
     }
 
     private static Window CreateHiddenUtilityWindow()
