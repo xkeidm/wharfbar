@@ -59,4 +59,37 @@ public class TrayButtonMatcherTests
         string[] liveNames = ["Steam - Dükkan", "Steam - Eşitleme"];
         Assert.Equal(0, TrayButtonMatcher.ResolveIndex(liveNames, "Steam", fallbackIndex: 99));
     }
+
+    [Fact]
+    public void ResolveIndex_UnnamedSuffixedKeyUsesTheStoredIndex()
+    {
+        // TrayMirrorOrder.UniqueKeys turns unnamed buttons into "\0#index"; there is no name to
+        // match, so the poll-time index is the only identity.
+        string?[] liveNames = ["Discord", "", "Steam"];
+        Assert.Equal(1, TrayButtonMatcher.ResolveIndex(liveNames, "\0#1", fallbackIndex: 1));
+        Assert.Equal(1, TrayButtonMatcher.ResolveIndex(liveNames, "\0#1", fallbackIndex: 1));
+    }
+
+    [Fact]
+    public void ResolveIndex_UnnamedSuffixedKeyOutOfRangeYieldsMinusOne() =>
+        Assert.Equal(-1, TrayButtonMatcher.ResolveIndex(new[] { "A", "B" }, "\0#7", fallbackIndex: 7));
+
+    [Fact]
+    public void ResolveIndex_DuplicateNameSuffixedKeyPrefersItsOwnIndex()
+    {
+        // Two apps with the same tooltip: the suffix must keep the second mirrored icon pointing
+        // at the second live button instead of the first exact-name match.
+        string[] liveNames = ["Discord", "Steam"];
+        Assert.Equal(0, TrayButtonMatcher.ResolveIndex(liveNames, "Discord\0#0", fallbackIndex: 0));
+        liveNames = ["Steam", "Discord"];
+        Assert.Equal(1, TrayButtonMatcher.ResolveIndex(liveNames, "Discord\0#1", fallbackIndex: 1));
+    }
+
+    [Fact]
+    public void ResolveIndex_DuplicateSuffixFallsBackToNameWhenTheIndexMoved()
+    {
+        // The live order changed since the poll: fall back to the name instead of a stale index.
+        string[] liveNames = ["Steam", "Discord"];
+        Assert.Equal(1, TrayButtonMatcher.ResolveIndex(liveNames, "Discord\0#0", fallbackIndex: 0));
+    }
 }

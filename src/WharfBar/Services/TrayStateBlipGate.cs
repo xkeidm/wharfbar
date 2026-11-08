@@ -29,7 +29,10 @@ internal static class TrayStateBlipGate
     internal static readonly TimeSpan MinUserIdle = TimeSpan.FromMinutes(3);
 
     /// <param name="hasSnapshot">The mirror currently shows (held) icons.</param>
-    /// <param name="blippedThisShell">A state blip already ran for this explorer instance.</param>
+    /// <param name="blippedThisShell">
+    /// A state blip already ran for this explorer instance. Maintenance requires this: a snapshot
+    /// supplied by the quiet reveal refresh must never trigger a work-area flip.
+    /// </param>
     /// <param name="trayConfirmedEmpty">The last blip showed the tray and it had no app icons.</param>
     /// <param name="sinceLastStateChange">Time since the last tray-driven state flip.</param>
     /// <param name="userIdle">Time since the last user input.</param>
@@ -40,14 +43,17 @@ internal static class TrayStateBlipGate
         TimeSpan sinceLastStateChange,
         TimeSpan userIdle)
     {
-        if (!blippedThisShell)
-        {
-            return TrayStateBlipReason.Bootstrap;
-        }
-
         bool userAway = userIdle >= MinUserIdle;
         if (!hasSnapshot)
         {
+            // Nothing on the bar: the bootstrap is the only read that can fill it. Once the quiet
+            // reveal refresh supplies a snapshot this branch is never reached — a work-area flapping
+            // blip must not run for pixels the mirror already has.
+            if (!blippedThisShell)
+            {
+                return TrayStateBlipReason.Bootstrap;
+            }
+
             // Proven empty: nothing to fetch until the shell restarts (a click/overflow session
             // re-reads the tray anyway).
             if (trayConfirmedEmpty)
@@ -60,7 +66,10 @@ internal static class TrayStateBlipGate
                 : TrayStateBlipReason.None;
         }
 
-        return userAway && sinceLastStateChange >= MaintenanceInterval
+        // Maintenance only exists to refresh a mirror that a state blip itself filled. When the
+        // quiet reveal refresh supplied the snapshot, no blip ever ran this shell — flipping the
+        // work area for pixels already on the bar would be a gratuitous jump, so stay at None.
+        return blippedThisShell && userAway && sinceLastStateChange >= MaintenanceInterval
             ? TrayStateBlipReason.Maintenance
             : TrayStateBlipReason.None;
     }

@@ -4,172 +4,114 @@ using Xunit;
 namespace WharfBar.Tests;
 
 /// <summary>
-/// Boş UIA okumasında aynanın ne yapacağı. Donma "son iyi snapshot'ı tut" demekse de
-/// <b>sınırlı</b> olmalı (blip tazelemesi 60 sn'de bir kısıtlı ve pencerelerden biri
-/// maximize olduğu hiç çalışmıyor; sınırsız tolerans barı kalıcı bayat bırakıyor) — ama
-/// <b>bir blip aralığını da aşmamalı</b>. Eşiğin ikisini birden yapması gerekiyor: normal
-/// park/throttle boşluğunda ikonlar kaybolmamalı, gerçekten boş tray ise makul sürede
-/// temizlenmeli. Saf mantık; Win32 yok.
+/// What the mirror does on an empty UIA read. Because the parked auto-hide tray virtualizes its XAML
+/// buttons, a direct read <b>normally</b> returns empty while WharfBar is running; that is not
+/// evidence and must never clear the mirror. Only a refresh that reads a genuinely shown tray as
+/// empty (<see cref="TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty"/>) clears it —
+/// a stale icon is better than an empty bar (and the work-area jump needed to fill it).
+/// Pure logic; no Win32.
 /// </summary>
 public class TrayMirrorEmptyReadTests
 {
-    /// <summary>Grace penceresine düşen okuma sayısı — grace'ın aşması gereken asgari pencere.</summary>
-    private static int PollsPerBlipInterval =>
-        (int)Math.Ceiling(TrayMirrorService.EmptyReadGraceWindow.TotalMilliseconds / TrayMirrorService.PollInterval.TotalMilliseconds);
-
     /// <summary>
-    /// Regresyonun asıl kilidi: grace penceresi yenileme boşluğundan <b>uzun</b> olmalı
-    /// (<c>3 × 1.5 sn = 4.5 sn</c> iken ikonlar 60 sn'lik boşluğun %7.5'inde görünür
-    /// kalıyordu) ama "bayat kalıcı donma" tarafına da kaymamalı — iki okumalık toleransı
-    /// aşan bir değer yalnız ölü ikon penceresini uzatır.
+    /// Measured regression: when parked, a direct read returns empty on <b>every</b> poll. The
+    /// mirror decision is a tiny state machine — an empty read only changes the held snapshot when
+    /// the tray was revealed and proved empty; a later parked read must not resurrect or blank it.
     /// </summary>
     [Fact]
-    public void GraceWindow_CoversTheWholeWindow_PlusTwoPolls()
+    public void ParkedPollSequence_HoldsTheSnapshotUntilEvidenceClearsIt()
     {
-        TimeSpan grace = TrayMirrorService.PollInterval * TrayMirrorService.EmptyReadGraceReads;
-
-        Assert.True(
-            grace > TrayMirrorService.EmptyReadGraceWindow,
-            $"grace {grace.TotalSeconds}s, pencere ({TrayMirrorService.EmptyReadGraceWindow.TotalSeconds}s) boyunca sürmüyor");
-        Assert.True(
-            grace <= TrayMirrorService.EmptyReadGraceWindow + (2 * TrayMirrorService.PollInterval),
-            $"grace {grace.TotalSeconds}s, iki okumalık toleransı aşıyor — sınırsız donma yönünde kayıyor");
-        Assert.True(TrayMirrorService.EmptyReadGraceWindow > TrayMirrorService.BlipMinInterval);
-    }
-
-    /// <summary>
-    /// Sessiz yol yokken (show-only park halinde boş) tray'i yalnız bir work-area sarsıntısı
-    /// okuyabilir; o yüzden snapshot kanıt gelene kadar tutulur — bayat ikon zıplamadan iyidir.
-    /// </summary>
-    [Fact]
-    public void NoQuietRefresh_HoldsTheSnapshot_UntilEvidence()
-    {
-        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            TrayMirrorService.EmptyReadGraceReads + 10_000, heldItemCount: 3,
-            trayConfirmedEmptyByBlip: false, quietRefreshAvailable: false));
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            1, heldItemCount: 3, trayConfirmedEmptyByBlip: true, quietRefreshAvailable: false));
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            1, heldItemCount: 0, trayConfirmedEmptyByBlip: false, quietRefreshAvailable: false));
-    }
-
-    /// <summary>
-    /// Ölçülen regresyonun birinci kriteri: park halinde doğrudan okuma <b>her</b> poll'da
-    /// boş döner ve blip throttle edildiği için hiç kanıt gelmez. Bu boşluk boyunca ayna
-    /// hiçbir zaman temizlenmemeli.
-    /// </summary>
-    [Fact]
-    public void ThrottleGap_UpToOneBlipInterval_NeverBlanksTheMirror()
-    {
-        for (int poll = 1; poll <= PollsPerBlipInterval; poll++)
+        // A good snapshot is on the bar while every direct read comes back empty with no evidence.
+        int held = 3;
+        for (int poll = 1; poll <= 25; poll++)
         {
-            Assert.True(
-                TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-                    consecutiveEmptyReads: poll,
-                    heldItemCount: 3,
-                    trayConfirmedEmptyByBlip: false),
-                $"t={poll * TrayMirrorService.PollInterval.TotalSeconds:F1}s: mirror blip aralığı dolmadan temizlendi");
+            bool keep = TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(held, trayConfirmedEmptyByRefresh: false);
+            held = keep ? held : 0;
+            Assert.True(keep, $"poll {poll}: the mirror was cleared without evidence");
+            Assert.Equal(3, held);
         }
+
+        // A refresh that read buttons replaces the snapshot (PollUia assigns the fresh item count).
+        held = 5;
+
+        // A revealed tray that read back empty is evidence: the snapshot goes away.
+        bool keepAfterEvidence = TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(held, trayConfirmedEmptyByRefresh: true);
+        Assert.False(keepAfterEvidence);
+        held = keepAfterEvidence ? held : 0;
+        Assert.Equal(0, held);
+
+        // And a later parked/inconclusive read cannot resurrect the cleared mirror.
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(held, trayConfirmedEmptyByRefresh: false));
     }
 
-    /// <summary>
-    /// O2'nin asıl amacı korunuyor: grace tükenince ayna temizlenir, tıklama kapatılmış bir
-    /// tray uygulamasının bayat UIA öğesine gitmez.
-    /// </summary>
     [Fact]
-    public void GraceEnd_ClearsTheMirror_WhenNoBlipEverConfirmed()
+    public void ConfirmedEmptyRefresh_ClearsTheMirror()
     {
-        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            TrayMirrorService.EmptyReadGraceReads - 1, heldItemCount: 3, trayConfirmedEmptyByBlip: false));
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            TrayMirrorService.EmptyReadGraceReads, heldItemCount: 3, trayConfirmedEmptyByBlip: false));
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            TrayMirrorService.EmptyReadGraceReads + 40, heldItemCount: 3, trayConfirmedEmptyByBlip: false));
-    }
-
-    /// <summary>
-    /// "Taze blip de boş döndü" ayrı kanıt: tray gösterildi, yine de boş okundu. Grace
-    /// harcanmaz — kullanıcı gerçekten her şeyi kapatmışsa birkaç saniyede temizlenir.
-    /// </summary>
-    [Fact]
-    public void ConfirmedEmptyBlip_ClearsTheMirror_OnTheVeryFirstEmptyRead()
-    {
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            consecutiveEmptyReads: 1, heldItemCount: 3, trayConfirmedEmptyByBlip: true));
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            consecutiveEmptyReads: 5, heldItemCount: 1, trayConfirmedEmptyByBlip: true));
+        // The tray really was shown and read as empty: the user has closed all tray applications.
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(heldItemCount: 3, trayConfirmedEmptyByRefresh: true));
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(heldItemCount: 1, trayConfirmedEmptyByRefresh: true));
     }
 
     [Fact]
     public void EmptyRead_NothingHeld_ReportsEmpty()
     {
-        // Hiç iyi snapshot yok: tutulacak bir şey de yok, boş liste zaten doğru.
-        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(1, heldItemCount: 0, trayConfirmedEmptyByBlip: false));
+        // There is no good snapshot: there is nothing to hold on to, and the empty list is already correct.
+        Assert.False(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(heldItemCount: 0, trayConfirmedEmptyByRefresh: false));
     }
 
     /// <summary>
-    /// Grace'in dayandığı ayrımın kaynağı: yalnız <b>gösterilmiş</b> bir tray'in boş
-    /// okunması kanıttır. Throttle, tıklamada ya da maximize pencere yüzünden denenmeyen
-    /// blip ve açılmadı/istisna veren peek kanıt DEĞİLDİR — bu yüzden grace sürer.
+    /// Source of empty-read evidence: only an empty read of a tray that was <b>fully on screen</b>
+    /// while the read ran counts as evidence. A refresh that was not attempted because of the
+    /// throttle, the user being busy, full screen or a failed reveal, and a peek that never opened,
+    /// are NOT evidence.
     /// </summary>
     [Theory]
-    // Tray hiç gösterilmedi (peek açılmadı).
+    // The tray was never shown (the peek did not open / the reveal timed out).
     [InlineData(false, false, 0)]
-    // Tray gösterildi ama UIA gezintisi patladı — hiçbir şey okunmadı.
+    // The tray was shown but the UIA walk blew up — nothing was read.
     [InlineData(true, true, 0)]
     [InlineData(true, true, 7)]
-    public void BlipThatNeverReadTheTray_IsNotEvidence(bool trayShown, bool readWalkFailed, int readCount)
+    public void RefreshThatNeverReadTheTray_IsNotEvidence(bool trayFullyOnScreen, bool readWalkFailed, int readCount)
     {
         TrayMirrorService.TrayBlipOutcome outcome =
-            TrayMirrorService.ClassifyBlipRead(trayShown, readWalkFailed, readCount);
+            TrayMirrorService.ClassifyBlipRead(trayFullyOnScreen, readWalkFailed, readCount);
 
         Assert.Equal(TrayMirrorService.TrayBlipOutcome.Inconclusive, outcome);
-        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(
-            consecutiveEmptyReads: 1, heldItemCount: 3, trayConfirmedEmptyByBlip: false));
+        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(heldItemCount: 3, trayConfirmedEmptyByRefresh: false));
     }
 
     [Fact]
-    public void BlipOverAShownTray_ReadsEmpty_ConfirmsTheTrayIsEmpty()
+    public void TrayNotFullyOnScreen_EmptyReadIsNotConfirmedEmpty()
+    {
+        // The peek opened but the tray rect was unreadable or explorer was mid slide-out:
+        // "not parked" is not the same as "looked at". A read that never saw the tray must hold
+        // the held snapshot instead of wiping it.
+        Assert.Equal(
+            TrayMirrorService.TrayBlipOutcome.Inconclusive,
+            TrayMirrorService.ClassifyBlipRead(trayFullyOnScreen: false, readWalkFailed: false, readCount: 0));
+        Assert.True(TrayMirrorService.ShouldHoldSnapshotOnEmptyRead(heldItemCount: 3, trayConfirmedEmptyByRefresh: false));
+    }
+
+    [Fact]
+    public void FullyShownTray_ReadsEmpty_ConfirmsTheTrayIsEmpty()
     {
         Assert.Equal(
             TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty,
-            TrayMirrorService.ClassifyBlipRead(trayShown: true, readWalkFailed: false, readCount: 0));
+            TrayMirrorService.ClassifyBlipRead(trayFullyOnScreen: true, readWalkFailed: false, readCount: 0));
     }
 
     [Fact]
-    public void BlipOverAShownTray_WithButtons_IsARefresh()
+    public void FullyShownTray_WithButtons_IsARefresh()
     {
         Assert.Equal(
             TrayMirrorService.TrayBlipOutcome.Refreshed,
-            TrayMirrorService.ClassifyBlipRead(trayShown: true, readWalkFailed: false, readCount: 3));
+            TrayMirrorService.ClassifyBlipRead(trayFullyOnScreen: true, readWalkFailed: false, readCount: 3));
     }
 
-    /// <summary>
-    /// Engel (maximize pencere / throttle) bir blip'i <b>deneceği</b> anlamına gelmez; bu
-    /// yüzden grace yalnız bu sonucu sayar. Değer farkı yanlışlıkla düşerse (throttle
-    /// edilmiş bir deneme kanıt sayılırsa) ayna yine de 60 sn'de bir boşalır.
-    /// </summary>
     [Fact]
-    public void SkippedBlip_IsDistinguishableFromEvidence()
+    public void SkippedRefresh_IsDistinguishableFromEvidence()
     {
         Assert.NotEqual(TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty, TrayMirrorService.TrayBlipOutcome.Skipped);
         Assert.NotEqual(TrayMirrorService.TrayBlipOutcome.ConfirmedEmpty, TrayMirrorService.TrayBlipOutcome.Inconclusive);
-    }
-
-    [Fact]
-    public void ShowOnly_IsTriedUntilAProbeFails()
-    {
-        Assert.True(TrayMirrorService.ShouldTryShowOnly(null));
-        Assert.True(TrayMirrorService.ShouldTryShowOnly(true));
-        Assert.False(TrayMirrorService.ShouldTryShowOnly(false));
-    }
-
-    [Fact]
-    public void ShowOnly_SuccessSticks_AndAMissBeforeSuccessLatchesTheStateBlip()
-    {
-        Assert.True(TrayMirrorService.LatchShowOnly(null, foundIcons: true));
-        Assert.True(TrayMirrorService.LatchShowOnly(true, foundIcons: false));
-        Assert.False(TrayMirrorService.LatchShowOnly(null, foundIcons: false));
-        Assert.False(TrayMirrorService.LatchShowOnly(false, foundIcons: true));
     }
 }

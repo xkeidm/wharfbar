@@ -38,6 +38,42 @@ internal static class TrayAutoHideReveal
     internal static bool IsFullyOnScreen(RECT tray, RECT monitor) =>
         tray.Height > 0 && tray.Top <= monitor.Bottom - tray.Height && tray.Bottom <= monitor.Bottom;
 
+    /// <summary>
+    /// Current fully-on-screen state of <c>Shell_TrayWnd</c>, for the empty-read evidence rule:
+    /// <see cref="IsParkedNow"/> false is not proof that the tray was readable — the rect read can
+    /// fail and explorer also passes through a mid slide-out state, where the peek is open but no
+    /// button was ever looked at. False whenever the rect or monitor cannot be read.
+    /// </summary>
+    internal static bool IsFullyOnScreenNow(IntPtr tray)
+    {
+        if (tray == IntPtr.Zero
+            || !NativeMethods.GetWindowRect(tray, out RECT rect)
+            || !TryGetMonitor(tray, out RECT monitor))
+        {
+            return false;
+        }
+
+        return IsFullyOnScreen(rect, monitor);
+    }
+
+    /// <summary>
+    /// Current parked state of <c>Shell_TrayWnd</c>, for the quiet mirror read: a parked tray
+    /// shows only its 2 px sliver and explorer virtualizes the XAML buttons, so the read has to
+    /// hover-reveal it first (see <see cref="TrayRevealPolicy"/>). False when the window rect or
+    /// the monitor cannot be read.
+    /// </summary>
+    internal static bool IsParkedNow(IntPtr tray)
+    {
+        if (tray == IntPtr.Zero
+            || !NativeMethods.GetWindowRect(tray, out RECT rect)
+            || !TryGetMonitor(tray, out RECT monitor))
+        {
+            return false;
+        }
+
+        return IsParked(rect, monitor);
+    }
+
     /// <summary>Pure: a window a work-area change would move/resize (maximized, snapped, or
     /// any normal frame reaching into the bottom strip the taskbar would reserve).</summary>
     internal static bool IsAffectedByBottomReservation(RECT window, RECT monitor, int stripPx, bool maximized)
@@ -56,9 +92,16 @@ internal static class TrayAutoHideReveal
     /// <summary>
     /// Hovers the bottom edge at <paramref name="x"/> and waits until explorer has slid the
     /// tray fully on screen. True immediately when the tray is not parked. The caller restores
-    /// the cursor. False on timeout — the caller decides whether a state flip is worth it.
+    /// the cursor. <paramref name="onCursorParked"/> is invoked with the physical point the
+    /// pointer was parked on, so the caller's cursor lease can restore it only while it is still
+    /// there. False on timeout — the caller decides whether a state flip is worth it.
     /// </summary>
-    internal static bool TryReveal(IntPtr tray, int x, int timeoutMs, out int elapsedMs)
+    internal static bool TryReveal(
+        IntPtr tray,
+        int x,
+        int timeoutMs,
+        Action<int, int>? onCursorParked,
+        out int elapsedMs)
     {
         elapsedMs = 0;
         if (tray == IntPtr.Zero
@@ -74,7 +117,9 @@ internal static class TrayAutoHideReveal
         }
 
         int edgeX = Math.Clamp(x, monitor.Left + 1, monitor.Right - 2);
-        SendInputMouse.MoveTo(edgeX, monitor.Bottom - 1);
+        int edgeY = monitor.Bottom - 1;
+        onCursorParked?.Invoke(edgeX, edgeY);
+        SendInputMouse.MoveTo(edgeX, edgeY);
         var sw = System.Diagnostics.Stopwatch.StartNew();
         while (sw.ElapsedMilliseconds < timeoutMs)
         {

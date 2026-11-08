@@ -85,8 +85,11 @@ internal static class SendInputMouse
         _ = NativeMethods.SendInput(1, move, Marshal.SizeOf<INPUT>());
     }
 
-    /// <summary>Remembers the cursor now; disposing the lease puts it back (idempotent).</summary>
-    internal static IDisposable HoldCursorHome()
+    /// <summary>
+    /// Remembers the cursor now; disposing the lease puts it back (idempotent) unless the pointer
+    /// was moved since it was parked (see <see cref="CursorStillParked"/>).
+    /// </summary>
+    internal static CursorLease HoldCursorHome()
     {
         if (!GetCursorPos(out POINT home))
         {
@@ -97,12 +100,22 @@ internal static class SendInputMouse
     }
 
     /// <summary>
+    /// Pure: only restore the pointer while it still sits where the reveal parked it. If the user
+    /// (or another owner) moved the mouse in the meantime, putting it back would yank it away.
+    /// A one-pixel tolerance absorbs the absolute-input quantisation round trip
+    /// (<see cref="NormalizeAbsolute"/> maps physical pixels to 0–65535 and back), so the pointer
+    /// is still recognised as parked when Windows lands it one pixel off.
+    /// </summary>
+    internal static bool CursorStillParked(int cursorX, int cursorY, int parkedX, int parkedY) =>
+        Math.Abs(cursorX - parkedX) <= 1 && Math.Abs(cursorY - parkedY) <= 1;
+
+    /// <summary>
     /// Right-clicks at physical pixel (<paramref name="x"/>, <paramref name="y"/>) and leaves
     /// the cursor there until the returned lease is disposed. Tray owners read
     /// <c>GetCursorPos</c> while building the menu; restoring before that makes the click
     /// look like it landed on the top bar and the menu never opens.
     /// </summary>
-    internal static IDisposable RightClickHoldingCursor(int x, int y)
+    internal static CursorLease RightClickHoldingCursor(int x, int y)
     {
         _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
         if (!GetCursorPos(out POINT previous))
@@ -112,7 +125,11 @@ internal static class SendInputMouse
 
         _ = SetCursorPos(x, y);
         SendAbsoluteClick(x, y);
-        return new CursorLease(previous.X, previous.Y);
+        var lease = new CursorLease(previous.X, previous.Y);
+        // The click parks the pointer on the button; the lease returns it to where it came from
+        // only while it is still there, so a menu the user moved the mouse over is not yanked.
+        lease.ParkedAt(x, y);
+        return lease;
     }
 
     /// <summary>
@@ -157,7 +174,12 @@ internal static class SendInputMouse
         }
         finally
         {
-            _ = SetCursorPos(previous.X, previous.Y);
+            // Only put the pointer back if it still sits on the click point: a menu the user
+            // moved the mouse over must not be yanked back to the previous position.
+            if (GetCursorPos(out POINT now) && CursorStillParked(now.X, now.Y, x, y))
+            {
+                _ = SetCursorPos(previous.X, previous.Y);
+            }
         }
     }
 
@@ -194,11 +216,21 @@ internal static class SendInputMouse
         return inputs;
     }
 
-    private sealed class CursorLease : IDisposable
+    /// <summary>
+    /// Cursor restore lease. When <see cref="ParkedAt"/> was called (a reveal actually moved the
+    /// pointer), the home position is restored only if the cursor still sits on the parked point;
+    /// a pointer the user moved is left alone. Disposal is idempotent and thread-safe because the
+    /// tray service may restore the active lease from the exit path while the STA worker is still
+    /// winding down.
+    /// </summary>
+    internal sealed class CursorLease : IDisposable
     {
         private readonly int _x;
         private readonly int _y;
-        private bool _disposed;
+        private int _parkedX;
+        private int _parkedY;
+        private int _hasParkedPoint;
+        private int _disposed;
 
         internal CursorLease(int x, int y)
         {
@@ -206,14 +238,28 @@ internal static class SendInputMouse
             _y = y;
         }
 
+        /// <summary>Records where a reveal parked the pointer, so disposal can check it first.</summary>
+        internal void ParkedAt(int x, int y)
+        {
+            _parkedX = x;
+            _parkedY = y;
+            Volatile.Write(ref _hasParkedPoint, 1);
+        }
+
         public void Dispose()
         {
-            if (_disposed)
+            if (Interlocked.Exchange(ref _disposed, 1) != 0)
             {
                 return;
             }
 
-            _disposed = true;
+            if (Volatile.Read(ref _hasParkedPoint) != 0
+                && GetCursorPos(out POINT now)
+                && !CursorStillParked(now.X, now.Y, _parkedX, _parkedY))
+            {
+                return;
+            }
+
             _ = SetCursorPos(_x, _y);
         }
     }

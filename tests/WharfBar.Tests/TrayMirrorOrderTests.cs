@@ -7,6 +7,34 @@ namespace WharfBar.Tests;
 public class TrayMirrorOrderTests
 {
     [Fact]
+    public void UniqueKeys_KeepsEveryButton_WithUniqueKeysInOrder()
+    {
+        IReadOnlyList<string> keys = TrayMirrorOrder.UniqueKeys(
+            ["Discord", "", "Discord", "EarTrumpet: 42%", null]);
+
+        Assert.Equal(5, keys.Count);
+        Assert.Equal("Discord", keys[0]);
+        Assert.Equal("\0#1", keys[1]);
+        Assert.NotEqual(keys[0], keys[2]);
+        Assert.Contains("#2", keys[2], StringComparison.Ordinal);
+        Assert.Equal("EarTrumpet: 42%", keys[3]);
+        Assert.Equal("\0#4", keys[4]);
+        Assert.Equal(keys.Count, keys.Distinct(StringComparer.Ordinal).Count());
+    }
+
+    [Fact]
+    public void UniqueKeys_NoSuffixWhenNamesAreAlreadyUnique()
+    {
+        Assert.Equal(["A", "B", "C"], TrayMirrorOrder.UniqueKeys(["A", "B", "C"]));
+    }
+
+    [Fact]
+    public void UniqueKeys_TrimsNamesSoPersistedTooltipKeysStillMatch()
+    {
+        Assert.Equal(["Steam"], TrayMirrorOrder.UniqueKeys([" Steam "]));
+    }
+
+    [Fact]
     public void UniqueByKey_KeepsFirstAndDropsDuplicates()
     {
         var items = new List<TrayMirrorItem>

@@ -192,7 +192,10 @@ public partial class DockWindow : Window
             config.Dock.IconSize <= 0 ? DockConfig.DefaultIconSize : config.Dock.IconSize,
             DockConfig.MinIconSize,
             DockConfig.MaxIconSize);
-        _autoHide = new DockAutoHideController(config.Dock.AutoHide, Dispatcher);
+        _autoHide = new DockAutoHideController(
+            config.Dock.AutoHide,
+            Dispatcher,
+            () => _taskbar.IsStealthPeekActive);
 
         // Seed the "what has already been applied" baselines so the first ApplyConfigChanges
         // does not mistake the current config for a change.
@@ -1215,7 +1218,7 @@ public partial class DockWindow : Window
         pinItem.Click += (_, _) => TogglePin(item, pin: !item.IsPinned);
         menu.Items.Add(pinItem);
 
-        // 3. Görevi sonlandır (Force Quit)
+        // 3. End task (Force Quit)
         var forceQuitItem = new MenuItem
         {
             Header = Strings.Dock_EndTask,
@@ -1225,7 +1228,7 @@ public partial class DockWindow : Window
         forceQuitItem.Click += (_, _) => ForceQuitApp(item);
         menu.Items.Add(forceQuitItem);
 
-        // 4. Pencereyi kapat (Close Window)
+        // 4. Close window (Close Window)
         var closeItem = new MenuItem
         {
             Header = Strings.Dock_CloseWindow,
@@ -1275,7 +1278,7 @@ public partial class DockWindow : Window
             }
         }
 
-        // 6. Pencereler — the cached window table only. EnumWindows on the UI thread stalls on a
+        // 6. Windows — the cached window table only. EnumWindows on the UI thread stalls on a
         // hung HWND, and the menu opens on the UI thread. Gated on IsRunning, not on Section: a
         // pinned app that is running stays one Pinned tile with IsRunning and a live handle,
         // and that is the tile a user actually right-clicks.

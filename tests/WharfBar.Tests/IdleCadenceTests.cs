@@ -14,6 +14,18 @@ public class IdleCadenceTests
     }
 
     [Fact]
+    public void TrayPeekSuppressesTheDockEdgeBandShow()
+    {
+        // The quiet mirror reveal parks the real cursor in the bottom show band for a few hundred
+        // ms. Without this suppression the dock would pop every 20–60 s during the refresh.
+        Assert.False(DockAutoHideController.ShouldShowForCursor(trayPeekActive: true, inEdgeBand: true, inDockRect: false));
+        Assert.False(DockAutoHideController.ShouldShowForCursor(trayPeekActive: true, inEdgeBand: false, inDockRect: true));
+        Assert.True(DockAutoHideController.ShouldShowForCursor(trayPeekActive: false, inEdgeBand: true, inDockRect: false));
+        Assert.True(DockAutoHideController.ShouldShowForCursor(trayPeekActive: false, inEdgeBand: false, inDockRect: true));
+        Assert.False(DockAutoHideController.ShouldShowForCursor(trayPeekActive: false, inEdgeBand: false, inDockRect: false));
+    }
+
+    [Fact]
     public void ProgressWalkBacksOffUntilAButtonIsExposed()
     {
         Assert.Equal(DockTaskbarProgress.QuietInterval, DockTaskbarProgress.NextInterval(anyRunning: false, trayExposed: true));

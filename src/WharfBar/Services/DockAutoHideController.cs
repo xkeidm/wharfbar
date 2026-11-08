@@ -41,6 +41,7 @@ internal sealed class DockAutoHideController : IDisposable
     private bool _enabled;
     private readonly DispatcherTimer _pollTimer;
     private readonly DispatcherTimer _hideTimer;
+    private readonly Func<bool>? _isTrayPeekActive;
     private Func<EdgeProbeContext>? _probe;
     private bool _fullscreen;
     private bool _disposed;
@@ -50,9 +51,10 @@ internal sealed class DockAutoHideController : IDisposable
     {
     }
 
-    internal DockAutoHideController(bool enabled, Dispatcher dispatcher)
+    internal DockAutoHideController(bool enabled, Dispatcher dispatcher, Func<bool>? isTrayPeekActive = null)
     {
         _enabled = enabled;
+        _isTrayPeekActive = isTrayPeekActive;
         State = DockAutoHideVisualState.Visible;
         _pollTimer = new DispatcherTimer(DispatcherPriority.Background, dispatcher)
         {
@@ -179,12 +181,22 @@ internal sealed class DockAutoHideController : IDisposable
 
         EdgeProbeContext ctx = _probe();
         int bandHeightPx = Display.DipToPixels(EdgeBandDip, ctx.Dpi);
+        bool trayPeekActive = _isTrayPeekActive?.Invoke() == true;
 
-        if (IsInEdgeBand(pos.X, pos.Y, ctx, bandHeightPx) || IsInDockRect(pos.X, pos.Y, ctx))
+        if (ShouldShowForCursor(trayPeekActive, IsInEdgeBand(pos.X, pos.Y, ctx, bandHeightPx), IsInDockRect(pos.X, pos.Y, ctx)))
         {
             _hideTimer.Stop();
             ApplyPollInterval(PollMs);
             RequestShow();
+            return;
+        }
+
+        if (trayPeekActive)
+        {
+            // A tray peek/reveal owns the pointer: the quiet mirror refresh parks the real cursor
+            // in the bottom show band for its hover gesture. Keep the dock exactly where it is
+            // instead of treating that synthetic position as a user hover.
+            ApplyPollInterval(PollIntervalMs(State));
             return;
         }
 
@@ -217,6 +229,15 @@ internal sealed class DockAutoHideController : IDisposable
 
         RequestHide();
     }
+
+    /// <summary>
+    /// Pure: does the current cursor position request the dock? A tray peek/reveal is excluded:
+    /// its hover-reveal parks the real pointer inside the bottom edge band, so a plain position
+    /// test would pop the dock every 20–60 s during the quiet mirror refresh. Normal auto-hide is
+    /// untouched outside a peek.
+    /// </summary>
+    internal static bool ShouldShowForCursor(bool trayPeekActive, bool inEdgeBand, bool inDockRect) =>
+        !trayPeekActive && (inEdgeBand || inDockRect);
 
     private static bool IsInEdgeBand(int x, int y, EdgeProbeContext ctx, int bandHeightPx)
     {

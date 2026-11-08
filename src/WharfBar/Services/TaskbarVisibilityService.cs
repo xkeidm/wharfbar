@@ -26,7 +26,7 @@ internal sealed class TaskbarVisibilityService
     private bool _hidden;
     private readonly TrayPeekTracker _peekTracker = new(AppBarPlacement.TrayPeekMaxDuration);
     private readonly TaskbarWatchdogStateStore _watchdogStore = new(TaskbarWatchdog.DefaultDirectory());
-    private bool _stealthPeek;
+    private volatile bool _stealthPeek;
     private bool _haveGapAtPeekStart;
     private int _gapAtPeekStart;
     private int _expandingWorkArea;
@@ -39,8 +39,8 @@ internal sealed class TaskbarVisibilityService
     private Task? _restoreTask;
 
     /// <summary>
-    /// Restore tamamlandığından emin olmak için çıkış yollarında beklenen üst sınır.
-    /// Ölçülen en kötü blok ~13 sn idi; tavan iki katından fazla.
+    /// Upper bound to wait on exit paths to make sure restore has completed.
+    /// The worst measured block was ~13 s; the ceiling is more than twice that.
     /// </summary>
     internal static readonly TimeSpan RestoreWaitTimeout = TimeSpan.FromSeconds(30);
 
@@ -69,7 +69,12 @@ internal sealed class TaskbarVisibilityService
     /// <summary>True while a tray peek has temporarily shown <c>Shell_TrayWnd</c>.</summary>
     internal bool IsTrayPeekActive => _peekTracker.IsActive;
 
-    /// <summary>True when the active peek parked the tray off-screen (no visible flash).</summary>
+    /// <summary>
+    /// True when the active peek parked the tray off-screen (no visible flash). Both the quiet
+    /// mirror reveal and a mirrored click hold a stealth peek while their hover gesture owns the
+    /// cursor; the dock auto-hide consults this so the parked pointer does not pop the dock.
+    /// Read from the UI thread while a worker starts/ends the peek.
+    /// </summary>
     internal bool IsStealthPeekActive => IsTrayPeekActive && _stealthPeek;
 
     internal void CaptureAndHide()
@@ -647,9 +652,9 @@ internal sealed class TaskbarVisibilityService
                     reserved = _reservedBottomByMonitor.GetValueOrDefault(monitor.DeviceId);
                 }
 
-                // feedsBreaker yalnız birincil monitör: keep-hidden watch TÜM rezervasyonlu
-                // monitörleri gezdiği için ikincil monitörün ölü-SPI gürültüsü devre kesicisini
-                // açık tutup çıkıştaki TrySetPrimaryWorkArea geri yüklemesini kıracaktı.
+                // feedsBreaker is primary-monitor only: the keep-hidden watch walks ALL reserved
+                // monitors, so a secondary monitor's dead-SPI noise would keep the breaker
+                // tripped and break the TrySetPrimaryWorkArea restore on exit.
                 if (TaskbarNative.TryExpandWorkAreaBottom(
                         monitor, reserved, broadcast, feedsBreaker: monitor.IsPrimary))
                 {

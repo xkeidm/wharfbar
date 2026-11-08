@@ -82,6 +82,22 @@ public class TrayStateBlipGateTests
     }
 
     [Fact]
+    public void QuietRefreshFilledTheMirror_NoStateBlipIsNeeded()
+    {
+        // The quiet reveal refresh can supply the bootstrap snapshot without ever flipping the
+        // work area. `blippedThisShell` is still false then; the gate must look at the snapshot,
+        // not at "has a blip ever run", or it would jump the desktop for pixels already shown.
+        Assert.Equal(
+            TrayStateBlipReason.None,
+            TrayStateBlipGate.Decide(hasSnapshot: true, blippedThisShell: false, trayConfirmedEmpty: false,
+                sinceLastStateChange: TimeSpan.Zero, userIdle: Active));
+        Assert.Equal(
+            TrayStateBlipReason.None,
+            TrayStateBlipGate.Decide(hasSnapshot: true, blippedThisShell: false, trayConfirmedEmpty: false,
+                sinceLastStateChange: TimeSpan.FromMinutes(30), userIdle: Away));
+    }
+
+    [Fact]
     public void OnlyTheFirstBootstrap_SkipsTheFullWindowCheck()
     {
         Assert.False(TrayStateBlipGate.ChecksAllAffectedWindows(TrayStateBlipReason.Bootstrap));

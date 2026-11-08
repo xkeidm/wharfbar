@@ -57,4 +57,16 @@ public class TrayAutoHideRevealTests
     {
         Assert.False(TrayAutoHideReveal.IsAffectedByBottomReservation(Rect(1920, 40, 3840, 1080), Monitor, 72, maximized: false));
     }
+
+    [Fact]
+    public void CursorLease_RestoresOnlyWhileThePointerStillSitsWhereTheRevealParkedIt()
+    {
+        // A reveal parks the pointer at the bottom edge; the lease may put it back only while it
+        // is still there. A pointer the user moved in the meantime is left alone. A one-pixel
+        // tolerance absorbs the absolute-input quantisation round trip.
+        Assert.True(SendInputMouse.CursorStillParked(cursorX: 1700, cursorY: 1079, parkedX: 1700, parkedY: 1079));
+        Assert.True(SendInputMouse.CursorStillParked(cursorX: 1701, cursorY: 1078, parkedX: 1700, parkedY: 1079));
+        Assert.False(SendInputMouse.CursorStillParked(cursorX: 1700, cursorY: 500, parkedX: 1700, parkedY: 1079));
+        Assert.False(SendInputMouse.CursorStillParked(cursorX: 100, cursorY: 1079, parkedX: 1700, parkedY: 1079));
+    }
 }
