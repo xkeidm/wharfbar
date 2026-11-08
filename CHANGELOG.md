@@ -38,6 +38,8 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 - The island drag-target chrome no longer clips its extra elements, leaks the glow effect, or falls back to a Turkish badge.
 - The tray mirror no longer blanks itself when the parked tray reads empty: only a refresh that actually showed the tray and confirmed it empty (`TrayBlipOutcome.ConfirmedEmpty`) clears the snapshot; throttled, busy, fullscreen and reveal-timeout outcomes keep the last good icons.
 - Unnamed or repeated UIA tray buttons get distinct index-suffixed keys, so icon de-duplication cannot drop them from the mirror.
+- A settings write that cannot reach the disk (a read-only profile, or a restricted/low-integrity launch that cannot write into `%AppData%`) no longer crashes the app: `ConfigService.Save` keeps the in-memory config (`LastSaveError`) and the session continues. The restricted-launch warning now says settings will not be saved in that mode.
+- Unhandled exceptions (dispatcher, app domain, task scheduler) are written to a best-effort crash log — `%LOCALAPPDATA%\WharfBar\logs\`, falling back to `%TEMP%` and the app folder — with the process integrity RID, so an APPCRASH leaves a managed stack instead of only an event-log code.
 
 ## [1.0.0-beta] — 2026-10-14
 

@@ -824,9 +824,9 @@ File copies on disk are not deleted; you need to remove them separately with “
     <value>WharfBar: restricted launch</value>
   </data>
   <data name="Startup_RestrictedLaunch_Message" xml:space="preserve">
-    <value>WharfBar was started with restricted permissions (for example from a sandboxed terminal). Windows does not let it hide the taskbar or reserve the top edge of the screen, so the desktop will not line up with the bar.
+    <value>WharfBar was started with restricted permissions (for example from a sandboxed workspace or terminal). Windows does not let it hide the taskbar or reserve the top edge of the screen, so the desktop will not line up with the bar. Settings changes will not be saved in this mode.
 
-Start WharfBar normally: run.bat, or the built WharfBar.exe from a normal terminal.
+Start WharfBar outside the sandbox: copy the built files out of the sandboxed folder (for example to %LOCALAPPDATA%\WharfBar) and run WharfBar.exe there, or start run.bat from a normal terminal.
 
 OK: continue anyway
 Cancel: quit</value>

@@ -122,6 +122,10 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // First, so any exception from the startup path (config, theme, shell) leaves a managed
+        // stack in a crash log instead of only an APPCRASH event. Best-effort by design.
+        CrashLog.Install();
+
         _singleInstance = SingleInstanceGuard.TryAcquire();
 
         if (_singleInstance is null)

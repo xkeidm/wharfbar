@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -827,9 +827,9 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
     <value>WharfBar: kısıtlı başlatma</value>
   </data>
   <data name="Startup_RestrictedLaunch_Message" xml:space="preserve">
-    <value>WharfBar kısıtlı izinlerle başlatıldı (örneğin sandbox içindeki bir terminalden). Windows, görev çubuğunu gizlemesine ve ekranın üstündeki alanı ayırmasına izin vermiyor; bu yüzden masaüstü üst çubukla hizalı olmayacak.
+    <value>WharfBar kısıtlı izinlerle başlatıldı (örneğin sandbox içindeki bir çalışma klasöründen veya terminalden). Windows, görev çubuğunu gizlemesine ve ekranın üstündeki alanı ayırmasına izin vermiyor; bu yüzden masaüstü üst çubukla hizalı olmayacak. Bu modda ayar değişiklikleri kaydedilmez.
 
-WharfBar'ı normal şekilde başlatın: run.bat veya normal bir terminalden derlenmiş WharfBar.exe.
+WharfBar'ı sandbox dışında başlatın: derlenmiş dosyaları sandbox içindeki klasörün dışına kopyalayın (örneğin %LOCALAPPDATA%\WharfBar) ve WharfBar.exe'yi oradan çalıştırın; ya da run.bat'ı normal bir terminalden başlatın.
 
 Tamam: yine de devam et
 İptal: çık</value>

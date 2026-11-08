@@ -110,35 +110,79 @@ internal sealed class ConfigService
         }
     }
 
+    /// <summary>
+    /// Last write failure, or <c>null</c> when the last save succeeded. A restricted launch (a
+    /// low-integrity token cannot write into the medium-integrity <c>%AppData%</c>) or a read-only
+    /// profile must never crash the app from a UI handler, so the failure is remembered here and
+    /// the in-memory config stays authoritative for the session.
+    /// </summary>
+    internal Exception? LastSaveError { get; private set; }
+
     /// <summary>Writes <paramref name="config"/> atomically (temp file + replace) and updates <see cref="Current"/>.</summary>
     internal void Save(AppConfig config)
     {
         ArgumentNullException.ThrowIfNull(config);
 
         AppConfig normalized = Normalize(config);
-        Directory.CreateDirectory(ConfigDirectory);
-
-        string json = JsonSerializer.Serialize(normalized, JsonOptions);
         string tempPath = ConfigPath + ".tmp";
-
-        File.WriteAllText(tempPath, json);
-
-        if (File.Exists(ConfigPath))
+        try
         {
-            File.Replace(tempPath, ConfigPath, destinationBackupFileName: null);
+            Directory.CreateDirectory(ConfigDirectory);
+            string json = JsonSerializer.Serialize(normalized, JsonOptions);
+
+            File.WriteAllText(tempPath, json);
+
+            if (File.Exists(ConfigPath))
+            {
+                File.Replace(tempPath, ConfigPath, destinationBackupFileName: null);
+            }
+            else
+            {
+                File.Move(tempPath, ConfigPath);
+            }
         }
-        else
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
         {
-            File.Move(tempPath, ConfigPath);
+            // Keep the app alive: the session runs on the in-memory config. CrashLog already
+            // records the exception, so the failure is diagnosable instead of an APPCRASH.
+            LastSaveError = ex;
+            Current = normalized;
+            TryDeleteTempFile(tempPath);
+            return;
         }
 
+        LastSaveError = null;
         Current = normalized;
 
         // Only the real user config owns the Startup shortcut; a test-scoped service writes to a
         // temp directory and must not create, rewrite or delete %AppData%\...\Startup\WharfBar.lnk.
         if (IsRealUserConfig)
         {
-            new AutostartService().Apply(normalized.Autostart);
+            try
+            {
+                new AutostartService().Apply(normalized.Autostart);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The Startup-folder shortcut is the same medium-integrity write as config.json;
+                // a restricted launch cannot create it. Not fatal.
+                LastSaveError ??= ex;
+            }
+        }
+    }
+
+    private static void TryDeleteTempFile(string tempPath)
+    {
+        try
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best effort only.
         }
     }
 
