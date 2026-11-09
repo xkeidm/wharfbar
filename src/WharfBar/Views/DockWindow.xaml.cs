@@ -1285,32 +1285,15 @@ public partial class DockWindow : Window
         if (item.IsRunning && item.MainWindowHandle != IntPtr.Zero)
         {
             // One cell can stand for several processes. The cached table is filtered by each
-            // pid; EnumWindows stays off this UI thread.
-            IReadOnlyList<AppWindowInfo> table = _minimizedSource?.Windows ?? [];
-            var seen = new HashSet<IntPtr>();
-            List<AppWindowInfo> windows = [];
-            foreach (uint pid in ProcessIdsOf(item))
-            {
-                foreach (AppWindowInfo candidate in MinimizedWindowsSource.ForProcess(table, pid))
-                {
-                    if (!seen.Add(candidate.Handle))
-                    {
-                        continue;
-                    }
-
-                    // A minimized tile *is* the window it stands for, so that handle is already
-                    // on screen; listing it back is noise, and dropping it here is also what
-                    // keeps an app with only that one window from showing an empty submenu.
-                    if (item.Section == DockSection.Minimized && candidate.Handle == item.MainWindowHandle)
-                    {
-                        continue;
-                    }
-
-                    windows.Add(candidate);
-                }
-            }
-
-            windows = WhereOnThisMonitor(windows);
+            // pid; EnumWindows stays off this UI thread. A minimized tile *is* the window it
+            // stands for, so that handle is not listed back (it is already on screen).
+            IntPtr exclude = item.Section == DockSection.Minimized ? item.MainWindowHandle : IntPtr.Zero;
+            List<AppWindowInfo> windows = DockWindowPicker.Collect(
+                _minimizedSource?.Windows ?? [],
+                ProcessIdsOf(item),
+                DockMonitorBounds.From(Monitor.Bounds),
+                CenterRectOf,
+                exclude);
             if (windows.Count > 0)
             {
                 menu.Items.Add(new Separator());

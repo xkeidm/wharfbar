@@ -51,6 +51,28 @@ face; the glow is detached when idle, and with `ClientAreaAnimation` off the sta
 successful drop (at least one record landed) fires the **swallow** micro-motion: 1 -> 0.96 (80 ms)
 -> 1.05 (110 ms) -> 1 (90 ms), plus an accent flash that then detaches the glow.
 
+**Drag preview (the shelf under the pill):** after the drag chrome has landed (`IslandMotion.DragPreviewOpenMs`,
+160 ms; with animations off the panel opens on the next dispatcher turn, never inside the OLE
+`DragEnter` callback), the same `IslandPopup` opens on the **Shelf** tab
+(`TopBarWindow.ResolveHubTab`: a drag-active pill previews Shelf without changing `island.hubTab`), so
+the user sees where the file will land. The preview is a normal **unpinned** panel opened through the
+presence engine (`IslandPresence.BeginFileDrag`): the pill joins the panel and the existing
+grow-from-the-pill open animation runs. While the drag lives, the hover-close grace is suppressed
+(OLE owns the mouse and a pointer sample taken then is not evidence of a leave). The shelf body lights
+up as the drop target (`ShelfDropGlow` overlay: accent tertiary fill + accent border, opacity pulse
+0.35–1.0 every 720 ms, a static lit state with animations off) and a landed drop keeps the panel open
+so the new chip is visible; only the records with an id above the pre-drop newest id slide/fade in
+(one-shot, staggered for a batch). The pill is the guaranteed drop target; the open panel is wired
+for the same drop too (its popup HWND already carries WPF's OLE drop registration — measured
+`RegisterDragDrop` → `DRAGDROP_E_ALREADYREGISTERED`, layered with `WS_EX_NOACTIVATE`, so it cannot
+steal activation; a live Explorer drag over the panel is still unexercised). A drag that leaves the
+pill gets a 120 ms hand-off debounce (`IslandMotion.DragLeaveGraceDelayMs`, kept even with animations
+off because the pill/panel drag events race across the popup's overlapping edge) before the preview
+closes: a move back up cancels it, and moving down onto the panel hands the drag to the panel
+instead. A canceled drag closes the preview with the normal close animation; a landed drop keeps it as
+an ordinary hover panel that closes with the leave grace. A preview that opens during an existing pinned
+panel does not hijack it (only a closed island opens the shelf preview).
+
 While the island setting is off the pill collapses on every bar. On the **primary** bar, while the setting is on, the pill stays
 (idle `Clipboard` or the last clip). On a **secondary** bar the pill is visible only while the face is not idle or while the panel
 is open: music and the volume/brightness/battery meters. There is no clipboard list, no file drop, and no clipboard
@@ -129,11 +151,26 @@ bar otherwise). While the panel is closed that read does not happen. If there is
 is not written.
 The volume/brightness/battery meter's fill flows when the level changes.
 
-**Panel look (`IslandFlyout`):** 480 DIP wide (`FlyoutRoot`; plus the 24 DIP shadow pad), 24 px corners, 16 px padding. A horizontal **hub tab strip** at the top switches bodies in place: **Clipboard** (clipboard glyph + label), **Wallpaper** (wallpaper glyph + label), **Music** (note + label; visible only while an SMTC session exists), **Shelf** (folder glyph + label; dropped-file chips with the chip menu and batch drag-out), **Prompter** (mic glyph `E720` + label; reading body, below), **Camera** (camera glyph + label; live mirror preview + on/off toggle + display-only mic row) and **Color** (palette glyph + label; session recent colors + screen picker: a full-monitor overlay with a cursor-centred 13×13 loupe whose centre pixel is the pick). Tab visibility rides the soft flags `island.shelfTab` / `island.prompterTab` / `island.cameraTab` / `island.colorpickerTab`; a saved tab whose flag is off falls back to Clipboard, and a file-drop face opens on Shelf. The active tab uses `ControlFillColorSecondaryBrush`. The strip keeps tab labels while they fit and folds them to icon-only (tooltips + automation names keep the names) once all seven tabs converge — the labeled strip does not fit the panel (~448 DIP usable). **Prompter body:** a multiline reading editor on top (placeholder "Type text, take it from the clipboard, or load a .txt…") over a control bar — play/pause round accent toggle with `Play`/`Pause` label swap, speed slider 0.5–3.0 with a live `1.0×` label, and `Back to start` / `.txt` / `Take from clipboard`. Play locks the editor read-only, sets its font to 17 DIP and auto-scrolls the editor's inner ScrollViewer at 66 DIP/s × (0.5–3.0) on a 16 ms timer (no ticks while the body is hidden or the panel closed; tab switching demotes to Paused); reaching the bottom returns to Editing and releases the `PrompterPinnedChanged(true→false)` pin; dragging the read-only text up/down scrolls the same offset without pausing. While there is nothing to scroll — the text fully fits in the editor or the scroll sits at the bottom — the play toggle is disabled with a reason tooltip (`Nothing to scroll; a longer text that does not fit the editor is required.` / `Scroll is at the bottom; use Back to start to start over.`) instead of a silent dead click. `Back to start` re-scrolls to the top and keeps the text; `.txt` opens a text-file dialog; `Take from clipboard` takes the newest text record of the island history (gentle no-op when empty). Music body: 112 px rounded cover with an album-tint bloom behind it, a Now Playing header with a state dot, an app-source chip with session chevrons (disabled with one session), 18 pt semibold title + 13 pt artist, the designed seek timeline, and a 48 DIP accent play button with 16 pt transport buttons. Animations (all gated by `ClientAreaAnimation`): play/pause glyph crossfade (140 ms), transport hover 1.06 / press 0.92 scale, a ring pulse on the play button while playing, cover-art crossfade on source change (220 ms), and the staggered entry (`IslandMotion.StaggerDelayMs`, 30 ms step; 0 with system animations off). Clipboard rows are 12 px-corner cards: a 32 px icon tile (text/file glyph), a preview line + a smaller meta line, and a delete button that shows only on hover (`Delete` key still works). **Wallpaper body** (`WallpaperGalleryView`): scrollable thumbnail grid in two groups — **WharfBar** (bundled pack next to the executable) and **Yours** (`%AppData%/WharfBar/wallpapers/`; `.jpg`/`.jpeg`/`.png`/`.webp`). Click a tile → `WallpaperService.TryApply` (documented `SPI_SETDESKWALLPAPER`; Windows fill/fit style is not changed). When `WallpaperTransitionPolicy` allows it, a brief **WorkerW-hosted** `WallpaperTransitionWindow` on the primary monitor (not topmost; behind desktop icons) shows the **previous** desktop image and fades opacity 1→0 (~450 ms, optional fixed blur) **before** the new wallpaper is committed; SPI runs when the fade completes — a deliberate crossfade-out of the old image, not a “reveal the new image” overlay. WorkerW/decode failure, `off`, or (with **Follow Windows animation** on) `SystemParameters.ClientAreaAnimation` false → instant SPI only; a new apply cancels any in-flight overlay. When `island.wallpaperAccent` is on (default), after SPI succeeds `WallpaperAccentApplier` runs (dominant color from the image → WharfBar `ApplicationAccentColorManager` + best-effort `SystemAccentWriter`; skipped if the color is out of range or decode fails). The tile matching the current desktop path (when it is under an allowed root) shows accent selection chrome; decode failures show a placeholder glyph but Apply still uses the file path. Footer **`Open folder`** opens the AppData wallpapers folder in Explorer (no in-hub add/delete). Transition mode and the follow-Windows toggle live on Settings → **Island** (`island.wallpaperTransition`, `island.wallpaperRespectSystemAnimation`). The panel is a unified silhouette with the pill: concave 10 DIP fillets beside the pill, drop shadow, gradient rim (`IslandSilhouette`, ADR-018); the popup is `AllowsTransparency` and padded 24 DIP for the shadow. There is no pin action on clipboard rows.
+**Panel look (`IslandFlyout`):** 480 DIP wide (`FlyoutRoot`; plus the 24 DIP shadow pad), 24 px corners, 16 px padding. A horizontal **hub tab strip** at the top switches bodies in place: **Clipboard** (clipboard glyph + label), **Wallpaper** (wallpaper glyph + label), **Music** (note + label; visible only while an SMTC session exists), **Shelf** (folder glyph + label; dropped-file chips with the chip menu and batch drag-out), **Prompter** (mic glyph `E720` + label; reading body, below), **Camera** (camera glyph + label; live mirror preview + on/off toggle + display-only mic row) and **Color** (palette glyph + label; session recent colors + screen picker: a full-monitor overlay with a cursor-centred 13×13 loupe whose centre pixel is the pick, the HEX/hint card below it flipping above near the monitor bottom, and Esc cancelling the overlay). Tab visibility rides the soft flags `island.shelfTab` / `island.prompterTab` / `island.cameraTab` / `island.colorpickerTab`; a saved tab whose flag is off falls back to Clipboard, and a file-drop face opens on Shelf. The active tab uses `ControlFillColorSecondaryBrush`. The strip keeps tab labels while they fit and folds them to icon-only (tooltips + automation names keep the names) once all seven tabs converge — the labeled strip does not fit the panel (~448 DIP usable). **Prompter body:** a multiline reading editor on top (placeholder "Type text, take it from the clipboard, or load a .txt…") over a control bar — play/pause round accent toggle with `Play`/`Pause` label swap, speed slider 0.5–3.0 with a live `1.0×` label, and `Back to start` / `.txt` / `Take from clipboard`. Play locks the editor read-only, sets its font to 17 DIP and auto-scrolls the editor's inner ScrollViewer at 66 DIP/s × (0.5–3.0) on a 16 ms timer (no ticks while the body is hidden or the panel closed; tab switching demotes to Paused); reaching the bottom returns to Editing and releases the `PrompterPinnedChanged(true→false)` pin; dragging the read-only text up/down scrolls the same offset without pausing. While there is nothing to scroll — the text fully fits in the editor or the scroll sits at the bottom — the play toggle is disabled with a reason tooltip (`Nothing to scroll; a longer text that does not fit the editor is required.` / `Scroll is at the bottom; use Back to start to start over.`) instead of a silent dead click. `Back to start` re-scrolls to the top and keeps the text; `.txt` opens a text-file dialog; `Take from clipboard` takes the newest text record of the island history (gentle no-op when empty). Music body: 112 px rounded cover with an album-tint bloom behind it, a Now Playing header with a state dot, an app-source chip with session chevrons (disabled with one session), 18 pt semibold title + 13 pt artist, the designed seek timeline, and a 48 DIP accent play button with 16 pt transport buttons. Animations (all gated by `ClientAreaAnimation`): play/pause glyph crossfade (140 ms), transport hover 1.06 / press 0.92 scale, a ring pulse on the play button while playing, cover-art crossfade on source change (220 ms), and the staggered entry (`IslandMotion.StaggerDelayMs`, 30 ms step; 0 with system animations off). Clipboard rows are 12 px-corner cards: a 32 px icon tile (text/file glyph), a preview line + a smaller meta line, and a delete button that shows only on hover (`Delete` key still works). **Wallpaper body** (`WallpaperGalleryView`): scrollable thumbnail grid in two groups — **WharfBar** (bundled pack next to the executable) and **Yours** (`%AppData%/WharfBar/wallpapers/`; `.jpg`/`.jpeg`/`.png`/`.webp`). Click a tile → `WallpaperService.TryApply` (documented `SPI_SETDESKWALLPAPER`; Windows fill/fit style is not changed). When `WallpaperTransitionPolicy` allows it, a brief **WorkerW-hosted** `WallpaperTransitionWindow` on the primary monitor (not topmost; behind desktop icons) shows the **previous** desktop image and fades opacity 1→0 (~450 ms, optional fixed blur) **before** the new wallpaper is committed; SPI runs when the fade completes — a deliberate crossfade-out of the old image, not a “reveal the new image” overlay. WorkerW/decode failure, `off`, or (with **Follow Windows animation** on) `SystemParameters.ClientAreaAnimation` false → instant SPI only; a new apply cancels any in-flight overlay. When `island.wallpaperAccent` is on (default), after SPI succeeds `WallpaperAccentApplier` runs (dominant color from the image → WharfBar `ApplicationAccentColorManager` + best-effort `SystemAccentWriter`; skipped if the color is out of range or decode fails). The tile matching the current desktop path (when it is under an allowed root) shows accent selection chrome; decode failures show a placeholder glyph but Apply still uses the file path. Footer **`Open folder`** opens the AppData wallpapers folder in Explorer (no in-hub add/delete). Transition mode and the follow-Windows toggle live on Settings → **Island** (`island.wallpaperTransition`, `island.wallpaperRespectSystemAnimation`). The panel is a unified silhouette with the pill: concave 10 DIP fillets beside the pill, drop shadow, gradient rim (`IslandSilhouette`, ADR-018); the popup is `AllowsTransparency` and padded 24 DIP for the shadow. There is no pin action on clipboard rows.
 
 **Color (`island.colorMode`, ADR-018):** `album` (default) | `system` | `neutral`; unknown values fall back to `album`. The tint paints a full-panel gradient layer clipped to the island silhouette, starting at the fillet tips/join line, plus the outline rim, the cover bloom, the seek fill and the play/pause circle; with no tint those use `AccentFillColorDefaultBrush` and no tint layer. Alpha ladder (`IslandPalette` `PanelTint*` constants): join **0x28**, tab strip/header **0x32**, body **0x60**, bottom **0x8A** (deepened 16% toward black) — strong enough to read as the album and still ≥ AA for white primary text over the lightest allowed tint (asserted by `IslandTintTests`). The joined pill fill is the **same** composite (`FlyoutSurface.CreateTinted` with the join alpha), so the pill, fillets and panel top edge read as one surface (no seam); its rim is `IslandFlyout.JoinRimColor`. While the panel is closed but a session exists, the capsule gets a subtle tint over the bar's own capsule fill (`PillTintAmount` 0x1E ≈ 12 %, hover 0x36 ≈ 21 %); idle / `neutral` / `system` keep the plain theme fill. The play/pause circle uses the tint as its fill (hover lifted 14 % toward white) with a contrast-aware glyph (`IslandPalette.ReadableForeground`, luminance threshold 0.5 → white or near-black), and the ring pulse takes the same hue. Rules (`IslandPalette.Tint`): `neutral` → no tint; `system` → the system accent always; `album` → no tint unless a session exists, the system accent only when the cover has no usable color, else the cover color with its HSL lightness remapped into a readable 0.36–0.72 window. The cover color (`IslandPalette.Dominant`) is a saturation²/mid-brightness-weighted average of opaque pixels, tempered by the plain average, with a fallback to that average for gray/dark covers; computed on a 32×32 copy and cached by bitmap reference (`IslandTintSource`). The panel tints while an SMTC session exists (also when paused). The old body-clipped radial `AmbientGlow` is gone. The setting is the **`Island color`** card on the island settings page (ComboBox: Album color / System color / Neutral).
 
-The rules are `IslandPresence` (duration, face, HUD priority, 150 ms hover). The window uses a one-shot timer; the duration is set with `NextDeadlineMs`.
+**Tint scope:** the panel tint belongs to the SMTC session, not to the visible hub body. Every
+body (`Clipboard`, `Wallpaper`, `Shelf`, `Prompter`, `Camera`, `Color`) keeps the album tint while a
+session exists (`SessionTint` / `ApplySessionTint` in `IslandFlyout`); switching tabs therefore no
+longer drops the panel (and the joined pill) back to the neutral surface. A session end or a
+`island.colorMode` change retints whatever body is open.
+
+**Closed capsule tint:** the resting tint layer is normalized by the capsule plate's alpha
+(`IslandPalette.ClosedPillAmount(plateAlpha, hover)`): the wallpaper-driven light-wallpaper plate on
+a transparent primary bar is ~70 % opaque white and used to wash the album hue out while the same
+album stayed visible on a theme plate (another bar / another machine). The tint cache key includes a
+bar-palette revision, so a wallpaper change repaints the capsule instead of keeping a composite of
+the old plate.
+
+The rules are `IslandPresence` (duration, face, HUD priority, 150 ms hover, and the file-drag
+preview panel lifetime: `BeginFileDrag` / `EndFileDrag`, which suppress the hover-close grace while
+OLE owns the mouse). The window uses a one-shot timer; the duration is set with `NextDeadlineMs`.
 
 ## Right cluster — status strip (`StatusStrip`)
 
@@ -168,8 +205,9 @@ The line is not a child of the strip; it does not shift the measure. Ordering do
 On the primary bar the chevron (`trayOverflow`) opens WharfBar's own pill. The pill, like the island
 indicator, is a horizontal capsule (`FlyoutSurface`, corner radius 18, padding 4).
 Only icons sit inside it; the application name is not written, the name is in the tooltip. After eight icons
-it wraps downward, and the corners stay rounded. Icons in the mirror stay on the bar. A short click on an icon
-is forwarded to that tray icon. Once the pointer
+it wraps downward, and the corners stay rounded. Icons in the mirror stay on the bar. A short click
+on an icon is replayed on the real tray button with UI Automation (cursor-free, see below); the
+popup it opens is moved under the clicked icon. Once the pointer
 crosses the `MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance` threshold, a drag
 starts: dropping the icon on the chevron or on the open pill takes it off the bar
 (mouse capture; OLE is not used on a layered bar). Dropping it from inside the pill back onto the right strip
@@ -177,12 +215,41 @@ puts the icon on the bar again. When empty the pill says **`no icon`**. The chev
 tooltip **`Open Windows hidden icons`**) opens Windows' hidden area, which cannot be enumerated, with `Win+B`.
 The keys are in the `topBar.trayOverflowIcons` list. An icon that is not in the list (a new one)
 stays visible. The record does not change the `statusItems` order.
-There is no mirror on the secondary bar; the chevron there opens `Win+B` directly. The periodic pixel
-refresh hover-reveals a parked auto-hide tray the same way a click does (cursor restored only if the
-user has not moved it, no work-area change), only while the pointer is idle or the mirror is empty
-(capped at 3 such attempts per session) and never under a fullscreen app; after 2 misses the reveal
-backs off for 10 min, and the dock's own bottom edge-band is suppressed while the reveal owns the
-cursor. Only a refresh that found the tray fully on screen and read it back empty clears the mirror.
+There is no mirror on the secondary bar; the chevron there opens `Win+B` directly. A click is
+replayed with UI Automation and **never moves the mouse**: left = the button's `InvokePattern`,
+double = two invoked clicks, right = verified focus + the Menu key (`VK_APPS`, `Shift+F10`
+fallback for owners that ignore it). The button element cached by the mirror read keeps working
+while the tray is hidden (measured: a fresh walk returns 0 buttons, the cached element still
+invokes), so the common click needs no peek and no work-area change; if the element died, one
+bounded repair blip re-reads the tray and the gesture is replayed on the fresh element (an item no
+longer in the tray is dropped from the mirror). A menu owner can warp the pointer to its real tray
+icon when it anchors its menu (measured 0–20 ms after the Menu key); that warp is prevented —
+`TrayPointerGuard` clips the pointer with `ClipCursor` to a 6 px box (`ClipMarginPx = 6`) right
+before the Menu key and releases it after 150 ms (`ClipHoldMs = 150`), with a short escape watcher
+(`TrayCursorWarp`) as the fallback — so the pointer stays where the user clicked (a high-integrity
+owner that warps after the clip window cannot be restored; measured owners all warp within 20 ms).
+The owner's popup/menu opens at the bottom edge and `TrayMenuReanchor` moves it under the
+clicked icon: only a real popup (`WS_POPUP`,
+no caption/thickframe, no `WS_EX_APPWINDOW`) or a `#32768` menu is moved — never a normal framed
+application window — with one watcher process-wide so overlapping clicks cannot fight over a menu.
+
+**State blip (the only tray read):** a parked auto-hide tray virtualizes its XAML buttons, so a
+read taken while the bar is still in its 2 px sliver returns 0 buttons and proves nothing. The
+read therefore drops `ABS_AUTOHIDE` (a work-area flip) and **verifies the effect** — it waits for
+`IsFullyOnScreenNow` (bounded, `TrayAutoHideReveal.WaitFullyOnScreen`) and falls back to a verified
+`SetWindowPos` (`TaskbarNative.TryEnsureTrayOnScreen`) before it reads; an unverified unpark skips
+the read and classifies as `Inconclusive`, never as `ConfirmedEmpty`. The blip is gated by
+`TrayStateBlipGate`: bootstrap of a never-filled mirror + a bounded retry series (3 blips, 30 s
+apart), later only ≥10/≥20 min apart while the user is idle ≥3 min and no maximized/bottom-touching
+window; never while a fullscreen foreground window covers the primary monitor (WharfBar's own
+fullscreen colour picker included — a false "tray is empty" was measured there). Icons are captured
+inside the blip. Every attempt logs `refresh outcome=… blip=True onScreen=… walkFailed=… count=…
+attempt=…` to the tray diagnostics.
+An empty read **never clears a populated mirror** — a stale icon beats a blank bar (and the
+work-area jump needed to re-read it); the snapshot resets only when `Shell_TrayWnd` changes. When
+the mirror is empty the chevron tooltip is honest about it: verified empty → "No tray icons on the
+taskbar — open Windows' hidden icons (Win+B)"; not read yet → "Reading tray icons…". An empty bar
+is therefore no longer silent (ADR-009 keeps hidden/overflow icons out of the mirror).
 
 ## Status strip right-click menu
 

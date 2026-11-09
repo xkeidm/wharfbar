@@ -44,20 +44,6 @@ internal sealed class MinimizedWindowsSource : IDisposable
     internal static IReadOnlyList<AppWindowInfo> SelectMinimized(IReadOnlyList<AppWindowInfo> windows) =>
         windows is null ? [] : [.. windows.Where(static w => w.IsMinimized)];
 
-    /// <summary>
-    /// Every window owned by <paramref name="pid"/>, visible first so the dock's menu
-    /// shows the main window above the minimized ones.
-    /// </summary>
-    internal static IReadOnlyList<AppWindowInfo> ForProcess(IReadOnlyList<AppWindowInfo> windows, uint pid)
-    {
-        if (windows is null || pid == 0)
-        {
-            return [];
-        }
-
-        return [.. windows.Where(w => w.Pid == pid).OrderBy(static w => w.IsMinimized)];
-    }
-
     private void OnCensus(IReadOnlyList<CensusWindow> windows)
     {
         if (_disposed)

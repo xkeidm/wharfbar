@@ -57,10 +57,42 @@ internal static class TrayAutoHideReveal
     }
 
     /// <summary>
-    /// Current parked state of <c>Shell_TrayWnd</c>, for the quiet mirror read: a parked tray
-    /// shows only its 2 px sliver and explorer virtualizes the XAML buttons, so the read has to
-    /// hover-reveal it first (see <see cref="TrayRevealPolicy"/>). False when the window rect or
-    /// the monitor cannot be read.
+    /// Polls <see cref="IsFullyOnScreenNow"/> until the tray is fully on screen or
+    /// <paramref name="timeoutMs"/> runs out. The loud state blip needs this: <c>ABM_SETSTATE(0)</c>
+    /// is asynchronous and explorer unparks the bar a moment later (2026-11-09 diag: unparked at
+    /// one start, still parked at read time in the next). A read taken while the bar is parked sees
+    /// the virtualized XAML tray (0 buttons) and says nothing about the tray being empty.
+    /// </summary>
+    internal static bool WaitFullyOnScreen(IntPtr tray, int timeoutMs, int pollMs = 30)
+    {
+        if (tray == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (IsFullyOnScreenNow(tray))
+        {
+            return true;
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            Thread.Sleep(Math.Max(10, pollMs));
+            if (IsFullyOnScreenNow(tray))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Current parked state of <c>Shell_TrayWnd</c>. A parked auto-hide tray shows only its 2 px
+    /// sliver and explorer virtualizes the XAML buttons, so a tray read has to drop the state and
+    /// wait for the bar to come fully on screen first. False when the window rect or the monitor
+    /// cannot be read.
     /// </summary>
     internal static bool IsParkedNow(IntPtr tray)
     {
@@ -87,52 +119,6 @@ internal static class TrayAutoHideReveal
             && window.Top < monitor.Bottom
             && window.Right > monitor.Left
             && window.Left < monitor.Right;
-    }
-
-    /// <summary>
-    /// Hovers the bottom edge at <paramref name="x"/> and waits until explorer has slid the
-    /// tray fully on screen. True immediately when the tray is not parked. The caller restores
-    /// the cursor. <paramref name="onCursorParked"/> is invoked with the physical point the
-    /// pointer was parked on, so the caller's cursor lease can restore it only while it is still
-    /// there. False on timeout — the caller decides whether a state flip is worth it.
-    /// </summary>
-    internal static bool TryReveal(
-        IntPtr tray,
-        int x,
-        int timeoutMs,
-        Action<int, int>? onCursorParked,
-        out int elapsedMs)
-    {
-        elapsedMs = 0;
-        if (tray == IntPtr.Zero
-            || !NativeMethods.GetWindowRect(tray, out RECT rect)
-            || !TryGetMonitor(tray, out RECT monitor))
-        {
-            return false;
-        }
-
-        if (!IsParked(rect, monitor))
-        {
-            return IsFullyOnScreen(rect, monitor);
-        }
-
-        int edgeX = Math.Clamp(x, monitor.Left + 1, monitor.Right - 2);
-        int edgeY = monitor.Bottom - 1;
-        onCursorParked?.Invoke(edgeX, edgeY);
-        SendInputMouse.MoveTo(edgeX, edgeY);
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        while (sw.ElapsedMilliseconds < timeoutMs)
-        {
-            Thread.Sleep(PollMs);
-            if (NativeMethods.GetWindowRect(tray, out rect) && IsFullyOnScreen(rect, monitor))
-            {
-                elapsedMs = (int)sw.ElapsedMilliseconds;
-                return true;
-            }
-        }
-
-        elapsedMs = (int)sw.ElapsedMilliseconds;
-        return false;
     }
 
     /// <summary>Time since the last user keyboard/mouse input (synthetic input counts too).</summary>

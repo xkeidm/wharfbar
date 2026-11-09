@@ -714,6 +714,8 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Brightness_Unsupported" xml:space="preserve"><value>DDC/CI / WMI parlaklık kontrolü desteklenmiyor</value></data>
   <data name="TrayOverflow_NoIcons" xml:space="preserve"><value>simge yok</value></data>
   <data name="TrayOverflow_OpenHidden" xml:space="preserve"><value>Windows gizli simgelerini aç</value></data>
+  <data name="TrayOverflow_NoVisibleIcons" xml:space="preserve"><value>Görev çubuğunda görünen tray simgesi yok — Windows gizli simgelerini aç (Win+B)</value></data>
+  <data name="TrayOverflow_Unread" xml:space="preserve"><value>Tray simgeleri okunuyor…</value></data>
   <data name="Island_Clipboard" xml:space="preserve"><value>Pano</value></data>
   <data name="Island_ClipboardAndDrops" xml:space="preserve"><value>Pano ve bırakılan dosyalar</value></data>
   <data name="Island_DragBadge" xml:space="preserve"><value>Bırak → raf</value></data>

@@ -40,46 +40,6 @@ public class MinimizedWindowsSourceTests
     }
 
     [Fact]
-    public void ForProcess_ReturnsEveryWindowOfThatProcessIncludingMinimized()
-    {
-        List<AppWindowInfo> windows =
-        [
-            W(1, 10, false, "Main"),
-            W(2, 10, true, "Child"),
-            W(3, 20, false, "Other"),
-        ];
-        IntPtr[] result = [.. MinimizedWindowsSource.ForProcess(windows, 10).Select(w => w.Handle)];
-        Assert.Equal([(IntPtr)1, (IntPtr)2], result);
-    }
-
-    [Fact]
-    public void ForProcess_WhenPidIsZero_ReturnsEmpty()
-    {
-        List<AppWindowInfo> windows = [W(1, 10, false, "Main")];
-        Assert.Empty(MinimizedWindowsSource.ForProcess(windows, 0));
-    }
-
-    [Fact]
-    public void ForProcess_WhenUnknownPid_ReturnsEmpty()
-    {
-        List<AppWindowInfo> windows = [W(1, 10, false, "Main")];
-        Assert.Empty(MinimizedWindowsSource.ForProcess(windows, 999));
-    }
-
-    [Fact]
-    public void ForProcess_OrdersMinimizedLastForStableDockOrder()
-    {
-        List<AppWindowInfo> windows =
-        [
-            W(1, 10, true, "Min"),
-            W(2, 10, false, "Main"),
-        ];
-        Assert.Equal(
-            [(IntPtr)2, (IntPtr)1],
-            MinimizedWindowsSource.ForProcess(windows, 10).Select(w => w.Handle));
-    }
-
-    [Fact]
     public void WindowsEqual_WhenListsIdentical_IsTrue()
     {
         List<AppWindowInfo> a = [W(1, 10, false, "Main"), W(2, 20, true, "Child")];

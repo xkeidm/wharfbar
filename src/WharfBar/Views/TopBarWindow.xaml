@@ -516,9 +516,14 @@
                    Opened="OnIslandPopupOpened"
                    Closed="OnIslandPopupClosed">
                 <local:IslandFlyout x:Name="IslandHost"
+                                    AllowDrop="True"
                                     PreviewKeyDown="OnIslandKeyDown"
                                     MouseEnter="OnIslandPanelEnter"
-                                    MouseLeave="OnIslandPanelLeave" />
+                                    MouseLeave="OnIslandPanelLeave"
+                                    DragEnter="OnIslandPanelDragEnter"
+                                    DragLeave="OnIslandPanelDragLeave"
+                                    DragOver="OnIslandPanelDragOver"
+                                    Drop="OnIslandPanelDrop" />
             </Popup>
         </Grid>
     </Border>

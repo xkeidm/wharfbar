@@ -85,8 +85,10 @@ a backgrounded window. Tooltip uses the system style
 (`SHGFI_DISPLAYNAME` — a `File Explorer.lnk` file becomes `File Explorer`). If the shell name only
 repeats the file name, the application segment of the window title is used
 (`wharfbar - File Explorer` → `File Explorer`). The balloon is at the horizontal center of the target; the gap
-is 25 DIP and scales with DPI. With a single window and no thumbnail the surface card does not open
-(it would be a second text balloon). While the card is open the tooltip closes. The card has no frame and no top light line.
+is 25 DIP and scales with DPI. The tooltip is switched off for the hovered running app before the preview
+timer starts (the system balloon is 250 ms, the preview 220 ms): closing it once the card is open is too late,
+the queued balloon lands over the cards. It comes back when the card closes or the preview never opened.
+The card has no frame and no top light line.
 
 `DockMagnification` / `DockStripLayout` stay pure and tested; the live strip pushes `MaxScale = 1`.
 The window is `PlateWidth` / `PlateHeight` (an empty dock budgets one button). No `SetWindowPos` on hover.
@@ -107,7 +109,7 @@ Hover does not grow the icon; the live strip scale is 1. The dock's first placem
 | Left click | Bring forward / launch; a second click minimizes (`WindowActivationService`) |
 | Left click (folder / `Downloads`) | Directory-stack flyout. A file uses `ShellExecuteW` (the registered verb). A folder goes down one level |
 | Left click (trash) | `shell:RecycleBinFolder` |
-| Hover (running app) | That app's windows, DWM thumbnails side by side. A click is `TryActivate` |
+| Hover (running app) | A card per window (still preview + title, up to 8 in rows of 4, open windows first then minimized). A single-window app gets one card too. A click on the card — preview or title — activates/restores that exact window and closes the card |
 | Right click (icon) | The menu below. Downloads and the trash have only the title + `Open` |
 | Right click (empty plate) | Background: Mica / Transparent / Tint + opacity (tint) |
 | Drag | Reorder pinned items; an accent line shows the target; the click is suppressed |
@@ -130,9 +132,20 @@ Right-click menu (`BuildContextMenuForItem`) — item conditions come from the c
 
 ## Surface (ADR-014)
 
-A single flyout (`SurfaceFlyout`): window thumbnails on hover, a directory
-stack when a folder is clicked. No nested `Popup`. It drops when the DWM registration detaches and on close. On a cloaked, minimized,
-or DWM-rejected window the title row remains, and there is no black square.
+A single flyout (`SurfaceFlyout`): one card per window on hover, a directory
+stack when a folder is clicked. No nested `Popup`. On close it releases every card and cancels the
+capture in flight.
+
+The cards do **not** use DWM thumbnails: `DwmRegisterThumbnail` rejects a layered window and a child
+HWND as the destination (`E_INVALIDARG`), and this flyout is a layered popup whose preview surface
+would be a child HWND (`docs/04-gotchas.md`). Each card is one `PrintWindow` frame
+(`DockWindowPreview` on top of `DockWindowSnapshot`) captured off the UI thread, downscaled on the UI
+thread and drawn as a plain WPF image, so the whole card stays clickable and there is no airspace.
+The image appears on top of the app icon placeholder when the capture lands. A window with no usable
+frame (a minimized window whose minimize frame WharfBar did not capture, an occluded/blank capture)
+keeps the app icon and its title — never a black square. Window selection, ordering, and the 8-card
+cap are `DockWindowPicker` (open windows before minimized, dedup by handle, this monitor only; a
+minimized window is placed from its restored rectangle).
 
 A thin progress bar under the icon paints the
 `RangeValue` / `ItemStatus` reading the shell exposes on the taskbar button (normal percent, indeterminate, paused, error).

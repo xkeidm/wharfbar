@@ -625,6 +625,18 @@
                            Visibility="Collapsed"
                            Text="Dropped file entries stay here with their names — hold a chip and drag it to a folder." />
 
+                <!-- Drag preview: while a file drag hovers the pill the shelf panel lights up as
+                     the drop target (the pill's badge promises "Drop → shelf"). Painted above the
+                     list, click-through, animated in code (ShowShelfDropTarget). -->
+                <Border x:Name="ShelfDropGlow"
+                        Grid.Row="0"
+                        CornerRadius="12"
+                        BorderThickness="1"
+                        BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                        Background="{DynamicResource AccentFillColorTertiaryBrush}"
+                        IsHitTestVisible="False"
+                        Opacity="0" />
+
                 <Button x:Name="ShelfClearButton"
                         Grid.Row="1"
                         HorizontalAlignment="Left"

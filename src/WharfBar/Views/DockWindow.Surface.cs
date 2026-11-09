@@ -37,8 +37,7 @@ public partial class DockWindow
     private void AttachSurface(IntPtr hwnd)
     {
         _flyout = new DockSurfaceFlyout(SurfaceFlyout, SurfaceFlyoutCard, SurfaceFlyoutBody, ActivateFromFlyout);
-        _flyout.Opened += OnFlyoutOpened;
-        _flyout.Closed += ReleaseTip;
+        _flyout.Closed += OnFlyoutClosed;
         _minimizeCue = new DockMinimizeCue(MinimizeCue, MinimizeShot, MinimizeScale);
 
         uint message = DockShellHook.RegisterMessage();
@@ -61,8 +60,7 @@ public partial class DockWindow
         _thumbTimer = null;
         if (_flyout is not null)
         {
-            _flyout.Opened -= OnFlyoutOpened;
-            _flyout.Closed -= ReleaseTip;
+            _flyout.Closed -= OnFlyoutClosed;
             _flyout.Dispose();
         }
         _flyout = null;
@@ -100,6 +98,7 @@ public partial class DockWindow
         }
 
         _thumbCell = cell;
+        HoldTip(cell);
         _thumbTimer ??= new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(220) };
         _thumbTimer.Tick -= OnThumbTick;
         _thumbTimer.Tick += OnThumbTick;
@@ -114,7 +113,12 @@ public partial class DockWindow
         if (_flyout is { IsOpen: true })
         {
             _flyout.ScheduleClose();
+            return;
         }
+
+        // The preview never opened (the app has no listed window, or the pointer left before
+        // the delay): give the system tooltip its normal behaviour back.
+        ReleaseTip();
     }
 
     private void OnThumbTick(object? sender, EventArgs e)
@@ -142,28 +146,38 @@ public partial class DockWindow
             return;
         }
 
-        _flyout.ShowWindows(cell, windows);
+        _flyout.ShowWindows(cell, windows, row.Icon, CachedWindowFrame);
     }
 
-    private void OnFlyoutOpened(DockItemCell? anchor)
-    {
-        if (anchor is null)
-        {
-            return;
-        }
+    /// <summary>
+    /// Last frame of a window WharfBar itself saw minimize. A minimized window's
+    /// <c>PrintWindow</c> is the iconic stub (about 160×28), so the flyout prefers this frame
+    /// and then falls back to the application icon with the window title.
+    /// </summary>
+    private BitmapSource? CachedWindowFrame(IntPtr hwnd) =>
+        _restoreCache.TryGet(hwnd, out BitmapSource shot, out _) ? shot : null;
 
-        if (_tipHeld is not null && !ReferenceEquals(_tipHeld, anchor))
+    private void OnFlyoutClosed() => ReleaseTip();
+
+    /// <summary>
+    /// Takes the tooltip down before the preview timer starts. The system tooltip shows at
+    /// 250 ms and the preview at 220 ms, so closing it once the preview opens is too late: the
+    /// tooltip is already queued and lands on top of the cards.
+    /// </summary>
+    private void HoldTip(DockItemCell cell)
+    {
+        if (_tipHeld is not null && !ReferenceEquals(_tipHeld, cell))
         {
             ToolTipService.SetIsEnabled(_tipHeld, true);
         }
 
-        if (anchor.ToolTip is ToolTip tip)
+        if (cell.ToolTip is ToolTip tip)
         {
             tip.IsOpen = false;
         }
 
-        ToolTipService.SetIsEnabled(anchor, false);
-        _tipHeld = anchor;
+        ToolTipService.SetIsEnabled(cell, false);
+        _tipHeld = cell;
     }
 
     private void ReleaseTip()
@@ -630,52 +644,35 @@ public partial class DockWindow
         return null;
     }
 
-    private List<AppWindowInfo> WindowsFor(DockAppItem item)
+    private List<AppWindowInfo> WindowsFor(DockAppItem item) =>
+        DockWindowPicker.Collect(
+            _minimizedSource?.Windows ?? [],
+            ProcessIdsOf(item),
+            DockMonitorBounds.From(Monitor.Bounds),
+            CenterRectOf);
+
+    /// <summary>
+    /// The rectangle whose center decides which monitor owns a window. An iconic window's
+    /// <c>GetWindowRect</c> is the off-screen icon point (-32000, -32000), so a minimized
+    /// window is placed from its restored rectangle instead — otherwise the flyout and the
+    /// "Windows" submenu silently lose every minimized window.
+    /// </summary>
+    private static RECT? CenterRectOf(AppWindowInfo window)
     {
-        IReadOnlyList<AppWindowInfo> table = _minimizedSource?.Windows ?? [];
-        var seen = new HashSet<IntPtr>();
-        var windows = new List<AppWindowInfo>();
-        foreach (uint pid in ProcessIdsOf(item))
+        if (!NativeMethods.GetWindowRect(window.Handle, out RECT rect))
         {
-            foreach (AppWindowInfo candidate in MinimizedWindowsSource.ForProcess(table, pid))
-            {
-                if (seen.Add(candidate.Handle))
-                {
-                    windows.Add(candidate);
-                }
-            }
+            return null;
         }
 
-        return WhereOnThisMonitor(windows);
-    }
-
-    private List<AppWindowInfo> WhereOnThisMonitor(List<AppWindowInfo> windows)
-    {
-        var bounds = DockMonitorBounds.From(Monitor.Bounds);
-        var kept = new List<AppWindowInfo>(windows.Count);
-        foreach (AppWindowInfo window in windows)
+        if (!window.IsMinimized
+            || !DockMonitorWindowFilter.TryNormalRect(window.Handle, out RECT normal)
+            || normal.Width <= 0
+            || normal.Height <= 0)
         {
-            if (window.Handle == IntPtr.Zero
-                || !NativeMethods.GetWindowRect(window.Handle, out RECT rect))
-            {
-                continue;
-            }
-
-            var placed = new DockPlacedWindow(
-                window.Handle,
-                window.Pid,
-                window.IsMinimized,
-                rect.Left,
-                rect.Top,
-                rect.Right,
-                rect.Bottom);
-            if (DockMonitorWindowFilter.CenterLiesOn(placed, bounds))
-            {
-                kept.Add(window);
-            }
+            return rect;
         }
 
-        return kept;
+        return DockMonitorWindowFilter.RectForCenter(true, rect, normal, true);
     }
 
     private ContextMenu BuildBuiltInMenu(DockAppItem item)

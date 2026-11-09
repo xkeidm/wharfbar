@@ -73,13 +73,20 @@ public partial class TopBarWindow
     // freezes the face pipeline and feeds a drag width term into AnimatePillWidth.
     private bool _islandDragActive;
     private bool _islandDragValid;
+    // The drag preview opens a beat after the pill's own drag chrome has landed, so the pill's
+    // grow/glow is seen first; the close grace absorbs the popup's 2 DIP overlap with the pill.
+    private DispatcherTimer? _islandDragPreviewTimer;
+    private DispatcherTimer? _islandDragLeaveTimer;
+    // The drag point is over the open preview panel (OLE cross-window hand-off): a pill DragLeave
+    // that arrives after this is not a real leave and must not arm the close grace.
+    private bool _islandDragOverPanel;
     // The popup is open and the pill's bottom edge is merged into the panel: the pill stroke
     // follows the panel rim so the unified outline stays continuous.
     private bool _islandJoined;
-    // Closed-pill tint cache: the last album tint / hover state painted on the capsule. Keeps the
-    // per-tick media snapshot pushes and pointer samples from rebuilding a frozen brush.
-    private Color? _closedPillTint;
-    private bool _closedPillHover;
+    // Closed-pill tint cache: the last album tint / hover state / bar-palette revision painted on
+    // the capsule. Keeps the per-tick media snapshot pushes and pointer samples from rebuilding a
+    // frozen brush, while a wallpaper-driven palette change still repaints it.
+    private ClosedPillTintState _closedPillTintState = ClosedPillTintState.Invalid;
     private DropShadowEffect? _islandDragGlow;
     private string? _islandIdleCaptionText;
     private IslandPillFace? _shownFace;
@@ -192,11 +199,223 @@ public partial class TopBarWindow
         // Only a primary-monitor file drag earns the target chrome; a text/URL drag leaves
         // the pill untouched. The state machine reads this gate, so there is no second source.
         _islandDragValid = Monitor.IsPrimary && e.Data.GetDataPresent(DataFormats.FileDrop);
+        _islandDragOverPanel = false;
+        CancelIslandDragLeave();
+        if (_islandDragValid)
+        {
+            // Mark the drag now (suppresses the hover close and a pending hover open) but let the
+            // preview delay open the panel, so the pill's own drag chrome animation is seen first.
+            _presence?.BeginFileDrag(IslandNow(), openPanel: false);
+        }
+
         SetIslandDragActive(true);
+        if (_islandDragActive)
+        {
+            ArmIslandDragPreview();
+        }
     }
 
-    private void OnIslandPillDragLeave(object sender, DragEventArgs e) => SetIslandDragActive(false);
+    private void OnIslandPillDragLeave(object sender, DragEventArgs e)
+    {
+        // The open preview overlaps the pill's lower edge by ~2 DIP, so a leave can fire while
+        // the drag is still over the island or while it moves down onto the preview. Close
+        // through a short grace: a genuine re-enter (back on the pill) cancels it, and moving
+        // onto the preview ends the preview predictably instead of leaving it undecidable.
+        CancelIslandDragPreview();
+        if (_islandDragOverPanel)
+        {
+            // The cross-window hand-off already happened; collapse the pill chrome without
+            // scheduling the preview close.
+            SetIslandDragActive(false);
+            return;
+        }
 
+        if (IslandPopup.IsOpen)
+        {
+            ArmIslandDragLeave();
+            return;
+        }
+
+        EndIslandDrag(keepPanel: false);
+    }
+
+    /// <summary>
+    /// The pill is the primary drop target, but while the preview panel is open it covers most of
+    /// the island: the panel takes the same file drop so a drag that follows the surface down into
+    /// the opened shelf still lands there. The popup HWND already carries WPF's OLE drop
+    /// registration (a live Explorer drag over the panel is still unmeasured), so this is an
+    /// extension to the pill target; the pill's leave grace still closes the preview when the drag
+    /// never reaches the panel.
+    /// </summary>
+    private void OnIslandPanelDragEnter(object sender, DragEventArgs e)
+    {
+        if (!_islandDragValid || !e.Data.GetDataPresent(DataFormats.FileDrop))
+        {
+            return;
+        }
+
+        _islandDragOverPanel = true;
+        CancelIslandDragLeave();
+        CancelIslandDragPreview();
+        // The pointer has left the pill for the panel: the pill's chrome belongs to the pill.
+        // The preview panel stays (the presence file-drag session owns it until the drop/leave).
+        SetIslandDragActive(false);
+        e.Effects = DragDropEffects.Copy;
+        e.Handled = true;
+    }
+
+    private void OnIslandPanelDragOver(object sender, DragEventArgs e)
+    {
+        e.Effects = _islandDragValid && e.Data.GetDataPresent(DataFormats.FileDrop)
+            ? DragDropEffects.Copy
+            : DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnIslandPanelDragLeave(object sender, DragEventArgs e)
+    {
+        _islandDragOverPanel = false;
+        if (!_islandDragValid)
+        {
+            return;
+        }
+
+        // Moving back up to the pill cancels this through the pill's DragEnter.
+        CancelIslandDragPreview();
+        ArmIslandDragLeave();
+    }
+
+    private void OnIslandPanelDrop(object sender, DragEventArgs e) => DropOnIsland(e);
+
+    /// <summary>
+    /// Opens the shelf under the pill while a file drag hovers it, so the user sees where the
+    /// file will land before releasing. The pill's drag chrome is already showing; the delay
+    /// keeps the panel from covering that first animation, and a fast drag that leaves before
+    /// the delay opens no panel at all.
+    /// </summary>
+    private void ArmIslandDragPreview()
+    {
+        if (!_islandDragActive
+            || _presence is null
+            || IslandPopup.IsOpen
+            || Island?.Config is not { Enabled: true, ShelfTab: true })
+        {
+            return;
+        }
+
+        DispatcherTimer timer = EnsureIslandDragPreviewTimer();
+        timer.Stop();
+        // Zero (animations off) still goes through one dispatcher turn: opening the popup inside
+        // the OLE DragEnter callback re-enters the drag loop under the cursor and maximizes the
+        // leave/enter churn at the popup's overlapping edge.
+        double ms = IslandMotion.DragPreviewOpenMs(SystemParameters.ClientAreaAnimation);
+        timer.Interval = TimeSpan.FromMilliseconds(Math.Max(1, ms));
+        timer.Start();
+    }
+
+    private void OnIslandDragPreviewTick(object? sender, EventArgs e)
+    {
+        _islandDragPreviewTimer?.Stop();
+        // A panel may have opened while the delay ran (transient music, a race with hover open):
+        // then the shelf preview is no longer the surface under the pointer and is not forced in.
+        if (_islandDragActive && !IslandPopup.IsOpen)
+        {
+            OpenIslandDragPreview();
+        }
+    }
+
+    private void OpenIslandDragPreview()
+    {
+        if (!_islandDragActive
+            || IslandPopup.IsOpen
+            || _presence is null
+            || Island?.Config is not { Enabled: true, ShelfTab: true })
+        {
+            return;
+        }
+
+        // The panel opens through the normal presence/chrome path, so the pill joins the panel
+        // and the existing grow-from-the-pill open animation runs unchanged.
+        _presence.BeginFileDrag(IslandNow());
+        ApplyIslandChrome(focusMusic: false);
+        if (IslandPopup.IsOpen)
+        {
+            // Light the shelf only on a panel that actually opened; otherwise the endless pulse
+            // clock would outlive a popup that never appeared.
+            IslandHost.ShowShelfDropTarget(true);
+        }
+    }
+
+    private void CancelIslandDragPreview() => _islandDragPreviewTimer?.Stop();
+
+    private DispatcherTimer EnsureIslandDragPreviewTimer()
+    {
+        if (_islandDragPreviewTimer is null)
+        {
+            _islandDragPreviewTimer = new DispatcherTimer();
+            _islandDragPreviewTimer.Tick += OnIslandDragPreviewTick;
+        }
+
+        return _islandDragPreviewTimer;
+    }
+
+    private void ArmIslandDragLeave()
+    {
+        DispatcherTimer timer = EnsureIslandDragLeaveTimer();
+        timer.Stop();
+        // A hand-off debounce, not an animation: it stays on with animations off (the pill and the
+        // panel race each other's DragLeave/DragEnter across the popup's overlapping top edge).
+        timer.Interval = TimeSpan.FromMilliseconds(IslandMotion.DragLeaveGraceDelayMs);
+        timer.Start();
+    }
+
+    private void OnIslandDragLeaveTick(object? sender, EventArgs e)
+    {
+        _islandDragLeaveTimer?.Stop();
+        // The chrome may already be collapsed (the drag moved onto the preview panel); the
+        // session flag is what is still open, so the preview closes on it.
+        if (_islandDragValid)
+        {
+            EndIslandDrag(keepPanel: false);
+        }
+    }
+
+    private void CancelIslandDragLeave() => _islandDragLeaveTimer?.Stop();
+
+    private DispatcherTimer EnsureIslandDragLeaveTimer()
+    {
+        if (_islandDragLeaveTimer is null)
+        {
+            _islandDragLeaveTimer = new DispatcherTimer();
+            _islandDragLeaveTimer.Tick += OnIslandDragLeaveTick;
+        }
+
+        return _islandDragLeaveTimer;
+    }
+
+    /// <summary>
+    /// Ends the file-drag session: the drag preview is released first (a landed drop keeps the
+    /// panel so the new shelf entry is visible; a cancel closes it), then the pill's drag chrome
+    /// collapses and the face pipeline repaints from the same presence snapshot.
+    /// </summary>
+    private void EndIslandDrag(bool keepPanel)
+    {
+        CancelIslandDragPreview();
+        CancelIslandDragLeave();
+        IslandHost.ShowShelfDropTarget(false);
+        _presence?.EndFileDrag(keepPanel, IslandNow());
+        _islandDragValid = false;
+        _islandDragOverPanel = false;
+        if (_islandDragActive)
+        {
+            // SetIslandDragActive(false) runs UpdateIslandPill -> ApplyIslandChrome, which
+            // observes the panel transition above (open kept / animated close).
+            SetIslandDragActive(false);
+            return;
+        }
+
+        ApplyIslandChrome(focusMusic: false);
+    }
     /// <summary>
     /// The drag-target chrome is a transition-gated state, not an extra animation: enter
     /// swaps the pill chrome and widens it through <see cref="AnimatePillWidth"/>, exit
@@ -572,6 +791,13 @@ public partial class TopBarWindow
         }
 
         IslandConfig cfg = _config.Current.Island;
+        // A file drag hovering the pill previews the shelf: that is where a drop lands, and the
+        // badge already promises it. The saved tab is untouched (only the preview shows Shelf).
+        if (_islandDragActive && cfg.ShelfTab)
+        {
+            return IslandHubTab.Shelf;
+        }
+
         if (_shownFace == IslandPillFace.Drop && cfg.ShelfTab)
         {
             return IslandHubTab.Shelf;
@@ -1453,6 +1679,13 @@ public partial class TopBarWindow
         IslandHost.OnPanelClosed();
         SetIslandJoined(false);
         ToolTipService.SetIsEnabled(IslandPill, true);
+        // A close can land while the drag is still on the pill (for example a cancel/close
+        // animation that a quick re-enter raced). Re-arm the preview so the drag keeps its
+        // drop target instead of showing chrome over a closed island.
+        if (_islandDragActive && _islandDragValid)
+        {
+            ArmIslandDragPreview();
+        }
     }
 
     /// <summary>
@@ -1671,7 +1904,7 @@ public partial class TopBarWindow
             ApplyIslandJoinRim();
             IslandHost.SetJoin(IslandPill.ActualWidth, IslandHost.PanelWidthDip > 0 ? (IslandHost.PanelWidthDip - IslandPill.ActualWidth) / 2d : 0);
             // The joined fill owns the capsule; force the closed cache to repaint on close.
-            _closedPillTint = null;
+            _closedPillTintState = ClosedPillTintState.Invalid;
             return;
         }
 
@@ -1679,8 +1912,7 @@ public partial class TopBarWindow
         IslandPill.ClearValue(Border.CornerRadiusProperty);
         IslandPill.ClearValue(Border.BorderThicknessProperty);
         IslandPill.ClearValue(Border.BorderBrushProperty);
-        _closedPillTint = null;
-        _closedPillHover = false;
+        _closedPillTintState = ClosedPillTintState.Invalid;
         // Back to the collapsed indicator: restore the subtle session tint (or the style fill).
         UpdateClosedIslandPillFill();
     }
@@ -1691,6 +1923,13 @@ public partial class TopBarWindow
     /// </summary>
     private void ApplyIslandJoinRim()
     {
+        // While a file drag hovers the pill the drag chrome's accent stroke owns the border; the
+        // panel rim returns on the drag's exit (SetIslandDragActive(false) re-applies this).
+        if (_islandDragActive)
+        {
+            return;
+        }
+
         var brush = new SolidColorBrush(IslandHost.JoinRimColor);
         brush.Freeze();
         IslandPill.BorderBrush = brush;
@@ -1722,19 +1961,24 @@ public partial class TopBarWindow
         if (_islandJoined || IslandPopup.IsOpen)
         {
             // The joined fill (SetIslandJoined / OnIslandSurfaceTintChanged) owns the pill.
-            _closedPillTint = null;
+            _closedPillTintState = ClosedPillTintState.Invalid;
             return;
         }
 
         Color? tint = ResolveClosedIslandTint();
-        bool hover = IslandPill.IsMouseOver;
-        if (tint == _closedPillTint && hover == _closedPillHover)
+        // Geometry-based hover: the island popup overlaps the pill's lower edge, so a raw
+        // IsMouseOver can be false while the pointer still rests on the island (same reason the
+        // width/hover allowance uses IsPointerOverIsland).
+        bool hover = IsPointerOverIsland();
+        IslandRgb? tintRgb = tint is Color tintColor ? new IslandRgb(tintColor.R, tintColor.G, tintColor.B) : null;
+        // The bar palette can change under the capsule (wallpaper change on a transparent primary
+        // bar); the cached fill is composited over the old plate, so the revision is part of the key.
+        if (_closedPillTintState.Matches(tintRgb, hover, _barPaletteRevision))
         {
             return;
         }
 
-        _closedPillTint = tint;
-        _closedPillHover = hover;
+        _closedPillTintState = new ClosedPillTintState(tintRgb, hover, _barPaletteRevision);
         if (tint is not Color c)
         {
             IslandPill.ClearValue(Border.BackgroundProperty);
@@ -1754,10 +1998,13 @@ public partial class TopBarWindow
             return;
         }
 
+        // The amount is normalized by the plate alpha: the wallpaper-driven light-wallpaper plate
+        // (~70% opaque white) dilutes a fixed 12% layer, so the same album would look weaker on
+        // that bar than on a theme plate. See IslandPalette.ClosedPillAmount + IslandTintTests.
         IslandPill.Background = FlyoutSurface.CreateTintedOver(
             surface,
             c,
-            hover ? IslandPalette.PillTintHoverAmount : IslandPalette.PillTintAmount);
+            IslandPalette.ClosedPillAmount(surface.A, hover));
     }
 
     /// <summary>Tint the closed pill follows, or null when there is nothing to follow.</summary>
@@ -1943,6 +2190,9 @@ public partial class TopBarWindow
 
         IslandHost.SetClipboardChrome(Monitor.IsPrimary);
         IslandPill.AllowDrop = Monitor.IsPrimary;
+        // The popup is a separate HWND: the preview panel needs its own OLE registration to take
+        // the drag when it follows the surface down into the opened shelf (primary only).
+        IslandHost.AllowDrop = Monitor.IsPrimary;
         _engine.MonitorBrightness.BrightnessChanged += OnIslandBrightnessChanged;
         _presence.SetClipboardSurface(Monitor.IsPrimary, IslandNow());
         PushLowBattery(island?.Config);
@@ -2012,6 +2262,20 @@ public partial class TopBarWindow
             _islandHoverWatch = null;
         }
 
+        if (_islandDragPreviewTimer is not null)
+        {
+            _islandDragPreviewTimer.Stop();
+            _islandDragPreviewTimer.Tick -= OnIslandDragPreviewTick;
+            _islandDragPreviewTimer = null;
+        }
+
+        if (_islandDragLeaveTimer is not null)
+        {
+            _islandDragLeaveTimer.Stop();
+            _islandDragLeaveTimer.Tick -= OnIslandDragLeaveTick;
+            _islandDragLeaveTimer = null;
+        }
+
         if (Island is { } island)
         {
             island.Changed -= OnIslandChanged;
@@ -2021,10 +2285,17 @@ public partial class TopBarWindow
         ClearCaptureAffinity();
         // No service left to follow: the capsule returns to the plain style fill.
         IslandPill.ClearValue(Border.BackgroundProperty);
-        _closedPillTint = null;
-        _closedPillHover = false;
+        _closedPillTintState = ClosedPillTintState.Invalid;
+        // A drag in flight cannot outlive the window: stop the preview glow and the owed drop
+        // motion before the panel is detached.
+        IslandHost.ShowShelfDropTarget(false);
+        IslandHost.CancelShelfDrop();
         IslandHost.Detach();
         _presence = null;
+        _islandDragActive = false;
+        _islandDragValid = false;
+        _islandDragOverPanel = false;
+        _islandJoined = false;
         _islandPrompterPinned = false;
         _islandPrompterCloseOnce = false;
         _idleLabelSet = false;
@@ -2202,7 +2473,13 @@ public partial class TopBarWindow
         e.Handled = true;
     }
 
-    private void OnIslandPillDrop(object sender, DragEventArgs e)
+    private void OnIslandPillDrop(object sender, DragEventArgs e) => DropOnIsland(e);
+
+    /// <summary>
+    /// Single file-drop path for both surfaces that can receive the drag: the pill and the open
+    /// preview panel (the panel is the extension; the pill is the guaranteed target).
+    /// </summary>
+    private void DropOnIsland(DragEventArgs e)
     {
         e.Handled = true;
         bool landed = false;
@@ -2236,12 +2513,34 @@ public partial class TopBarWindow
                 }
             }
 
+            // Arm the shelf arrival animation before AddDroppedFiles: its Changed -> RebuildShelf
+            // runs synchronously on the UI thread. The newest id before the drop lets the flyout
+            // animate exactly the landed records even when it is detached and builds the shelf for
+            // the first time; a panel that still has to open delays the chip motion until after
+            // the reveal. No shelf tab means no shelf arrival animation is owed at all.
+            long newestBefore = 0;
+            foreach (IslandEntry entry in island.Entries)
+            {
+                if (entry.Id > newestBefore)
+                {
+                    newestBefore = entry.Id;
+                }
+            }
+
+            if (island.Config.ShelfTab)
+            {
+                IslandHost.PrepareShelfDrop(
+                    panelStillOpening: !IslandPopup.IsOpen,
+                    newestEntryIdBefore: newestBefore);
+            }
+
             // The feedback rests on the entry COUNTED by the service, not on the payload strings: a path
-            // deleted or renamed during the drag produces no entry, so the HUD and the swallow
-            // animation must not run in the "nothing was dropped" case (a fake success feedback).
+            // deleted or renamed during the drag produces no entry, so the HUD, the swallow and the
+            // shelf arrival animation must not run in the "nothing was dropped" case.
             int added = island.AddDroppedFiles(paths);
             if (added <= 0)
             {
+                IslandHost.CancelShelfDrop();
                 return;
             }
 
@@ -2254,9 +2553,10 @@ public partial class TopBarWindow
         }
         finally
         {
-            // No DragLeave follows a drop; collapse on every path (empty or failed payload
-            // included) so the pill can never stay stuck in drag chrome.
-            SetIslandDragActive(false);
+            // No DragLeave follows a drop; end on every path (empty or failed payload
+            // included) so the pill can never stay stuck in drag chrome. A landed drop keeps
+            // the preview panel: the new shelf entry is the visual result of the drop.
+            EndIslandDrag(keepPanel: landed);
         }
 
         // Only reached when a record actually landed (`landed` comes from the service's count,
@@ -2264,6 +2564,24 @@ public partial class TopBarWindow
         // accent flash owns the shared glow from here.
         if (landed)
         {
+            // A quick drag can land before the preview's open delay fired; open the shelf on the
+            // result so the dropped entry is visible either way (the face is Drop now, which
+            // resolves the Shelf tab under the pill).
+            if (!IslandPopup.IsOpen
+                && Island?.Config is { Enabled: true, ShelfTab: true }
+                && _presence is not null)
+            {
+                _presence.BeginFileDrag(IslandNow());
+                _presence.EndFileDrag(keepPanel: true, IslandNow());
+                ApplyIslandChrome(focusMusic: false);
+            }
+            else if (IslandPopup.IsOpen && IslandHost.CurrentHubTab != IslandHubTab.Shelf)
+            {
+                // The landed records are not on screen (another hub body is open): do not carry an
+                // owed arrival animation into a later, unrelated shelf rebuild.
+                IslandHost.CancelShelfDrop();
+            }
+
             PulseIslandPill(swallow: true);
         }
     }

@@ -21,6 +21,15 @@ internal enum TrayStateBlipReason
 /// the taskbar strip, so every maximized/snapped/bottom-touching window jumps twice — a stale
 /// icon is the lesser evil. Out-of-band requests (click follow-up, theme change, inconclusive
 /// retry) never reach this gate; they only drive the stateless show-only peek.
+/// <para>
+/// A bootstrap that could not read the tray (lost unpark race, UIA walk threw, peek refused) is
+/// <b>not evidence</b> that the tray is empty. It used to leave the mirror blank until a 10-minute
+/// retry that also needed a 3-minute idle user (2026-11-09: on a machine where the quiet reveal
+/// never works, a single lost race blanked the bar for the whole session). While the mirror has
+/// never been filled the gate therefore allows a <b>short, bounded</b> retry series
+/// (<see cref="BootstrapShortRetryInterval"/> × <see cref="MaxBootstrapAttempts"/>), and only a
+/// <b>verified</b> empty tray (<c>trayConfirmedEmpty</c>) stops it at once.
+/// </para>
 /// </summary>
 internal static class TrayStateBlipGate
 {
@@ -28,17 +37,28 @@ internal static class TrayStateBlipGate
     internal static readonly TimeSpan MaintenanceInterval = TimeSpan.FromMinutes(20);
     internal static readonly TimeSpan MinUserIdle = TimeSpan.FromMinutes(3);
 
+    /// <summary>
+    /// Gap between the bounded retries of a bootstrap that never read the tray. Short on purpose:
+    /// the desktop already re-flowed for the first attempt, so a blank bar is the worse trade —
+    /// but the series is capped and a verified-empty tray never continues it.
+    /// </summary>
+    internal static readonly TimeSpan BootstrapShortRetryInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>How many state blips a shell session may spend trying to fill an empty mirror.</summary>
+    internal const int MaxBootstrapAttempts = 3;
+
     /// <param name="hasSnapshot">The mirror currently shows (held) icons.</param>
-    /// <param name="blippedThisShell">
-    /// A state blip already ran for this explorer instance. Maintenance requires this: a snapshot
-    /// supplied by the quiet reveal refresh must never trigger a work-area flip.
+    /// <param name="bootstrapAttempts">
+    /// State blips already spent on this explorer instance (0 = none yet). Maintenance requires at
+    /// least one: a snapshot supplied by the quiet reveal refresh must never trigger a work-area
+    /// flip.
     /// </param>
-    /// <param name="trayConfirmedEmpty">The last blip showed the tray and it had no app icons.</param>
+    /// <param name="trayConfirmedEmpty">The last blip verifiably showed the tray and it had no app icons.</param>
     /// <param name="sinceLastStateChange">Time since the last tray-driven state flip.</param>
     /// <param name="userIdle">Time since the last user input.</param>
     internal static TrayStateBlipReason Decide(
         bool hasSnapshot,
-        bool blippedThisShell,
+        int bootstrapAttempts,
         bool trayConfirmedEmpty,
         TimeSpan sinceLastStateChange,
         TimeSpan userIdle)
@@ -49,7 +69,7 @@ internal static class TrayStateBlipGate
             // Nothing on the bar: the bootstrap is the only read that can fill it. Once the quiet
             // reveal refresh supplies a snapshot this branch is never reached — a work-area flapping
             // blip must not run for pixels the mirror already has.
-            if (!blippedThisShell)
+            if (bootstrapAttempts == 0)
             {
                 return TrayStateBlipReason.Bootstrap;
             }
@@ -61,6 +81,15 @@ internal static class TrayStateBlipGate
                 return TrayStateBlipReason.None;
             }
 
+            // The earlier attempts never read the tray, so they prove nothing. Retry while the bar
+            // is blank, bounded, without waiting for a 3-minute idle user (nobody can be idle and
+            // blank-barred at the same time for long anyway) — see the type doc.
+            if (bootstrapAttempts < MaxBootstrapAttempts
+                && sinceLastStateChange >= BootstrapShortRetryInterval)
+            {
+                return TrayStateBlipReason.BootstrapRetry;
+            }
+
             return userAway && sinceLastStateChange >= BootstrapRetryInterval
                 ? TrayStateBlipReason.BootstrapRetry
                 : TrayStateBlipReason.None;
@@ -69,7 +98,7 @@ internal static class TrayStateBlipGate
         // Maintenance only exists to refresh a mirror that a state blip itself filled. When the
         // quiet reveal refresh supplied the snapshot, no blip ever ran this shell — flipping the
         // work area for pixels already on the bar would be a gratuitous jump, so stay at None.
-        return blippedThisShell && userAway && sinceLastStateChange >= MaintenanceInterval
+        return bootstrapAttempts > 0 && userAway && sinceLastStateChange >= MaintenanceInterval
             ? TrayStateBlipReason.Maintenance
             : TrayStateBlipReason.None;
     }
@@ -80,4 +109,16 @@ internal static class TrayStateBlipGate
     /// </summary>
     internal static bool ChecksAllAffectedWindows(TrayStateBlipReason reason) =>
         reason is TrayStateBlipReason.BootstrapRetry or TrayStateBlipReason.Maintenance;
+
+    /// <summary>
+    /// The bounded bootstrap retries (<see cref="MaxBootstrapAttempts"/> per shell) keep the cheap
+    /// check: the desktop already re-flowed for the first blip, and the mirror is blank — waiting
+    /// for every snapped/bottom-touching window to move would leave the bar empty indefinitely.
+    /// The long-interval retry and maintenance keep the full check.
+    /// </summary>
+    internal static bool ChecksAllAffectedWindows(TrayStateBlipReason reason, int bootstrapAttempts) =>
+        reason == TrayStateBlipReason.BootstrapRetry
+            && bootstrapAttempts < MaxBootstrapAttempts
+            ? false
+            : ChecksAllAffectedWindows(reason);
 }

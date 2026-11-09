@@ -25,6 +25,32 @@ internal static class IslandMotion
     /// <summary>Delay between consecutive parts of the panel's staggered reveal.</summary>
     internal const double StaggerStepMs = 30;
 
+    /// <summary>
+    /// Delay between the pill's drag-target chrome landing and the shelf preview opening under
+    /// it. The pill's badge/glow grow is the first half of the gesture; opening the panel on the
+    /// same frame would hide that animation behind the new surface, so the preview waits a beat.
+    /// </summary>
+    internal const double DragPreviewOpenDelayMs = 160;
+
+    /// <summary>Drag-preview open delay; zero with animations off (the open is posted to the next dispatcher turn).</summary>
+    internal static double DragPreviewOpenMs(bool animationsEnabled)
+        => Gate(DragPreviewOpenDelayMs, animationsEnabled);
+
+    /// <summary>
+    /// Debounce after the drag leaves the pill before the preview collapses. This is a
+    /// cross-window hand-off guard (the pill's DragLeave and the panel's DragEnter race over the
+    /// popup's overlapping top edge), not an animation, so it stays on with animations off; the
+    /// close animation itself is still gated by <c>ClientAreaAnimation</c>.
+    /// </summary>
+    internal const double DragLeaveGraceDelayMs = 120;
+
+    /// <summary>
+    /// Delay before a landed drop's new chip slides in when the panel still has to open first
+    /// (a fast drag that landed before the preview delay). The chip animation then starts after
+    /// the panel's grow-from-the-pill reveal instead of playing behind its fade.
+    /// </summary>
+    internal const double ShelfArrivalAfterRevealMs = 210;
+
     /// <summary>Start delay of part <paramref name="index"/>; zero when animations are off.</summary>
     internal static double StaggerDelayMs(int index, bool animationsEnabled)
         => animationsEnabled ? index * StaggerStepMs : 0;

@@ -298,6 +298,9 @@ public sealed partial class IslandFlyout : UserControl
         TabShelf.Visibility = available && _shelfTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabPrompter.Visibility = available && _prompterTabWanted ? Visibility.Visible : Visibility.Collapsed;
         TabCamera.Visibility = available && _cameraTabWanted ? Visibility.Visible : Visibility.Collapsed;
+        // The music body's "clipboard history" affordance exists only where there is a clipboard
+        // to show (primary); the XAML declares it collapsed because that is the secondary default.
+        ClipboardAffordance.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         ScheduleTabStripCompactness();
     }
 
@@ -664,6 +667,10 @@ public sealed partial class IslandFlyout : UserControl
         if (tab != IslandHubTab.Shelf)
         {
             ClearShelfSelection();
+            ShowShelfDropTarget(false);
+            // The drop result will not be rendered on another body: do not carry the owed
+            // arrival animation into an unrelated shelf rebuild later.
+            CancelShelfDrop();
         }
 
         // Don't tick once the body is hidden: stop playback when the tab changes (the pin stays
@@ -693,17 +700,20 @@ public sealed partial class IslandFlyout : UserControl
                 break;
             case IslandHubTab.Wallpaper:
                 StopTimelinePoll();
-                ApplyTint(null);
+                // The album tint belongs to the SMTC session, not to the hub tab: the panel keeps
+                // its color when the user browses another body (docs: "The panel tints while an
+                // SMTC session exists"). ApplyMusic is the only other tint caller and covers Music.
+                ApplySessionTint();
                 WallpaperHost.Refresh();
                 break;
             case IslandHubTab.Shelf:
                 StopTimelinePoll();
-                ApplyTint(null);
+                ApplySessionTint();
                 RebuildShelf();
                 break;
             case IslandHubTab.Prompter:
                 StopTimelinePoll();
-                ApplyTint(null);
+                ApplySessionTint();
                 _ = Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
                 {
                     // Decide with the body visible + layout settled: extent/offset should not come back zero.
@@ -713,19 +723,19 @@ public sealed partial class IslandFlyout : UserControl
                 break;
             case IslandHubTab.Camera:
                 StopTimelinePoll();
-                ApplyTint(null);
+                ApplySessionTint();
                 RefreshCameraBody();
                 ReadMicStatus();
                 StartCameraBodyLifecycle();
                 break;
             case IslandHubTab.ColorPicker:
                 StopTimelinePoll();
-                ApplyTint(null);
+                ApplySessionTint();
                 RebuildPicker();
                 break;
             default:
                 StopTimelinePoll();
-                ApplyTint(null);
+                ApplySessionTint();
                 SearchBox.Clear();
                 _selectedIndex = 0;
                 Rebuild();
@@ -966,6 +976,9 @@ public sealed partial class IslandFlyout : UserControl
             ApplyMusic();
         }
 
+        // The panel tint is session-wide, so a session end / track change must retint the panel
+        // even while a non-Music body is shown (ApplyMusic above only covers the Music body).
+        ApplySessionTint();
         UpdateTimelineInterval();
     }
 
@@ -983,6 +996,9 @@ public sealed partial class IslandFlyout : UserControl
         MusicSessions.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
         MusicPreviousSessionButton.IsEnabled = multipleSessions;
         MusicNextSessionButton.IsEnabled = multipleSessions;
+        // Clipboard-history affordance: only where a clipboard list exists (primary bar). The XAML
+        // default is collapsed for the secondary bars; SetClipboardChrome also writes this state.
+        ClipboardAffordance.Visibility = _primarySurface ? Visibility.Visible : Visibility.Collapsed;
 
         if (!hasSession)
         {
@@ -1043,20 +1059,32 @@ public sealed partial class IslandFlyout : UserControl
             }
 
             _colorMode = value;
-            if (_clipboardShown)
-            {
-                return;
-            }
-
-            MediaSnapshot snapshot = _media?.Snapshot ?? MediaSnapshot.Idle;
-            ApplyTint(snapshot.HasSession
-                ? IslandTintSource.Resolve(_colorMode, snapshot.Thumbnail, musicPlaying: true)
-                : null);
+            // The tint follows the SMTC session, not the visible hub tab: a mode change must
+            // retint (or neutralize) the panel even while another body is shown.
+            ApplySessionTint();
         }
     }
 
     private string _colorMode = IslandConfig.DefaultColorMode;
     private bool _clipboardShown;
+
+    /// <summary>
+    /// Tint the whole panel follows: the album color of the current SMTC session (also when
+    /// paused), resolved by the same extractor as the closed capsule. Null when there is no
+    /// session or <c>island.colorMode</c> is neutral/system-without-accent-resolution. This is
+    /// deliberately independent of the hub tab, so the panel does not lose its color when the
+    /// user browses Clipboard/Wallpaper/Shelf/Prompter/Camera/Color.
+    /// </summary>
+    private Color? SessionTint()
+    {
+        MediaSnapshot snapshot = _media?.Snapshot ?? MediaSnapshot.Idle;
+        return snapshot.HasSession
+            ? IslandTintSource.Resolve(ColorMode, snapshot.Thumbnail, musicPlaying: true)
+            : null;
+    }
+
+    /// <summary>Re-applies the session tint to the panel surface (see <see cref="SessionTint"/>).</summary>
+    private void ApplySessionTint() => ApplyTint(SessionTint());
 
     /// <summary>
     /// Paints the album tint on the panel silhouette, the rim, the cover bloom, the seek fill and
@@ -1671,6 +1699,9 @@ public sealed partial class IslandFlyout : UserControl
 
         // Body closed: the shelf selection does not carry into the next open (the chips are rebuilt anyway).
         ClearShelfSelection();
+        // The drag preview glow and any owed drop animation belong to the open panel only.
+        ShowShelfDropTarget(false);
+        CancelShelfDrop();
     }
 
     /// <summary>
@@ -1916,7 +1947,7 @@ public sealed partial class IslandFlyout : UserControl
     }
 
     private static FontFamily ResolveIconFont() =>
-        Application.Current.TryFindResource("AppIconFontFamily") as FontFamily
+        Application.Current?.TryFindResource("AppIconFontFamily") as FontFamily
         ?? new FontFamily("Segoe MDL2 Assets");
     /// <summary>The "source app · relative time" label at the right of the row.</summary>
     private static string BuildMeta(IslandEntry entry)
@@ -1935,7 +1966,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private static Brush ResolveTileBrush()
     {
-        if (Application.Current.TryFindResource("ControlFillColorSecondaryBrush") is Brush brush)
+        if (Application.Current?.TryFindResource("ControlFillColorSecondaryBrush") is Brush brush)
         {
             return brush;
         }
@@ -1947,7 +1978,7 @@ public sealed partial class IslandFlyout : UserControl
 
     private static Brush ResolveSelectedBrush()
     {
-        if (Application.Current.TryFindResource("ControlFillColorDefaultBrush") is Brush brush)
+        if (Application.Current?.TryFindResource("ControlFillColorDefaultBrush") is Brush brush)
         {
             return brush;
         }
@@ -2046,6 +2077,29 @@ public sealed partial class IslandFlyout : UserControl
     private long _shelfAnchorId = -1;
 
     /// <summary>
+    /// Entry ids seen by the last shelf rebuild. New ids — a drop that just landed — can slide in
+    /// without re-animating the chips an unrelated rebuild already painted.
+    /// </summary>
+    private readonly HashSet<long> _shelfKnownIds = [];
+
+    /// <summary>An entry drop just landed: the next rebuild animates the chips it adds.</summary>
+    private bool _shelfDropPulse;
+
+    /// <summary>Extra start delay (ms) for the drop animation while the panel is still opening.</summary>
+    private double _shelfDropDelayMs;
+
+    /// <summary>Only entries with an id above this threshold are animated as fresh drop records.</summary>
+    private long _shelfDropMinNewId;
+
+    /// <summary>The orange shelf drop-target glow is lit (a file drag hovers the pill).</summary>
+    private bool _shelfDropTargetActive;
+
+    /// <summary>Drop-target glow pulse: bright/dim endpoints and half-period.</summary>
+    private const double ShelfDropGlowMin = 0.35;
+    private const double ShelfDropGlowMax = 1.0;
+    private const double ShelfDropGlowPulseMs = 720;
+
+    /// <summary>
     /// Display order of the last rebuild (chip order = <see cref="IslandService.Entries"/> order).
     /// Range selection and the batch drag payload follow this order.
     /// </summary>
@@ -2063,6 +2117,112 @@ public sealed partial class IslandFlyout : UserControl
     /// </para>
     /// </summary>
     private bool _suppressNextShelfCollapse;
+
+    /// <summary>
+    /// Lights the shelf as the drop target while a file drag hovers the pill. The glow is an
+    /// overlay above the list, so it never shifts the chips; the pulse is the "drag is alive"
+    /// animation and stays a static lit state when the user has animations off.
+    /// </summary>
+    internal void ShowShelfDropTarget(bool active)
+    {
+        if (_shelfDropTargetActive == active)
+        {
+            return;
+        }
+
+        _shelfDropTargetActive = active;
+        ShelfDropGlow.BeginAnimation(UIElement.OpacityProperty, null);
+        if (!active)
+        {
+            ShelfDropGlow.Opacity = 0;
+            return;
+        }
+
+        ShelfDropGlow.Opacity = ShelfDropGlowMin;
+        double ms = IslandMotion.Gate(ShelfDropGlowPulseMs, SystemParameters.ClientAreaAnimation);
+        if (ms <= 0)
+        {
+            ShelfDropGlow.Opacity = ShelfDropGlowMax;
+            return;
+        }
+
+        var pulse = new DoubleAnimation(ShelfDropGlowMin, ShelfDropGlowMax, TimeSpan.FromMilliseconds(ms))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        ShelfDropGlow.BeginAnimation(UIElement.OpacityProperty, pulse);
+    }
+
+    /// <summary>
+    /// Arms the new-chip entry animation for the rebuild a landed drop triggers.
+    /// <paramref name="panelStillOpening"/> adds the reveal delay so a drop that also opens the
+    /// panel does not play the chip motion behind the open animation.
+    /// <paramref name="newestEntryIdBefore"/> is the newest record id before the drop: only ids
+    /// above it are fresh, so a detached flyout's first shelf build does not animate old chips.
+    /// </summary>
+    internal void PrepareShelfDrop(bool panelStillOpening = false, long newestEntryIdBefore = 0)
+    {
+        _shelfDropPulse = true;
+        _shelfDropMinNewId = newestEntryIdBefore;
+        _shelfDropDelayMs = panelStillOpening
+            ? IslandMotion.Gate(IslandMotion.ShelfArrivalAfterRevealMs, SystemParameters.ClientAreaAnimation)
+            : 0;
+    }
+
+    /// <summary>A drop that landed nothing (or a non-Shelf body): no entry animation is owed.</summary>
+    internal void CancelShelfDrop()
+    {
+        _shelfDropPulse = false;
+        _shelfDropDelayMs = 0;
+        _shelfDropMinNewId = 0;
+    }
+
+    /// <summary>
+    /// Drop-result motion for a new chip: a short fade + downward slide, staggered for a batch.
+    /// The base state is the START (hidden/offset) so a BeginTime delay does not flash the final
+    /// frame first; the clocks hold the end state and are removed in Completed, leaving the chip
+    /// at its resting local values with no animation clock behind.
+    /// </summary>
+    private static void AnimateShelfChipIn(Border chip, int index, double extraDelayMs)
+    {
+        double ms = IslandMotion.Gate(IslandMotion.ContentFadeMs, SystemParameters.ClientAreaAnimation);
+        if (ms <= 0)
+        {
+            return;
+        }
+
+        var slide = new TranslateTransform(0, -10);
+        chip.RenderTransform = slide;
+        chip.Opacity = 0;
+        double delayMs = extraDelayMs + IslandMotion.StaggerDelayMs(Math.Min(index, 6), true);
+        var delay = TimeSpan.FromMilliseconds(delayMs);
+        var duration = new Duration(TimeSpan.FromMilliseconds(ms));
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var fade = new DoubleAnimation(1, duration)
+        {
+            BeginTime = delay,
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.HoldEnd,
+        };
+        fade.Completed += (_, _) =>
+        {
+            chip.BeginAnimation(UIElement.OpacityProperty, null);
+            chip.Opacity = 1;
+            slide.BeginAnimation(TranslateTransform.YProperty, null);
+            slide.Y = 0;
+        };
+        chip.BeginAnimation(UIElement.OpacityProperty, fade);
+        slide.BeginAnimation(
+            TranslateTransform.YProperty,
+            new DoubleAnimation(0, duration)
+            {
+                BeginTime = delay,
+                EasingFunction = ease,
+                FillBehavior = FillBehavior.HoldEnd,
+            });
+    }
 
     /// <summary>
     /// Shelf body: dropped file entries as single-line chips — extension badge + file
@@ -2096,6 +2256,12 @@ public sealed partial class IslandFlyout : UserControl
 
         ShelfList.Children.Clear();
         _shelfRows.Clear();
+        bool animateNew = _shelfDropPulse;
+        double arrivalDelay = _shelfDropDelayMs;
+        long minNewId = _shelfDropMinNewId;
+        _shelfDropPulse = false;
+        _shelfDropDelayMs = 0;
+        _shelfDropMinNewId = 0;
         int shown = Math.Min(files.Count, MaxRenderedRows);
         for (int i = 0; i < shown; i++)
         {
@@ -2106,8 +2272,17 @@ public sealed partial class IslandFlyout : UserControl
             // RebuildShelf runs on every clipboard/media notification, and leaking two separate
             // Directory.Exists calls (badge + menu resolution) into the chip builder would double the hot path.
             bool isFolder = entry.FilePath is { Length: > 0 } folderPath && Directory.Exists(folderPath);
-            ShelfList.Children.Add(BuildShelfChip(entry, isFolder));
+            Border chip = BuildShelfChip(entry, isFolder);
+            if (animateNew && entry.Id > minNewId && !_shelfKnownIds.Contains(entry.Id))
+            {
+                AnimateShelfChipIn(chip, i, arrivalDelay);
+            }
+
+            ShelfList.Children.Add(chip);
         }
+
+        _shelfKnownIds.Clear();
+        _shelfKnownIds.UnionWith(liveIds);
 
         // The background menu is lazy: the threshold comes from the entry count, not from disk (no
         // path query on rebuild). The menu object is created once when first needed; the payload

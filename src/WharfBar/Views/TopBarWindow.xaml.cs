@@ -73,6 +73,13 @@ public partial class TopBarWindow : Window
     /// <summary>Set while the background strip sample is decoding on the worker thread.</summary>
     private bool _wallpaperSampling;
 
+    /// <summary>
+    /// Monotonic revision of the <c>Bar.*</c> palette. The closed island capsule composites its
+    /// album tint over <c>Bar.PillFill</c> and freezes the brush, so a wallpaper-driven palette
+    /// change has to invalidate that cache (see TopBarWindow.Island.UpdateClosedIslandPillFill).
+    /// </summary>
+    private int _barPaletteRevision;
+
     /// <summary>Idle watch so wallpaper edits without module broadcasts still retune the palette.</summary>
     private static readonly TimeSpan WallpaperWatchInterval = TimeSpan.FromSeconds(3);
     private DispatcherTimer? _wallpaperWatch;
@@ -1132,7 +1139,10 @@ public partial class TopBarWindow : Window
             el.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        if (Monitor.IsPrimary && _presence is not null)
+        // The now-playing title ceiling counts the cluster widths on every bar, so a status-strip
+        // width change has to refresh the pill face on the secondary bars too (a primary-only gate
+        // left their title MaxWidth stale).
+        if (_presence is not null)
         {
             ApplyIslandFace(_presence.View);
         }
@@ -1547,6 +1557,12 @@ public partial class TopBarWindow : Window
         {
             Resources[entry.Key] = entry.Value;
         }
+
+        // The closed island capsule freezes a composite of the tint over Bar.PillFill; the plate
+        // just changed, so the cached fill is stale. Bump the revision the pill cache compares and
+        // repaint it (the joined pill is owned by the panel tint and is left alone).
+        _barPaletteRevision++;
+        UpdateClosedIslandPillFill();
     }
 
     private Brush FindThemeBrush(string key) => (Brush)FindResource(key);

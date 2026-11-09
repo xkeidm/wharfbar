@@ -172,6 +172,12 @@
   HEX chip (swatch + mono HEX) and hint/status line below. The picked colour is now the loupe's
   exact centre pixel instead of a 3×3 average. New pure seam `ScreenSampler.TryCropBox`
   (centre-clamped BGRA box crop, tight output stride) — tests in `SnapshotMagnifierTests`.
+  Follow-up: Esc cancels through a bare `VK_ESCAPE` hotkey registered only while the overlay is
+  open (a non-activated overlay never receives `WM_KEYDOWN`; keyboard focus stays as the fallback),
+  the HEX/hint card flips above the loupe near the monitor bottom (y-axis flip) instead of the
+  loupe drifting away from the cursor, and the 13×13 grid is sized in whole device pixels per DPI
+  so the magnifier cells stay uniform — placement lives in the pure `ColorPickerLayout` seam
+  (tests in `ColorPickerLayoutTests`).
 - **Island shelf — drag-target chrome + usability ✓ (code; manual verification pending)** — the
   primary pill is a live drop target: a `FileDrop` drag hovering it grows the pill through
   `AnimatePillWidth`, swaps the glyph for the drop arrow (`E73E`), sets the caption to the
@@ -185,22 +191,30 @@
   record; and the chip menu `Show file location` / `Copy path` / `Copy file` (CF_HDROP
   through `ClipboardNative`, hidden for folders). The shipped surface is described above and in
   [`docs/01-architecture.md`](../../docs/01-architecture.md).
-- **Tray mirror — quiet reveal + evidence-only clearing ✓ (code; manual verification pending)** — on
-  Windows 11 25H2 the parked auto-hide taskbar virtualizes its XAML tray buttons, so the periodic
-  pixel refresh now hover-reveals the tray exactly like a click (`TrayAutoHideReveal.TryReveal`:
-  bottom-edge hover with real input, cursor restored, no `ABM_SETSTATE`, no work-area change) before
-  reading. New pure gate `TrayRevealPolicy` (reveal only while the pointer is idle ≥1.5 s or the
-  mirror is still empty, the empty-mirror bypass capped at 3 attempts per shell; 2 consecutive
-  misses back off for 10 min) plus a real-fullscreen skip in `ShouldAttemptQuietRefresh`; the loud
-  state blip stays the gated fallback (maintenance only in a shell that already blipped). The reveal
-  also suppresses WharfBar's own dock edge-band show while it owns the cursor, and restores the mouse
-  only if the user has not moved it. Empty reads are no longer evidence: `TrayBlipOutcome` (`Skipped` /
-  `Inconclusive` / `ConfirmedEmpty` / `Refreshed`) and a 220 ms confirmation read mean only a tray
-  confirmed fully on screen that read back empty clears the mirror (`ShouldHoldSnapshotOnEmptyRead`);
-  unnamed/repeated buttons now get index-suffixed keys
-  (`TrayMirrorOrder.UniqueKeys`) so de-duplication cannot drop them. Tests: `TrayRevealPolicyTests`,
-  `TrayMirrorEmptyReadTests` (rewritten around the evidence rule), `TrayMirrorOrderTests`,
-  `TrayButtonMatcherTests`, `TrayStateBlipGateTests`, `IdleCadenceTests`, `TrayAutoHideRevealTests`. Details: `docs/02`/`docs/04` and
+- **Tray mirror — cursor-free clicks + pointer-warp prevention + stable gated reads ✓ (code; manual verification pending)** — on
+  Windows 11 25H2 the parked auto-hide taskbar virtualizes its XAML tray buttons, and the old quiet
+  read hovered the bottom edge with real input (2026-11-09 live report: the pointer was thrown to the
+  bottom on every click and the reveal timed out on every attempt). Removed: the hover reveal, its
+  idle/backoff policy, `SendInputMouse` and the physical click. Clicks are now cursor-free — UI
+  Automation `InvokePattern` (left; twice for a double) and verified `SetFocus` + `VK_APPS`
+  (`Shift+F10` fallback) for right on the element cached with the mirror snapshot; a cached element
+  keeps working while the tray is hidden (measured), so the common click needs no peek or state flip,
+  and one bounded repair blip re-reads the tray when the element died. A menu owner's own pointer
+  warp (it anchors the menu at the real tray icon; measured 0–20 ms after the Menu key, to the
+  screen's bottom edge) is **prevented** rather than undone: `TrayPointerGuard` confines the cursor
+  with `ClipCursor` to a 6 px box (`ClipMarginPx = 6`) right before the Menu key and releases it
+  after `ClipHoldMs = 150` ms, so the owner's `SetCursorPos` is clamped near the click — a
+  high-integrity foreground (NVIDIA's `NVDisplay.Container`) refuses a later `SetCursorPos` undo,
+  which is why prevention is the design — and a short escape watcher still restores a pointer that
+  lands in the anchor band (`TrayCursorWarp`). The only reads are gated state blips
+  (`TrayStateBlipGate`, verified unpark, fullscreen-foreground skip) and an empty read never
+  clears a populated mirror
+  (`ShouldHoldSnapshotOnEmptyRead`) — only a new `Shell_TrayWnd` does. Menu re-anchor: popup-style
+  classification (never a framed app window) + one process-wide watcher with per-hwnd claims; the
+  old tray-owner detach is gone (no peek ends during a click). Tests: `TrayMirrorEmptyReadTests`,
+  `TrayMirrorBootstrapTests`, `TrayUiaGestureTests`, `TrayCursorWarpTests`,
+  `TrayMenuReanchorTests`, `TrayStateBlipGateTests`, `TrayAutoHideRevealTests`,
+  `TrayMirrorOrderTests`, `TrayButtonMatcherTests`. Details: `docs/02`/`docs/04` and
   [`docs/01-architecture.md`](../../docs/01-architecture.md).
 
 - **Restricted-launch guard — token integrity ✓ (code; manual verification pending)** — a process token

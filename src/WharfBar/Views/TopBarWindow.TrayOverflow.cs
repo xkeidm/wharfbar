@@ -5,6 +5,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
@@ -21,6 +22,9 @@ public partial class TopBarWindow
     private bool _trayDragMoved;
     private bool _trayDragFromBox;
     private string? _trayDragKey;
+
+    /// <summary>Last chevron tooltip text, so the 4 s poll does not churn the tooltip object.</summary>
+    private string? _trayOverflowTooltip;
 
     private void AttachTrayOverflowBox()
     {
@@ -359,7 +363,7 @@ public partial class TopBarWindow
         });
     }
 
-    private static List<TrayMirrorItem> ParkedTrayIcons(
+    private List<TrayMirrorItem> ParkedTrayIcons(
         IReadOnlyList<TrayMirrorItem> items,
         IEnumerable<string>? box)
     {
@@ -378,6 +382,38 @@ public partial class TopBarWindow
             }
         }
 
+        // The mirror host collapses when nothing is left on the bar; the chevron then has to say
+        // why instead of showing an unexplained gap (ADR-009 keeps hidden icons in Win+B).
+        UpdateTrayOverflowTooltip(visibleIconCount: items.Count - parked.Count, mirrorItemCount: items.Count);
         return parked;
+    }
+
+    /// <summary>
+    /// Keeps the chevron tooltip honest for an empty mirror: "still reading" vs "the tray really has
+    /// no app icons — open Windows' hidden icons (Win+B)". Only a <b>verified</b> empty tray
+    /// (<see cref="TrayMirrorState.TrayConfirmedEmpty"/>) claims the latter; an unread or
+    /// inconclusive read never pretends to be a fact. No layout/style change, tooltip text only.
+    /// </summary>
+    private void UpdateTrayOverflowTooltip(int visibleIconCount, int mirrorItemCount)
+    {
+        TrayOverflowTooltip tooltip = TrayMirrorStates.TooltipFor(
+            visibleIconCount,
+            mirrorItemCount,
+            _engine.TrayMirror.State);
+
+        string text = tooltip switch
+        {
+            TrayOverflowTooltip.NoVisibleIcons => Strings.TrayOverflow_NoVisibleIcons,
+            TrayOverflowTooltip.Unread => Strings.TrayOverflow_Unread,
+            _ => Strings.TopBar_TrayOverflow,
+        };
+
+        if (string.Equals(_trayOverflowTooltip, text, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _trayOverflowTooltip = text;
+        SetPlainToolTip(TrayOverflowButton, text);
     }
 }

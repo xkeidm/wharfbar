@@ -14,8 +14,8 @@
     <AssemblyName>WharfBar</AssemblyName>
     <!-- First public beta: shell features are in; Stable 1.0 is the exit milestone.
          AssemblyVersion stays 1.0.0.0; UI reads InformationalVersion. -->
-    <Version>1.0.0-beta</Version>
-    <InformationalVersion>1.0.0-beta</InformationalVersion>
+    <Version>1.0.0-beta.3</Version>
+    <InformationalVersion>1.0.0-beta.3</InformationalVersion>
     <Product>WharfBar</Product>
     <Description>Windows üst bar + dock (Fluent)</Description>
     <ApplicationIcon>Assets\WharfBar.ico</ApplicationIcon>

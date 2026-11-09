@@ -300,7 +300,10 @@ internal static class NativeMethods
     internal const ushort VK_N = 0x4E;
     internal const ushort VK_P = 0x50;
     internal const ushort VK_RETURN = 0x0D;
+    internal const ushort VK_ESCAPE = 0x1B;
     internal const ushort VK_SPACE = 0x20;
+    internal const ushort VK_APPS = 0x5D;
+    internal const ushort VK_F10 = 0x79;
     internal const uint INPUT_KEYBOARD = 1;
     internal const uint KEYEVENTF_KEYUP = 0x0002;
 
@@ -434,6 +437,20 @@ internal static class NativeMethods
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern bool GetCursorPos(out POINT lpPoint);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool SetCursorPos(int x, int y);
+
+    /// <summary>Confines the cursor to <paramref name="lpRect"/> (physical screen px).</summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ClipCursor(ref RECT lpRect);
+
+    /// <summary>Releases a cursor clip (<c>ClipCursor(NULL)</c>).</summary>
+    [DllImport("user32.dll", SetLastError = true, EntryPoint = "ClipCursor")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    internal static extern bool ReleaseCursorClip(IntPtr lpRect);
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern IntPtr CreatePopupMenu();

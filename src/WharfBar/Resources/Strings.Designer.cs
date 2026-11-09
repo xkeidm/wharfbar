@@ -1729,6 +1729,18 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string TrayOverflow_NoVisibleIcons {
+            get {
+                return ResourceManager.GetString("TrayOverflow_NoVisibleIcons", resourceCulture);
+            }
+        }
+
+        public static string TrayOverflow_Unread {
+            get {
+                return ResourceManager.GetString("TrayOverflow_Unread", resourceCulture);
+            }
+        }
+
         public static string Island_Clipboard {
             get {
                 return ResourceManager.GetString("Island_Clipboard", resourceCulture);

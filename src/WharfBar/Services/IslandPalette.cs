@@ -5,6 +5,20 @@ namespace WharfBar.Services;
 internal readonly record struct IslandRgb(byte R, byte G, byte B);
 
 /// <summary>
+/// Closed-pill tint cache key: the resolved session tint, the pointer hover state and the bar
+/// palette revision. Pure so the "the capsule must repaint when the bar palette changes" rule is
+/// unit-testable; the window keeps one instance (<see cref="Invalid"/> forces the next paint).
+/// </summary>
+internal readonly record struct ClosedPillTintState(IslandRgb? Tint, bool Hover, int PaletteRevision)
+{
+    /// <summary>State that never matches, so the next closed-pill update always paints.</summary>
+    internal static ClosedPillTintState Invalid => new(null, false, -1);
+
+    internal bool Matches(IslandRgb? tint, bool hover, int paletteRevision)
+        => Tint == tint && Hover == hover && PaletteRevision == paletteRevision;
+}
+
+/// <summary>
 /// Pure color rules for the island tint. No WPF types so they stay unit-testable.
 /// </summary>
 internal static class IslandPalette
@@ -65,6 +79,47 @@ internal static class IslandPalette
 
     /// <summary>Closed-pill tint amount on hover (the local fill bypasses the style hover fill).</summary>
     internal const double PillTintHoverAmount = 0x36 / 255d;
+
+    /// <summary>
+    /// Capsule plate alpha the closed-pill amounts above are calibrated for: the dark theme's
+    /// translucent rest plate (<c>ControlFillColorDefaultBrush #0FFFFFFF</c>). A more opaque plate
+    /// (the transparent primary bar's wallpaper-driven light-wallpaper plate is <c>#B3FFFFFF</c>)
+    /// dilutes the same tint layer, so <see cref="ClosedPillAmount"/> scales the amount up to keep
+    /// the perceived hue shift the same on every bar.
+    /// </summary>
+    internal const byte PillTintReferencePlateAlpha = 0x0F;
+
+    /// <summary>Hover counterpart of <see cref="PillTintReferencePlateAlpha"/> (dark theme hover plate, <c>#24FFFFFF</c>).</summary>
+    internal const byte PillTintHoverReferencePlateAlpha = 0x24;
+
+    /// <summary>
+    /// How fast the closed-pill tint grows with the plate alpha. Calibrated so the perceived
+    /// saturation delta of the capsule matches the theme case across the palette bases
+    /// (asserted by <c>IslandTintTests.ClosedPillTint_HasTheSamePerceivedHue_OnEveryPaletteBase</c>).
+    /// </summary>
+    private const double PillTintPlateAlphaSlope = 0.71;
+
+    /// <summary>Upper bound of the normalized closed-pill tint (rest).</summary>
+    internal const double MaxPillTintAmount = 0x60 / 255d;
+
+    /// <summary>Upper bound of the normalized closed-pill tint (hover).</summary>
+    internal const double MaxPillTintHoverAmount = 0x80 / 255d;
+
+    /// <summary>
+    /// Closed-pill tint amount for the given capsule plate alpha and hover state. The base amounts
+    /// are calibrated for the theme's near-transparent plate; a wallpaper-driven opaque plate needs
+    /// a stronger layer or the album hue washes out there while it stays visible on the other bar.
+    /// The result never drops below the base amount (a less opaque plate keeps today's behaviour)
+    /// and stays under the documented ceiling.
+    /// </summary>
+    internal static double ClosedPillAmount(byte plateAlpha, bool hover)
+    {
+        double reference = (hover ? PillTintHoverReferencePlateAlpha : PillTintReferencePlateAlpha) / 255d;
+        double baseAmount = hover ? PillTintHoverAmount : PillTintAmount;
+        double scaled = baseAmount * (1 + PillTintPlateAlphaSlope * (plateAlpha / 255d - reference));
+        double max = hover ? MaxPillTintHoverAmount : MaxPillTintAmount;
+        return Math.Clamp(scaled, baseAmount, max);
+    }
 
     /// <summary>
     /// Luminance at which <see cref="ReadableForeground"/> flips from white to near-black.

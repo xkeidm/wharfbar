@@ -170,6 +170,65 @@ internal static class TaskbarNative
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
     }
 
+    /// <summary>
+    /// Verified variant of <see cref="EnsureTrayOnScreen"/> for the tray read: moves a parked tray
+    /// on screen and reports whether the move actually took, read back through
+    /// <see cref="TrayAutoHideReveal.IsFullyOnScreenNow"/>. A single unverified move is not enough
+    /// evidence: while the auto-hide state is still settling explorer clamps the bar back to its
+    /// 2 px sliver, and a read of that parked (virtualized) tray says nothing about the tray being
+    /// empty (2026-11-09: a lost unpark race was classified "tray is empty" and blanked the mirror
+    /// for the whole session). Documented <c>SetWindowPos</c> only.
+    /// </summary>
+    internal static bool TryEnsureTrayOnScreen(IntPtr hwnd, int timeoutMs = 600, int pollMs = 30)
+    {
+        if (hwnd == IntPtr.Zero
+            || !NativeMethods.GetWindowRect(hwnd, out RECT rect)
+            || rect.Height <= 0)
+        {
+            return false;
+        }
+
+        if (TrayAutoHideReveal.IsFullyOnScreenNow(hwnd))
+        {
+            return true;
+        }
+
+        IntPtr monitor = NativeMethods.MonitorFromWindow(hwnd, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        var info = new MONITORINFO
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
+        };
+        if (monitor == IntPtr.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return false;
+        }
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < timeoutMs)
+        {
+            _ = NativeMethods.SetWindowPos(
+                hwnd,
+                IntPtr.Zero,
+                info.rcMonitor.Left,
+                info.rcMonitor.Bottom - rect.Height,
+                rect.Width,
+                rect.Height,
+                NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+            Thread.Sleep(Math.Max(10, pollMs));
+            if (TrayAutoHideReveal.IsFullyOnScreenNow(hwnd))
+            {
+                return true;
+            }
+
+            if (!NativeMethods.GetWindowRect(hwnd, out rect) || rect.Height <= 0)
+            {
+                return false;
+            }
+        }
+
+        return false;
+    }
+
     private static void ApplyTrayVisibility(IntPtr hwnd, bool visible)
     {
         if (visible)
@@ -341,38 +400,6 @@ internal static class TaskbarNative
         ForEachTrayHwnd(ClearStealthVisuals);
         _ = NativeMethods.ShowWindow(hwnd, NativeMethods.SW_SHOW);
     }
-
-    /// <summary>
-    /// Invisible-anchored click session: drops WS_EX_TRANSPARENT from the primary tray
-    /// (keeps LAYERED) and lifts its alpha to 1 so the unseen parked bar still receives
-    /// the synthetic mouse input at its coordinates. Layered-window hit testing follows
-    /// alpha: an alpha of 0 lets mouse messages pass through even without WS_EX_TRANSPARENT,
-    /// while any non-zero alpha (1 ≈ 0.4%) is optically invisible but hit-testable.
-    /// <see cref="EnsureTrayStealthStyles"/> restores WS_EX_TRANSPARENT and alpha 0 on the
-    /// next hide cycle.
-    /// </summary>
-    internal static void BeginTrayClickInput()
-    {
-        IntPtr hwnd = FindTrayHwnd();
-        if (hwnd == IntPtr.Zero)
-        {
-            return;
-        }
-
-        int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
-        if ((exStyle & NativeMethods.WS_EX_TRANSPARENT) != 0)
-        {
-            _ = NativeMethods.SetWindowLong(
-                hwnd,
-                NativeMethods.GWL_EXSTYLE,
-                exStyle & ~NativeMethods.WS_EX_TRANSPARENT);
-        }
-
-        _ = NativeMethods.SetLayeredWindowAttributes(hwnd, 0, 1, NativeMethods.LWA_ALPHA);
-    }
-
-    /// <summary>Reapplies full stealth styling after a click session.</summary>
-    internal static void EndTrayClickInput() => EnsureTrayStealthStyles();
 
     /// <summary>
     /// Applies persistent stealth styling (layered + click-through + alpha 0) to every tray

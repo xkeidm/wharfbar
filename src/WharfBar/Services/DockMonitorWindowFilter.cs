@@ -175,7 +175,7 @@ internal static class DockMonitorWindowFilter
         return Apply(items, placed, monitor);
     }
 
-    private static bool TryNormalRect(IntPtr hwnd, out RECT normal)
+    internal static bool TryNormalRect(IntPtr hwnd, out RECT normal)
     {
         normal = default;
         var placement = new WINDOWPLACEMENT { length = Marshal.SizeOf<WINDOWPLACEMENT>() };

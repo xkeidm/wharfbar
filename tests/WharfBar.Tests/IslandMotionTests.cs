@@ -73,4 +73,20 @@ public class IslandMotionTests
         Assert.Equal(2 * IslandMotion.StaggerStepMs, IslandMotion.StaggerDelayMs(2, true));
         Assert.Equal(0, IslandMotion.StaggerDelayMs(2, false));
     }
+
+    [Fact]
+    public void DragPreviewOpenMs_UsesTheDelayOnlyWithAnimationsOn()
+    {
+        Assert.Equal(IslandMotion.DragPreviewOpenDelayMs, IslandMotion.DragPreviewOpenMs(true));
+        Assert.Equal(0, IslandMotion.DragPreviewOpenMs(false));
+        Assert.InRange(IslandMotion.DragPreviewOpenDelayMs, 100, 250);
+    }
+
+    [Fact]
+    public void DragLeaveGraceMs_IsAHandOffDebounce_NotAnimated()
+    {
+        // The debounce is not reduced by "animations off": it protects the pill -> panel OLE
+        // hand-off, where both drag events race across the popup's overlapping edge.
+        Assert.InRange(IslandMotion.DragLeaveGraceDelayMs, 60, 240);
+    }
 }

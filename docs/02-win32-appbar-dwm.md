@@ -108,7 +108,7 @@ For top-bar indicators:
   the click is forwarded with `SendMessageTimeout` mouse messages.
   There is no `ReadProcessMemory` / injection / undocumented enumeration. Hidden/overflow icons
   cannot be mirrored (they exist only in the open popup); `TrayOverflowInvoker` (`Win+B` / chevron) remains.
-  The poll is 4 s; the icon pixel is not pulled every round (refresh cadence: `TrayIconRefreshPolicy`, see the 25H2 section). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) does not
+  The poll is 4 s; icon pixels are only pulled inside a gated state blip (see the 25H2 section). `SendMessageTimeout` (`SMTO_ABORTIFHUNG`, 500 ms) does not
   lock the UI on a hung explorer.
 - **Windows 11 25H2+ UIA fallback:** the classic `ToolbarWindow32` tray was removed in this version
   (on 25H2 there is no `SysPager`/`ToolbarWindow32` under `TrayNotifyWnd`). When `FindToolbarHwnd` returns
@@ -118,8 +118,8 @@ For top-bar indicators:
   There is no icon bitmap in UIA → `TrayCapture` pulls the parked+cloaked taskbar's own content with `PrintWindow(PW_RENDERFULLCONTENT)`
   and crops the button's `Image` child rect
   (the real icon, no flash; `TrayLetterGlyph` fallback if it fails). UIA
-  children are exposed only while the taskbar is `SW_SHOW` → every poll reads them with `BeginTrayPeek(stealth:true)`
-  (cloak + off-screen park), no flash. DWM cloak is rejected on some machines
+  children are exposed only while the taskbar is `SW_SHOW` **and unparked** → the gated state blip reads them with
+  `BeginTrayPeek(stealth:true)` (cloak + off-screen park) after it dropped `ABS_AUTOHIDE`, no flash. DWM cloak is rejected on some machines
   (`DwmSetWindowAttribute` does not return S_OK) → in that case `TrySetTrayVisibleStealth`
   keeps it invisible with a **WS_EX_LAYERED + alpha 0** fallback (UIA continues to see
   `IsWindowVisible=true`); if that fails too, the peek does not open and the poll is skipped.
@@ -135,21 +135,56 @@ For top-bar indicators:
    > | peek open | `True` | `[67,67,67] [68,68,68] [33,33,33]…` — the real taskbar |
    >
    > **alpha 0 does not block `PrintWindow`** — the only determinant is `IsWindowVisible`, that is, the peek
-   > being open. `TryRefreshViaBlip` captures the icons **before its own `finally` (`EndTrayPeek`)**
+   > being open. The state-blip read captures the icons **before its own `finally` (`EndTrayPeek`)**
    > and returns a ready `TrayMirrorItem` list; `PollUia` uses only that list.
    > Lasting defense: `TrayCapture.IsBlankCapture` rejects a single-color/fully transparent crop →
    > the caller falls back to a letter glyph, **a black square is no longer possible**
 > (tested with `TrayCaptureTests`).
    The mirror is rendered only on the primary monitor's
-   top bar (the `trayMirror` section is not created on secondary bars). Click: a `SendInputMouse` physical click for all kinds
-   (`InvokePattern` was not verified on 25H2 XAML tray buttons;
-   a last-resort fallback if the rect cannot be found). The application's flyout/menu opens according to the parked
-   taskbar position (the bottom edge) or the restored cursor → `TrayMenuReanchor`
-   moves the application's newly appeared popup window under the mirror icon (`SetWindowPos`,
-   work-area clamped; a `#32768` menu always, other classes are candidates only in the click region
-   around the clicked button; fullscreen overlays never; 2.5 s watch, cloaked windows are not in the
-   pre-click snapshot, and a 1.5 s re-assert counters owners that move their flyout back). Matching is NOT by pid:
-   every 25H2 XAML button reports the explorer pid.
+   top bar (the `trayMirror` section is not created on secondary bars).
+
+   **Click — cursor-free (2026-11-09, live-measured on 25H2):** the click is replayed on the tray
+   button through UI Automation, and the click itself never moves the physical pointer. Left click =
+   `InvokePattern.Invoke()` on the button element cached in the mirror snapshot; double-left = two
+   invoked clicks 90 ms apart (UIA cannot express a double-click); right click = verified
+   `SetFocus()` + the Menu key (`VK_APPS`, with `Shift+F10` as the fallback for owners that ignore
+   it) — UIA has no right-click action, and a physical click would move the user's pointer to the
+   bottom edge. Two measured facts make this work while the taskbar stays hidden: (1) every
+   `SystemTray.NormalButton` exposes `InvokePattern`, and (2) a cached element keeps working after
+   the tray is hidden (`SW_HIDE` + alpha 0), even though a fresh UIA walk then returns 0 buttons.
+   The menu key is only sent after `AutomationElement.FocusedElement` proves the tray button is
+   focused; otherwise it would open a context menu inside the user's application. The owner (or the
+   shell's menu helper) may still call <c>SetCursorPos</c> to anchor its menu at the real tray icon,
+   measured on this machine (1920×1080, physical px, 0–20 ms after the Menu key) at the bottom edge:
+   Epic 1309,1056 · RustDesk 1341,1056 · Monitorian 1373,1056 · AMD 1501,1056 · NVIDIA 1405,1079.
+   Undo cannot cover every owner: NVIDIA's tray menu belongs to <c>NVDisplay.Container</c> (SYSTEM
+   integrity, class <c>NotificationIconWindowClass</c>), and while that window is in the foreground
+   the medium-integrity WharfBar process cannot call <c>SetCursorPos</c> (it returns FALSE; the old
+   undo ignored the result and logged a false “cursor restored”), so the pointer stayed at the
+   bottom-right. The warp is now **prevented**: after the tray button has UIA focus and immediately
+   before the Menu key — a foreground change releases an earlier clip — <see cref="TrayPointerGuard"/>
+   confines the cursor with <c>ClipCursor</c> to a box of <c>ClipMarginPx = 6</c> physical px around
+   the pointer's position at click time, so the owner's <c>SetCursorPos</c> is system-clamped near
+   the click (measured with NVIDIA: a 1405,1079 warp became 907,107 when the click point was
+   900,100). The clip is released after <c>ClipHoldMs = 150</c> ms (every measured warp lands within
+   20 ms); the OS also releases it if the process exits, so a crash cannot leave the cursor
+   confined. A short escape watcher (3 ms poll, 600 ms watch) still puts the pointer back if a warp
+   lands in the bottom tray-anchor band (<see cref="TrayCursorWarp"/>), and a refused
+   <c>SetCursorPos</c> is logged honestly (“cursor warp NOT undone … foreground blocks
+   <c>SetCursorPos</c>”) instead of a false restore. If the cached
+   element has died (explorer rebuilt its XAML tree / restarted), one bounded **repair round**
+   unparks the tray with a state blip, re-reads the live buttons, re-captures the icons and replays
+   the gesture on the fresh element; an item that is no longer in the tray is dropped from the
+   mirror. A concurrent second click is dropped while the first session runs.
+   The application's flyout/menu still opens according to the parked taskbar position (the bottom
+   edge) → `TrayMenuReanchor` moves the newly appeared popup under the mirror icon (`SetWindowPos`,
+   work-area clamped; a `#32768` menu always, other classes only when their style is a real popup
+   (`WS_POPUP`, no caption/thickframe, no `WS_EX_APPWINDOW`) and they overlap the click zone —
+   a normal framed application window is never moved; fullscreen overlays, cloaked, hung and
+   own-process windows never; 2.5 s watch, cloaked windows are not in the pre-click snapshot, and
+   a 1.5 s re-assert counters owners that move their flyout back). Matching is NOT by pid: every
+   25H2 XAML button reports the explorer pid. One process-wide `ReanchorWatchGate` allows a single
+   watcher and per-hwnd ownership claims, so two overlapping clicks cannot fight over a menu.
 
 **Implemented:** the left brand logo (`BrandLogo.BarGlyph` / `logoStyle`; geometry, not a font glyph — visible on Mica); the exe/tray icon is `Assets/WharfBar.ico` (Dusk solid mark);
 the right cluster's default LTR is `trayMirror · hidden · date/time · notification · controlCenter · network · battery`
@@ -277,45 +312,24 @@ and restored on the exit/crash paths (`ABM_REMOVE` discipline). Implementation: 
 
    The tray mirror cannot be read
     on a parked tray (XAML content is virtualized): desktop-root UIA reads are done from a dedicated STA dispatcher
-    thread. Refresh first tries a **quiet read** (a stateless stealth peek plus a hover reveal); if that read
-    returns an icon, `ABM_SETSTATE` is not flipped (that flip opens and closes the work area, and the desktop
-    and windows jump). Because the parked bar only leaves a ~2 px sliver on screen, the quiet read recreates
-    the click gesture — the cursor is moved to the bottom edge with real input and
-    `TrayAutoHideReveal.TryReveal` waits for explorer to slide the auto-hide tray in; the cursor is restored
-    afterwards — but only while the pointer is idle (`TrayRevealPolicy.ShouldAttemptReveal`, ≥1.5 s) or the
-    mirror is empty (the empty-mirror bypass is capped at 3 silent pointer borrows per shell), and
-    never while a real fullscreen app covers the primary monitor. It changes no work area, and WharfBar's
-    own auto-hide dock suppresses its bottom edge-band show while the stealth peek owns the cursor
-    (`DockAutoHideController.ShouldShowForCursor`), so the reveal cannot drag the dock out. After 2
-    consecutive reveal misses the quiet read is skipped for 10 min (shared with the click path); an empty
-    read is evidence only when the tray was confirmed fully on screen (`TrayAutoHideReveal.IsFullyOnScreenNow`),
-    never merely because the peek opened.
-    If the quiet read cannot run or reads nothing, the fallback state blip is gated by
-    `TrayStateBlipGate` (once per explorer instance; later only ≥10/≥20 min apart, user idle ≥3 min via
-    `GetLastInputInfo`, and no maximized/bottom-touching window; maintenance additionally runs only in a
-    shell that already blipped once). Expedited requests never reach it.
-    A mirror click uses the same hover reveal and drops the state only as a fallback (after 2 consecutive
-    reveal misses the reveal is skipped for 10 min and the click falls back to the state drop). Every
-    tray-driven flip is logged as `state-change #N reason=…`. Crops are matted against the taskbar fill
-    (`TrayIconMatte`, ring-median background, colour-to-alpha).
-    The refresh runs on this cadence **whether or not the direct read returned buttons** (pixels need a
-    shown tray; gating the peek on an empty read froze icon state such as Discord's mute icon). Quiet read:
-    60 s, 20 s while the last refresh found changed pixels; an out-of-band refresh (floor 15 s) follows a
-    mirror click (+6 s), a theme/accent change (`WM_SETTINGCHANGE` `ImmersiveColorSet`,
-    `WM_THEMECHANGED`, `WM_DWMCOLORIZATIONCOLORCHANGED` → `NotifyAppearanceChanged`, +3 s) and one
-    inconclusive peek. One `PrintWindow` per peek (`TrayCapture.TryCaptureFrame`, skipped while
-    `IsWindowVisible=False`), per-button crops fingerprinted by `TrayIconSignature`; unchanged pixels
-    keep the cached `ImageSource` and an unchanged snapshot is not published. A click whose key is
-    missing from the live tray (the app exited, the snapshot was held) is not sent to the old rect.
-    An empty read is only evidence when the tray was actually shown and read back zero buttons: explorer
-    rebuilds the XAML tray around every show, so a second read 220 ms later confirms it
-    (`TrayBlipOutcome.ConfirmedEmpty`). Every other outcome — throttled, click in flight, user busy,
-    fullscreen, reveal timeout, UIA walk threw — means "never looked" and keeps the last good snapshot:
-    a stale icon beats a blank bar (and the work-area jump needed to re-read it). Unnamed and repeated
-    UIA buttons get index-suffixed keys (`TrayMirrorOrder.UniqueKeys`) so de-duplication does not drop
-    icons. Restore is
-    `SetState(baseline)` + `SetTrayVisible(true)`; after a force kill, the stale watchdog
-    file restores the baseline state.
+    thread. There is **no quiet hover read any more** (it moved the user's pointer to the bottom edge and, on the
+    2026-11-09 test machine, always timed out): the only read that exposes the buttons is a **state blip** that
+    drops `ABS_AUTOHIDE` (which unparks the bar and flaps the work area) — gated by
+    `TrayStateBlipGate` (bootstrap of a never-filled mirror, its bounded retries, later only ≥10/≥20 min apart while
+    the user is idle ≥3 min, and never while a fullscreen foreground window covers the primary monitor — the
+    2026-11-09 false "tray is empty" happened under WharfBar's own fullscreen colour picker). A read taken while the
+    bar is still in its 2 px sliver returns 0 buttons and proves nothing, so the blip verifies the effect
+    (`TrayAutoHideReveal.WaitFullyOnScreen`, then a verified `TaskbarNative.TryEnsureTrayOnScreen`) and classifies an
+    unverified unpark as `Inconclusive`, never as evidence. Every flip is logged as `state-change #N reason=…`.
+    Icons are captured **inside** the blip (one `PrintWindow` + per-button crops; a peek already ended paints black)
+    and matted against the taskbar fill (`TrayIconMatte`, ring-median background, colour-to-alpha).
+    A read that comes back empty **never clears a populated mirror**: a stale icon beats a blank bar (and the
+    work-area jump needed to read again); the snapshot is only reset when `Shell_TrayWnd` changes (explorer restart).
+    Pixels refresh when the gated blip runs, or when a click repair re-reads the tray; unchanged pixels keep the
+    cached `ImageSource` and an unchanged snapshot is not published. A click whose key is missing from the live tray
+    (the app exited, the snapshot was held) is not sent to the old rect. Unnamed and repeated UIA buttons get
+    index-suffixed keys (`TrayMirrorOrder.UniqueKeys`) so de-duplication does not drop icons. Restore is
+    `SetState(baseline)` + `SetTrayVisible(true)`; after a force kill, the stale watchdog file restores the baseline state.
 3. **After an AppBar `SETPOS`:** if the shell can write the bottom strip back,
    `EnsureWorkAreaExpanded`. There is no `ReapplyHide` inside `ApplyPlacement` — hide +
    `SETPOS` producing an `ABN_POSCHANGED` loop yields a wait cursor on the top bar and cancels dock auto-hide.
@@ -405,6 +419,24 @@ A dock icon click (a taskbar-like toggle): minimized → `SW_RESTORE` + `SetFore
 in the background → bring it forward; if it is already in front → `SW_MINIMIZE`. Because a dock click can steal focus,
 `GetForegroundWindow` is recorded at the `PreviewMouseLeftButtonDown` instant; the same process PID
 also counts as “in front” (child windows such as Electron).
+
+**Hover preview (`DockSurfaceFlyout`):** one card per window of the box — a still preview plus the
+window title; up to 8 cards, 4 per row, open windows first and minimized windows last
+(`DockWindowPicker`, pure and unit-tested). A click on the card (the preview or the title) activates
+that exact window; a minimized one goes through the dock's restore cue. Window collection is the same
+cached census table as the badge: no `EnumWindows` on the UI thread. A minimized window's
+`GetWindowRect` is the `-32000` icon point, so its monitor is read from the restored rectangle
+(`GetWindowPlacement.rcNormalPosition`) — without that every minimized window silently fell out of
+both the flyout and the right-click `Windows` submenu.
+
+The preview is **not** a DWM thumbnail. `DwmRegisterThumbnail` returns `E_INVALIDARG` when the
+destination is a layered window *or* a child window; the flyout is a layered `Popup` and an
+`HwndHost` preview surface would be a child HWND, so every registration failed and the earlier
+feature shipped as title-only rows. Each card is now one `PrintWindow` frame
+(`DockWindowPreview` + `DockWindowSnapshot`), captured on a worker, scaled down on the UI thread,
+and drawn as a plain WPF image; the whole card is therefore a normal WPF hit-test target. A
+minimized window has no live frame (its `PrintWindow` is a ~160×28 iconic stub), so it uses the
+frame the minimize moment captured, otherwise the app icon and the title.
 
 ### Show Desktop sliver (top bar, Windows-style)
 
@@ -584,7 +616,12 @@ GlobalLock(IntPtr mem) / GlobalUnlock(IntPtr mem) / GlobalSize(IntPtr mem) / Glo
 On the WPF side, drag-and-drop works with an OLE drop target (`AllowDrop=True` + `DragOver`/`Drop`);
 this is the project's **first** use of `AllowDrop`, and acceptance of a registered **AppBar** window
 as a drop target was **not measured live** (see `docs/04-gotchas.md`). Drop is open only on the **primary** pill;
-a secondary bar has `AllowDrop=false`.
+a secondary bar has `AllowDrop=false`. The island popup child (`IslandFlyout`) is also `AllowDrop` on
+the primary bar so the shelf preview panel can take a drop that follows the surface down: the popup is
+a separate, layered HWND (measured `WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`, not `WS_EX_TRANSPARENT`) and
+WPF already registers every `HwndSource` popup as an OLE drop target (`RegisterDragDrop` on that HWND
+returns `DRAGDROP_E_ALREADYREGISTERED`), so the panel drop path is reachable; a live Explorer drag over
+the panel was still not exercised, so this stays an extension to the pill target, not a replacement.
 
 ### user32.dll — excluding from screen capture (island, the last entry)
 

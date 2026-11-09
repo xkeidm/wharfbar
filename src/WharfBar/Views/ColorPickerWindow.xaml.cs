@@ -30,22 +30,38 @@ namespace WharfBar.Views;
 /// <see cref="ScreenSampler"/> sampling (low-quality, masked). The click
 /// point turns into absolute physical px via <see cref="Window.PointToScreen"/> (PMv2).</para>
 ///
+/// <para><b>Affordance placement:</b> the loupe is centred on the cursor and the HEX/hint card
+/// sits below it; when the bottom of the monitor leaves no room the card flips above the loupe
+/// (see <see cref="ColorPickerLayout"/>) instead of dragging the loupe away from the cursor.
+/// The magnifier grid is sized in whole device pixels per DPI (nearest-neighbour cells are uniform),
+/// and the whole affordance is placed on device-pixel boundaries so the cells do not shimmer.</para>
+///
 /// <para><b>Closing:</b> click (sample and write the hex to the clipboard with <see cref="IslandService.PutOnClipboard"/>),
-/// Esc (cancel) or losing keyboard focus. The island panel CLOSES before this overlay
+/// Esc (cancel) or losing keyboard focus. Because the overlay is deliberately not OS-activated while
+/// it runs, Esc is caught with a temporary global <c>VK_ESCAPE</c> hotkey registered for exactly the
+/// overlay's lifetime (the keyboard-focus path stays as the fallback when the registration is
+/// refused). The island panel CLOSES before this overlay
 /// opens; once the pick is done the top bar presents the hub again — while the overlay
 /// is open there is no other topmost window, the overlay is the single user-approved exception.</para>
 /// </summary>
 public partial class ColorPickerWindow : Window
 {
-    /// <summary>Width of the loupe + chip group (DIP); the loupe center sits on the cursor,
-    /// the group is positioned with Margin (a Grid child: Canvas attached properties are ignored).</summary>
-    internal const double AffordanceGroupWidth = 150;
+    /// <summary>Info card column width (DIP); the loupe is centred on the cursor independently.</summary>
+    internal const double InfoWidth = 150;
 
-    /// <summary>Loupe body diameter (DIP): carries the magnified pixels inside it.</summary>
-    internal const double LoupeDiameter = 84;
+    /// <summary>Nominal magnifier cell size (DIP at 100% DPI); rounded to a whole device pixel per DPI.</summary>
+    internal const double MagnifierCellDip = 6;
 
     /// <summary>Source pixel grid inside the loupe; an odd number, so the loupe shows the exact center pixel.</summary>
     internal const int MagnifierGrid = 13;
+
+    /// <summary>Loupe chrome (DIP at 100% DPI): a 1 px outer frame + a 2 px light ring on each side.</summary>
+    private const double LoupeFrameDip = 1;
+
+    private const double LoupeRingDip = 2;
+
+    /// <summary>Global Esc hotkey id; registered only while the overlay is open (ids are per-window).</summary>
+    private const int EscapeHotkeyId = 0x5742;
 
     private static readonly PixelFormat LoupePixelFormat = PixelFormats.Bgra32;
 
@@ -57,6 +73,9 @@ public partial class ColorPickerWindow : Window
     private byte[]? _snapshot;
     private int _snapX, _snapY, _snapW, _snapH, _snapStride;
 
+    /// <summary>Overlay screen origin (physical px), kept even when the frame capture failed.</summary>
+    private int _monitorLeftPx, _monitorTopPx;
+
     /// <summary>Image inside the loupe: a <see cref="MagnifierGrid"/>×grid BGRA block, enlarged inside the
     /// circle with nearest-neighbor scaling (pixelated blocks).</summary>
     private WriteableBitmap? _loupeBitmap;
@@ -64,6 +83,19 @@ public partial class ColorPickerWindow : Window
     /// <summary>Last valid sample: the pixel at the loupe center.</summary>
     private Color _lastSample;
     private bool _hasSample;
+
+    /// <summary>Last cursor point (DIP, Root coordinates); the info card is re-placed when its height changes.</summary>
+    private Point? _lastPoint;
+
+    /// <summary>Loupe body diameter (DIP) for the current monitor scale (whole-device-pixel cells).</summary>
+    private double _loupeDiameter = LoupeDiameterFallback;
+
+    private const double LoupeDiameterFallback = (MagnifierGrid * MagnifierCellDip) + (2 * (LoupeFrameDip + LoupeRingDip));
+
+    /// <summary>Device pixels per DIP of the overlay's monitor.</summary>
+    private double _pixelsPerDip = 1;
+
+    private bool _escapeHotkey;
 
     private bool _armed;
     private bool _picking;
@@ -111,7 +143,19 @@ public partial class ColorPickerWindow : Window
         {
             ApplyOverlayStyles(hwnd);
             Dwm.SetSystemBackdrop(hwnd, DwmSystemBackdrop.None);
+            _source!.AddHook(WndProc);
         }
+
+        _pixelsPerDip = VisualTreeHelper.GetDpi(this).DpiScaleX;
+        ApplyMagnifierMetrics();
+    }
+
+    protected override void OnDpiChanged(DpiScale oldDpi, DpiScale newDpi)
+    {
+        base.OnDpiChanged(oldDpi, newDpi);
+        _pixelsPerDip = newDpi.DpiScaleX;
+        ApplyMagnifierMetrics();
+        Reposition();
     }
 
     private static void ApplyOverlayStyles(IntPtr hwnd)
@@ -122,6 +166,25 @@ public partial class ColorPickerWindow : Window
             hwnd,
             NativeMethods.GWL_EXSTYLE,
             ex | NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TOOLWINDOW);
+    }
+
+    /// <summary>
+    /// Sizes the loupe for the monitor's DPI so that each magnifier cell is a whole device pixel:
+    /// the content area is <see cref="MagnifierGrid"/> × <c>cellPx</c> device px, and the frame/ring
+    /// chrome is converted to device px too, so the grid starts on a pixel boundary. Without this the
+    /// 13×13 grid lands on fractional device pixels at 125%/175% and the "boxes" come out uneven.
+    /// </summary>
+    private void ApplyMagnifierMetrics()
+    {
+        double scale = _pixelsPerDip > 0 ? _pixelsPerDip : 1;
+        int cellPx = Math.Max(2, (int)Math.Round(MagnifierCellDip * scale, MidpointRounding.AwayFromZero));
+        int framePx = Math.Max(1, (int)Math.Round(LoupeFrameDip * scale, MidpointRounding.AwayFromZero));
+        int ringPx = Math.Max(1, (int)Math.Round(LoupeRingDip * scale, MidpointRounding.AwayFromZero));
+
+        _loupeDiameter = (MagnifierGrid * cellPx + (2.0 * (framePx + ringPx))) / scale;
+        LoupeRing.Width = LoupeRing.Height = _loupeDiameter;
+        LoupeRing.BorderThickness = new Thickness(framePx / scale);
+        LoupeRingInner.BorderThickness = new Thickness(ringPx / scale);
     }
 
     /// <summary>Used by the top bar for the second-overlay query while the overlay is open (single overlay rule).</summary>
@@ -162,6 +225,8 @@ public partial class ColorPickerWindow : Window
             return false;
         }
 
+        _monitorLeftPx = monitor.Left;
+        _monitorTopPx = monitor.Top;
         TakeSnapshot(monitor);
 
         Show();
@@ -180,8 +245,14 @@ public partial class ColorPickerWindow : Window
             heightPx,
             NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_SHOWWINDOW);
 
-        // Keyboard focus without OS activation: because the WPF InputManager dispatches keys to
-        // Keyboard.FocusedElement, Esc works no matter which of its own windows WM_KEYDOWN lands on.
+        // Esc must cancel even though the overlay is intentionally not OS-activated. A bare Esc global
+        // hotkey registered for the overlay's lifetime delivers WM_HOTKEY here regardless of which window
+        // holds the foreground; the keyboard-focus path below stays as the fallback if that is refused.
+        TryRegisterEscapeHotkey();
+
+        // Keyboard focus without OS activation is best-effort (Keyboard.FocusedElement fallback), and the
+        // first paint shows the loupe at the cursor before the user moves the mouse — the overlay would
+        // otherwise start with an unpositioned, empty loupe.
         _ = Dispatcher.BeginInvoke(
             DispatcherPriority.Input,
             new Action(() =>
@@ -193,6 +264,7 @@ public partial class ColorPickerWindow : Window
 
                 _armed = true;
                 Keyboard.Focus(this);
+                PaintAtCursor();
             }));
 
         return true;
@@ -227,6 +299,41 @@ public partial class ColorPickerWindow : Window
             _snapX = monitor.Left;
             _snapY = monitor.Top;
         }
+    }
+
+    /// <summary>First paint: sample and place the affordances at the current cursor before any move.</summary>
+    private void PaintAtCursor()
+    {
+        UpdateLayout();
+        if (_closed || _settled || Root.ActualWidth < 1 || Root.ActualHeight < 1)
+        {
+            return;
+        }
+
+        if (!NativeMethods.GetCursorPos(out POINT cursor))
+        {
+            return;
+        }
+
+        // Cursor px → overlay DIP through the monitor origin (the overlay covers the monitor exactly);
+        // this does not depend on WPF's cached window position.
+        double scale = _pixelsPerDip > 0 ? _pixelsPerDip : 1;
+        bool insideMonitor = cursor.X >= _monitorLeftPx && cursor.Y >= _monitorTopPx
+            && cursor.X < _monitorLeftPx + (Root.ActualWidth * scale)
+            && cursor.Y < _monitorTopPx + (Root.ActualHeight * scale);
+
+        if (!insideMonitor)
+        {
+            // The cursor is on another monitor: park the affordances mid-screen; the first move samples.
+            PositionAffordances(new Point(Root.ActualWidth / 2, Root.ActualHeight / 2));
+            return;
+        }
+
+        Point local = new Point(
+            (cursor.X - _monitorLeftPx) / scale,
+            (cursor.Y - _monitorTopPx) / scale);
+        UpdateSample(cursor.X, cursor.Y);
+        PositionAffordances(local);
     }
 
     private void OnRootMouseMove(object sender, MouseEventArgs e)
@@ -305,23 +412,60 @@ public partial class ColorPickerWindow : Window
         return Color.FromRgb(bgra[centerOffset + 2], bgra[centerOffset + 1], bgra[centerOffset]);
     }
 
+    /// <summary>
+    /// Places the loupe (centred on the cursor) and the info card (below, or above when the bottom
+    /// leaves no room) through the pure <see cref="ColorPickerLayout"/> math; both positions are
+    /// snapped to whole device pixels so the magnifier cells stay crisp while the cursor moves.
+    /// </summary>
     private void PositionAffordances(Point point)
     {
-        double clampW = Math.Max(1, ActualWidth);
-        double clampH = Math.Max(1, ActualHeight);
-
-        double groupWidth = AffordanceGroup.ActualWidth is > 0 ? AffordanceGroup.ActualWidth : AffordanceGroupWidth;
-        double groupHeight = AffordanceGroup.ActualHeight;
-        if (groupHeight <= 0)
+        _lastPoint = point;
+        if (Root.ActualWidth < 1 || Root.ActualHeight < 1)
         {
-            // If the measure has not arrived on the first frame, use a rough one: loupe + diff chip + hint line.
-            groupHeight = LoupeDiameter + 12 + 30 + 8 + 30;
+            return;
         }
 
-        // Loupe center on the cursor: align by the loupe middle, not the group center.
-        double left = Math.Clamp(point.X - (groupWidth / 2), 0, Math.Max(0, clampW - groupWidth));
-        double top = Math.Clamp(point.Y - (LoupeDiameter / 2), 0, Math.Max(0, clampH - groupHeight));
-        AffordanceGroup.Margin = new Thickness(left, top, 0, 0);
+        ColorPickerLayout.Placement placement = ColorPickerLayout.Place(
+            point.X,
+            point.Y,
+            Root.ActualWidth,
+            Root.ActualHeight,
+            _loupeDiameter,
+            InfoWidth,
+            MeasureInfoHeight());
+
+        Canvas.SetLeft(LoupeRing, SnapToDevicePixel(placement.Loupe.Left));
+        Canvas.SetTop(LoupeRing, SnapToDevicePixel(placement.Loupe.Top));
+        Canvas.SetLeft(InfoPanel, SnapToDevicePixel(placement.Info.Left));
+        Canvas.SetTop(InfoPanel, SnapToDevicePixel(placement.Info.Top));
+    }
+
+    /// <summary>The info card's current height (chip + hint/status); measured because it changes on pick.</summary>
+    private double MeasureInfoHeight()
+    {
+        InfoPanel.Measure(new Size(InfoWidth, double.PositiveInfinity));
+        double height = InfoPanel.DesiredSize.Height;
+        return height > 0 ? height : InfoFallbackHeight;
+    }
+
+    private const double InfoFallbackHeight = 72;
+
+    private double SnapToDevicePixel(double dip)
+    {
+        double scale = _pixelsPerDip > 0 ? _pixelsPerDip : 1;
+        return Math.Round(dip * scale) / scale;
+    }
+
+    /// <summary>Re-places after the card content changed (pick status/hint swap) without waiting for a mouse move.</summary>
+    private void Reposition()
+    {
+        if (_lastPoint is not Point point)
+        {
+            return;
+        }
+
+        InfoPanel.UpdateLayout();
+        PositionAffordances(point);
     }
 
     private void OnRootPreviewMouseDown(object sender, MouseButtonEventArgs e)
@@ -330,6 +474,14 @@ public partial class ColorPickerWindow : Window
         {
             return;
         }
+
+        // Sample at the click point itself instead of trusting the last MouseMove: a click can arrive
+        // before the first move (or at a different pixel than the last hover), and the pick must be the
+        // pixel under the click.
+        Point point = e.GetPosition(Root);
+        Point screen = PointToScreen(point);
+        UpdateSample((int)Math.Round(screen.X), (int)Math.Round(screen.Y));
+        PositionAffordances(point);
 
         e.Handled = true;
         Pick();
@@ -355,6 +507,7 @@ public partial class ColorPickerWindow : Window
         HexText.Text = hex;
         HintText.Visibility = Visibility.Collapsed;
         SetStatus(Strings.ColorPicker_Writing);
+        Reposition();
 
         // The write goes through the Task 7 gate: the gate paths are synchronously false and success arrives with
         // BeginInvoke — a silent false never happens, both outcomes are written on this chip (Task 7 review
@@ -380,8 +533,12 @@ public partial class ColorPickerWindow : Window
         }
 
         _settled = true;
+        // The overlay is clamped for 0.9–1.6 s while the chip shows the copy result; Esc must not be
+        // swallowed system-wide during that interval.
+        ReleaseEscapeHotkey();
         string hex = color.A == 0 ? "#—" : ColorMath.ToHex(color.R, color.G, color.B);
         SetStatus(status);
+        Reposition();
         Settled?.Invoke(color, hex, written);
         ArmClose(TimeSpan.FromMilliseconds(written ? 900 : 1600));
     }
@@ -415,11 +572,7 @@ public partial class ColorPickerWindow : Window
         Close();
     }
 
-    /// <summary>
-    /// Esc is caught only at window level: when <c>Keyboard.Focus(this)</c> gives focus to the window,
-    /// the KeyDown event route does not go down into the window; a handler bound to Root therefore
-    /// never fires. OnPreviewKeyDown sees every key that lands on the window.
-    /// </summary>
+    /// <summary>Fallback Esc path: if the hotkey registration was refused and the window somehow holds WPF keyboard focus.</summary>
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
@@ -443,15 +596,62 @@ public partial class ColorPickerWindow : Window
 
     private void Cancel()
     {
+        if (_settled)
+        {
+            return;
+        }
+
         _settled = true;
+        ReleaseEscapeHotkey();
         Cancelled?.Invoke();
         Close();
+    }
+
+    private void TryRegisterEscapeHotkey()
+    {
+        if (_escapeHotkey || _source is null)
+        {
+            return;
+        }
+
+        _escapeHotkey = HotkeyNative.RegisterHotKey(_source.Handle, EscapeHotkeyId, 0, NativeMethods.VK_ESCAPE);
+    }
+
+    private void ReleaseEscapeHotkey()
+    {
+        if (!_escapeHotkey || _source is null)
+        {
+            return;
+        }
+
+        _ = HotkeyNative.UnregisterHotKey(_source.Handle, EscapeHotkeyId);
+        _escapeHotkey = false;
+    }
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        if (msg == HotkeyNative.WM_HOTKEY && wParam.ToInt32() == EscapeHotkeyId)
+        {
+            handled = true;
+            if (!_picking && !_settled)
+            {
+                Cancel();
+            }
+        }
+
+        return IntPtr.Zero;
     }
 
     protected override void OnClosed(EventArgs e)
     {
         _closed = true;
         _closeTimer?.Stop();
+        ReleaseEscapeHotkey();
+        if (_source is not null)
+        {
+            _source.RemoveHook(WndProc);
+        }
+
         _snapshot = null;
         _loupeBitmap = null;
         _source = null;

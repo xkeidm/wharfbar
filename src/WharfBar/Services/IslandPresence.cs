@@ -162,6 +162,13 @@ internal sealed class IslandPresence
     private long? _hoverCloseAt;
     private long? _transientUntil;
 
+    // File-drag preview (primary surface): a drag hovering the pill opens the hub on the
+    // Clipboard body so the window can show the Shelf tab under the pill. The flag keeps the
+    // hover-close grace quiet for the whole drag; the owned flag remembers that this panel came
+    // from the drag, so a cancel may close it while a landed drop keeps it as a hover panel.
+    private bool _fileDrag;
+    private bool _fileDragPanel;
+
     internal IslandPresence()
     {
         Publish();
@@ -593,6 +600,61 @@ internal sealed class IslandPresence
 
     internal void PointerLeavePanel(long nowMs) => SamplePointer(_pointerOverPill, false, nowMs);
 
+    /// <summary>
+    /// A primary-monitor file drag is hovering the pill. When no panel is open, the hub opens
+    /// on the Clipboard body as an <b>unpinned</b> panel (the window's tab resolve shows the
+    /// Shelf under the pill); a panel that was already open is left alone. While the drag is
+    /// active the hover-close grace is suppressed, so a stale pointer sample cannot close the
+    /// preview under the drag cursor. <paramref name="openPanel"/> false marks the drag without
+    /// opening the panel yet: the window's preview delay calls this again to open it.
+    /// </summary>
+    internal void BeginFileDrag(long nowMs, bool openPanel = true)
+    {
+        Expire(nowMs);
+        _fileDrag = true;
+        _hoverOpenAt = null;
+        if (!openPanel || _panel != IslandPanelBody.None || !_clipboardSurface)
+        {
+            Publish();
+            return;
+        }
+
+        _panel = IslandPanelBody.Clipboard;
+        _pinned = false;
+        _clipboardFromMusic = false;
+        _hoverArmed = true;
+        _hoverCloseAt = null;
+        _transientUntil = null;
+        _fileDragPanel = true;
+        Publish();
+    }
+
+    /// <summary>
+    /// The file drag left the pill (or ended). <paramref name="keepPanel"/> keeps the panel the
+    /// drag opened — the drag moved onto the open panel or a drop landed there — as an ordinary
+    /// hover panel, which then closes with the normal leave grace; <c>false</c> closes a
+    /// drag-opened preview right away. A panel that was open before the drag is never touched.
+    /// </summary>
+    internal void EndFileDrag(bool keepPanel, long nowMs)
+    {
+        Expire(nowMs);
+        _fileDrag = false;
+        if (_fileDragPanel)
+        {
+            _fileDragPanel = false;
+            if (!keepPanel || _panel != IslandPanelBody.Clipboard)
+            {
+                ClosePanel();
+            }
+            else
+            {
+                _hoverArmed = true;
+            }
+        }
+
+        Publish();
+    }
+
     internal void ShowClipboard(long nowMs)
     {
         Expire(nowMs);
@@ -763,6 +825,7 @@ internal sealed class IslandPresence
         _hoverArmed = false;
         _hoverCloseAt = null;
         _transientUntil = null;
+        _fileDragPanel = false;
     }
 
     private void StartHud(IslandPillFace face, int percent, bool muted, long nowMs, string? title = null)
@@ -783,6 +846,14 @@ internal sealed class IslandPresence
 
     private void ArmHoverClose(long nowMs)
     {
+        // The drag preview's lifetime belongs to the drag (BeginFileDrag/EndFileDrag): a pointer
+        // sample taken while OLE owns the mouse must not start the close grace under the cursor.
+        if (_fileDrag)
+        {
+            _hoverCloseAt = null;
+            return;
+        }
+
         if (_hoverArmed && !_pinned && _panel != IslandPanelBody.None && !_pointerOverPill && !_pointerOverPanel)
         {
             _hoverCloseAt = nowMs + HoverGraceMs;
@@ -804,7 +875,7 @@ internal sealed class IslandPresence
         if (_hoverCloseAt is long hover && nowMs >= hover)
         {
             _hoverCloseAt = null;
-            if (_hoverArmed && !_pinned && _panel != IslandPanelBody.None && !_pointerOverPill && !_pointerOverPanel)
+            if (_hoverArmed && !_pinned && !_fileDrag && _panel != IslandPanelBody.None && !_pointerOverPill && !_pointerOverPanel)
             {
                 ClosePanel();
             }

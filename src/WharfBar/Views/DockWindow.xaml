@@ -42,7 +42,10 @@
                 Background="{DynamicResource AccentFillColorDefaultBrush}"
                 Visibility="Collapsed" />
 
-        <!-- One flyout for thumbnails and folder stacks. Not nested. -->
+        <!-- One flyout for window previews and folder stacks. Not nested. Window cards are
+             WPF images, not DWM thumbnails: DwmRegisterThumbnail rejects a layered popup
+             and a child HWND as the destination (docs/04-gotchas.md). MaxWidth fits four
+             184 DIP cards with their 4 DIP margins plus the 8 DIP padding. -->
         <Popup x:Name="SurfaceFlyout"
                StaysOpen="True"
                AllowsTransparency="True"
@@ -52,7 +55,7 @@
                     Background="{DynamicResource ControlFillColorSecondaryBrush}"
                     CornerRadius="8"
                     Padding="8"
-                    MaxWidth="720">
+                    MaxWidth="800">
                 <StackPanel x:Name="SurfaceFlyoutBody" />
             </Border>
         </Popup>

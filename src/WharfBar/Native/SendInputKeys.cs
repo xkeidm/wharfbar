@@ -16,6 +16,12 @@ internal static class SendInputKeys
 
     internal static bool TrySendSpace() => TrySendKey(NativeMethods.VK_SPACE);
 
+    /// <summary>Opens the focused element's context menu (VK_APPS) without moving the pointer.</summary>
+    internal static bool TrySendMenuKey() => TrySendKey(NativeMethods.VK_APPS);
+
+    /// <summary>The other keyboard context-menu gesture, for owners that ignore the Menu key.</summary>
+    internal static bool TrySendShiftF10() => TrySendChord(NativeMethods.VK_SHIFT, NativeMethods.VK_F10);
+
     private static bool TrySendChord(ushort modifier, ushort key)
     {
         var inputs = new INPUT[]

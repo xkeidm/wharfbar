@@ -71,13 +71,4 @@ public class TrayClickPlanTests
         bool forward = TrayGestureMap.TryForward(isRightButton: false, clickCount: 1, isRelease: true, out _);
         Assert.False(forward);
     }
-
-    [Fact]
-    public void NormalizeAbsolute_MapsVirtualScreenEdges()
-    {
-        Assert.Equal(0, SendInputMouse.NormalizeAbsolute(0, 0, 1920));
-        Assert.Equal(65535, SendInputMouse.NormalizeAbsolute(1919, 0, 1920));
-        Assert.Equal(0, SendInputMouse.NormalizeAbsolute(-1920, -1920, 3840));
-        Assert.Equal(65535, SendInputMouse.NormalizeAbsolute(1919, -1920, 3840));
-    }
 }

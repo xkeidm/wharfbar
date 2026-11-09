@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using WharfBar.Native;
 using WharfBar.Resources;
@@ -12,27 +15,33 @@ using WharfBar.Views.Controls;
 namespace WharfBar.Views;
 
 /// <summary>
-/// The dock's one flyout: window thumbnails on hover, or a folder stack on click.
-/// Thumbnails unregister when the flyout closes. A cloaked or refused source keeps the title.
+/// The dock's one flyout: a card per window of a running app (hover), or a folder stack
+/// (click). A card is the preview, the window title, and the click target: the preview is a
+/// static <c>PrintWindow</c> frame, because a DWM live thumbnail rejects both this layered
+/// popup and a child HWND as its destination. Minimized windows use the frame WharfBar saw when
+/// they minimized, then fall back to the app icon. Releases every capture when it closes.
 /// </summary>
 internal sealed class DockSurfaceFlyout : IDisposable
 {
-    internal const int MaxThumbnails = 6;
+    private const int ColumnsPerRow = 4;
+    private const double CardWidthDip = 184d;
+    private const double CardOuterWidthDip = 192d;
+    private const double PreviewWidthDip = 176d;
+    private const double PreviewHeightDip = 99d;
 
     private readonly Popup _popup;
     private readonly Border _card;
     private readonly StackPanel _body;
     private readonly Action<IntPtr> _activate;
-    private readonly List<IntPtr> _thumbnails = [];
+    private readonly List<PreviewSlot> _previews = [];
     private readonly List<string> _folderStack = [];
     private readonly DispatcherTimer _closeTimer;
+    private readonly Brush _previewBackground;
+    private CancellationTokenSource? _capture;
+    private int _captureGeneration;
     private bool _disposed;
-    private int _windowCount;
 
-    /// <summary>Raised after the popup is shown. The dock hides its tooltip so the two labels do not stack.</summary>
-    internal event Action<DockItemCell?>? Opened;
-
-    /// <summary>Raised when the popup closes. The dock shows its tooltip again.</summary>
+    /// <summary>Raised when the popup closes.</summary>
     internal event Action? Closed;
 
     internal DockSurfaceFlyout(Popup popup, Border card, StackPanel body, Action<IntPtr> activate)
@@ -41,10 +50,13 @@ internal sealed class DockSurfaceFlyout : IDisposable
         _card = card;
         _body = body;
         _activate = activate;
-        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(180) };
+        _closeTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(350) };
         _closeTimer.Tick += (_, _) => Close();
         _card.MouseEnter += (_, _) => CancelClose();
         _card.MouseLeave += (_, _) => ScheduleClose();
+
+        _previewBackground = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
+        _previewBackground.Freeze();
     }
 
     internal bool IsOpen => _popup.IsOpen;
@@ -61,10 +73,15 @@ internal sealed class DockSurfaceFlyout : IDisposable
         _closeTimer.Start();
     }
 
-    internal void ShowWindows(DockItemCell anchor, IReadOnlyList<AppWindowInfo> windows)
+    internal void ShowWindows(
+        DockItemCell anchor,
+        IReadOnlyList<AppWindowInfo> windows,
+        ImageSource? appIcon,
+        Func<IntPtr, BitmapSource?>? cachedFrame = null)
     {
         ArgumentNullException.ThrowIfNull(anchor);
-        CloseThumbnails();
+        ArgumentNullException.ThrowIfNull(windows);
+        ClosePreviews();
         _body.Children.Clear();
         ShowingFolder = false;
         Anchor = anchor;
@@ -75,37 +92,25 @@ internal sealed class DockSurfaceFlyout : IDisposable
             return;
         }
 
-        // One window and no thumbnail: the tooltip already names the app. A title-only
-        // card is a second bubble, shifted off the icon.
-        if (windows.Count == 1 && !CanThumbnail(windows[0]))
+        var wrap = new WrapPanel
         {
-            Close();
-            return;
-        }
-
-        _windowCount = windows.Count;
-        bool caption = true;
-        var row = new StackPanel { Orientation = Orientation.Horizontal };
-        int shown = 0;
+            Orientation = Orientation.Horizontal,
+            MaxWidth = ColumnsPerRow * CardOuterWidthDip,
+        };
         foreach (AppWindowInfo window in windows)
         {
-            if (shown >= MaxThumbnails)
-            {
-                break;
-            }
-
-            shown++;
-            row.Children.Add(BuildWindowColumn(window, caption));
+            wrap.Children.Add(BuildWindowCard(window, appIcon, cachedFrame));
         }
 
-        _body.Children.Add(row);
+        _body.Children.Add(wrap);
         Open(anchor);
+        StartCapture(windows, anchor);
     }
 
     internal void ShowFolder(DockItemCell anchor, string directory)
     {
         ArgumentNullException.ThrowIfNull(anchor);
-        CloseThumbnails();
+        ClosePreviews();
         ShowingFolder = true;
         Anchor = anchor;
         _folderStack.Clear();
@@ -119,14 +124,13 @@ internal sealed class DockSurfaceFlyout : IDisposable
     internal void Close()
     {
         _closeTimer.Stop();
-        CloseThumbnails();
+        ClosePreviews();
         _body.Children.Clear();
         _folderStack.Clear();
         bool wasOpen = _popup.IsOpen || Anchor is not null;
         _popup.IsOpen = false;
         ShowingFolder = false;
         Anchor = null;
-        _windowCount = 0;
         if (wasOpen)
         {
             Closed?.Invoke();
@@ -144,6 +148,7 @@ internal sealed class DockSurfaceFlyout : IDisposable
         Close();
         _closeTimer.Stop();
     }
+
 
     private bool ShowFolderPage()
     {
@@ -243,85 +248,191 @@ internal sealed class DockSurfaceFlyout : IDisposable
         return button;
     }
 
-    private static bool CanThumbnail(AppWindowInfo window) =>
-        !window.IsMinimized && !DwmThumbnail.IsCloaked(window.Handle);
-
-    private UIElement BuildWindowColumn(AppWindowInfo window, bool caption)
+    /// <summary>
+    /// One window: a preview frame with the title under it. The whole card is the click target
+    /// (a real button around a preview would fight the image for the hit test).
+    /// </summary>
+    private Border BuildWindowCard(
+        AppWindowInfo window,
+        ImageSource? appIcon,
+        Func<IntPtr, BitmapSource?>? cachedFrame)
     {
-        var column = new StackPanel { Width = 168, Margin = new Thickness(4, 0, 4, 0) };
-        if (CanThumbnail(window))
+        var image = new Image
         {
-            var host = new DockThumbnailHost { Width = 160, Height = 90 };
-            column.Children.Add(host);
-            IntPtr source = window.Handle;
-            host.Loaded += (_, _) => Register(host, source);
-            host.SizeChanged += (_, _) => UpdateHost(host);
-        }
+            Width = PreviewWidthDip,
+            Height = PreviewHeightDip,
+            Stretch = Stretch.Uniform,
+            Source = appIcon,
+            Opacity = appIcon is null ? 0d : 0.45d,
+        };
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
 
-        if (!caption && column.Children.Count > 0)
+        var preview = new Border
         {
-            return column;
-        }
+            Width = PreviewWidthDip,
+            Height = PreviewHeightDip,
+            CornerRadius = new CornerRadius(4),
+            ClipToBounds = true,
+            Background = _previewBackground,
+            Child = image,
+        };
 
         string title = string.IsNullOrWhiteSpace(window.Title) ? Strings.Dock_UntitledWindow : window.Title;
-        column.Children.Add(MakeRow(title, () =>
+        var caption = new TextBlock
         {
-            _activate(window.Handle);
+            Text = title,
+            FontSize = 12,
+            MaxWidth = PreviewWidthDip,
+            TextAlignment = TextAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 4, 0, 0),
+        };
+        caption.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
+
+        var stack = new StackPanel { Width = PreviewWidthDip };
+        stack.Children.Add(preview);
+        stack.Children.Add(caption);
+
+        var card = new Border
+        {
+            Width = CardWidthDip,
+            Padding = new Thickness(4),
+            Margin = new Thickness(4, 0, 4, 0),
+            CornerRadius = new CornerRadius(6),
+            Background = Brushes.Transparent,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Child = stack,
+            ToolTip = title,
+        };
+        AutomationProperties.SetName(card, title);
+
+        // The caption is trimmed; the balloon only carries the full title after a longer rest,
+        // so moving across the cards does not pop text over the previews.
+        ToolTipService.SetInitialShowDelay(card, 900);
+
+        IntPtr handle = window.Handle;
+        card.MouseEnter += (_, _) =>
+        {
+            CancelClose();
+            card.SetResourceReference(Border.BackgroundProperty, "ControlFillColorSecondaryBrush");
+        };
+        card.MouseLeave += (_, _) =>
+        {
+            card.ClearValue(Border.BackgroundProperty);
+            card.Background = Brushes.Transparent;
+        };
+        card.MouseLeftButtonUp += (_, e) =>
+        {
+            e.Handled = true;
+            _activate(handle);
             Close();
-        }, center: true));
-        return column;
-    }
+        };
 
-    private void Register(DockThumbnailHost host, IntPtr source)
-    {
-        if (_disposed || host.HostHandle == IntPtr.Zero)
+        // A minimized window's PrintWindow is the iconic stub, so a frame WharfBar captured
+        // when the window minimized is the only real picture available for it.
+        if (window.IsMinimized && cachedFrame?.Invoke(window.Handle) is { } shot)
         {
-            return;
+            image.Source = shot;
+            image.Opacity = 1d;
         }
 
-        if (!DwmThumbnail.TryRegister(host.HostHandle, source, out IntPtr thumb))
+        _previews.Add(new PreviewSlot(window.Handle, image));
+        return card;
+    }
+
+    /// <summary>
+    /// Captures the live frames off the UI thread, one by one, and drops them into the cards.
+    /// A stale capture (the flyout closed or moved to another app) is ignored by generation.
+    /// </summary>
+    private void StartCapture(IReadOnlyList<AppWindowInfo> windows, DockItemCell anchor)
+    {
+        // Cancel-only, never Dispose: the previous worker may still be inside the last
+        // PrintWindow and reads its token afterwards.
+        _capture?.Cancel();
+        _capture = null;
+
+        var targets = new List<AppWindowInfo>(windows.Count);
+        foreach (AppWindowInfo window in windows)
         {
-            host.Visibility = Visibility.Collapsed;
-            host.Height = 0;
-            // A single window with no picture is only a second copy of the tooltip.
-            if (_thumbnails.Count == 0 && _windowCount <= 1)
+            if (!window.IsMinimized)
             {
-                Close();
+                targets.Add(window);
             }
-
-            return;
         }
 
-        _thumbnails.Add(thumb);
-        host.Tag = thumb;
-        UpdateHost(host);
-    }
-
-    private static void UpdateHost(DockThumbnailHost host)
-    {
-        if (host.Tag is not IntPtr thumb || thumb == IntPtr.Zero)
+        if (targets.Count == 0)
         {
             return;
         }
 
-        int width = Math.Max(1, (int)Math.Round(host.ActualWidth));
-        int height = Math.Max(1, (int)Math.Round(host.ActualHeight));
-        if (host.ActualWidth <= 1 || host.ActualHeight <= 1)
-        {
-            GetClientSize(host.HostHandle, out width, out height);
-        }
+        double scale = VisualTreeHelper.GetDpi(anchor).DpiScaleX;
+        int maxWidthPx = Math.Max(1, (int)Math.Round(PreviewWidthDip * scale));
+        int maxHeightPx = Math.Max(1, (int)Math.Round(PreviewHeightDip * scale));
 
-        DwmThumbnail.Update(thumb, width, height);
+        var capture = new CancellationTokenSource();
+        _capture = capture;
+        int generation = ++_captureGeneration;
+        Dispatcher dispatcher = _card.Dispatcher;
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                foreach (AppWindowInfo window in targets)
+                {
+                    if (capture.IsCancellationRequested)
+                    {
+                        return;
+                    }
+
+                    BitmapSource? frame = DockWindowPreview.TryCapture(window.Handle);
+                    if (frame is null)
+                    {
+                        continue;
+                    }
+
+                    IntPtr handle = window.Handle;
+                    _ = dispatcher.BeginInvoke(() =>
+                    {
+                        if (_disposed
+                            || capture.IsCancellationRequested
+                            || generation != _captureGeneration
+                            || FindPreview(handle) is not { } slot)
+                        {
+                            return;
+                        }
+
+                        slot.Image.Source = DockWindowPreview.ScaleToFit(frame, maxWidthPx, maxHeightPx);
+                        slot.Image.Opacity = 1d;
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar dock preview capture failed: {ex.Message}");
+            }
+        });
     }
 
-    private void CloseThumbnails()
+    private PreviewSlot? FindPreview(IntPtr handle)
     {
-        foreach (IntPtr thumb in _thumbnails)
+        foreach (PreviewSlot slot in _previews)
         {
-            DwmThumbnail.Unregister(thumb);
+            if (slot.Handle == handle)
+            {
+                return slot;
+            }
         }
 
-        _thumbnails.Clear();
+        return null;
+    }
+
+    private void ClosePreviews()
+    {
+        _captureGeneration++;
+        _capture?.Cancel();
+        _capture = null;
+        _previews.Clear();
     }
 
     private void Open(DockItemCell anchor)
@@ -340,21 +451,7 @@ internal sealed class DockSurfaceFlyout : IDisposable
         };
         _popup.IsOpen = true;
         CancelClose();
-        Opened?.Invoke(anchor);
     }
 
-    private static void GetClientSize(IntPtr hwnd, out int width, out int height)
-    {
-        width = 160;
-        height = 90;
-        if (hwnd != IntPtr.Zero && GetClientRect(hwnd, out RECT rect) && rect.Width > 0 && rect.Height > 0)
-        {
-            width = rect.Width;
-            height = rect.Height;
-        }
-    }
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
-    private static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+    private sealed record PreviewSlot(IntPtr Handle, Image Image);
 }

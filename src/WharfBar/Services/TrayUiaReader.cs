@@ -87,9 +87,14 @@ internal static class TrayUiaReader
         return result;
     }
 
-    /// <summary>Left-click via UIA InvokePattern (works on the UI thread, STA).</summary>
-    internal static bool TryInvoke(AutomationElement el)
+    /// <summary>
+    /// Left-click via UIA <c>InvokePattern</c> (the standard action; works on the UI thread, STA).
+    /// <paramref name="stale"/> true when the element no longer exists — the caller then re-reads
+    /// the live tray and replays the gesture on a fresh element; a missing pattern is not stale.
+    /// </summary>
+    internal static bool TryInvoke(AutomationElement el, out bool stale)
     {
+        stale = false;
         try
         {
             if (el.TryGetCurrentPattern(InvokePattern.Pattern, out object? pattern)
@@ -101,6 +106,7 @@ internal static class TrayUiaReader
         }
         catch (ElementNotAvailableException ex)
         {
+            stale = true;
             Debug.WriteLine($"WharfBar: UIA invoke element lost — {ex.Message}");
         }
         catch (InvalidOperationException ex)
@@ -109,6 +115,81 @@ internal static class TrayUiaReader
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Gives the tray button keyboard focus (UI Automation <c>SetFocus</c>). That is what lets
+    /// the Menu key open the owner's context menu without a physical right click.
+    /// </summary>
+    internal static bool TryFocus(AutomationElement el, out bool stale)
+    {
+        stale = false;
+        try
+        {
+            el.SetFocus();
+            return true;
+        }
+        catch (ElementNotAvailableException ex)
+        {
+            stale = true;
+            Debug.WriteLine($"WharfBar: UIA focus element lost — {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            Debug.WriteLine($"WharfBar: UIA focus failed — {ex.Message}");
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// True when the element currently owns keyboard focus. The menu key goes to whatever has
+    /// focus, so it must never be sent unless this check proves the target button is focused.
+    /// </summary>
+    internal static bool IsFocused(AutomationElement el)
+    {
+        try
+        {
+            AutomationElement? focused = AutomationElement.FocusedElement;
+            if (focused is null)
+            {
+                return false;
+            }
+
+            int[]? target = el.GetRuntimeId();
+            int[]? current = focused.GetRuntimeId();
+            return target is not null && current is not null && target.SequenceEqual(current);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Opens the tray button's own context menu the way a keyboard user does: focus the button,
+    /// then press the Menu key (VK_APPS). Focus is verified first — sending the key while another
+    /// window is focused would open a menu in the user's application instead.
+    /// <paramref name="beforeMenuKey"/> runs after the focus change and immediately before the
+    /// key: the caller arms the pointer clip there, because any foreground change releases an
+    /// earlier clip and the owner warps the pointer right after the key.
+    /// </summary>
+    internal static bool TryOpenContextMenu(AutomationElement el, out bool stale, Action? beforeMenuKey = null)
+    {
+        stale = false;
+        if (!TryFocus(el, out stale))
+        {
+            return false;
+        }
+
+        if (!IsFocused(el))
+        {
+            Debug.WriteLine("WharfBar: tray button did not take keyboard focus — menu key not sent");
+            return false;
+        }
+
+        beforeMenuKey?.Invoke();
+        return SendInputKeys.TrySendMenuKey();
     }
 
     /// <summary>On-screen bounding rectangle of the button (empty when the element is gone).</summary>

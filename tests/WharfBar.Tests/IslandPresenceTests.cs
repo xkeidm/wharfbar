@@ -974,4 +974,116 @@ public class IslandPresenceTests
         Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
         Assert.True(presence.View.Pinned);
     }
+
+    [Fact]
+    public void FileDrag_OpensTheHubPanel_Unpinned_EvenOnANowPlayingFace()
+    {
+        var presence = new IslandPresence();
+        presence.ObserveMedia(Song("Dawn", playing: true), 0);
+
+        presence.BeginFileDrag(10);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+        Assert.Equal(IslandPillFace.NowPlaying, presence.View.Face);
+    }
+
+    [Fact]
+    public void FileDrag_DoesNotHijackAPanelThatWasAlreadyOpen()
+    {
+        var presence = new IslandPresence();
+        presence.Click(0);
+        Assert.True(presence.View.Pinned);
+
+        presence.BeginFileDrag(10);
+        presence.EndFileDrag(keepPanel: false, nowMs: 20);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.True(presence.View.Pinned);
+    }
+
+    [Fact]
+    public void EndFileDrag_Cancel_ClosesADragOpenedPreview()
+    {
+        var presence = new IslandPresence();
+        presence.BeginFileDrag(0);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        presence.EndFileDrag(keepPanel: false, nowMs: 10);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+    }
+
+    [Fact]
+    public void EndFileDrag_LandedDrop_KeepsThePreviewAsAHoverPanel()
+    {
+        var presence = new IslandPresence();
+        presence.BeginFileDrag(0);
+        presence.EndFileDrag(keepPanel: true, nowMs: 10);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+
+        presence.PointerEnterPill(20);
+        presence.PointerLeavePill(30);
+        presence.Tick(30 + IslandPresence.HoverGraceMs - 1);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        presence.Tick(30 + IslandPresence.HoverGraceMs);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+    }
+
+    /// <summary>
+    /// OLE owns the mouse during the drag, so a pointer sample taken then can read "outside" and
+    /// must not start the hover-close grace under the drag cursor.
+    /// </summary>
+    [Fact]
+    public void FileDrag_SuppressesTheHoverCloseGrace_UntilItEnds()
+    {
+        var presence = new IslandPresence();
+        presence.BeginFileDrag(0);
+        presence.PointerEnterPill(10);
+        presence.PointerLeavePill(20);
+        presence.Tick(20 + IslandPresence.HoverGraceMs + 100);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        presence.EndFileDrag(keepPanel: false, nowMs: 200);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+    }
+
+    [Fact]
+    public void FileDrag_OnASurfaceWithoutAClipboard_DoesNotOpenThePanel()
+    {
+        var presence = new IslandPresence();
+        presence.SetClipboardSurface(false, 0);
+
+        presence.BeginFileDrag(10);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+        presence.EndFileDrag(keepPanel: true, nowMs: 20);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+    }
+
+    [Fact]
+    public void BeginFileDrag_WithoutOpeningThePanel_CancelsAPendingHoverOpen()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(0);
+        presence.BeginFileDrag(10, openPanel: false);
+        presence.Tick(10 + IslandPresence.HoverOpenDelayMs + 10);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+
+        presence.EndFileDrag(keepPanel: false, nowMs: 200);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+    }
+
+    [Fact]
+    public void EndFileDrag_DoesNotCloseAPanelItDidNotOpen()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(0);
+        presence.Tick(IslandPresence.HoverOpenDelayMs);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+
+        presence.BeginFileDrag(200);
+        presence.EndFileDrag(keepPanel: false, nowMs: 210);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+    }
 }
