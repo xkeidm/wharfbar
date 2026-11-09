@@ -101,3 +101,6 @@ _ReSharper*/
 .localhistory/
 .vshistory/
 *.sln.iml
+
+## Probe / render-harness output that can land beside the repo root
+/--taskbar-watchdog/
