@@ -1981,6 +1981,12 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Launchpad_NoApps {
+            get {
+                return ResourceManager.GetString("Launchpad_NoApps", resourceCulture);
+            }
+        }
+
         public static string Launchpad_ToolDocuments {
             get {
                 return ResourceManager.GetString("Launchpad_ToolDocuments", resourceCulture);

@@ -24,14 +24,15 @@ internal partial class LaunchpadWindow : Window
     private const int ReopenGuardMs = 250;
 
     private static LaunchpadWindow? _open;
-    private static long _closedAt;
+    private static long _dismissedAt;
 
     private readonly AppConfig _config;
     private static readonly AppIconService Icons = LaunchpadIcons.Shared;
-    private const int CatalogBatch = 16;
     private HwndSource? _source;
+    private LaunchpadSession? _session;
     private bool _acceptDismiss;
     private bool _closing;
+    private bool _dismissed;
 
     private LaunchpadWindow(AppConfig config)
     {
@@ -47,6 +48,13 @@ internal partial class LaunchpadWindow : Window
                 return;
             }
 
+            // A non-empty search clears on the first Escape (handled by the face);
+            // only the second Escape closes the pad.
+            if (_session?.SearchText?.Invoke() is { Length: > 0 })
+            {
+                return;
+            }
+
             e.Handled = true;
             RequestClose();
         };
@@ -58,7 +66,10 @@ internal partial class LaunchpadWindow : Window
                 _open = null;
             }
 
-            _closedAt = Environment.TickCount64;
+            if (_dismissed)
+            {
+                _dismissedAt = Environment.TickCount64;
+            }
         };
     }
 
@@ -78,8 +89,10 @@ internal partial class LaunchpadWindow : Window
         }
 
         // A click on the dock tile deactivates this window first, which
-        // already closed it. The same click must not open a second copy.
-        if (Environment.TickCount64 - _closedAt < ReopenGuardMs)
+        // already closed it. The same click must not open a second copy. Only an
+        // auto-dismiss sets the timestamp, so a deliberate reopen after Esc or an
+        // app launch is never swallowed.
+        if (_dismissedAt != 0 && Environment.TickCount64 - _dismissedAt < ReopenGuardMs)
         {
             return;
         }
@@ -95,7 +108,17 @@ internal partial class LaunchpadWindow : Window
             window = new LaunchpadWindow(config);
             _open = window;
             window.Show();
-            _ = window.Activate();
+            if (!window.Activate())
+            {
+                // The dock/top bar is topmost and may still hold the foreground; without
+                // this the pad paints but keystrokes go to the previous app.
+                IntPtr hwnd = new WindowInteropHelper(window).Handle;
+                if (hwnd != IntPtr.Zero)
+                {
+                    _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+                    _ = NativeMethods.SetForegroundWindow(hwnd);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -141,7 +164,9 @@ internal partial class LaunchpadWindow : Window
         if (msg is NativeMethods.WM_DISPLAYCHANGE or NativeMethods.WM_DPICHANGED or NativeMethods.WM_THEMECHANGED)
         {
             ClearLayeredBackdrop();
-            Place();
+            // WM_DPICHANGED carries WPF's own suggested rect; let WPF finish first, then
+            // re-place this full-monitor overlay or the pad snaps back to a partial rect.
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, Place);
         }
 
         return IntPtr.Zero;
@@ -193,12 +218,47 @@ internal partial class LaunchpadWindow : Window
         // that opened it, is the crash: Close while Close is already running.
         Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, () =>
         {
-            if (!CanCloseFromDeactivate(_acceptDismiss, _closing) || IsActive || OwnsOpenMenu())
+            if (!CanCloseFromDeactivate(_acceptDismiss, _closing) || IsActive)
             {
                 return;
             }
 
+            if (OwnsOpenMenu())
+            {
+                // A menu popup took the activation. Re-activate the pad once it closes,
+                // otherwise the pad stays on screen while the keyboard goes elsewhere.
+                foreach (ContextMenu menu in OpenMenus(this))
+                {
+                    menu.Closed -= OnOwnedMenuClosed;
+                    menu.Closed += OnOwnedMenuClosed;
+                }
+
+                return;
+            }
+
+            _dismissed = true;
             RequestClose();
+        });
+    }
+
+    private void OnOwnedMenuClosed(object? sender, EventArgs e)
+    {
+        if (sender is ContextMenu menu)
+        {
+            menu.Closed -= OnOwnedMenuClosed;
+        }
+
+        if (_closing)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Input, () =>
+        {
+            if (!_closing && !IsActive)
+            {
+                _ = Activate();
+            }
         });
     }
 
@@ -216,11 +276,22 @@ internal partial class LaunchpadWindow : Window
         bool fresh = snapshot is not null
             && !LaunchpadCatalogCache.IsStale(snapshot, DateTimeOffset.UtcNow, LaunchpadCatalogCache.DefaultTtl);
 
+        // The pad covers the primary screen; size the card from its DIPs so small or
+        // high-DPI screens (e.g. 1366x768 at 150%) do not clip the box or the phone panel.
+        double surfaceWidth = SystemParameters.PrimaryScreenWidth;
+        double surfaceHeight = SystemParameters.PrimaryScreenHeight;
+        double cardWidth = LaunchpadLayout.CardWidth(surfaceWidth);
+        LaunchpadPhoneSnapshot? linkedPhone = LaunchpadLayout.PhoneFits(surfaceWidth, cardWidth)
+            ? LaunchpadPhoneLink.Read()
+            : null;
+
         var session = new LaunchpadSession
         {
             Config = _config,
             Apps = snapshot?.Apps ?? [],
             CatalogPending = snapshot is null,
+            CardWidth = cardWidth,
+            MaxCardHeight = LaunchpadLayout.CardHeight(surfaceHeight),
             Icon = app => Icons.GetIcon(app.ShortcutPath, 64),
             Open = OpenApp,
             Close = RequestClose,
@@ -247,9 +318,10 @@ internal partial class LaunchpadWindow : Window
             OpenPath = OpenPath,
             Pinned = LaunchpadPins.FromDock(_config.Dock),
             Recent = snapshot?.Recent ?? [],
-            LinkedPhone = LaunchpadPhoneLink.Read(),
+            LinkedPhone = linkedPhone,
             UseStyle = _ => { },
         };
+        _session = session;
 
         var stage = new Grid();
         stage.Loaded += (_, _) => stage.Background = Veil(stage);
@@ -292,7 +364,7 @@ internal partial class LaunchpadWindow : Window
         shadow.RenderTransform = motion;
         shadow.Loaded += (_, _) => PlayOpen(shadow, scale, rise);
         shadow.Children.Add(session.LinkedPhone is { } phone
-            ? LaunchpadPhoneRow.Beside(card, phone, session.OpenPath)
+            ? LaunchpadPhoneRow.Beside(card, phone, session.OpenPath, session.MaxCardHeight)
             : card);
         stage.Children.Add(shadow);
         // The Start Menu walk and shell icons used to finish before Show, so the box
@@ -316,7 +388,8 @@ internal partial class LaunchpadWindow : Window
 
         Task.Run(() =>
         {
-            // LoadSync also publishes the result, so the next open starts warm.
+            // LoadSync also publishes the result, so the next open starts warm. It joins a
+            // warm-up scan that is already running instead of scanning the Start Menu twice.
             LaunchpadCatalogSnapshot fresh = LaunchpadCatalogCache.Shared.LoadSync();
             Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
@@ -327,35 +400,14 @@ internal partial class LaunchpadWindow : Window
                         return;
                     }
 
-                    ApplyCatalog(session, fresh.Apps, fresh.Recent, 0);
+                    // Paint the fresh list in one pass. Slicing it here made the already
+                    // painted stale list collapse to 16 tiles and grow back in visible steps.
+                    session.Recent = fresh.Recent;
+                    session.Apps = fresh.Apps;
+                    session.CatalogPending = false;
+                    session.Reload?.Invoke();
                 });
         });
-    }
-
-    private void ApplyCatalog(
-        LaunchpadSession session,
-        IReadOnlyList<LaunchpadApp> apps,
-        IReadOnlyList<LaunchpadRecentItem> recent,
-        int shown)
-    {
-        if (_closing || session.Reload is null)
-        {
-            return;
-        }
-
-        int next = Math.Min(apps.Count, shown + CatalogBatch);
-        session.Recent = recent;
-        session.Apps = next == apps.Count ? apps : apps.Take(next).ToArray();
-        session.CatalogPending = next < apps.Count;
-        session.Reload();
-        if (!session.CatalogPending)
-        {
-            return;
-        }
-
-        Dispatcher.BeginInvoke(
-            DispatcherPriority.Background,
-            () => ApplyCatalog(session, apps, recent, next));
     }
 
     private static void PlayOpen(Grid card, ScaleTransform scale, TranslateTransform rise)
@@ -474,6 +526,29 @@ internal partial class LaunchpadWindow : Window
             }
 
             return false;
+        }
+    }
+
+    private static List<ContextMenu> OpenMenus(DependencyObject node)
+    {
+        var menus = new List<ContextMenu>();
+        Collect(node, menus);
+        return menus;
+
+        static void Collect(DependencyObject current, List<ContextMenu> found)
+        {
+            if (current is FrameworkElement element && element.ContextMenu is { IsOpen: true } menu)
+            {
+                found.Add(menu);
+            }
+
+            foreach (object child in LogicalTreeHelper.GetChildren(current))
+            {
+                if (child is DependencyObject next)
+                {
+                    Collect(next, found);
+                }
+            }
         }
     }
 }

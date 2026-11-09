@@ -91,6 +91,45 @@ public class LaunchpadCatalogCacheTests
     }
 
     [Fact]
+    public void LoadSync_JoinsAnInFlightWarmScan()
+    {
+        using var gate = new ManualResetEventSlim(false);
+        using var started = new ManualResetEventSlim(false);
+        int calls = 0;
+        var cache = new LaunchpadCatalogCache(() =>
+        {
+            Interlocked.Increment(ref calls);
+            started.Set();
+            gate.Wait(TimeSpan.FromSeconds(5));
+            return Snapshot();
+        });
+
+        cache.Warm();
+        Assert.True(started.Wait(TimeSpan.FromSeconds(5)));
+        Exception? error = null;
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                cache.LoadSync();
+            }
+            catch (Exception ex)
+            {
+                error = ex;
+            }
+        });
+        thread.Start();
+
+        // Give the joiner time to block on the in-flight task before the loader may finish.
+        Thread.Sleep(100);
+        Assert.Equal(1, calls);
+        gate.Set();
+        Assert.True(thread.Join(TimeSpan.FromSeconds(5)));
+        Assert.Null(error);
+        Assert.Equal(1, calls);
+    }
+
+    [Fact]
     public void SnapshotChanged_FiresOncePerLoad()
     {
         var cache = new LaunchpadCatalogCache(() => Snapshot());

@@ -20,10 +20,12 @@ internal static class LaunchpadRecent
         }
 
         var found = new List<LaunchpadRecentItem>();
-        IEnumerable<string> files;
+        string[] files;
         try
         {
-            files = Directory.EnumerateFiles(root, "*.lnk");
+            // Materialize inside the try: enumeration throws on the first MoveNext, not at
+            // the call site, so a transient lock must not escape the folder reader.
+            files = [.. Directory.EnumerateFiles(root, "*.lnk")];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -52,12 +54,75 @@ internal static class LaunchpadRecent
         }
 
         found.Sort((a, b) => b.Written.CompareTo(a.Written));
-        if (found.Count > max)
+        return Clean(found, max);
+    }
+
+    /// <summary>
+    /// Windows records protocol jumps (screen snip, Photos spare process, ...) and repeats
+    /// every launch as "name (54)". Those shortcuts are not documents; showing them turned
+    /// the recent list into noise. Drops them, strips the launch counter, and keeps the
+    /// newest entry per display name.
+    /// </summary>
+    internal static IReadOnlyList<LaunchpadRecentItem> Clean(
+        IEnumerable<LaunchpadRecentItem> items,
+        int max = int.MaxValue)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        var result = new List<LaunchpadRecentItem>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (LaunchpadRecentItem item in items)
         {
-            found.RemoveRange(max, found.Count - max);
+            string name = DisplayName(item.Name);
+            if (name.Length == 0 || IsNoise(name) || !seen.Add(name))
+            {
+                continue;
+            }
+
+            result.Add(item with { Name = name });
+            if (result.Count >= max)
+            {
+                break;
+            }
         }
 
-        return found;
+        return result;
+    }
+
+    /// <summary>A name that is really a shell/protocol jump rather than a document.</summary>
+    internal static bool IsNoise(string name)
+    {
+        string trimmed = name.Trim();
+        return trimmed.Length == 0
+            || trimmed.StartsWith("ms-", StringComparison.OrdinalIgnoreCase)
+            || trimmed.Contains(':', StringComparison.Ordinal)
+            || trimmed.StartsWith('@');
+    }
+
+    /// <summary>Strips the " (54)" launch counter Windows appends to repeated Recent entries.</summary>
+    internal static string DisplayName(string name)
+    {
+        string trimmed = name.Trim();
+        int open = trimmed.LastIndexOf(" (", StringComparison.Ordinal);
+        if (open <= 0 || !trimmed.EndsWith(')'))
+        {
+            return trimmed;
+        }
+
+        string suffix = trimmed[(open + 2)..^1];
+        if (suffix.Length == 0)
+        {
+            return trimmed;
+        }
+
+        foreach (char digit in suffix)
+        {
+            if (!char.IsAsciiDigit(digit))
+            {
+                return trimmed;
+            }
+        }
+
+        return trimmed[..open].TrimEnd();
     }
 
     internal static string FormatAge(DateTime written, DateTime now)

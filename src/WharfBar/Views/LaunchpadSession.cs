@@ -41,11 +41,20 @@ internal sealed class LaunchpadSession
     /// <summary>Phone Link card. Null hides the block. Missing battery or notices stay hidden.</summary>
     internal LaunchpadPhoneSnapshot? LinkedPhone { get; init; }
 
+    /// <summary>Preferred card width in DIPs; the host shrinks it on small screens.</summary>
+    internal double CardWidth { get; init; } = LaunchpadLayout.DefaultCardWidth;
+
+    /// <summary>Preferred maximum card height in DIPs; the host caps it to the screen.</summary>
+    internal double MaxCardHeight { get; init; } = LaunchpadLayout.DefaultMaxCardHeight;
+
     /// <summary>True while the Start Menu scan has not finished. The face hides the empty-state line.</summary>
     internal bool CatalogPending { get; set; }
 
     /// <summary>Redraws the face after <see cref="Apps"/> or <see cref="Recent"/> change.</summary>
     internal Action? Reload { get; set; }
+
+    /// <summary>Current search text; the host uses it to decide whether Escape clears or closes.</summary>
+    internal Func<string>? SearchText { get; set; }
 
     internal string Style => LaunchpadStyles.Normalize(Config.Launchpad.Style);
 }

@@ -1,230 +1,189 @@
+using System.Diagnostics;
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
-using WharfBar.Resources;
+using System.Windows.Threading;
 using WharfBar.Native;
+using WharfBar.Resources;
 using WharfBar.Services;
 
 namespace WharfBar.Views;
 
 /// <summary>
-/// Windows 11 Start box: search, pins, recent files, all apps,
-/// and a footer with the account and power. The phone panel sits beside this box.
+/// Windows 11 style launchpad box: a pinned row, letter-grouped app grid, recent files,
+/// and a footer with the account chip and tools. The phone panel is drawn by the host window
+/// beside this box.
 /// </summary>
 internal static class LaunchpadWin11Face
 {
-    private const double CardWidth = 680;
-    private const int PinnedCap = 8;
-    private const int RecentPreview = 6;
-
-    private static readonly Brush TransparentFill = Brushes.Transparent;
-
-    // Sealed so a second STA (unit tests each spin their own) can share the template.
-    // An unfrozen ControlTemplate belongs to the thread that first touched this type.
-    private static readonly ControlTemplate FlatTemplate = CreateFlatTemplate();
-
     internal static UIElement Create(LaunchpadSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
+        return new LaunchpadFace(session).Build();
+    }
+}
 
-        var search = new TextBox
+/// <summary>
+/// One live launchpad face. Owns the search box, the scrolling body, keyboard navigation,
+/// and the footer tools; apps are opened through <see cref="LaunchpadSession"/>.
+/// </summary>
+internal sealed class LaunchpadFace
+{
+    private const int PinnedCap = 6;
+    private const int RecentPreview = 4;
+
+    private static readonly Brush TransparentFill = Brushes.Transparent;
+    private static readonly ControlTemplate FlatTemplate = CreateFlatTemplate();
+
+    private readonly LaunchpadSession _session;
+    private readonly int _appColumns;
+    private readonly int _recentColumns;
+    private readonly TextBox _search;
+    private readonly TextBlock _placeholder;
+    private readonly Button _clear;
+    private readonly ScrollViewer _scroll;
+    private readonly StackPanel _body;
+    private readonly StackPanel _tools;
+    private readonly Border _root;
+
+    private readonly List<Button> _items = [];
+    private readonly List<LaunchpadNavSection> _sections = [];
+    private int _focused = -1;
+    private bool _showAllRecent;
+    private bool _grid = true;
+
+    internal LaunchpadFace(LaunchpadSession session)
+    {
+        _session = session;
+        // Columns follow the real card width; the 520 DIP minimum card would otherwise
+        // wrap at four app tiles while the keyboard math assumed six.
+        double inner = Math.Max(1, _session.CardWidth - 44 - 8);
+        _appColumns = Math.Max(1, (int)(inner / 100));
+        _recentColumns = Math.Max(1, (int)(inner / 314));
+
+        _search = new TextBox
         {
-            MinHeight = 36,
-            Padding = new Thickness(36, 6, 12, 6),
+            MinHeight = 38,
+            Padding = new Thickness(38, 6, 36, 6),
             VerticalContentAlignment = VerticalAlignment.Center,
             BorderThickness = new Thickness(1),
             FontSize = 14,
         };
-        search.SetResourceReference(Control.BackgroundProperty, "ControlFillColorDefaultBrush");
-        search.SetResourceReference(Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-        search.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
-        search.SetResourceReference(TextBox.CaretBrushProperty, "TextFillColorPrimaryBrush");
+        _search.SetResourceReference(Control.BackgroundProperty, "ControlFillColorDefaultBrush");
+        _search.SetResourceReference(Control.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+        _search.SetResourceReference(Control.ForegroundProperty, "TextFillColorPrimaryBrush");
+        _search.SetResourceReference(TextBox.CaretBrushProperty, "TextFillColorPrimaryBrush");
+        AutomationProperties.SetName(_search, Strings.Launchpad_SearchPlaceholder);
 
-        var placeholder = Caption(Strings.Launchpad_SearchPlaceholder, 14);
-        placeholder.Margin = new Thickness(36, 0, 12, 0);
-        placeholder.VerticalAlignment = VerticalAlignment.Center;
-        placeholder.IsHitTestVisible = false;
-        placeholder.Opacity = 0.55;
+        _placeholder = Caption(Strings.Launchpad_SearchPlaceholder, 14);
+        _placeholder.Margin = new Thickness(38, 0, 36, 0);
+        _placeholder.VerticalAlignment = VerticalAlignment.Center;
+        _placeholder.IsHitTestVisible = false;
+        _placeholder.Opacity = 0.55;
 
-        var searchGlyph = Glyph("\uE721", 14);
-        searchGlyph.Margin = new Thickness(12, 0, 0, 0);
-        searchGlyph.HorizontalAlignment = HorizontalAlignment.Left;
-        searchGlyph.IsHitTestVisible = false;
+        _clear = new Button
+        {
+            Content = Glyph("\uE711", 11),
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+            Background = TransparentFill,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Template = FlatTemplate,
+            FocusVisualStyle = null,
+            IsTabStop = false,
+        };
+        _clear.SetResourceReference(Control.ForegroundProperty, "TextFillColorSecondaryBrush");
+        _clear.Click += (_, _) =>
+        {
+            _search.Text = string.Empty;
+            _search.Focus();
+        };
 
-        var searchHost = new Grid { Margin = new Thickness(0, 0, 0, 8) };
-        searchHost.Children.Add(search);
-        searchHost.Children.Add(placeholder);
-        searchHost.Children.Add(searchGlyph);
-
-        var body = new StackPanel();
-        var scroll = new ScrollViewer
+        _body = new StackPanel();
+        _scroll = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            MaxHeight = 480,
-            Content = body,
+            CanContentScroll = false,
+            IsTabStop = false,
+            Focusable = false,
+            Content = _body,
         };
 
-        bool showAllRecent = false;
-        bool grid = true;
-
-        void Refresh()
+        _tools = new StackPanel
         {
-            placeholder.Visibility = string.IsNullOrEmpty(search.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
-            body.Children.Clear();
-            Fill(body, session, search.Text, () => showAllRecent, value => showAllRecent = value, () => grid, value => grid = value, Refresh);
-        }
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            MinWidth = 40,
+            MinHeight = 40,
+        };
 
-        search.TextChanged += (_, _) => Refresh();
-        search.Loaded += (_, _) => search.Focus();
-        session.Reload = Refresh;
-        Refresh();
-
-        var dock = new DockPanel();
-        DockPanel.SetDock(searchHost, Dock.Top);
-        var footer = Footer(session);
-        DockPanel.SetDock(footer, Dock.Bottom);
-        dock.Children.Add(searchHost);
-        dock.Children.Add(footer);
-        dock.Children.Add(scroll);
-
-        var root = new Border
+        _root = new Border
         {
-            Width = CardWidth,
-            MaxHeight = 740,
+            Width = _session.CardWidth,
+            MaxHeight = _session.MaxCardHeight,
             CornerRadius = new CornerRadius(16),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(22, 16, 22, 18),
-            Child = dock,
             SnapsToDevicePixels = true,
             UseLayoutRounding = true,
         };
-        root.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
-        root.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
-        root.Loaded += (_, _) => ApplySheen(root);
-        return root;
+        _root.SetResourceReference(Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush");
+        _root.SetResourceReference(Border.BackgroundProperty, "SolidBackgroundFillColorBaseBrush");
+        _root.Loaded += (_, _) => ApplySheen(_root);
+        _root.PreviewKeyDown += OnPreviewKeyDown;
+        _root.PreviewTextInput += OnPreviewTextInput;
     }
 
-    private static void Fill(
-        StackPanel body,
-        LaunchpadSession session,
-        string? query,
-        Func<bool> showAllRecent,
-        Action<bool> setShowAllRecent,
-        Func<bool> grid,
-        Action<bool> setGrid,
-        Action refresh)
+    internal Border Build()
     {
-        string needle = query?.Trim() ?? string.Empty;
-        bool searching = needle.Length > 0;
+        _search.TextChanged += (_, _) => Refresh(ScrollMode.Top);
+        _search.PreviewKeyDown += OnSearchKeyDown;
+        _search.Loaded += (_, _) => _search.Focus();
+        _session.Reload = () => Refresh(ScrollMode.Keep);
+        _session.SearchText = () => _search.Text;
 
-        List<LaunchpadApp> pins = Match(session.Pinned, needle).Take(PinnedCap).ToList();
-        if (pins.Count > 0)
-        {
-            body.Children.Add(Header(Strings.Launchpad_Pinned));
-            body.Children.Add(Wrap(pins.Select(app => AppTile(session, app, large: true))));
-        }
+        UIElement searchHost = SearchHost();
+        UIElement footer = Footer();
+        var dock = new DockPanel();
+        DockPanel.SetDock(searchHost, Dock.Top);
+        DockPanel.SetDock(footer, Dock.Bottom);
+        dock.Children.Add(searchHost);
+        dock.Children.Add(footer);
+        dock.Children.Add(_scroll);
 
-        List<LaunchpadRecentItem> recent = [];
-        foreach (LaunchpadRecentItem item in session.Recent)
-        {
-            if (!searching || item.Name.Contains(needle, StringComparison.CurrentCultureIgnoreCase))
-            {
-                recent.Add(item);
-            }
-        }
-
-        if (recent.Count > 0)
-        {
-            bool expanded = showAllRecent() || searching;
-            int shown = expanded ? recent.Count : Math.Min(RecentPreview, recent.Count);
-            var row = new Grid { Margin = new Thickness(4, 14, 4, 4) };
-            row.ColumnDefinitions.Add(new ColumnDefinition());
-            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            var title = Header(Strings.Launchpad_Recent);
-            title.Margin = new Thickness(0);
-            row.Children.Add(title);
-            if (!searching && recent.Count > RecentPreview)
-            {
-                var more = TextButton(showAllRecent() ? Strings.Launchpad_ShowLess : Strings.Launchpad_ShowAll);
-                more.Click += (_, _) =>
-                {
-                    setShowAllRecent(!showAllRecent());
-                    refresh();
-                };
-                Grid.SetColumn(more, 1);
-                row.Children.Add(more);
-            }
-
-            body.Children.Add(row);
-            var recentWrap = new WrapPanel();
-            foreach (LaunchpadRecentItem item in recent.Take(shown))
-            {
-                recentWrap.Children.Add(RecentTile(session, item));
-            }
-
-            body.Children.Add(recentWrap);
-        }
-
-        List<LaunchpadApp> apps = Match(session.Apps, needle);
-        var allHeader = new Grid { Margin = new Thickness(4, 14, 4, 4) };
-        allHeader.ColumnDefinitions.Add(new ColumnDefinition());
-        allHeader.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var allTitle = Header(searching ? Strings.Launchpad_Results : Strings.Launchpad_All);
-        allTitle.Margin = new Thickness(0);
-        allHeader.Children.Add(allTitle);
-        var view = TextButton(grid() ? Strings.Launchpad_ViewGrid : Strings.Launchpad_ViewList);
-        view.Click += (_, _) =>
-        {
-            setGrid(!grid());
-            refresh();
-        };
-        Grid.SetColumn(view, 1);
-        allHeader.Children.Add(view);
-        body.Children.Add(allHeader);
-
-        if (apps.Count == 0)
-        {
-            if (searching || !session.CatalogPending)
-            {
-                body.Children.Add(Caption(Strings.Launchpad_NoMatches, 13));
-            }
-
-            return;
-        }
-
-        foreach (LaunchpadLetterGroup group in LaunchpadCatalog.GroupByLetter(apps))
-        {
-            body.Children.Add(LetterHeader(group.Letter));
-            if (!grid() && !searching)
-            {
-                foreach (LaunchpadApp app in group.Apps)
-                {
-                    body.Children.Add(ListRow(session, app));
-                }
-            }
-            else
-            {
-                body.Children.Add(Wrap(group.Apps.Select(app => AppTile(session, app, large: false))));
-            }
-        }
+        _scroll.MaxHeight = LaunchpadLayout.ScrollHeight(_session.MaxCardHeight);
+        _root.Child = dock;
+        Refresh(ScrollMode.Top);
+        return _root;
     }
 
-    private static TextBlock LetterHeader(string letter)
+    private UIElement SearchHost()
     {
-        var block = Caption(letter, 18);
-        block.FontWeight = FontWeights.SemiBold;
-        block.Margin = new Thickness(6, 18, 6, 6);
-        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
-        return block;
+        var glyph = Glyph("\uE721", 14);
+        glyph.Margin = new Thickness(12, 0, 0, 0);
+        glyph.HorizontalAlignment = HorizontalAlignment.Left;
+        glyph.IsHitTestVisible = false;
+
+        var host = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+        host.Children.Add(_search);
+        host.Children.Add(_placeholder);
+        host.Children.Add(glyph);
+        host.Children.Add(_clear);
+        return host;
     }
 
-    private static UIElement Footer(LaunchpadSession session)
+    private UIElement Footer()
     {
         var bar = new Grid { Margin = new Thickness(0, 10, 0, 0) };
         bar.ColumnDefinitions.Add(new ColumnDefinition());
@@ -240,55 +199,82 @@ internal static class LaunchpadWin11Face
         userName.VerticalAlignment = VerticalAlignment.Center;
         userRow.Children.Add(userName);
         user.Content = userRow;
-        user.Click += (_, _) => session.OpenWindowsSettings();
+        AutomationProperties.SetName(user, Environment.UserName);
+        user.Click += (_, _) => _session.OpenWindowsSettings();
         bar.Children.Add(user);
 
-        var tools = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            MinWidth = 40,
-            MinHeight = 40,
-        };
-        FillTools(tools, session);
-        tools.ContextMenu = ToolMenu(session, tools);
-        Grid.SetColumn(tools, 1);
-        bar.Children.Add(tools);
+        FillTools();
+        _tools.ContextMenu = ToolMenu();
+        Grid.SetColumn(_tools, 1);
+        bar.Children.Add(_tools);
         return bar;
     }
 
-    private static void FillTools(StackPanel tools, LaunchpadSession session)
+    private void FillTools()
     {
-        tools.Children.Clear();
-        foreach (string id in LaunchpadTools.Normalize(session.Config.Launchpad.Tools))
+        _tools.Children.Clear();
+        string? previousGroup = null;
+        foreach (string id in LaunchpadTools.Normalize(_session.Config.Launchpad.Tools))
         {
-            tools.Children.Add(id == LaunchpadTools.Power
-                ? PowerButton(session)
-                : FolderButton(LaunchpadTools.Glyph(id), LaunchpadTools.Label(id), OpenTool(session, id)));
+            string group = ToolGroup(id);
+            if (previousGroup is not null && !string.Equals(previousGroup, group, StringComparison.Ordinal))
+            {
+                var divider = new Border
+                {
+                    Width = 1,
+                    Height = 18,
+                    Margin = new Thickness(7, 0, 7, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                };
+                divider.SetResourceReference(Border.BackgroundProperty, "ControlStrokeColorDefaultBrush");
+                _tools.Children.Add(divider);
+            }
+
+            _tools.Children.Add(id == LaunchpadTools.Power
+                ? PowerButton()
+                : FolderButton(LaunchpadTools.Glyph(id), LaunchpadTools.Label(id), OpenTool(id)));
+            previousGroup = group;
         }
     }
 
-    private static Action OpenTool(LaunchpadSession session, string id) => id switch
+    private static string ToolGroup(string id) => id switch
     {
-        LaunchpadTools.Documents => () => session.OpenPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
-        LaunchpadTools.Downloads => () => OpenDownloads(session),
-        LaunchpadTools.Pictures => () => session.OpenPath(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)),
-        LaunchpadTools.Settings => session.OpenWindowsSettings,
-        LaunchpadTools.Widgets => session.OpenWidgets,
-        LaunchpadTools.Plugins => session.OpenPlugins,
+        LaunchpadTools.Documents or LaunchpadTools.Downloads or LaunchpadTools.Pictures => "folders",
+        LaunchpadTools.Settings or LaunchpadTools.Widgets or LaunchpadTools.Plugins => "system",
+        _ => "power",
+    };
+
+    private Action OpenTool(string id) => id switch
+    {
+        LaunchpadTools.Documents => () => _session.OpenPath(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)),
+        LaunchpadTools.Downloads => OpenDownloads,
+        LaunchpadTools.Pictures => () => _session.OpenPath(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures)),
+        LaunchpadTools.Settings => _session.OpenWindowsSettings,
+        LaunchpadTools.Widgets => _session.OpenWidgets,
+        LaunchpadTools.Plugins => _session.OpenPlugins,
         _ => static () => { },
     };
 
-    private static ContextMenu ToolMenu(LaunchpadSession session, StackPanel tools)
+    private void OpenDownloads()
+    {
+        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (profile.Length == 0)
+        {
+            return;
+        }
+
+        _session.OpenPath(System.IO.Path.Combine(profile, "Downloads"));
+    }
+
+    private ContextMenu ToolMenu()
     {
         var menu = new ContextMenu
         {
-            PlacementTarget = tools,
+            PlacementTarget = _tools,
             Placement = PlacementMode.Top,
         };
         var shown = new HashSet<string>(
-            LaunchpadTools.Normalize(session.Config.Launchpad.Tools),
+            LaunchpadTools.Normalize(_session.Config.Launchpad.Tools),
             StringComparer.Ordinal);
         foreach (string id in LaunchpadTools.DefaultIds)
         {
@@ -300,14 +286,14 @@ internal static class LaunchpadWin11Face
                 StaysOpenOnClick = true,
                 Tag = id,
             };
-            item.Click += (_, _) => ApplyToolMenu(session, tools, menu);
+            item.Click += (_, _) => ApplyToolMenu(menu);
             menu.Items.Add(item);
         }
 
         return menu;
     }
 
-    private static void ApplyToolMenu(LaunchpadSession session, StackPanel tools, ContextMenu menu)
+    private void ApplyToolMenu(ContextMenu menu)
     {
         var next = new List<string>();
         foreach (object entry in menu.Items)
@@ -318,34 +304,209 @@ internal static class LaunchpadWin11Face
             }
         }
 
-        session.Config.Launchpad.Tools = next;
+        _session.Config.Launchpad.Tools = next;
         if (Application.Current is App app)
         {
-            app.Config?.Save(session.Config);
+            app.Config?.Save(_session.Config);
         }
 
-        FillTools(tools, session);
+        FillTools();
     }
 
-    private static void OpenDownloads(LaunchpadSession session)
+    // ---------------------------------------------------------------- content
+
+    private enum ScrollMode
     {
-        string profile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (profile.Length == 0)
+        Top,
+        Keep,
+    }
+
+    private void Refresh(ScrollMode scrollMode)
+    {
+        double offset = _scroll.VerticalOffset;
+        bool hadFocus = _root.IsKeyboardFocusWithin;
+        int previousFocus = _focused;
+        _items.Clear();
+        _sections.Clear();
+        _focused = -1;
+        _placeholder.Visibility = _search.Text.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _clear.Visibility = _search.Text.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        _body.Children.Clear();
+
+        string needle = _search.Text.Trim();
+        if (needle.Length > 0)
+        {
+            FillResults(needle);
+        }
+        else
+        {
+            FillPinned();
+            FillRecent();
+            FillAllApps();
+        }
+
+        if (_body.Children.Count == 0 && !_session.CatalogPending)
+        {
+            _body.Children.Add(EmptyState(Strings.Launchpad_NoApps));
+        }
+
+        // A rebuild replaces the buttons that held focus (view toggle, show all, catalog
+        // refresh). Put the keyboard back where it was so typing still reaches the search.
+        if (hadFocus && !ReferenceEquals(Keyboard.FocusedElement, _search))
+        {
+            if (previousFocus >= 0 && previousFocus < _items.Count)
+            {
+                FocusItem(previousFocus);
+            }
+            else
+            {
+                _search.Focus();
+            }
+        }
+
+        if (scrollMode == ScrollMode.Top)
+        {
+            _scroll.ScrollToTop();
+            return;
+        }
+
+        if (offset > 0)
+        {
+            _scroll.Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () => _scroll.ScrollToVerticalOffset(offset));
+        }
+    }
+
+    private void FillResults(string needle)
+    {
+        List<LaunchpadApp> results = Matches(needle);
+        AddHeaderRow(
+            $"{Strings.Launchpad_Results} ({results.Count})",
+            ViewToggle());
+
+        if (results.Count > 0)
+        {
+            _body.Children.Add(_grid ? TileGrid(_appColumns, results.Select(app => AppTile(app, large: false)))
+                : ListRows(results));
+        }
+        else if (!_session.CatalogPending)
+        {
+            _body.Children.Add(EmptyState(Strings.Launchpad_NoMatches));
+        }
+
+        List<LaunchpadRecentItem> recent = MatchRecent(needle);
+        if (recent.Count > 0)
+        {
+            _body.Children.Add(Header(Strings.Launchpad_Recent));
+            _body.Children.Add(TileGrid(_recentColumns, recent.Select(RecentTile)));
+        }
+    }
+
+    private List<LaunchpadApp> Matches(string needle)
+    {
+        var results = new List<LaunchpadApp>();
+        var seenNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (LaunchpadApp app in _session.Pinned.Concat(_session.Apps))
+        {
+            if (!LaunchpadSearch.Contains(app.Name, needle))
+            {
+                continue;
+            }
+
+            string name = app.Name.Trim();
+            string path = app.ShortcutPath.Trim();
+            if (!seenNames.Add(name) || (!string.IsNullOrEmpty(path) && !seenPaths.Add(path)))
+            {
+                continue;
+            }
+
+            results.Add(app);
+        }
+
+        return LaunchpadCatalog.Rank(results, needle).ToList();
+    }
+
+    private List<LaunchpadRecentItem> MatchRecent(string needle)
+    {
+        return LaunchpadRecent
+            .Clean(_session.Recent)
+            .Where(item => LaunchpadSearch.Contains(item.Name, needle))
+            .ToList();
+    }
+
+    private void FillPinned()
+    {
+        List<LaunchpadApp> pins = _session.Pinned
+            .Where(pin => !string.IsNullOrWhiteSpace(pin.ShortcutPath))
+            .Take(PinnedCap)
+            .ToList();
+        if (pins.Count == 0)
         {
             return;
         }
 
-        session.OpenPath(System.IO.Path.Combine(profile, "Downloads"));
+        _body.Children.Add(Header(Strings.Launchpad_Pinned));
+        _body.Children.Add(TileGrid(_appColumns, pins.Select(app => AppTile(app, large: true))));
     }
 
-    private static Button AppTile(LaunchpadSession session, LaunchpadApp app, bool large)
+    private void FillAllApps()
     {
-        double width = large ? 112 : 92;
+        if (_session.Apps.Count == 0)
+        {
+            return;
+        }
+
+        AddHeaderRow(Strings.Launchpad_All, ViewToggle());
+        foreach (LaunchpadLetterGroup group in LaunchpadCatalog.GroupByLetter(_session.Apps))
+        {
+            _body.Children.Add(LetterHeader(group.Letter));
+            _body.Children.Add(_grid ? TileGrid(_appColumns, group.Apps.Select(app => AppTile(app, large: false)))
+                : ListRows(group.Apps));
+        }
+    }
+
+    private void FillRecent()
+    {
+        IReadOnlyList<LaunchpadRecentItem> recent = LaunchpadRecent.Clean(_session.Recent);
+        if (recent.Count == 0)
+        {
+            return;
+        }
+
+        IReadOnlyList<LaunchpadRecentItem> shown = _showAllRecent
+            ? recent
+            : recent.Take(RecentPreview).ToArray();
+        UIElement? action = recent.Count > RecentPreview
+            ? TextButton(_showAllRecent ? Strings.Launchpad_ShowLess : Strings.Launchpad_ShowAll, () =>
+            {
+                _showAllRecent = !_showAllRecent;
+                Refresh(ScrollMode.Keep);
+            })
+            : null;
+        AddHeaderRow(Strings.Launchpad_Recent, action);
+        _body.Children.Add(TileGrid(_recentColumns, shown.Select(RecentTile)));
+    }
+
+    private static UIElement EmptyState(string text)
+    {
+        var block = Caption(text, 13);
+        block.Opacity = 0.7;
+        block.Margin = new Thickness(6, 26, 6, 26);
+        block.HorizontalAlignment = HorizontalAlignment.Center;
+        return block;
+    }
+
+    // ---------------------------------------------------------------- tiles
+
+    private Button AppTile(LaunchpadApp app, bool large)
+    {
+        double width = large ? 96 : 92;
+        double iconSize = large ? 44 : 40;
         var icon = new Image
         {
-            Width = large ? 44 : 40,
-            Height = large ? 44 : 40,
-            Source = session.Icon(app),
+            Width = iconSize,
+            Height = iconSize,
+            Source = SafeIcon(app),
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Center,
             IsHitTestVisible = false,
@@ -375,18 +536,34 @@ internal static class LaunchpadWin11Face
         button.Padding = new Thickness(4, 8, 4, 6);
         button.Content = stack;
         button.ToolTip = app.Name;
-        button.Click += (_, _) => session.Open(app);
+        AutomationProperties.SetName(button, app.Name);
+        button.Click += (_, _) => _session.Open(app);
         Hover(button);
         return button;
     }
 
-    private static Button RecentTile(LaunchpadSession session, LaunchpadRecentItem item)
+    private ImageSource? SafeIcon(LaunchpadApp app)
+    {
+        try
+        {
+            return _session.Icon(app);
+        }
+        catch (Exception ex)
+        {
+            // A broken shortcut must not take the process down (same class as the catalog
+            // gotcha: the shell API throws on the UI thread).
+            Debug.WriteLine($"WharfBar launchpad icon: {app.ShortcutPath}: {ex.Message}");
+            return null;
+        }
+    }
+
+    private Button RecentTile(LaunchpadRecentItem item)
     {
         var icon = new Image
         {
             Width = 28,
             Height = 28,
-            Source = session.Icon(new LaunchpadApp(item.Name, item.Path)),
+            Source = SafeIcon(new LaunchpadApp(item.Name, item.Path)),
             Stretch = Stretch.Uniform,
             Margin = new Thickness(0, 0, 10, 0),
             IsHitTestVisible = false,
@@ -410,18 +587,19 @@ internal static class LaunchpadWin11Face
         button.HorizontalContentAlignment = HorizontalAlignment.Left;
         button.Content = row;
         button.ToolTip = item.Name;
-        button.Click += (_, _) => session.OpenPath(item.Path);
+        AutomationProperties.SetName(button, item.Name);
+        button.Click += (_, _) => _session.OpenPath(item.Path);
         Hover(button);
         return button;
     }
 
-    private static Button ListRow(LaunchpadSession session, LaunchpadApp app)
+    private Button ListRow(LaunchpadApp app)
     {
         var icon = new Image
         {
             Width = 20,
             Height = 20,
-            Source = session.Icon(app),
+            Source = SafeIcon(app),
             Margin = new Thickness(0, 0, 10, 0),
             IsHitTestVisible = false,
         };
@@ -436,12 +614,25 @@ internal static class LaunchpadWin11Face
         button.MinHeight = 36;
         button.Margin = new Thickness(2, 1, 2, 1);
         button.Content = row;
-        button.Click += (_, _) => session.Open(app);
+        button.ToolTip = app.Name;
+        AutomationProperties.SetName(button, app.Name);
+        button.Click += (_, _) => _session.Open(app);
         Hover(button);
         return button;
     }
 
-    private static Button PowerButton(LaunchpadSession session)
+    private UIElement ListRows(IEnumerable<LaunchpadApp> apps)
+    {
+        var stack = new StackPanel();
+        foreach (LaunchpadApp app in apps)
+        {
+            stack.Children.Add(ListRow(app));
+        }
+
+        return stack;
+    }
+
+    private Button PowerButton()
     {
         var button = IconButton(LaunchpadTools.Glyph(LaunchpadTools.Power), LaunchpadTools.Label(LaunchpadTools.Power));
         var menu = new ContextMenu
@@ -452,18 +643,18 @@ internal static class LaunchpadWin11Face
         menu.Items.Add(PowerItem(Strings.TopBar_Lock, () =>
         {
             PowerActions.TryLock();
-            session.Close();
+            _session.Close();
         }));
         menu.Items.Add(PowerItem(Strings.TopBar_Sleep, () => PowerActions.TrySleep()));
         menu.Items.Add(PowerItem(Strings.TopBar_Shutdown, () =>
         {
             PowerActions.TryShutdown();
-            session.Close();
+            _session.Close();
         }));
         menu.Items.Add(PowerItem(Strings.TopBar_Restart, () =>
         {
             PowerActions.TryRestart();
-            session.Close();
+            _session.Close();
         }));
         menu.Closed += (_, _) => button.ContextMenu = null;
         button.Click += (_, _) => button.Dispatcher.InvokeAsync(() =>
@@ -482,7 +673,7 @@ internal static class LaunchpadWin11Face
         return item;
     }
 
-    private static Button FolderButton(string glyph, string tip, Action open)
+    private Button FolderButton(string glyph, string tip, Action open)
     {
         var button = IconButton(glyph, tip);
         button.Click += (_, _) => open();
@@ -502,34 +693,81 @@ internal static class LaunchpadWin11Face
         icon.TextAlignment = TextAlignment.Center;
         button.Content = icon;
         button.ToolTip = tip;
+        AutomationProperties.SetName(button, tip);
         Hover(button);
         return button;
     }
 
-    private static Button TextButton(string label, Action? click = null)
+    private Button ViewToggle()
+    {
+        var button = Flat();
+        button.Width = 30;
+        button.Height = 30;
+        button.Padding = new Thickness(5);
+        button.Margin = new Thickness(2, 0, 0, 0);
+        button.Content = Glyph(_grid ? "\uE8FD" : "\uE80A", 14);
+        button.ToolTip = _grid ? Strings.Launchpad_ViewList : Strings.Launchpad_ViewGrid;
+        AutomationProperties.SetName(button, button.ToolTip as string ?? string.Empty);
+        button.Click += (_, _) =>
+        {
+            _grid = !_grid;
+            Refresh(ScrollMode.Keep);
+        };
+        Hover(button);
+        return button;
+    }
+
+    private static Button TextButton(string label, Action click)
     {
         var button = Flat();
         button.Content = label;
         button.FontSize = 12;
         button.Padding = new Thickness(8, 4, 8, 4);
         button.SetResourceReference(Control.ForegroundProperty, "AccentFillColorDefaultBrush");
-        if (click is not null)
-        {
-            button.Click += (_, _) => click();
-        }
-
+        button.Click += (_, _) => click();
         return button;
     }
 
-    private static WrapPanel Wrap(IEnumerable<UIElement> tiles)
+    // ---------------------------------------------------------------- sections
+
+    private WrapPanel TileGrid(int columns, IEnumerable<Button> tiles)
     {
+        int first = _items.Count;
         var wrap = new WrapPanel();
-        foreach (UIElement tile in tiles)
+        foreach (Button tile in tiles)
         {
             wrap.Children.Add(tile);
+            _items.Add(tile);
+        }
+
+        if (_items.Count > first)
+        {
+            _sections.Add(new LaunchpadNavSection(first, _items.Count - first, columns));
         }
 
         return wrap;
+    }
+
+    private void AddHeaderRow(string text, UIElement? action)
+    {
+        var row = new Grid { Margin = new Thickness(4, 12, 4, 2) };
+        row.ColumnDefinitions.Add(new ColumnDefinition());
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        TextBlock title = Header(text);
+        title.Margin = new Thickness(0);
+        row.Children.Add(title);
+        if (action is not null)
+        {
+            if (action is FrameworkElement element)
+            {
+                element.VerticalAlignment = VerticalAlignment.Center;
+            }
+
+            Grid.SetColumn(action, 1);
+            row.Children.Add(action);
+        }
+
+        _body.Children.Add(row);
     }
 
     private static TextBlock Header(string text)
@@ -537,6 +775,15 @@ internal static class LaunchpadWin11Face
         var block = Caption(text, 14);
         block.FontWeight = FontWeights.SemiBold;
         block.Margin = new Thickness(6, 8, 6, 4);
+        return block;
+    }
+
+    private static TextBlock LetterHeader(string letter)
+    {
+        var block = Caption(letter, 18);
+        block.FontWeight = FontWeights.SemiBold;
+        block.Margin = new Thickness(6, 12, 6, 4);
+        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         return block;
     }
 
@@ -549,20 +796,6 @@ internal static class LaunchpadWin11Face
             VerticalAlignment = VerticalAlignment.Center,
         };
         block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorPrimaryBrush");
-        return block;
-    }
-
-    private static TextBlock Glyph(string code, double size)
-    {
-        var block = new TextBlock
-        {
-            Text = code,
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-            FontSize = size,
-            VerticalAlignment = VerticalAlignment.Center,
-            IsHitTestVisible = false,
-        };
-        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         return block;
     }
 
@@ -591,59 +824,169 @@ internal static class LaunchpadWin11Face
         return disk;
     }
 
-    private static void ApplySheen(Border root)
+    // ---------------------------------------------------------------- keyboard
+
+    private void OnSearchKeyDown(object sender, KeyEventArgs e)
     {
-        if (root.TryFindResource("SolidBackgroundFillColorBaseBrush") is not SolidColorBrush fill)
+        if (e.Key == Key.Escape && _search.Text.Length > 0)
+        {
+            _search.Text = string.Empty;
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && _items.Count > 0)
+        {
+            e.Handled = true;
+            ClickItem(0);
+        }
+    }
+
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape && _search.Text.Length > 0)
+        {
+            _search.Text = string.Empty;
+            e.Handled = true;
+            _search.Focus();
+            return;
+        }
+
+        if (e.Key == Key.Enter)
+        {
+            if (ReferenceEquals(Keyboard.FocusedElement, _search))
+            {
+                if (_items.Count > 0)
+                {
+                    e.Handled = true;
+                    ClickItem(0);
+                }
+
+                return;
+            }
+
+            // A focused Button activates on Space, not Enter; the pad treats both as "open".
+            if (_focused >= 0)
+            {
+                e.Handled = true;
+                ClickItem(_focused);
+            }
+
+            return;
+        }
+
+        LaunchpadMove? move = e.Key switch
+        {
+            Key.Up => LaunchpadMove.Up,
+            Key.Down => LaunchpadMove.Down,
+            Key.Left => LaunchpadMove.Left,
+            Key.Right => LaunchpadMove.Right,
+            _ => null,
+        };
+        if (move is null)
         {
             return;
         }
 
-        Color accent = root.TryFindResource("AccentFillColorDefaultBrush") is SolidColorBrush accentBrush
-            ? accentBrush.Color
-            : fill.Color;
-        var gradient = new LinearGradientBrush
+        if (ReferenceEquals(Keyboard.FocusedElement, _search))
         {
-            StartPoint = new Point(0, 0),
-            EndPoint = new Point(0, 1),
-        };
-        gradient.GradientStops.Add(new GradientStop(Blend(fill.Color, accent, 0.16), 0));
-        gradient.GradientStops.Add(new GradientStop(fill.Color, 0.28));
-        gradient.GradientStops.Add(new GradientStop(fill.Color, 1));
-        gradient.Freeze();
-        root.Background = gradient;
-    }
-
-    private static Color Blend(Color basis, Color tint, double amount)
-    {
-        byte Mix(byte from, byte to) => (byte)Math.Clamp(from + ((to - from) * amount), 0, 255);
-        return Color.FromRgb(Mix(basis.R, tint.R), Mix(basis.G, tint.G), Mix(basis.B, tint.B));
-    }
-
-    private static List<LaunchpadApp> Match(IReadOnlyList<LaunchpadApp> apps, string needle)
-    {
-        var next = new List<LaunchpadApp>();
-        foreach (LaunchpadApp app in apps)
-        {
-            if (needle.Length == 0 || app.Name.Contains(needle, StringComparison.CurrentCultureIgnoreCase))
+            if (move == LaunchpadMove.Down && _items.Count > 0)
             {
-                next.Add(app);
+                e.Handled = true;
+                FocusItem(0);
             }
+
+            return;
         }
 
-        return next;
+        e.Handled = true;
+        MoveFocus(move.Value);
     }
+
+    private void MoveFocus(LaunchpadMove move)
+    {
+        if (_items.Count == 0)
+        {
+            return;
+        }
+
+        if (_focused < 0)
+        {
+            FocusItem(move is LaunchpadMove.Up ? _items.Count - 1 : 0);
+            return;
+        }
+
+        int next = LaunchpadTileNav.Move(_sections, _focused, move);
+        if (next < 0)
+        {
+            _focused = -1;
+            _search.Focus();
+            return;
+        }
+
+        FocusItem(next);
+    }
+
+    private void FocusItem(int index)
+    {
+        if (index < 0 || index >= _items.Count)
+        {
+            return;
+        }
+
+        _focused = index;
+        Button button = _items[index];
+        button.Focus();
+        button.BringIntoView();
+    }
+
+    private void ClickItem(int index)
+    {
+        if (index >= 0 && index < _items.Count)
+        {
+            _items[index].RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+        }
+    }
+
+    private void OnPreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        if (e.OriginalSource is TextBox || string.IsNullOrEmpty(e.Text))
+        {
+            return;
+        }
+
+        char first = e.Text[0];
+        if (char.IsControl(first))
+        {
+            return;
+        }
+
+        _search.Focus();
+        _search.CaretIndex = _search.Text.Length;
+        _search.SelectedText = e.Text;
+        e.Handled = true;
+    }
+
+    // ---------------------------------------------------------------- chrome
+
+    private static Button Flat() =>
+        new()
+        {
+            Background = TransparentFill,
+            BorderThickness = new Thickness(0),
+            Cursor = Cursors.Hand,
+            Template = FlatTemplate,
+            FocusVisualStyle = null,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center,
+        };
 
     private static void Hover(Button button)
     {
         button.ApplyTemplate();
 
-        // The flat template is sealed and shared, so the overlay is resolved per
-        // instance after ApplyTemplate. The resource swap stays as the fallback.
         if (button.Template?.FindName("HoverOverlay", button) is not Border overlay)
         {
-            button.MouseEnter += (_, _) =>
-                button.SetResourceReference(Control.BackgroundProperty, "ControlFillColorSecondaryBrush");
-            button.MouseLeave += (_, _) => button.Background = TransparentFill;
             return;
         }
 
@@ -680,17 +1023,47 @@ internal static class LaunchpadWin11Face
         scale.BeginAnimation(ScaleTransform.ScaleYProperty, up);
     }
 
-    private static Button Flat() =>
-        new()
+    private static TextBlock Glyph(string code, double size)
+    {
+        var block = new TextBlock
         {
-            Background = TransparentFill,
-            BorderThickness = new Thickness(0),
-            Cursor = Cursors.Hand,
-            Template = FlatTemplate,
-            FocusVisualStyle = null,
-            HorizontalContentAlignment = HorizontalAlignment.Center,
-            VerticalContentAlignment = VerticalAlignment.Center,
+            Text = code,
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+            FontSize = size,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
         };
+        block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
+        return block;
+    }
+
+    private static void ApplySheen(Border root)
+    {
+        if (root.TryFindResource("SolidBackgroundFillColorBaseBrush") is not SolidColorBrush fill)
+        {
+            return;
+        }
+
+        Color accent = root.TryFindResource("AccentFillColorDefaultBrush") is SolidColorBrush accentBrush
+            ? accentBrush.Color
+            : fill.Color;
+        var gradient = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(0, 1),
+        };
+        gradient.GradientStops.Add(new GradientStop(Blend(fill.Color, accent, 0.14), 0));
+        gradient.GradientStops.Add(new GradientStop(fill.Color, 0.28));
+        gradient.GradientStops.Add(new GradientStop(fill.Color, 1));
+        gradient.Freeze();
+        root.Background = gradient;
+    }
+
+    private static Color Blend(Color basis, Color tint, double amount)
+    {
+        byte Mix(byte from, byte to) => (byte)Math.Clamp(from + ((to - from) * amount), 0, 255);
+        return Color.FromRgb(Mix(basis.R, tint.R), Mix(basis.G, tint.G), Mix(basis.B, tint.B));
+    }
 
     private static ControlTemplate BuildFlatTemplate()
     {
@@ -702,8 +1075,8 @@ internal static class LaunchpadWin11Face
         presenter.SetValue(ContentPresenter.ContentProperty, new TemplateBindingExtension(ContentControl.ContentProperty));
         presenter.SetValue(FrameworkElement.HorizontalAlignmentProperty, new TemplateBindingExtension(Control.HorizontalContentAlignmentProperty));
         presenter.SetValue(FrameworkElement.VerticalAlignmentProperty, new TemplateBindingExtension(Control.VerticalContentAlignmentProperty));
-        // Border takes one child, so presenter + hover overlay share a grid. The
-        // padding stays on the root border; the grid stretches across it.
+        // Border takes one child, so presenter + overlays share a grid. The padding stays
+        // on the root border; the grid stretches across it.
         var align = new FrameworkElementFactory(typeof(Grid));
         align.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Stretch);
         align.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Stretch);
@@ -717,7 +1090,26 @@ internal static class LaunchpadWin11Face
         hover.SetValue(Border.OpacityProperty, 0.0);
         hover.SetValue(FrameworkElement.IsHitTestVisibleProperty, false);
         align.AppendChild(hover);
-        return new ControlTemplate(typeof(Button)) { VisualTree = border };
+        // Keyboard focus ring, shown by the template trigger for IsKeyboardFocused.
+        var ring = new FrameworkElementFactory(typeof(Border), "FocusRing");
+        ring.SetValue(Border.BorderBrushProperty, new DynamicResourceExtension("AccentFillColorDefaultBrush"));
+        ring.SetValue(Border.BorderThicknessProperty, new Thickness(2));
+        ring.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
+        ring.SetValue(Border.MarginProperty, new Thickness(-2));
+        ring.SetValue(Border.OpacityProperty, 0.0);
+        ring.SetValue(FrameworkElement.IsHitTestVisibleProperty, false);
+        align.AppendChild(ring);
+        border.AppendChild(align);
+
+        var template = new ControlTemplate(typeof(Button)) { VisualTree = border };
+        var focusTrigger = new Trigger
+        {
+            Property = UIElement.IsKeyboardFocusedProperty,
+            Value = true,
+        };
+        focusTrigger.Setters.Add(new Setter(UIElement.OpacityProperty, 1.0, "FocusRing"));
+        template.Triggers.Add(focusTrigger);
+        return template;
     }
 
     private static ControlTemplate CreateFlatTemplate()

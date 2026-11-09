@@ -744,7 +744,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Launchpad_Photos" xml:space="preserve"><value>Photos</value></data>
   <data name="Launchpad_SendFiles" xml:space="preserve"><value>Send files</value></data>
   <data name="Launchpad_Recent" xml:space="preserve"><value>Recent</value></data>
-  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Search apps, settings, and documents</value></data>
+  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Search apps and files</value></data>
   <data name="Launchpad_Pinned" xml:space="preserve"><value>Pinned</value></data>
   <data name="Launchpad_ShowLess" xml:space="preserve"><value>Show less</value></data>
   <data name="Launchpad_ShowAll" xml:space="preserve"><value>Show all</value></data>
@@ -753,6 +753,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Launchpad_ViewGrid" xml:space="preserve"><value>View: Grid</value></data>
   <data name="Launchpad_ViewList" xml:space="preserve"><value>View: List</value></data>
   <data name="Launchpad_NoMatches" xml:space="preserve"><value>No matching apps</value></data>
+  <data name="Launchpad_NoApps" xml:space="preserve"><value>No apps found</value></data>
   <data name="Launchpad_ToolDocuments" xml:space="preserve"><value>Documents</value></data>
   <data name="Launchpad_ToolDownloads" xml:space="preserve"><value>Downloads</value></data>
   <data name="Launchpad_ToolPictures" xml:space="preserve"><value>Pictures</value></data>

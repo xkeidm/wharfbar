@@ -12,7 +12,6 @@ namespace WharfBar.Services;
 internal static class LaunchpadWarmup
 {
     private const int Batch = 8;
-    private const int MaxIcons = 64;
 
     private static Dispatcher? _dispatcher;
     private static int _cursor;
@@ -35,20 +34,26 @@ internal static class LaunchpadWarmup
             return;
         }
 
-        _cursor = 0;
-        dispatcher.BeginInvoke(DispatcherPriority.Background, WarmSlice);
+        // SnapshotChanged is raised on the scanner thread; touch the cursor only on the
+        // dispatcher thread that also advances it.
+        dispatcher.BeginInvoke(DispatcherPriority.Background, () =>
+        {
+            _cursor = 0;
+            WarmSlice();
+        });
     }
 
     private static void WarmSlice()
     {
         if (!LaunchpadCatalogCache.Shared.TryGet(out LaunchpadCatalogSnapshot? snapshot)
-            || _cursor >= snapshot.Apps.Count
-            || _cursor >= MaxIcons)
+            || _cursor >= snapshot.Apps.Count)
         {
             return;
         }
 
-        int end = Math.Min(_cursor + Batch, Math.Min(snapshot.Apps.Count, MaxIcons));
+        // The whole catalog, not a fixed prefix: the pad can scroll to every app, and an
+        // unwarmed icon is extracted synchronously on the UI thread on first paint.
+        int end = Math.Min(_cursor + Batch, snapshot.Apps.Count);
         for (int i = _cursor; i < end; i++)
         {
             string path = snapshot.Apps[i].ShortcutPath;
@@ -63,7 +68,7 @@ internal static class LaunchpadWarmup
         }
 
         _cursor = end;
-        if (_cursor < snapshot.Apps.Count && _cursor < MaxIcons && _dispatcher is { } dispatcher)
+        if (_cursor < snapshot.Apps.Count && _dispatcher is { } dispatcher)
         {
             dispatcher.BeginInvoke(DispatcherPriority.Background, WarmSlice);
         }

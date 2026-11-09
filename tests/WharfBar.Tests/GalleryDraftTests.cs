@@ -111,7 +111,11 @@ public class GalleryDraftTests
         Assert.All(apps, app =>
         {
             Assert.False(string.IsNullOrWhiteSpace(app.Name));
-            Assert.EndsWith(".lnk", app.ShortcutPath, StringComparison.OrdinalIgnoreCase);
+            string path = app.ShortcutPath;
+            Assert.True(
+                path.EndsWith(".lnk", StringComparison.OrdinalIgnoreCase)
+                || path.EndsWith(".url", StringComparison.OrdinalIgnoreCase),
+                $"Unexpected shortcut path: {path}");
         });
     }
 

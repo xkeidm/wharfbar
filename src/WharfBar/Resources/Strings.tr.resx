@@ -747,7 +747,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Launchpad_Photos" xml:space="preserve"><value>Fotoğraflar</value></data>
   <data name="Launchpad_SendFiles" xml:space="preserve"><value>Dosyaları gönder</value></data>
   <data name="Launchpad_Recent" xml:space="preserve"><value>En son</value></data>
-  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Uygulama, ayar ve belge ara</value></data>
+  <data name="Launchpad_SearchPlaceholder" xml:space="preserve"><value>Uygulama ve dosya ara</value></data>
   <data name="Launchpad_Pinned" xml:space="preserve"><value>Sabitlendi</value></data>
   <data name="Launchpad_ShowLess" xml:space="preserve"><value>Daha az göster</value></data>
   <data name="Launchpad_ShowAll" xml:space="preserve"><value>Tümünü göster</value></data>
@@ -756,6 +756,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Launchpad_ViewGrid" xml:space="preserve"><value>Görünüm: Kılavuz</value></data>
   <data name="Launchpad_ViewList" xml:space="preserve"><value>Görünüm: Liste</value></data>
   <data name="Launchpad_NoMatches" xml:space="preserve"><value>Eşleşen uygulama yok</value></data>
+  <data name="Launchpad_NoApps" xml:space="preserve"><value>Uygulama bulunamadı</value></data>
   <data name="Launchpad_ToolDocuments" xml:space="preserve"><value>Belgeler</value></data>
   <data name="Launchpad_ToolDownloads" xml:space="preserve"><value>İndirilenler</value></data>
   <data name="Launchpad_ToolPictures" xml:space="preserve"><value>Resimler</value></data>

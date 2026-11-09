@@ -23,21 +23,28 @@ internal static class LaunchpadPhoneRow
     /// <summary>Displayed width of the phone bezel. Height follows the frame bitmap.</summary>
     internal const double PhoneMarkWidth = 76;
 
-    internal static UIElement Beside(UIElement card, LaunchpadPhoneSnapshot phone, Action<string> openPath)
+    internal static UIElement Beside(
+        UIElement card,
+        LaunchpadPhoneSnapshot phone,
+        Action<string> openPath,
+        double maxHeight = LaunchpadLayout.DefaultMaxCardHeight)
     {
         ArgumentNullException.ThrowIfNull(card);
         var row = new Grid { VerticalAlignment = VerticalAlignment.Center };
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.Children.Add(card);
-        UIElement panel = Create(phone, openPath);
+        UIElement panel = Create(phone, openPath, maxHeight);
         panel.SetValue(FrameworkElement.MarginProperty, new Thickness(12, 0, 0, 0));
         Grid.SetColumn(panel, 1);
         row.Children.Add(panel);
         return row;
     }
 
-    internal static UIElement Create(LaunchpadPhoneSnapshot phone, Action<string> openPath)
+    internal static UIElement Create(
+        LaunchpadPhoneSnapshot phone,
+        Action<string> openPath,
+        double maxHeight = LaunchpadLayout.DefaultMaxCardHeight)
     {
         ArgumentNullException.ThrowIfNull(phone);
         ArgumentNullException.ThrowIfNull(openPath);
@@ -45,7 +52,7 @@ internal static class LaunchpadPhoneRow
         var root = new Border
         {
             Width = PanelWidth,
-            MaxHeight = 740,
+            MaxHeight = Math.Max(240, maxHeight),
             CornerRadius = new CornerRadius(16),
             BorderThickness = new Thickness(1),
             Padding = new Thickness(16, 18, 16, 16),
@@ -63,7 +70,15 @@ internal static class LaunchpadPhoneRow
             stack.Children.Add(Recent(phone.Recent));
         }
 
-        root.Child = stack;
+        // A long notice list must scroll inside the panel instead of spilling over the
+        // card bottom on shorter screens.
+        root.Child = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Focusable = false,
+            Content = stack,
+        };
         return root;
     }
 

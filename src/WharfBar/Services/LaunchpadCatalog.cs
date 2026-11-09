@@ -12,8 +12,8 @@ internal static class LaunchpadCatalog
 {
     internal static IReadOnlyList<LaunchpadApp> List() =>
         Scan(
-            Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu),
-            Environment.GetFolderPath(Environment.SpecialFolder.StartMenu));
+            Environment.GetFolderPath(Environment.SpecialFolder.StartMenu),
+            Environment.GetFolderPath(Environment.SpecialFolder.CommonStartMenu));
 
     internal static IReadOnlyList<LaunchpadApp> Scan(params string?[] roots)
     {
@@ -44,13 +44,55 @@ internal static class LaunchpadCatalog
         var next = new List<LaunchpadApp>();
         foreach (LaunchpadApp app in apps)
         {
-            if (app.Name.Contains(needle, StringComparison.CurrentCultureIgnoreCase))
+            if (LaunchpadSearch.Contains(app.Name, needle))
             {
                 next.Add(app);
             }
         }
 
-        return next;
+        return Rank(next, needle);
+    }
+
+    /// <summary>
+    /// Sorts search hits so the obvious target is first: an exact name, then a name that
+    /// starts with the query, then a word inside the name, then any substring. Ties keep
+    /// the current-culture alphabetical order.
+    /// </summary>
+    internal static IReadOnlyList<LaunchpadApp> Rank(IEnumerable<LaunchpadApp> apps, string needle)
+    {
+        ArgumentNullException.ThrowIfNull(apps);
+        var ranked = new List<LaunchpadApp>(apps);
+        ranked.Sort((a, b) =>
+        {
+            int rank = MatchRank(a.Name, needle).CompareTo(MatchRank(b.Name, needle));
+            return rank != 0
+                ? rank
+                : string.Compare(a.Name, b.Name, StringComparison.CurrentCultureIgnoreCase);
+        });
+        return ranked;
+    }
+
+    /// <summary>0 exact, 1 prefix, 2 word start, 3 substring; <see cref="int.MaxValue"/> when absent.</summary>
+    internal static int MatchRank(string name, string needle)
+    {
+        string trimmed = name.Trim();
+        if (LaunchpadSearch.Equals(trimmed, needle))
+        {
+            return 0;
+        }
+
+        if (LaunchpadSearch.StartsWith(trimmed, needle))
+        {
+            return 1;
+        }
+
+        int at = LaunchpadSearch.IndexOf(trimmed, needle);
+        if (at < 0)
+        {
+            return int.MaxValue;
+        }
+
+        return at == 0 || !char.IsLetterOrDigit(trimmed[at - 1]) ? 2 : 3;
     }
 
     /// <summary>
@@ -120,6 +162,11 @@ internal static class LaunchpadCatalog
             string current = pending.Pop();
             foreach (string file in ListOrEmpty(current, directories: false))
             {
+                if (IsStartupFolder(file))
+                {
+                    continue;
+                }
+
                 string name = Path.GetFileNameWithoutExtension(file);
                 if (name.Length == 0 || !seen.Add(name))
                 {
@@ -153,13 +200,29 @@ internal static class LaunchpadCatalog
         }
     }
 
+    /// <summary>
+    /// Startup-folder shortcuts are autostart entries, not apps: WharfBar's own autostart
+    /// shortcut was listed in the pad. Start Menu programmers do not show them under All apps.
+    /// </summary>
+    private static bool IsStartupFolder(string file) =>
+        file.Contains(@"\Startup\", StringComparison.OrdinalIgnoreCase);
+
     private static IReadOnlyList<string> ListOrEmpty(string directory, bool directories)
     {
         try
         {
-            return directories
-                ? Directory.GetDirectories(directory)
-                : Directory.GetFiles(directory, "*.lnk");
+            if (directories)
+            {
+                return Directory.GetDirectories(directory);
+            }
+
+            // .url shortcuts (Steam / web-installed apps) sit beside .lnk entries in the
+            // Start Menu and were invisible to the launchpad before.
+            return
+            [
+                .. Directory.GetFiles(directory, "*.lnk"),
+                .. Directory.GetFiles(directory, "*.url"),
+            ];
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
