@@ -124,6 +124,7 @@ src/WharfBar/
  AppConfig.cs # JSON root schema + DockConfig + TopBarConfig + IslandConfig
  Services/
  SingleInstanceGuard.cs # named Mutex
+ QuitChannel.cs # `--quit` cross-process request: signal the running instance, wait on the mutex (installer/uninstaller path)
  WindowAppearance.cs # WPF-UI theme + backdrop; DWM fine-tuning
  AppThemePreference.cs # config theme → ApplicationTheme
  BrandPalette.cs # PURE: accent + dark/light → logo tile colours (HSL, per-role saturation caps; ADR-019)
@@ -259,6 +260,7 @@ The island (clipboard history + dropped files) is ADR-010.
 | `Dwm` | Corner preference, immersive dark, backdrop fallback, frame extend |
 | `WindowAppearance` | WPF-UI theme + Mica; DWM fine-tuning; theme refresh |
 | `SingleInstanceGuard` | Named Mutex; blocks a second instance |
+| `QuitChannel` | `WharfBar.exe --quit` (`Program.Main` branches to it before WPF starts): signals the running instance's named event and waits on the single-instance mutex, so an installer/uninstaller replaces or deletes the binary only after the taskbar and every AppBar are restored. `0` = nothing running or it quit, `1` = still running (an older build without `--quit`, or a 10 s timeout), `2` = unexpected error |
 | `DockWindow` | Bottom overlay; read-only taskbar pins + `dock.items` on the left, unpinned running apps on the right, one icon per application; button rhythm (icon 24, button 40, gap 4, plate padding 10×8), no magnification; background `mica` (DWM, window = plate) or `transparent`/`tint` (layered, corner 14); drag-reorder, file drop, position (bottom-left/center/right), a "Windows" submenu; no AppBar |
 | `TaskbarVisibilityService` | Capture the taskbar baseline at startup; hide `Shell_TrayWnd` / secondary; keep-hidden monitoring (no `ReapplyHide` inside `ApplyPlacement`); restore on exit. The baseline is written to the watchdog state file, the `--taskbar-watchdog` child process is spawned; if a stale file exists, the tray is shown first at startup (self-heal) |
 | `TaskbarWatchdog` | Headless mode (`Program.Main` branches, WPF does not start): watches PID + start-time, and applies the baseline if the process dies without a restore. Safe against PID reuse and a new instance rewriting the file |
@@ -586,7 +588,10 @@ Implemented (Phase 1–9):
 10. Exit paths are wired → `ABM_NEW` → placement is applied → `WorkAreaChanged.Notify`
 11. Exit: `DisposeOwnedServices` (service subscriptions are released; `_media.Dispose`) →
  **taskbar restore** (`TaskbarVisibilityService.Restore`) → tray dispose → close the dock
- → `ABM_REMOVE` (idempotent; `ReleaseShellState` order: restore first, then remove)
+ → `ABM_REMOVE` (idempotent; `ReleaseShellState` order: restore first, then remove).
+ The single-instance mutex is released **last** in `OnExit`, after the restore wait, so
+ `WharfBar.exe --quit` — the installer/uninstaller path — returns only once the taskbar and every
+ AppBar are restored.
 
 ### Placement math (physical pixels)
 

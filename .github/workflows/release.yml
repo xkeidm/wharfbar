@@ -1,0 +1,129 @@
+name: Release
+
+# Tag-driven release: push a tag like `v1.0.0-beta.2` and the workflow builds the setup exe, the
+# portable zip and SHA256SUMS.txt, then publishes them as a GitHub Release. The tag version is the
+# app version (About reads it) and the installer version.
+#
+# Manual run (`workflow_dispatch`) builds and uploads the same assets as workflow artifacts but
+# does NOT create a Release — useful to validate packaging without burning a tag.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (MAJOR.MINOR.PATCH[-prerelease]), without the leading v'
+        required: true
+        default: '1.0.0-beta'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build release assets
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Resolve version
+        shell: pwsh
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          $version = if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $env:GITHUB_REF_NAME.Substring(1)
+          } else {
+            $env:INPUT_VERSION
+          }
+          $version = $version.Trim()
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$') {
+            throw "Invalid version '$version'. Expected MAJOR.MINOR.PATCH[-prerelease]."
+          }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "RELEASE_TAG=v$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Building WharfBar $version"
+
+      - name: Ensure Inno Setup 6
+        shell: pwsh
+        run: |
+          function Find-Iscc {
+            $roots = @(${env:ProgramFiles(x86)}, $env:ProgramFiles) | Where-Object { $_ }
+            foreach ($root in $roots) {
+              $candidate = Join-Path $root 'Inno Setup 6\ISCC.exe'
+              if (Test-Path -LiteralPath $candidate) {
+                return $candidate
+              }
+            }
+            return $null
+          }
+          $iscc = Find-Iscc
+          if (-not $iscc) {
+            Write-Host 'Inno Setup not found on the runner image; installing it with Chocolatey.'
+            choco install innosetup --no-progress -y
+            $iscc = Find-Iscc
+          }
+          if (-not $iscc) {
+            throw 'ISCC.exe is still missing after the install step.'
+          }
+          Write-Host "Using $iscc"
+
+      - name: Build installer and portable zip
+        shell: pwsh
+        run: ./installer/build-release.ps1 -Version $env:VERSION
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wharfbar-release-${{ env.VERSION }}
+          path: |
+            artifacts/release/WharfBar-Setup-*.exe
+            artifacts/release/WharfBar-*-portable.zip
+            artifacts/release/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = Get-ChildItem -Path 'artifacts/release' -File |
+            Where-Object { $_.Extension -in '.exe', '.zip', '.txt' } |
+            ForEach-Object { $_.FullName }
+          if ($assets.Count -ne 3) {
+            throw "Expected setup exe, portable zip and SHA256SUMS.txt, found $($assets.Count) file(s)."
+          }
+          # Re-running the workflow for the same tag must not fail: refresh the existing release's
+          # assets instead of trying to create the release twice.
+          gh release view $env:RELEASE_TAG --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:RELEASE_TAG already exists; uploading the rebuilt assets."
+            gh release upload $env:RELEASE_TAG @assets --clobber
+            if ($LASTEXITCODE -ne 0) {
+              throw "gh release upload failed with exit code $LASTEXITCODE."
+            }
+            exit 0
+          }
+          $releaseArgs = @('release', 'create', $env:RELEASE_TAG) + $assets +
+            @('--title', "WharfBar $env:VERSION", '--generate-notes', '--verify-tag')
+          if ($env:VERSION.Contains('-')) {
+            $releaseArgs += '--prerelease'
+          }
+          Write-Host "gh $($releaseArgs -join ' ')"
+          gh @releaseArgs

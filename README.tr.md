@@ -10,6 +10,7 @@
 
 <p align="center">
   <img alt="Durum" src="https://img.shields.io/badge/status-1.0.0--beta-F2B66B?style=flat-square" />
+  <img alt="Sürüm" src="https://img.shields.io/github/v/release/xkeidm/wharfbar?include_prereleases&style=flat-square" />
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%2F%2011-16324F?style=flat-square&logo=windows&logoColor=white" />
   <img alt=".NET" src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square&logo=dotnet&logoColor=white" />
   <img alt="Lisans" src="https://img.shields.io/badge/license-MIT-3D6A94?style=flat-square" />
@@ -32,6 +33,21 @@ WharfBar, Windows masaüstüne kendi üst çubuğunu ve dock’unu çizer — Wi
 Üst çubuk gerçek bir AppBar’dır (`ABE_TOP`, 30 DIP): büyütülmüş pencereler onun altında kalır. Dock her zaman üstte duran bir örtüdür. WharfBar açıkken Windows görev çubuğu gizlenir; normal çıkışta önceki haline döner.
 
 Her uygulama kendi menüsünü taşır. Üst çubukta saat, durum, tepsi ve kontroller vardır. Seçim çakışırsa sıra: düşük kaynak kullanımı, sonra Fluent görünüm, sonra basitlik.
+
+## İndirme ve kurulum
+
+En son beta: [GitHub Releases](https://github.com/xkeidm/wharfbar/releases) — tüm `1.0.0-beta*` sürümleri ön sürüm (prerelease) olarak yayınlandığı için beta süresince `/releases/latest` bağlantısı bir sürüme çözülmez.
+
+| Dosya | Ne için |
+|-------|---------|
+| `WharfBar-Setup-<sürüm>-x64.exe` | Kurulum: kullanıcı bazlı kurar (yönetici / UAC istemez), Başlat menüsüne kısayol ekler ve Ayarlar → Uygulamalar listesine girer. |
+| `WharfBar-<sürüm>-win-x64-portable.zip` | Kurulumsuz: bir klasöre açıp `WharfBar.exe` çalıştırılır; kurulum kaydı ve kaldırma girdisi oluşmaz. |
+
+WharfBar kendi .NET çalışma zamanını taşır (self-contained): ayrıca .NET kurmak gerekmez. Kurulum varsayılan olarak `%LOCALAPPDATA%\Programs\WharfBar` altına yapılır; ayarlar `%APPDATA%\WharfBar\config.json` içinde kalır ve güncelleme ile kaldırmadan sonra korunur. Otomatik başlatma uygulamanın kendi ayarıdır (Ayarlar → Genel → Windows ile başlat); kurulum ayrıca bir başlangıç girdisi oluşturmaz.
+
+> **Not (beta).** Kurulum dosyası kod imzalı değil; Windows SmartScreen "Windows kişisel bilgisayarınızı korudu" uyarısı verebilir (Daha fazla bilgi → Yine de çalıştır). `1.0.0-beta*` sürümleri GitHub'da ön sürüm (prerelease) olarak yayınlanır.
+
+Ayrıntı, doğrulama ve sürüm çıkarma adımları: [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md).
 
 ## Ekran görüntüleri
 
@@ -166,8 +182,9 @@ Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan 
 
 ## Gereksinimler
 
-- Windows 10 sürüm 19041 veya üstü (`net8.0-windows10.0.19041.0`)
-- .NET SDK 8 veya 9 (SDK 9, `net8.0` hedefini derleyebilir)
+- Windows 10 sürüm 19041 (2004) veya üstü / Windows 11, **x64**
+- Kurulum dosyası veya portable zip için ek gereksinim yok — uygulama .NET 8’i kendi içinde taşır
+- Kaynaktan derlemek için .NET SDK 8 veya 9 (SDK 9, `net8.0` hedefini derleyebilir)
 - `global.json` bilinçli olarak yok — SDK’yı 8.x’e sabitlemek, yalnız .NET 9 SDK olan makinelerde derlemeyi kırar
 
 ## Derleme ve çalıştırma
@@ -186,11 +203,21 @@ Depo kökündeki `run.bat` dosyasına da çift tıklanabilir. Derler, ardından 
 
 İkinci örnek, adlandırılmış mutex yüzünden çıkar. `dotnet test`, `tests/WharfBar.Tests` projesini çalıştırır (xUnit).
 
+Sürüm paketlerini (kurulum exe’si, portable zip ve `SHA256SUMS.txt`) yerelde üretmek için Inno Setup 6.3 veya üstü gerekir:
+
+```powershell
+pwsh installer/build-release.ps1 -Version 1.0.0-beta.2
+```
+
+Çıktı `artifacts/release/` altına yazılır (git’te izlenmez). `v<sürüm>` etiketi itildiğinde aynı betik `.github/workflows/release.yml` içinde çalışır ve dosyaları GitHub Releases’a yükler; ayrıntı [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md).
+
 ## Nasıl kapatılır
 
 WharfBar bildirim simgesine tıklayıp **WharfBar'ı kapat** seçin veya çubuğa odaklanıp **Alt+F4** tuşlayın. Üst çubuk logo menüsünde de aynı çıkış maddesi vardır.
 
-Bu süreçte `Process.MainWindowHandle` `0` döner (`ShowInTaskbar=false` pencereye gizli bir sahip verir), bu yüzden bir betikten `CloseMainWindow` işe yaramaz. Pencereyi PID ile bulup `WM_CLOSE` gönderin.
+Betikler, kurulum ve kaldırma çalışan örneği `WharfBar.exe --quit` ile kapatır: görev çubuğu geri yüklenir ve AppBar’lar kaldırılır, yani normal çıkış yolu izlenir. Yükleme sırasında süreci zorla sonlandırmayın; zorla kapatma, ayrılmış üst şeridi `explorer.exe` yeniden başlayana kadar ekranda bırakır.
+
+Bu süreçte `Process.MainWindowHandle` `0` döner (`ShowInTaskbar=false` pencereye gizli bir sahip verir), bu yüzden bir betikten `CloseMainWindow` işe yaramaz. Pencereyi PID ile bulup `WM_CLOSE` gönderin; süreç kapanmaz (üst çubuğu kapatmak çıkış yolu değildir).
 
 ## Proje yerleşimi
 
@@ -205,6 +232,8 @@ src/WharfBar/
   app.manifest    Per-Monitor V2 DPI
 tests/WharfBar.Tests/
 docs/
+installer/        Inno Setup betiği + yerel sürüm derlemesi
+.github/          Issue şablonları ve Release iş akışı
 ```
 
 Kod kökü `src/WharfBar/`. Arayüz `Views/` altındadır; klasör adı Win32 ile karışmasın diye bu ad kullanılır.
@@ -216,6 +245,7 @@ Kod kökü `src/WharfBar/`. Arayüz `Views/` altındadır; klasör adı Win32 il
 | [docs/00-overview.md](docs/00-overview.md) | Amaç, hedefler ve kapsam |
 | [docs/01-architecture.md](docs/01-architecture.md) | Klasörler, servisler ve config |
 | [docs/04-gotchas.md](docs/04-gotchas.md) | AppBar, Mica ve DPI tuzakları |
+| [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md) | Kurulum, portable paket ve sürüm yayını |
 | [AGENTS.md](AGENTS.md) | Derleme komutları ve ajan dizini |
 | [CHANGELOG.md](CHANGELOG.md) | Sürüm notları (Keep a Changelog; İngilizce) |
 | [SECURITY.md](SECURITY.md) | Güvenlik açığı bildirimi (İngilizce) |

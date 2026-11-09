@@ -213,6 +213,21 @@
   `Startup_RestrictedLaunch_*` strings (en/tr) and `ProcessIntegrityTests`. Details: `docs/02`/`docs/04`
   and [`docs/01-architecture.md`](../../docs/01-architecture.md).
 
+- **Downloadable releases — installer + portable zip + CI pipeline ✓ (code)** — the first public
+  downloadable beta: a per-user Inno Setup 6 installer (`installer/WharfBar.iss`;
+  `WharfBar-Setup-<version>-x64.exe`, no admin/UAC, Start-menu entry, uninstaller in Settings → Apps)
+  and a portable zip (`WharfBar-<version>-win-x64-portable.zip`), both from one self-contained
+  single-file win-x64 publish built by `installer/build-release.ps1` (no .NET install needed), plus
+  `SHA256SUMS.txt`. `.github/workflows/release.yml` builds the same three assets on `windows-latest`
+  from a `v<semver>` tag and publishes a GitHub Release (`gh release create`, generated notes; a
+  version with `-` is a prerelease), while `workflow_dispatch` is a dry run without a Release. New
+  `--quit` channel (`Program.Main` + `QuitChannel`) lets Setup/uninstall ask the running instance to
+  quit through its normal exit path instead of force-killing it; `App.OnExit` releases the
+  single-instance mutex last, so exit code `0` means the taskbar and AppBars are restored. Settings
+  stay in `%APPDATA%\WharfBar` and survive upgrades/uninstall; the app owns the Startup shortcut.
+  The build is unsigned (SmartScreen may warn). Details:
+  [`docs/07-packaging-and-releases.md`](../../docs/07-packaging-and-releases.md).
+
 ## Former to-do list (moved to milestones)
 
 The P0 / P1 / P2 open items below were filed as GitHub issues. Do not treat this section as the live backlog.

@@ -23,6 +23,7 @@
    - Win32 / AppBar / DWM → [`docs/02-win32-appbar-dwm.md`](docs/02-win32-appbar-dwm.md)
    - Development order → [`docs/03-development-order.md`](docs/03-development-order.md)
    - Gotchas → [`docs/04-gotchas.md`](docs/04-gotchas.md)
+   - Packaging / releases → [`docs/07-packaging-and-releases.md`](docs/07-packaging-and-releases.md)
 7. Context: [`.agent/context/stack.md`](.agent/context/stack.md), [`.agent/context/roadmap.md`](.agent/context/roadmap.md)
    (completed-phase history for agents; **public / what’s-next backlog** → [GitHub Milestones](https://github.com/xkeidm/wharfbar/milestones))
 8. UI tour (top bar, dock, settings): [`.agent/screens/README.md`](.agent/screens/README.md)
@@ -36,6 +37,16 @@ dotnet build WharfBar.sln
 dotnet run --project src/WharfBar
 dotnet test                       # tests/WharfBar.Tests (xUnit)
 ```
+
+Release build (installer + portable zip; Windows + .NET SDK 8/9 + Inno Setup 6):
+
+```bash
+pwsh installer/build-release.ps1 -Version 1.0.0-beta.2
+```
+
+Assets land in `artifacts/release/` (git-ignored). `installer/` holds the Inno Setup script;
+`.github/workflows/release.yml` builds from a `v<semver>` tag. Detail:
+[`docs/07-packaging-and-releases.md`](docs/07-packaging-and-releases.md).
 
 **Sandboxed workspaces:** an executable started from a sandboxed workspace folder gets a
 low-integrity token, so WharfBar cannot hide the taskbar / reserve the AppBar and cannot write

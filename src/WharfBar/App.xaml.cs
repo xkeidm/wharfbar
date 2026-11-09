@@ -13,6 +13,7 @@ namespace WharfBar;
 public partial class App : Application
 {
     private SingleInstanceGuard? _singleInstance;
+    private IDisposable? _quitChannel;
     private ConfigService? _config;
     private DockItemStore? _dockItems;
     private MonitorManager? _monitors;
@@ -135,6 +136,19 @@ public partial class App : Application
         }
 
         base.OnStartup(e);
+
+        // Installer/updater quit channel (`WharfBar.exe --quit`, QuitChannel): available before
+        // the first window is realized, so a setup run can never have to force-kill a
+        // half-started instance and leave the AppBar strip reserved.
+        _quitChannel = QuitChannel.Listen(() =>
+        {
+            if (Dispatcher.HasShutdownStarted)
+            {
+                return;
+            }
+
+            _ = Dispatcher.BeginInvoke(new Action(Shutdown));
+        });
 
         Resources["AppTextFontFamily"] = SystemVersion.TextFontFamily;
         Resources["AppIconFontFamily"] = SystemVersion.IconFontFamily;
@@ -274,14 +288,20 @@ public partial class App : Application
         _settings?.Close();
         _settings = null;
 
-        _singleInstance?.Dispose();
-        _singleInstance = null;
+        _quitChannel?.Dispose();
+        _quitChannel = null;
 
         // Restore was kicked to a background thread in OnClosing (shell calls can block
         // for many seconds on a slow WM_SETTINGCHANGE broadcast). The bar/tray visuals
         // are gone by now, so waiting here only delays the invisible process exit — but
         // never exit before the taskbar/work-area restore is guaranteed complete.
         taskbar?.WaitForRestore(TaskbarVisibilityService.RestoreWaitTimeout);
+
+        // Released last: `WharfBar.exe --quit` waits on this mutex before returning, so an
+        // installer only replaces the binary once the taskbar and every AppBar are restored.
+        _singleInstance?.Dispose();
+        _singleInstance = null;
+
         base.OnExit(e);
     }
 }

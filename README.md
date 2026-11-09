@@ -10,6 +10,7 @@
 
 <p align="center">
   <img alt="Status" src="https://img.shields.io/badge/status-1.0.0--beta-F2B66B?style=flat-square" />
+  <img alt="Release" src="https://img.shields.io/github/v/release/xkeidm/wharfbar?include_prereleases&style=flat-square" />
   <img alt="Windows" src="https://img.shields.io/badge/Windows-10%20%2F%2011-16324F?style=flat-square&logo=windows&logoColor=white" />
   <img alt=".NET" src="https://img.shields.io/badge/.NET-8-512BD4?style=flat-square&logo=dotnet&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-MIT-3D6A94?style=flat-square" />
@@ -32,6 +33,25 @@ WharfBar draws its own top bar and dock on the Windows desktop — inspired by W
 The top bar is a real AppBar (`ABE_TOP`, 30 DIP): maximized windows stop under it. The dock is a topmost overlay. While WharfBar runs, the Windows taskbar is hidden and restored on a normal quit.
 
 Each Windows app keeps its own menu. The top bar carries the clock, status, tray, and controls. When choices conflict: low resource use, then a native Fluent look, then simplicity.
+
+## Download & install
+
+Get the latest beta from **[GitHub Releases](https://github.com/xkeidm/wharfbar/releases)** — every
+`1.0.0-beta*` build is published as a prerelease, so `/releases/latest` does not resolve while the beta runs.
+
+| Asset | What to do |
+|-------|------------|
+| `WharfBar-Setup-<version>-x64.exe` | Run the installer: per-user, no admin/UAC, Start-menu entry, optional desktop shortcut, uninstaller in Settings → Apps |
+| `WharfBar-<version>-win-x64-portable.zip` | Extract and run `WharfBar-<version>-win-x64-portable\WharfBar.exe`; nothing is installed |
+| `SHA256SUMS.txt` | SHA-256 checksums of both files (`sha256sum` format) — verify before running |
+
+**Requirements:** Windows 10 version 2004 (build 19041) or newer, or Windows 11; x64 only. The download is self-contained (.NET 8 is bundled), so you do not need to install the .NET runtime.
+
+Settings live in `%AppData%\WharfBar\config.json` — not the install folder — and survive upgrades and uninstall. **Start with Windows** is an app setting (Settings → General): the app keeps its own Startup shortcut and the installer does not create one.
+
+The build is unsigned, so SmartScreen may warn ("Windows protected your PC" → **More info** → **Run anyway**). That is a known beta limitation; check the SHA-256 sums before running.
+
+**Quitting:** tray icon → **Quit WharfBar**, Alt+F4 on the bar, or the top-bar logo menu. Scripts, the installer and the uninstaller use `WharfBar.exe --quit` — never force-kill it ([docs/07](docs/07-packaging-and-releases.md)).
 
 ## Screenshots
 
@@ -184,6 +204,8 @@ dotnet run --project src/WharfBar
 
 Or double-click `run.bat` in the repo root. It builds, then starts `WharfBar.exe` detached, so closing that console does not kill the app.
 
+The release assets (Inno Setup installer + portable zip) are built on Windows with `pwsh installer/build-release.ps1 -Version 1.0.0-beta.2`. That needs the .NET SDK 8 or 9 and Inno Setup 6.3+; output lands in `artifacts/release/`. Packaging and the tag pipeline are documented in [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md).
+
 > **Warning.** Running the app reserves a strip along the top of the screen and hides the Windows taskbar. A force-kill (`Stop-Process -Force`, detaching the debugger, closing a raw `dotnet run` console) skips `ABM_REMOVE`. The taskbar watchdog restores the taskbar in about 0.5 seconds. The reserved strip can stick until `explorer.exe` is restarted. A normal quit (tray **Quit WharfBar**, or Alt+F4) restores both. Prefer `run.bat` to closing a `dotnet run` window.
 
 A second instance exits because of the named mutex. `dotnet test` runs `tests/WharfBar.Tests` (xUnit).
@@ -191,6 +213,8 @@ A second instance exits because of the named mutex. `dotnet test` runs `tests/Wh
 ## How to quit
 
 Click the WharfBar notification icon and choose **Quit WharfBar**, or focus the bar and press **Alt+F4**. The top-bar logo menu has the same quit item.
+
+For scripts, the installer and the uninstaller, `WharfBar.exe --quit` asks the running instance to quit through that same exit path and returns `0` once it is gone (`1` = still running). Never force-kill WharfBar to install, upgrade or uninstall it — a hard kill leaves the reserved top strip until Explorer restarts. Details: [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md).
 
 `Process.MainWindowHandle` is `0` for this process (`ShowInTaskbar=false` gives the window a hidden owner), so `CloseMainWindow` from a script does nothing. Find the window by PID and send `WM_CLOSE`.
 
@@ -207,6 +231,8 @@ src/WharfBar/
   app.manifest    Per-Monitor V2 DPI
 tests/WharfBar.Tests/
 docs/
+installer/        Inno Setup script + local release build
+.github/          Issue templates and the Release workflow
 ```
 
 Code root: `src/WharfBar/`. UI lives in `Views/` so the folder name is not confused with Win32.
@@ -218,6 +244,7 @@ Code root: `src/WharfBar/`. UI lives in `Views/` so the folder name is not confu
 | [docs/00-overview.md](docs/00-overview.md) | Purpose, goals, and scope |
 | [docs/01-architecture.md](docs/01-architecture.md) | Folders, services, and config |
 | [docs/04-gotchas.md](docs/04-gotchas.md) | AppBar, Mica, and DPI traps |
+| [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md) | Installer, portable zip, and the release pipeline |
 | [AGENTS.md](AGENTS.md) | Build commands and the agent index |
 | [CHANGELOG.md](CHANGELOG.md) | Release notes (Keep a Changelog) |
 | [SECURITY.md](SECURITY.md) | Private vulnerability reporting |

@@ -19,6 +19,15 @@ internal static class Program
             return;
         }
 
+        // Installer/updater hook: ask the running instance to quit through its normal exit path
+        // (taskbar restore + ABM_REMOVE) instead of force-killing it and leaving the AppBar strip
+        // reserved. See QuitChannel and docs/04-gotchas.md.
+        if (args.Any(static a => string.Equals(a, "--quit", StringComparison.Ordinal)))
+        {
+            Environment.ExitCode = QuitChannel.RequestQuit();
+            return;
+        }
+
         App app = new();
         app.InitializeComponent();
         app.Run();

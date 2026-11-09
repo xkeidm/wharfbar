@@ -8,7 +8,9 @@ internal sealed class SingleInstanceGuard : IDisposable
 {
     // Local\ scopes the mutex to the interactive session, which is what we want:
     // one bar per logged-on user, not one per machine.
-    private const string MutexName = @"Local\WharfBar.SingleInstance.{0F4C6A1E-9C4B-4C39-9E1B-6B4E2E1D7A31}";
+    // internal: QuitChannel waits on the same name so `WharfBar.exe --quit` returns only after
+    // the exiting instance restored the taskbar and removed its AppBars.
+    internal const string MutexName = @"Local\WharfBar.SingleInstance.{0F4C6A1E-9C4B-4C39-9E1B-6B4E2E1D7A31}";
 
     private readonly Mutex _mutex;
     private bool _isDisposed;
