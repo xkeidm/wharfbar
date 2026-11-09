@@ -768,7 +768,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Gallery_NoBuiltIn" xml:space="preserve"><value>No built-in items in this view.</value></data>
   <data name="Gallery_Local" xml:space="preserve"><value>Local</value></data>
   <data name="Gallery_Slots" xml:space="preserve"><value>Slots</value></data>
-  <data name="Gallery_SlotsExplanation" xml:space="preserve"><value>Top bar (topBar) and Dock (dock) are record-only in v1; nothing is drawn on the bar or dock. Desktop (desktop) opens the built-in clock and calendar as windows. Island (island) runs the visualizer, Bluetooth notice, and camera mirror inside the pill. No code is downloaded from the internet and no assemblies are loaded.</value></data>
+  <data name="Gallery_SlotsExplanation" xml:space="preserve"><value>Top bar (topBar), Dock (dock), and Desktop (desktop) are record-only in v1; nothing is drawn on the bar, dock, or desktop. Island (island) runs the Bluetooth notice and camera mirror inside the pill. No code is downloaded from the internet and no assemblies are loaded.</value></data>
   <data name="Gallery_OpenFolder" xml:space="preserve"><value>Open folder</value></data>
   <data name="Gallery_SlotTopBar" xml:space="preserve"><value>Top bar</value></data>
   <data name="Gallery_SlotDock" xml:space="preserve"><value>Dock</value></data>
@@ -784,17 +784,10 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Gallery_RecordOnly" xml:space="preserve"><value>record only</value></data>
   <data name="Gallery_KindWidget" xml:space="preserve"><value>Widget</value></data>
   <data name="Gallery_KindPlugin" xml:space="preserve"><value>Plugin</value></data>
-  <data name="Gallery_CardVisualizerName" xml:space="preserve"><value>Visualizer</value></data>
-  <data name="Gallery_CardVisualizerSummary" xml:space="preserve"><value>Five bars in the island pill while music plays.</value></data>
   <data name="Gallery_CardBluetoothName" xml:space="preserve"><value>Bluetooth notice</value></data>
   <data name="Gallery_CardBluetoothSummary" xml:space="preserve"><value>The connected device&apos;s name shows briefly in the pill.</value></data>
   <data name="Gallery_CardCameraName" xml:space="preserve"><value>Camera mirror</value></data>
   <data name="Gallery_CardCameraSummary" xml:space="preserve"><value>Live preview in the pill. No image without permission.</value></data>
-  <data name="Gallery_CardClockName" xml:space="preserve"><value>Clock</value></data>
-  <data name="Widget_Close" xml:space="preserve"><value>Close</value></data>
-  <data name="Gallery_CardClockSummary" xml:space="preserve"><value>A clock window on the desktop. It does not go in the island pill.</value></data>
-  <data name="Gallery_CardCalendarName" xml:space="preserve"><value>Calendar</value></data>
-  <data name="Gallery_CardCalendarSummary" xml:space="preserve"><value>This month&apos;s grid. It does not go in the island pill.</value></data>
   <data name="Island_Camera" xml:space="preserve"><value>Camera</value></data>
   <data name="Network_RateBytes" xml:space="preserve"><value>{0} B/s</value></data>
   <data name="Network_RateKilobytes" xml:space="preserve"><value>{0} KB/s</value></data>

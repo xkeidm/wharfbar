@@ -87,7 +87,7 @@ public class PluginCatalogTests
             WriteManifest(Path.Combine(root, "alpha"), "alpha", "Alpha", kind: "widget", slot: "dock");
             Directory.CreateDirectory(Path.Combine(root, "bad"));
             File.WriteAllText(Path.Combine(root, "bad", "manifest.json"), "{");
-            WriteManifest(Path.Combine(root, "builtin"), PluginCatalog.Clock, "Saat");
+            WriteManifest(Path.Combine(root, "builtin"), PluginCatalog.BluetoothNotice, "Saat");
             WriteManifest(Path.Combine(root, "dup-a"), "same", "Ayni");
             WriteManifest(Path.Combine(root, "dup-b"), "same", "Ayni");
             Directory.CreateDirectory(Path.Combine(root, "note"));
@@ -124,29 +124,24 @@ public class PluginCatalogTests
         {
             Island = new IslandConfig
             {
-                Visualizer = false,
                 BluetoothNotice = true,
                 CameraMirror = true,
-                OpenWidgets = ["calendar", "nope", "CLOCK"],
             },
-            Plugins = new PluginsConfig { Enabled = ["alpha", "clock", "!!"] },
+            Plugins = new PluginsConfig { Enabled = ["alpha", "bluetooth-notice", "!!"] },
         };
         var local = new[]
         {
             new PluginManifest("alpha", "Alpha", "Dock kaydı", PluginKinds.Widget, PluginSlots.Dock),
-            new PluginManifest(PluginCatalog.Clock, "Sahte", "Yok", PluginKinds.Widget, PluginSlots.TopBar),
+            new PluginManifest(PluginCatalog.BluetoothNotice, "Sahte", "Yok", PluginKinds.Widget, PluginSlots.TopBar),
         };
 
         IReadOnlyList<PluginCard> cards = PluginCatalog.Compose(config, local);
 
         Assert.Equal(
-            [PluginCatalog.Visualizer, PluginCatalog.BluetoothNotice, PluginCatalog.CameraMirror, PluginCatalog.Clock, PluginCatalog.Calendar, "alpha"],
+            [PluginCatalog.BluetoothNotice, PluginCatalog.CameraMirror, "alpha"],
             cards.Select(card => card.Id).ToArray());
-        Assert.False(cards[0].Enabled);
+        Assert.True(cards[0].Enabled);
         Assert.True(cards[1].Enabled);
-        Assert.True(cards[2].Enabled);
-        Assert.True(cards.Single(card => card.Id == PluginCatalog.Clock).Enabled);
-        Assert.True(cards.Single(card => card.Id == PluginCatalog.Calendar).Enabled);
         PluginCard alpha = cards.Single(card => card.Id == "alpha");
         Assert.False(alpha.BuiltIn);
         Assert.True(alpha.Enabled);
@@ -158,10 +153,10 @@ public class PluginCatalogTests
     public void Filter_KeepsOneKind()
     {
         IReadOnlyList<PluginCard> cards = PluginCatalog.Compose(new AppConfig(), []);
-        IReadOnlyList<PluginCard> widgets = PluginCatalog.Filter(cards, PluginKinds.Widget);
+        IReadOnlyList<PluginCard> plugins = PluginCatalog.Filter(cards, PluginKinds.Plugin);
 
-        Assert.Equal([PluginCatalog.Clock, PluginCatalog.Calendar], widgets.Select(card => card.Id).ToArray());
-        Assert.All(widgets, card => Assert.Equal(PluginSlots.Desktop, card.Slot));
+        Assert.Equal([PluginCatalog.BluetoothNotice, PluginCatalog.CameraMirror], plugins.Select(card => card.Id).ToArray());
+        Assert.All(plugins, card => Assert.Equal(PluginSlots.Island, card.Slot));
     }
 
     [Fact]
@@ -169,17 +164,11 @@ public class PluginCatalogTests
     {
         var config = new AppConfig();
 
-        Assert.True(PluginCatalog.SetEnabled(config, "Visualizer", false));
         Assert.True(PluginCatalog.SetEnabled(config, PluginCatalog.BluetoothNotice, false));
         Assert.True(PluginCatalog.SetEnabled(config, PluginCatalog.CameraMirror, true));
-        Assert.True(PluginCatalog.SetEnabled(config, PluginCatalog.Clock, true));
-        Assert.True(PluginCatalog.SetEnabled(config, "CLOCK", false));
-        Assert.True(PluginCatalog.SetEnabled(config, PluginCatalog.Calendar, true));
 
-        Assert.False(config.Island.Visualizer);
         Assert.False(config.Island.BluetoothNotice);
         Assert.True(config.Island.CameraMirror);
-        Assert.Equal([PluginCatalog.Calendar], config.Island.OpenWidgets);
         Assert.Empty(config.Plugins.Enabled);
     }
 
@@ -202,18 +191,9 @@ public class PluginCatalogTests
     public void NormalizeEnabled_DropsBuiltInsDuplicatesAndJunk()
     {
         List<string> enabled = PluginCatalog.NormalizeEnabled(
-            [" clock ", "Hava", "hava", "../x", "", "a-", "-b", "ok-1"]);
+            [" bluetooth-notice ", "Hava", "hava", "../x", "", "a-", "-b", "ok-1"]);
 
         Assert.Equal(["hava", "ok-1"], enabled);
-    }
-
-    [Fact]
-    public void NormalizeOpenWidgets_KeepsClockAndCalendar()
-    {
-        Assert.Equal(
-            [PluginCatalog.Calendar, PluginCatalog.Clock],
-            PluginCatalog.NormalizeOpenWidgets(["calendar", "nope", "Clock", "calendar"]));
-        Assert.Empty(PluginCatalog.NormalizeOpenWidgets(null));
     }
 
     [Fact]
@@ -228,14 +208,13 @@ public class PluginCatalogTests
                 {
                   "schemaVersion": 2,
                   "island": { "openWidgets": ["calendar", "extra"] },
-                  "plugins": { "enabled": ["clock", "Hava", "hava", "../x"] }
+                  "plugins": { "enabled": ["bluetooth-notice", "Hava", "hava", "../x"] }
                 }
                 """);
 
             AppConfig loaded = new ConfigService(dir).LoadOrCreate();
 
             Assert.Equal(AppConfig.CurrentSchemaVersion, loaded.SchemaVersion);
-            Assert.Equal([PluginCatalog.Calendar], loaded.Island.OpenWidgets);
             Assert.Equal(["hava"], loaded.Plugins.Enabled);
         }
         finally

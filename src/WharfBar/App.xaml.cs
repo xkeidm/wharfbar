@@ -162,8 +162,6 @@ public partial class App : Application
         // LoadOrCreate already Save()'s on first run / reset (which syncs Startup).
         // Explicit Apply covers the common case where config exists and Save is skipped.
         new AutostartService().Apply(config.Autostart);
-        WidgetHost.Attach(_config);
-        WidgetHost.Apply();
         CameraMirrorHost.Apply(config.Island.CameraMirror);
 
         // Match the configured theme before the first window is realized, so the bar

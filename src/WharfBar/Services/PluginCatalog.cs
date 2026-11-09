@@ -106,20 +106,14 @@ internal sealed record PluginCard(
     bool Enabled);
 
 /// <summary>
-/// In-process catalog. Built-ins map onto island flags and desktop widgets.
+/// In-process catalog. Built-ins map onto island flags.
 /// Local folders contribute metadata only — no download and no assembly load.
 /// </summary>
 internal static class PluginCatalog
 {
-    internal const string Visualizer = "visualizer";
-
     internal const string BluetoothNotice = "bluetooth-notice";
 
     internal const string CameraMirror = "camera-mirror";
-
-    internal const string Clock = "clock";
-
-    internal const string Calendar = "calendar";
 
     internal const string ManifestFileName = "manifest.json";
 
@@ -136,7 +130,7 @@ internal static class PluginCatalog
     internal static string PluginsDirectory(string configDirectory) =>
         Path.Combine(configDirectory, "plugins");
 
-    internal static bool IsBuiltIn(string id) => id is Visualizer or BluetoothNotice or CameraMirror or Clock or Calendar;
+    internal static bool IsBuiltIn(string id) => id is BluetoothNotice or CameraMirror;
 
     internal static bool IsValidId(string? id)
     {
@@ -300,17 +294,9 @@ internal static class PluginCatalog
         ArgumentNullException.ThrowIfNull(config);
         config.Island ??= new IslandConfig();
         config.Plugins ??= new PluginsConfig();
-        var open = new HashSet<string>(NormalizeOpenWidgets(config.Island.OpenWidgets), StringComparer.Ordinal);
         var enabled = new HashSet<string>(NormalizeEnabled(config.Plugins.Enabled), StringComparer.Ordinal);
         var cards = new List<PluginCard>
         {
-            BuiltIn(
-                Visualizer,
-                Strings.Gallery_CardVisualizerName,
-                Strings.Gallery_CardVisualizerSummary,
-                PluginKinds.Plugin,
-                PluginSlots.Island,
-                config.Island.Visualizer),
             BuiltIn(
                 BluetoothNotice,
                 Strings.Gallery_CardBluetoothName,
@@ -325,20 +311,6 @@ internal static class PluginCatalog
                 PluginKinds.Plugin,
                 PluginSlots.Island,
                 config.Island.CameraMirror),
-            BuiltIn(
-                Clock,
-                Strings.Gallery_CardClockName,
-                Strings.Gallery_CardClockSummary,
-                PluginKinds.Widget,
-                PluginSlots.Desktop,
-                open.Contains(Clock)),
-            BuiltIn(
-                Calendar,
-                Strings.Gallery_CardCalendarName,
-                Strings.Gallery_CardCalendarSummary,
-                PluginKinds.Widget,
-                PluginSlots.Desktop,
-                open.Contains(Calendar)),
         };
 
         foreach (PluginManifest manifest in local)
@@ -395,23 +367,15 @@ internal static class PluginCatalog
         string key = id.Trim().ToLowerInvariant();
         config.Island ??= new IslandConfig();
         config.Plugins ??= new PluginsConfig();
-        config.Island.OpenWidgets ??= [];
         config.Plugins.Enabled ??= [];
 
         switch (key)
         {
-            case Visualizer:
-                config.Island.Visualizer = enabled;
-                return true;
             case BluetoothNotice:
                 config.Island.BluetoothNotice = enabled;
                 return true;
             case CameraMirror:
                 config.Island.CameraMirror = enabled;
-                return true;
-            case Clock:
-            case Calendar:
-                SetFlag(config.Island.OpenWidgets, key, enabled);
                 return true;
             default:
                 if (!IsValidId(key) || IsBuiltIn(key))
@@ -450,31 +414,6 @@ internal static class PluginCatalog
             if (result.Count == MaxEnabled)
             {
                 break;
-            }
-        }
-
-        return result;
-    }
-
-    internal static List<string> NormalizeOpenWidgets(IList<string>? ids)
-    {
-        var result = new List<string>();
-        if (ids is null)
-        {
-            return result;
-        }
-
-        foreach (string? raw in ids)
-        {
-            if (raw is null)
-            {
-                continue;
-            }
-
-            string id = raw.Trim().ToLowerInvariant();
-            if ((id == Clock || id == Calendar) && !result.Contains(id))
-            {
-                result.Add(id);
             }
         }
 

@@ -2167,18 +2167,6 @@ namespace WharfBar.Resources {
             }
         }
 
-        public static string Gallery_CardVisualizerName {
-            get {
-                return ResourceManager.GetString("Gallery_CardVisualizerName", resourceCulture);
-            }
-        }
-
-        public static string Gallery_CardVisualizerSummary {
-            get {
-                return ResourceManager.GetString("Gallery_CardVisualizerSummary", resourceCulture);
-            }
-        }
-
         public static string Gallery_CardBluetoothName {
             get {
                 return ResourceManager.GetString("Gallery_CardBluetoothName", resourceCulture);
@@ -2200,36 +2188,6 @@ namespace WharfBar.Resources {
         public static string Gallery_CardCameraSummary {
             get {
                 return ResourceManager.GetString("Gallery_CardCameraSummary", resourceCulture);
-            }
-        }
-
-        public static string Gallery_CardClockName {
-            get {
-                return ResourceManager.GetString("Gallery_CardClockName", resourceCulture);
-            }
-        }
-
-        public static string Widget_Close {
-            get {
-                return ResourceManager.GetString("Widget_Close", resourceCulture);
-            }
-        }
-
-        public static string Gallery_CardClockSummary {
-            get {
-                return ResourceManager.GetString("Gallery_CardClockSummary", resourceCulture);
-            }
-        }
-
-        public static string Gallery_CardCalendarName {
-            get {
-                return ResourceManager.GetString("Gallery_CardCalendarName", resourceCulture);
-            }
-        }
-
-        public static string Gallery_CardCalendarSummary {
-            get {
-                return ResourceManager.GetString("Gallery_CardCalendarSummary", resourceCulture);
             }
         }
 

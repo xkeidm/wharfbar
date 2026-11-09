@@ -52,7 +52,7 @@ internal sealed class AppConfig
     /// <summary>
     /// Local plugin enable flags (<c>plugins.enabled</c>).
     /// Soft block: <see cref="CurrentSchemaVersion"/> stays 2.
-    /// Built-in island plugins and desktop widgets stay on <see cref="Island"/>.
+    /// Built-in island plugins stay on <see cref="Island"/>.
     /// </summary>
     public PluginsConfig Plugins { get; set; } = new();
 
@@ -520,23 +520,11 @@ internal sealed class IslandConfig
     /// </summary>
     public string ColorMode { get; set; } = DefaultColorMode;
 
-    /// <summary>Bars beside the track title while music is playing. Soft field.</summary>
-    public bool Visualizer { get; set; } = true;
-
     /// <summary>Island notice when a paired Bluetooth device connects. Soft field.</summary>
     public bool BluetoothNotice { get; set; } = true;
 
     /// <summary>Live camera inside the pill. Off until the gallery enables it.</summary>
     public bool CameraMirror { get; set; }
-
-    /// <summary>Desktop widgets currently placed: <c>clock</c>, <c>calendar</c>.</summary>
-    public List<string> OpenWidgets { get; set; } = [];
-
-    /// <summary>
-    /// Saved desktop positions for <c>clock</c> and <c>calendar</c>.
-    /// Soft field — <see cref="AppConfig.CurrentSchemaVersion"/> does not change.
-    /// </summary>
-    public List<WidgetPlacement> WidgetPlacements { get; set; } = [];
 }
 
 /// <summary>

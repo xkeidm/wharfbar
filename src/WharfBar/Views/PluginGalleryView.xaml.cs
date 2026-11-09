@@ -270,11 +270,6 @@ internal partial class PluginGalleryView : UserControl
             app.Config?.Save(_config);
         }
 
-        if (id is PluginCatalog.Clock or PluginCatalog.Calendar)
-        {
-            WidgetHost.Apply();
-        }
-
         if (id == PluginCatalog.CameraMirror)
         {
             CameraMirrorHost.Apply(_config.Island.CameraMirror);
