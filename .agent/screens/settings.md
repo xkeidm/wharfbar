@@ -51,10 +51,9 @@ The Widget and Plugin tools in Launchpad open the same catalog in a separate win
 
 - **`Slots`** — Top bar (`topBar`), Dock (`dock`), Desktop (`desktop`), Island (`island`).
   Top bar and dock are a record only in v1; they are not drawn.
-- **`Built-in`** — visualizer, Bluetooth notice, camera mirror (island); clock and calendar —
-  a desktop card on the shell icon host, dragged from its grip, snapped off icons, position stored in `island.widgetPlacements`.
-  Switches: `island.visualizer`, `island.bluetoothNotice`,
-  `island.cameraMirror`, `island.openWidgets`.
+- **`Built-in`** — Bluetooth notice, camera mirror (island).
+  Switches: `island.bluetoothNotice`,
+  `island.cameraMirror`.
 - **`Local`** — `%AppData%/WharfBar/plugins/<folder>/manifest.json`. When empty, a sample manifest
   and **`Open folder`** are shown. An enabled id is written into `plugins.enabled`. An assembly is not loaded.
 

@@ -71,11 +71,11 @@ One bar per enabled monitor, each registered as an AppBar. Visibility is the `mo
 
 <br>
 
-On the primary bar the pill idles as **Clipboard**, or shows the last clip when `island.idleLabel` is `lastClip`. It expands for now playing (`island.musicPresence` is `persistent` by default, or `transient`) and briefly for volume, brightness, and battery. At most two satellites sit beside it. Clipboard history and file drops belong to the primary pill. A secondary monitor’s pill shows music and those counters only. The bar stays 30 DIP; the panel opens under the pill.
+On the primary bar the pill idles as **Clipboard**, or shows the last clip when `island.idleLabel` is `lastClip`. It expands for now playing (`island.musicPresence` is `persistent` by default, or `transient`) and briefly for volume, brightness, and battery. A HUD face can add up to two satellites; the now-playing pill itself is just the cover and the track title. Clipboard history and file drops belong to the primary pill. A secondary monitor’s pill shows music and those counters only. The bar stays 30 DIP; the panel opens under the pill.
 
 Low battery uses `island.lowBatteryPercent` (default 20, allowed range 5–50).
 
-The panel under the pill has seven tabs: **Clipboard** (history + search), **Wallpaper** (bundled and your own gallery, with fade / blur transitions), **Music** (now playing + transport), **Shelf** (dropped-file chips: open with the default app, multi-select and drag out, copy path or file, remove one, or empty), **Prompter** (auto-scrolling reading view), **Camera** (mirror preview + on/off + microphone state) and **Color** (recent picks + a macOS-style screen loupe that copies the exact colour under the cursor as HEX). Each body can be hidden in Settings → Island, and a file drop opens the panel on Shelf.
+The panel under the pill has seven tabs: **Clipboard** (history + search), **Wallpaper** (bundled and your own gallery, with fade / blur transitions), **Music** (now playing, live progress and duration, animated transport; the panel is tinted from the album art), **Shelf** (dropped-file chips: open with the default app, multi-select and drag out, copy path or file, remove one, or empty), **Prompter** (auto-scrolling reading view), **Camera** (mirror preview + on/off + microphone state) and **Color** (recent picks + a macOS-style screen loupe that copies the exact colour under the cursor as HEX). Each body can be hidden in Settings → Island, and a file drop opens the panel on Shelf.
 
 </details>
 
@@ -150,7 +150,7 @@ WharfBar’s own notification icon has a quit item, **Quit WharfBar**. On the pr
 
 The Launchpad tile opens one centered surface over the wallpaper. It can open before the app scan finishes. Apps are grouped under letter headings. The top-bar logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
 
-Widget and Plugin open the same catalog as Settings → Plugins. The pieces that run are the island visualizer, the Bluetooth connection notice, the camera mirror, and the desktop clock and calendar. A local `%AppData%/WharfBar/plugins/<folder>/manifest.json` is an on/off registration. Plugin assemblies are not loaded. Top bar and dock plugin slots are stored and not drawn.
+Widget and Plugin open the same catalog as Settings → Plugins. The pieces that run are the Bluetooth connection notice and the camera mirror. A local `%AppData%/WharfBar/plugins/<folder>/manifest.json` is an on/off registration. Plugin assemblies are not loaded. Top bar and dock plugin slots are stored and not drawn.
 
 </details>
 

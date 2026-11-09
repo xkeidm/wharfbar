@@ -94,7 +94,7 @@
  Compact island (ADR-011, 2026-10-07): the pill stays inside the AppBar. Idle is the clipboard; music
  uses `island.musicPresence` (`persistent` default); volume/brightness is a short meter. The panel is a single popup.
 - **Plugin catalog (ADR-017) ✓ (code)** — Launchpad Widget/Plugin and Settings → `Plugins`.
- Built-in island switches and the desktop clock/calendar work. A local `manifest.json` is an
+ Built-in island switches. A local `manifest.json` is an
  on/off record only; an assembly is not loaded. Top bar and dock slots are not drawn.
 - **Launchpad open speed + top-bar logo ✓ (code; manual verification pending)** — the Start Menu
   scan (`LaunchpadCatalog.List` + recent) is captured once into `LaunchpadCatalogCache`
@@ -105,6 +105,17 @@
   the dock tile); the app menu stays on **right click** via the existing `ContextMenu`. Face polish:
   eased hover (animated overlay in the flat template, resource-swap fallback), 0.97 press scale,
   secondary-colour letter headers, tile icon/text sizes (44/40 px icons, 12 px labels).
+- **Launchpad usability redesign ✓ (code; screenshot-verified with a render harness)** — the shared flat
+  button template was missing its content grid, so every tile/tool rendered blank (fixed; a visual-tree
+  test now guards it). The face is keyboard-first: search focused, arrow keys over the tile grids
+  (`LaunchpadTileNav`), Enter opens, `Esc` clears then closes, typing on a tile returns to search, accent
+  focus ring. Search results come first with exact/prefix/word/substring ranking (`LaunchpadCatalog.Rank`)
+  and culture-independent I/i folding (`LaunchpadSearch`); the default body is Pinned (≤6) → Recent (4,
+  `Show all`) → all apps. Recent drops protocol shortcuts and ` (n)` launch counters. Sizing is
+  screen-aware (`LaunchpadLayout`: card 520–680 / down to 360, phone panel hidden when it cannot fit,
+  phone notices scroll). Cache loads are single-flight, stale data repaints in one pass, warm-up decodes
+  the whole catalog, and a failed Recent read no longer wipes the app list. Tests:
+  `LaunchpadRedesignTests`, plus new cache/recent/catalog cases.
 - **Island widgets phase 1 — shelf + color picker ✓ (code; manual verification pending)** — the hub
   grows two primary-bar tabs: **Shelf** (`shelf`) — dropped-file chips (ext badge + name),
   `Open with app` (`CanOpenShelfFile` → `OpenShelfFile`), `Remove from list`, `Empty shelf`, and a
@@ -165,7 +176,7 @@
   primary pill is a live drop target: a `FileDrop` drag hovering it grows the pill through
   `AnimatePillWidth`, swaps the glyph for the drop arrow (`E73E`), sets the caption to the
   `Island_DragBadge` string (`Drop → shelf`, localized), draws the accent stroke + glow, and
-  collapses the visualizer bars, camera frame, and both satellites for the duration (a cancel via
+  collapses the camera frame and both satellites for the duration (a cancel via
   `DragLeave`/Esc restores the frozen face; reduced motion gets static states). A drop where at
   least one record landed fires the swallow micro-motion (1 → 0.96 → 1.05 → 1 + accent flash).
   Shelf usability: dropped folders are records too (same `IslandEntryKind.File`, original path, no

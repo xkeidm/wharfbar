@@ -71,7 +71,7 @@ Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitör�
 
 <br>
 
-Birincil çubukta hap boşta **Pano** yazar. `island.idleLabel` değeri `lastClip` ise son kaydı gösterir. Şimdi çalan parçada genişler (`island.musicPresence` varsayılanı `persistent`, diğer seçenek `transient`). Ses, parlaklık ve pil için kısa süre sayaç olur. Yanında en fazla iki uydu durur. Pano geçmişi ve dosya bırakma birincil hapa aittir. İkincil monitörün hapı yalnızca müziği ve bu sayaçları gösterir. Çubuk 30 DIP kalır; panel hapın altında açılır.
+Birincil çubukta hap boşta **Pano** yazar. `island.idleLabel` değeri `lastClip` ise son kaydı gösterir. Şimdi çalan parçada genişler (`island.musicPresence` varsayılanı `persistent`, diğer seçenek `transient`). Ses, parlaklık ve pil için kısa süre sayaç olur. Bir HUD yüzünde yanında en fazla iki uydu durabilir; şimdi çalan hapı yalnızca kapak ve parça adıdır. Panel çalan parçanın kapağından renklenir; müzik gövdesindeki ilerleme ve süre canlı güncellenir. Pano geçmişi ve dosya bırakma birincil hapa aittir. İkincil monitörün hapı yalnızca müziği ve bu sayaçları gösterir. Çubuk 30 DIP kalır; panel hapın altında açılır.
 
 Düşük pil eşiği `island.lowBatteryPercent` (varsayılan 20, kabul edilen aralık 5–50).
 
@@ -148,7 +148,7 @@ WharfBar’ın kendi bildirim simgesinde çıkış maddesi **WharfBar'ı kapat**
 
 Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Üst çubuk logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
 
-Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan parçalar ada görselleştiricisi, Bluetooth bağlantı bildirimi, kamera aynası ve masaüstü saat ile takvimdir. `%AppData%/WharfBar/plugins/<klasör>/manifest.json` bir aç/kapa kaydıdır. Eklenti derlemeleri yüklenmez. Üst çubuk ve dock yuvaları kaydedilir, çizilmez.
+Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan parçalar Bluetooth bağlantı bildirimi ve kamera aynasıdır. `%AppData%/WharfBar/plugins/<klasör>/manifest.json` bir aç/kapa kaydıdır. Eklenti derlemeleri yüklenmez. Üst çubuk ve dock yuvaları kaydedilir, çizilmez.
 
 </details>
 
