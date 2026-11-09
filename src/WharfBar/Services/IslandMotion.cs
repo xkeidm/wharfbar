@@ -97,8 +97,4 @@ internal static class IslandMotion
             ? new BackEase { EasingMode = EasingMode.EaseOut, Amplitude = 0.28 }
             : new CubicEase { EasingMode = EasingMode.EaseOut };
     }
-
-    /// <summary>Scale of a bar for a level in 0..1; never below one DIP of <paramref name="maxDip"/>.</summary>
-    internal static double BarScale(float level, int maxDip)
-        => Math.Clamp(level, 1f / maxDip, 1f);
 }

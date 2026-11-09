@@ -32,25 +32,81 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.4" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
         <Style x:Key="IslandPlayButton" TargetType="Button" BasedOn="{StaticResource IslandIconButton}">
+            <!-- The play circle carries the album tint while a track is loaded; the fill therefore
+                 comes from TemplateBinding Background (set in code) instead of the hardcoded accent
+                 brush. The hover fill is code-driven too: a static accent hover trigger here would
+                 snap the tinted circle back to the system accent (beige) on every hover. The system
+                 accent remains the style default (= no tint / neutral color mode). -->
+            <Setter Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}" />
             <Setter Property="Foreground" Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Bd"
-                                Width="44"
-                                Height="44"
-                                CornerRadius="22"
-                                Background="{DynamicResource AccentFillColorDefaultBrush}">
+                                Width="48"
+                                Height="48"
+                                CornerRadius="24"
+                                Background="{TemplateBinding Background}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Bd" Property="Background"
-                                        Value="{DynamicResource AccentFillColorSecondaryBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <!-- Transport icon button: same island look, a little more room so the hover/press scale reads. -->
+        <Style x:Key="IslandTransportButton" TargetType="Button" BasedOn="{StaticResource IslandIconButton}">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="Padding" Value="14,10" />
+        </Style>
+        <!-- Interaction-only slider: the island draws the track, fill and thumb itself, so the
+             template keeps a working Track/Thumb but paints no default Windows chrome. -->
+        <Style x:Key="IslandSeekSlider" TargetType="Slider">
+            <Setter Property="Height" Value="20" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Background="Transparent" VerticalAlignment="Center">
+                            <Track x:Name="PART_Track" Orientation="Horizontal" VerticalAlignment="Center" Height="20"
+                                   Minimum="{TemplateBinding Minimum}"
+                                   Maximum="{TemplateBinding Maximum}"
+                                   Value="{TemplateBinding Value}"
+                                   IsDirectionReversed="{TemplateBinding IsDirectionReversed}">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.DecreaseLarge}" Focusable="False" IsTabStop="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="{x:Static Slider.IncreaseLarge}" Focusable="False" IsTabStop="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Background="Transparent" />
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="13" Height="20" Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border Background="Transparent" />
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -96,14 +152,18 @@
           HorizontalAlignment="Left"
           Margin="24,10,24,24"
           RenderTransformOrigin="0.5,0">
-        <!-- Silhouette: shadowed fill + highlight outline, drawn in panel-local coordinates.
-             Geometry may extend to negative y (fillets beside the pill); rendering is not clipped. -->
+        <!-- Silhouette: shadowed fill + album tint + highlight outline, drawn in panel-local
+             coordinates. Geometry may extend to negative y (fillets beside the pill); rendering
+             is not clipped. The tint is filled with the very same silhouette geometry, so it can
+             never paint outside the panel; its gradient is transparent at the top edge so the
+             shared pill surface blends into it without a seam. -->
         <Canvas x:Name="SilhouetteLayer" IsHitTestVisible="False"
               HorizontalAlignment="Left" VerticalAlignment="Top">
             <Canvas.Effect>
                 <DropShadowEffect BlurRadius="28" ShadowDepth="6" Direction="270" Opacity="0.45" Color="Black" />
             </Canvas.Effect>
             <Path x:Name="SilhouetteFill" />
+            <Path x:Name="SilhouetteTint" IsHitTestVisible="False" />
             <Path x:Name="SilhouetteOutline" StrokeThickness="1" StrokeLineJoin="Round" />
         </Canvas>
 
@@ -192,10 +252,8 @@
             </Button>
         </StackPanel>
         <Grid x:Name="BodyHost" Grid.Row="1" ClipToBounds="True">
-            <Border x:Name="AmbientGlow"
-                    VerticalAlignment="Stretch"
-                    Opacity="0"
-                    IsHitTestVisible="False" />
+            <!-- The album tint lives in SilhouetteLayer (it follows the panel outline); the body
+                 itself stays on the flat surface so the text keeps its contrast. -->
             <!-- Music and clipboard swap places on the same surface. There is no second Popup. -->
             <Grid x:Name="MusicBody" Visibility="Collapsed">
                 <Grid.RowDefinitions>
@@ -206,12 +264,24 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,12">
-                    <TextBlock Text="{x:Static res:Strings.Island_NowPlaying}"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Opacity="0.7"
-                               VerticalAlignment="Center" />
+                <!-- Now Playing header: playback-state dot + label, clipboard affordance on the right. -->
+                <Grid Grid.Row="0" Margin="0,0,0,10">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border x:Name="MusicPlayingDot"
+                                Width="7"
+                                Height="7"
+                                CornerRadius="3.5"
+                                VerticalAlignment="Center"
+                                Opacity="0.35"
+                                Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Text="{x:Static res:Strings.Island_NowPlaying}"
+                                   Margin="8,0,0,0"
+                                   FontFamily="{DynamicResource AppTextFontFamily}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Opacity="0.72"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
                     <Button x:Name="ClipboardAffordance"
                             Style="{StaticResource IslandIconButton}"
                             HorizontalAlignment="Right"
@@ -225,65 +295,95 @@
                     </Button>
                 </Grid>
 
-                <Grid x:Name="MusicSessions" Grid.Row="1" Margin="0,0,0,10" Visibility="Collapsed">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <Button Style="{StaticResource IslandIconButton}"
-                                Click="OnPreviousSessionClick"
-                                ToolTip="{x:Static res:Strings.Media_PreviousSession}">
-                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                <!-- App source row: the active SMTC session; the chevrons switch sessions (single
+                     session = visible but disabled, so the source app stays readable). -->
+                <Grid x:Name="MusicSessions" Grid.Row="1" Margin="0,0,0,12" Visibility="Collapsed">
+                    <Border HorizontalAlignment="Center"
+                            CornerRadius="12"
+                            Padding="2,0"
+                            Background="{DynamicResource ControlFillColorDefaultBrush}">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="MusicPreviousSessionButton"
+                                    Style="{StaticResource IslandIconButton}"
+                                    Padding="5,3"
+                                    Click="OnPreviousSessionClick"
+                                    ToolTip="{x:Static res:Strings.Media_PreviousSession}">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                           FontSize="11"
+                                           Text="&#xE76B;" />
+                            </Button>
+                            <TextBlock x:Name="MusicSessionName"
+                                       Margin="4,0"
+                                       MaxWidth="260"
+                                       VerticalAlignment="Center"
+                                       FontFamily="{DynamicResource AppTextFontFamily}"
                                        FontSize="12"
-                                       Text="&#xE76B;" />
-                        </Button>
-                        <TextBlock x:Name="MusicSessionName"
-                                   Margin="8,0"
-                                   VerticalAlignment="Center"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"
-                                   Opacity="0.75" />
-                        <Button Style="{StaticResource IslandIconButton}"
-                                Click="OnNextSessionClick"
-                                ToolTip="{x:Static res:Strings.Media_NextSession}">
-                            <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
-                                       FontSize="12"
-                                       Text="&#xE76C;" />
-                        </Button>
-                    </StackPanel>
+                                       FontWeight="SemiBold"
+                                       Opacity="0.8"
+                                       TextTrimming="CharacterEllipsis" />
+                            <Button x:Name="MusicNextSessionButton"
+                                    Style="{StaticResource IslandIconButton}"
+                                    Padding="5,3"
+                                    Click="OnNextSessionClick"
+                                    ToolTip="{x:Static res:Strings.Media_NextSession}">
+                                <TextBlock FontFamily="{DynamicResource AppIconFontFamily}"
+                                           FontSize="11"
+                                           Text="&#xE76C;" />
+                            </Button>
+                        </StackPanel>
+                    </Border>
                 </Grid>
 
-                <Grid x:Name="MusicNow" Grid.Row="2">
+                <Grid x:Name="MusicNow" Grid.Row="2" Margin="4,0,4,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                     </Grid.ColumnDefinitions>
-                    <Border x:Name="MusicCover"
-                            Width="88"
-                            Height="88"
-                            CornerRadius="14"
-                            Background="{DynamicResource ControlFillColorDefaultBrush}"
-                            VerticalAlignment="Center">
-                        <Grid>
-                            <Image x:Name="MusicArt"
-                                   Width="88"
-                                   Height="88"
-                                   Stretch="UniformToFill"
-                                   Visibility="Collapsed" />
-                            <TextBlock x:Name="MusicPlaceholder"
-                                       FontFamily="{DynamicResource AppIconFontFamily}"
-                                       FontSize="32"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"
-                                       Text="&#xE90C;" />
-                        </Grid>
-                    </Border>
-                    <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <Grid Width="112" Height="112" VerticalAlignment="Center">
+                        <!-- Album-tint bloom behind the rounded cover; its opacity is animated in code. -->
+                        <Border x:Name="MusicCoverGlow"
+                                Margin="-10"
+                                CornerRadius="34"
+                                IsHitTestVisible="False"
+                                Opacity="0" />
+                        <Border x:Name="MusicCover"
+                                Width="112"
+                                Height="112"
+                                CornerRadius="18"
+                                SnapsToDevicePixels="True"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}">
+                            <Grid>
+                                <Image x:Name="MusicArt"
+                                       Stretch="UniformToFill"
+                                       Visibility="Collapsed" />
+                                <!-- Second layer used only while the artwork crossfades. -->
+                                <Image x:Name="MusicArtFade"
+                                       Stretch="UniformToFill"
+                                       Opacity="0"
+                                       Visibility="Collapsed"
+                                       IsHitTestVisible="False" />
+                                <TextBlock x:Name="MusicPlaceholder"
+                                           FontFamily="{DynamicResource AppIconFontFamily}"
+                                           FontSize="40"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Text="&#xE90C;" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <StackPanel Grid.Column="1" Margin="20,0,0,0" VerticalAlignment="Center">
                         <TextBlock x:Name="MusicTitle"
-                                   FontSize="16"
+                                   FontFamily="{DynamicResource AppTextFontFamily}"
+                                   FontSize="18"
                                    FontWeight="SemiBold"
+                                   TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis" />
                         <TextBlock x:Name="MusicArtist"
+                                   FontFamily="{DynamicResource AppTextFontFamily}"
                                    FontSize="13"
-                                   Opacity="0.7"
-                                   Margin="0,2,0,0"
+                                   Opacity="0.68"
+                                   Margin="0,5,0,0"
+                                   TextWrapping="NoWrap"
                                    TextTrimming="CharacterEllipsis" />
                     </StackPanel>
                 </Grid>
@@ -297,39 +397,57 @@
                            Margin="0,8,0,0"
                            Visibility="Collapsed" />
 
-                <!-- Only when both position and duration exist. The slider only while CanSeek; otherwise a read-only bar. No percentage is written. -->
-                <Grid x:Name="MusicTimeline" Grid.Row="3" Margin="0,12,0,0" Visibility="Collapsed">
+                <!-- Designed seek timeline: rounded track + tinted fill + thumb. MusicSeek keeps
+                     the interaction (and the pointer-up commit); its default chrome is templated
+                     away in IslandSeekSlider. Only when both position and duration exist; the
+                     slider is interactive only while CanSeek, otherwise the bar is read-only. -->
+                <Grid x:Name="MusicTimeline" Grid.Row="3" Margin="0,18,0,0" Visibility="Collapsed">
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="20" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                    <Grid x:Name="MusicProgressTrack" Height="4" VerticalAlignment="Center">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition x:Name="MusicProgressDone" Width="0*" />
-                            <ColumnDefinition x:Name="MusicProgressRest" Width="1*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Grid.ColumnSpan="2"
-                                CornerRadius="2"
-                                Opacity="0.28"
-                                Background="{DynamicResource TextFillColorPrimaryBrush}" />
-                        <Border x:Name="MusicProgressFill"
-                                Grid.Column="0"
-                                CornerRadius="2"
-                                Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                    <Grid x:Name="MusicSeekHost" Grid.Row="0" Background="Transparent">
+                        <Grid x:Name="MusicProgressTrack" Height="5" VerticalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="MusicProgressDone" Width="0*" />
+                                <ColumnDefinition x:Name="MusicProgressRest" Width="1*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="2"
+                                    CornerRadius="2.5"
+                                    Opacity="0.22"
+                                    Background="{DynamicResource TextFillColorPrimaryBrush}" />
+                            <Border x:Name="MusicProgressFill"
+                                    Grid.Column="0"
+                                    CornerRadius="2.5"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}" />
+                        </Grid>
+                        <Canvas x:Name="MusicThumbLayer" IsHitTestVisible="False">
+                            <Border x:Name="MusicProgressThumb"
+                                    Width="13"
+                                    Height="13"
+                                    CornerRadius="6.5"
+                                    Canvas.Top="3.5"
+                                    Background="{DynamicResource TextFillColorPrimaryBrush}"
+                                    BorderThickness="2.5"
+                                    BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                                    Visibility="Collapsed" />
+                        </Canvas>
+                        <Slider x:Name="MusicSeek"
+                                Style="{StaticResource IslandSeekSlider}"
+                                Minimum="0"
+                                Maximum="1"
+                                VerticalAlignment="Center"
+                                IsMoveToPointEnabled="True"
+                                Visibility="Collapsed"
+                                ValueChanged="OnSeekValueChanged"
+                                PreviewMouseLeftButtonUp="OnSeekPointerUp" />
                     </Grid>
-                    <Slider x:Name="MusicSeek"
-                            Minimum="0"
-                            Maximum="1"
-                            Height="18"
-                            VerticalAlignment="Center"
-                            IsMoveToPointEnabled="True"
-                            Visibility="Collapsed"
-                            PreviewMouseLeftButtonUp="OnSeekPointerUp" />
                     <TextBlock x:Name="MusicTime"
                                Grid.Row="1"
-                               Margin="0,4,0,0"
+                               Margin="2,6,2,0"
+                               FontFamily="{DynamicResource AppTextFontFamily}"
                                FontSize="11"
-                               Opacity="0.65"
+                               Opacity="0.72"
                                HorizontalAlignment="Right" />
                 </Grid>
 
@@ -337,27 +455,66 @@
                             Grid.Row="4"
                             Orientation="Horizontal"
                             HorizontalAlignment="Center"
-                            Margin="0,12,0,4">
-                    <Button Style="{StaticResource IslandIconButton}"
-                            Padding="12,8"
+                            Margin="0,14,0,4">
+                    <Button x:Name="MusicPreviousButton"
+                            Style="{StaticResource IslandTransportButton}"
                             Click="OnPreviousTrackClick"
-                            ToolTip="{x:Static res:Strings.Media_PreviousTrack}">
+                            ToolTip="{x:Static res:Strings.Media_PreviousTrack}"
+                            MouseEnter="OnTransportHover"
+                            MouseLeave="OnTransportLeave"
+                            PreviewMouseLeftButtonDown="OnTransportPress"
+                            PreviewMouseLeftButtonUp="OnTransportRelease">
                         <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE892;" />
                     </Button>
-                    <Button x:Name="MusicPlayButton"
-                            Style="{StaticResource IslandPlayButton}"
-                            FontSize="20"
-                            Click="OnPlayPauseClick"
-                            ToolTip="Play/Pause">
-                        <TextBlock x:Name="MusicPlayGlyph"
-                                   Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                   FontFamily="{DynamicResource AppIconFontFamily}"
-                                   Text="&#xE768;" />
-                    </Button>
-                    <Button Style="{StaticResource IslandIconButton}"
-                            Padding="12,8"
+                    <Grid Width="60" Height="60" Margin="14,0" VerticalAlignment="Center">
+                        <!-- Ring pulse while playing (only with client-area animation on). -->
+                        <Border x:Name="MusicPlayPulse"
+                                Width="54"
+                                Height="54"
+                                CornerRadius="27"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                BorderThickness="1.5"
+                                BorderBrush="{DynamicResource AccentFillColorDefaultBrush}"
+                                Opacity="0"
+                                IsHitTestVisible="False"
+                                RenderTransformOrigin="0.5,0.5" />
+                        <Button x:Name="MusicPlayButton"
+                                Style="{StaticResource IslandPlayButton}"
+                                HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                FontSize="20"
+                                Click="OnPlayPauseClick"
+                                ToolTip="Play/Pause"
+                                MouseEnter="OnTransportHover"
+                                MouseLeave="OnTransportLeave"
+                                PreviewMouseLeftButtonDown="OnTransportPress"
+                                PreviewMouseLeftButtonUp="OnTransportRelease">
+                            <Grid>
+                                <TextBlock x:Name="MusicPlayGlyph"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           FontFamily="{DynamicResource AppIconFontFamily}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Text="&#xE768;" />
+                                <TextBlock x:Name="MusicPauseGlyph"
+                                           Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                           FontFamily="{DynamicResource AppIconFontFamily}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Opacity="0"
+                                           Text="&#xE769;" />
+                            </Grid>
+                        </Button>
+                    </Grid>
+                    <Button x:Name="MusicNextButton"
+                            Style="{StaticResource IslandTransportButton}"
                             Click="OnNextTrackClick"
-                            ToolTip="{x:Static res:Strings.Media_NextTrack}">
+                            ToolTip="{x:Static res:Strings.Media_NextTrack}"
+                            MouseEnter="OnTransportHover"
+                            MouseLeave="OnTransportLeave"
+                            PreviewMouseLeftButtonDown="OnTransportPress"
+                            PreviewMouseLeftButtonUp="OnTransportRelease">
                         <TextBlock FontFamily="{DynamicResource AppIconFontFamily}" Text="&#xE893;" />
                     </Button>
                 </StackPanel>

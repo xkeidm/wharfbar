@@ -22,6 +22,10 @@ public class WallpaperAccentTests
         => Assert.Null(WallpaperAccent.FromDominant(new IslandRgb(5, 5, 5)));
 
     [Fact]
+    public void FromDominant_Gray_IsNull()
+        => Assert.Null(WallpaperAccent.FromDominant(new IslandRgb(128, 128, 128)));
+
+    [Fact]
     public void FromDominant_NearWhite_IsNull()
         => Assert.Null(WallpaperAccent.FromDominant(new IslandRgb(250, 250, 250)));
 

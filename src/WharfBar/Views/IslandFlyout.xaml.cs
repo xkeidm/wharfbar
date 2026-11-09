@@ -47,7 +47,37 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Accessibility name of the hover "×" button — the same action as in the menu.</summary>
     private const string RemoveAccessName = "Remove from list";
 
-    private static readonly TimeSpan TimelinePollInterval = TimeSpan.FromSeconds(1);
+    /// <summary>
+    /// Timeline refresh cadence. While a track is playing the media service interpolates the
+    /// position locally, so the panel polls it at ~250 ms; a paused track only needs the slower
+    /// cadence. The poll is armed only while the Music body is visible.
+    /// </summary>
+    private static readonly TimeSpan TimelinePollPlaying = TimeSpan.FromMilliseconds(250);
+
+    /// <summary>Slower cadence while a session is paused (the position is not advancing).</summary>
+    private static readonly TimeSpan TimelinePollPaused = TimeSpan.FromSeconds(1);
+
+    /// <summary>Duration of the album tint fade (panel gradient, outline, cover bloom, play circle).</summary>
+    private const double TintFadeMs = 260;
+
+    /// <summary>
+    /// Alpha of the panel tint at the pill join line (the panel's top edge). The top bar fills the
+    /// joined pill with <see cref="FlyoutSurface.CreateTinted"/> at this same amount, so the pill
+    /// fill and the first panel gradient stops resolve to the same color and the join has no seam.
+    /// </summary>
+    internal const byte PanelJoinTintAlpha = IslandPalette.PanelTintJoinAlpha;
+
+    /// <summary>Hover lift of the play circle when it carries the album tint (share of white).</summary>
+    private const double PlayButtonHoverLift = 0.14;
+
+    /// <summary>Duration of the cover art crossfade.</summary>
+    private const double CoverFadeMs = 220;
+
+    /// <summary>Duration of the play/pause glyph crossfade.</summary>
+    private const double GlyphFadeMs = 140;
+
+    /// <summary>Reference width of the thumb drawn over the seek track (matches the Slider thumb).</summary>
+    private const double SeekThumbDip = 13;
 
     private IslandService? _service;
     private MediaSessionService? _media;
@@ -70,6 +100,27 @@ public sealed partial class IslandFlyout : UserControl
     private double _pillXDip;
     private Brush _silhouetteFill = Brushes.Transparent;
 
+    /// <summary>Album tint state: animated gradient stops for the panel tint and the outline rim.</summary>
+    private LinearGradientBrush? _panelTintBrush;
+    private LinearGradientBrush? _outlineBrush;
+    private bool _tintApplied;
+    private Color? _appliedTint;
+
+    /// <summary>Last tint painted on the play/pause circle (null = system accent).</summary>
+    private Color? _playButtonTint;
+
+    /// <summary>Seek ratio last painted on the designed track (0..1).</summary>
+    private double _progressRatio;
+
+    /// <summary>Last play/pause state the glyphs were swapped to.</summary>
+    private bool? _glyphPlaying;
+
+    /// <summary>Last play state the header dot was painted for.</summary>
+    private bool? _dotPlaying;
+
+    private bool _playPulseRunning;
+    private int _coverFadeId;
+
     public IslandFlyout()
     {
         InitializeComponent();
@@ -78,6 +129,15 @@ public sealed partial class IslandFlyout : UserControl
         _tabStripButtons = [TabClipboard, TabWallpaper, TabMusic, TabShelf, TabPrompter, TabCamera, TabColor];
         _tabStripLabels = [TabClipboardLabel, TabWallpaperLabel, TabMusicLabel, TabShelfLabel, TabPrompterLabel, TabCameraLabel, TabColorLabel];
         CameraPreviewHost.SizeChanged += OnCameraPreviewSizeChanged;
+        MusicCover.SizeChanged += OnMusicCoverSizeChanged;
+        MusicProgressTrack.SizeChanged += (_, _) => PositionProgressThumb();
+
+        // The album tint and the rim are animated in place: both brushes are created once and
+        // their gradient stops are retargeted when the track changes, so no brush is rebuilt per tick.
+        _panelTintBrush = CreatePanelTintBrush();
+        SilhouetteTint.Fill = _panelTintBrush;
+        _outlineBrush = CreateOutlineBrush();
+        SilhouetteOutline.Stroke = _outlineBrush;
 
         // Let the shelf background menu open across the entire body (including the empty space
         // below the chips): without a transparent brush the Grid is outside hit testing, so
@@ -215,6 +275,7 @@ public sealed partial class IslandFlyout : UserControl
     internal void DetachMedia()
     {
         StopTimelinePoll();
+        StopPlayPulse();
         if (_media is not null)
         {
             _media.Changed -= OnMediaSnapshotChanged;
@@ -316,27 +377,98 @@ public sealed partial class IslandFlyout : UserControl
         }
 
         IslandSilhouetteShape shape = IslandSilhouette.Build(w, h, _pillXDip, _pillWidthDip, CornerDip, FilletDip);
-        SilhouetteFill.Data = IslandSilhouetteGeometry.Create(shape.Fill, filled: true);
+        StreamGeometry fill = IslandSilhouetteGeometry.Create(shape.Fill, filled: true);
+        SilhouetteFill.Data = fill;
+
+        // The tint paints the very same frozen geometry, so it can never spill past the panel or
+        // the concave fillets beside the pill (it is the panel-local silhouette, start to finish).
+        SilhouetteTint.Data = fill;
         SilhouetteOutline.Data = IslandSilhouetteGeometry.Create(shape.Outline, filled: false);
         if (SilhouetteFill.Fill is null)
         {
             SilhouetteFill.Fill = _silhouetteFill;
         }
 
-        SilhouetteOutline.Stroke = HighlightOutline(_outlineTint);
+        SilhouetteOutline.Stroke = _outlineBrush;
     }
 
-    private Color? _outlineTint;
-
-    /// <summary>Top-lit rim: bright at the top, fading toward the bottom; tinted when a color is active.</summary>
-    private static Brush HighlightOutline(Color? tint)
+    /// <summary>
+    /// Panel tint gradient: the album color starts right at the top of the joined surface (fillets
+    /// and tab strip included) and strengthens toward the bottom. The stops are animated in place;
+    /// the brush is never frozen. The top stop alpha is shared with the pill fill through
+    /// <see cref="PanelJoinTintAlpha"/>, so the join line is one continuous color, not a seam.
+    /// </summary>
+    private static LinearGradientBrush CreatePanelTintBrush()
     {
-        Color top = tint is Color c ? Color.FromArgb(0xA0, c.R, c.G, c.B) : Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF);
-        Color bottom = tint is Color d ? Color.FromArgb(0x30, d.R, d.G, d.B) : Color.FromArgb(0x0F, 0xFF, 0xFF, 0xFF);
-        var brush = new LinearGradientBrush(top, bottom, new Point(0, 0), new Point(0, 1));
-        brush.Freeze();
+        var brush = new LinearGradientBrush
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(0, 1),
+        };
+        // The gradient box starts at the fillet tips (10 DIP above the panel top). Stop 0 sits at
+        // that tip and stop 1 (0.06) on the panel's top edge / pill join line; both are painted at
+        // the join alpha so the joined pill fill (same color + same alpha composite) continues the
+        // surface with no seam. Stop positions below walk down the panel. All stops are transparent
+        // until ApplyTint targets them, so the neutral surface has no accidental tint.
+        brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0));
+        brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.06));
+        brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.22));
+        brush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.60));
+        brush.GradientStops.Add(new GradientStop(Colors.Transparent, 1));
         return brush;
     }
+
+    /// <summary>
+    /// Top-lit rim alpha while a tint is active. Kept close to the pill's own stroke so the
+    /// rim reading does not jump where the fillet meets the pill side; <see cref="JoinRimColor"/>
+    /// hands the same top color to the pill border (TopBarWindow) so the outline is continuous.
+    /// </summary>
+    private const byte OutlineTopAlphaTinted = 0x55;
+    private const byte OutlineBottomAlphaTinted = 0x1A;
+    private const byte OutlineTopAlphaNeutral = 0x30;
+    private const byte OutlineBottomAlphaNeutral = 0x0C;
+
+    private static Color OutlineTopColor(Color? tint)
+        => tint is Color c
+            ? Color.FromArgb(OutlineTopAlphaTinted, c.R, c.G, c.B)
+            : Color.FromArgb(OutlineTopAlphaNeutral, 0xFF, 0xFF, 0xFF);
+
+    private static Color OutlineBottomColor(Color? tint)
+        => tint is Color c
+            ? Color.FromArgb(OutlineBottomAlphaTinted, c.R, c.G, c.B)
+            : Color.FromArgb(OutlineBottomAlphaNeutral, 0xFF, 0xFF, 0xFF);
+
+    /// <summary>
+    /// Top rim color for the joined pill's border. The panel's outline starts at the fillet tips
+    /// with this same color, so the pill stroke and the panel rim read as one continuous edge.
+    /// </summary>
+    internal Color JoinRimColor => OutlineTopColor(_appliedTint);
+
+    /// <summary>
+    /// Album tint currently painted on the panel (null = neutral). The top bar reads it to fill
+    /// the joined pill with the same tinted surface instead of a flat theme color.
+    /// </summary>
+    internal Color? SurfaceTint => _appliedTint;
+
+    /// <summary>
+    /// Tint amount the joined pill fill must use to match the panel's top edge: the same alpha the
+    /// first panel gradient stops are painted with (<see cref="PanelJoinTintAlpha"/>).
+    /// </summary>
+    internal static double JoinTintAmount => PanelJoinTintAlpha / 255d;
+
+    /// <summary>
+    /// Raised after the album tint changed (track/tab/mode). The window uses it to re-tint the
+    /// joined pill's border so the rim stays continuous with the panel.
+    /// </summary>
+    internal event EventHandler? SurfaceTintChanged;
+
+    /// <summary>Top-lit rim: bright at the top, fading toward the bottom (animated to the tint when active).</summary>
+    private static LinearGradientBrush CreateOutlineBrush()
+        => new(
+            Color.FromArgb(OutlineTopAlphaNeutral, 0xFF, 0xFF, 0xFF),
+            Color.FromArgb(OutlineBottomAlphaNeutral, 0xFF, 0xFF, 0xFF),
+            new Point(0, 0),
+            new Point(0, 1));
 
     /// <summary>Currently shown hub tab.</summary>
     internal IslandHubTab CurrentHubTab { get; private set; } = IslandHubTab.Clipboard;
@@ -548,14 +680,15 @@ public sealed partial class IslandFlyout : UserControl
             StopCameraBodyLifecycle();
         }
 
+        // The play-button pulse belongs to the open Music body only; any other tab releases it.
+        if (tab != IslandHubTab.Music)
+        {
+            StopPlayPulse();
+        }
+
         switch (tab)
         {
             case IslandHubTab.Music:
-                if (MusicCover.Clip is null)
-                {
-                    MusicCover.Clip = new RectangleGeometry(new Rect(0, 0, 88, 88), 14, 14);
-                }
-
                 ApplyMusic();
                 break;
             case IslandHubTab.Wallpaper:
@@ -610,6 +743,8 @@ public sealed partial class IslandFlyout : UserControl
                 }
 
                 ArmTimelinePoll();
+                // The body is visible now, so the play pulse may run (it is suppressed while hidden).
+                RefreshPlayPulse();
                 if (focus)
                 {
                     Focusable = true;
@@ -830,6 +965,8 @@ public sealed partial class IslandFlyout : UserControl
         {
             ApplyMusic();
         }
+
+        UpdateTimelineInterval();
     }
 
     private void ApplyMusic()
@@ -839,39 +976,58 @@ public sealed partial class IslandFlyout : UserControl
         MusicNow.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
         MusicTransport.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
         MusicEmpty.Visibility = hasSession ? Visibility.Collapsed : Visibility.Visible;
-        MusicSessions.Visibility = _media is { SessionIds.Count: > 1 }
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+
+        // The source-app row stays visible with one session too (it names the app); the chevrons
+        // only become usable when there is more than one SMTC session to switch between.
+        bool multipleSessions = _media is { SessionIds.Count: > 1 };
+        MusicSessions.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
+        MusicPreviousSessionButton.IsEnabled = multipleSessions;
+        MusicNextSessionButton.IsEnabled = multipleSessions;
 
         if (!hasSession)
         {
-            MusicTitle.Text = string.Empty;
-            MusicArtist.Text = string.Empty;
-            MusicArt.Visibility = Visibility.Collapsed;
-            MusicPlaceholder.Visibility = Visibility.Visible;
+            if (MusicTitle.Text.Length > 0)
+            {
+                MusicTitle.Text = string.Empty;
+            }
+
+            if (MusicArtist.Text.Length > 0)
+            {
+                MusicArtist.Text = string.Empty;
+            }
+
+            SetCoverArt(null, animate: false);
             MusicTimeline.Visibility = Visibility.Collapsed;
+            UpdatePlayGlyph(false);
+            UpdatePlayingDot(false);
+            RefreshPlayPulse();
             ApplyTint(null);
             return;
         }
 
-        MusicTitle.Text = string.IsNullOrEmpty(snapshot.Title) ? snapshot.AppName : snapshot.Title;
-        MusicArtist.Text = snapshot.Artist;
-        MusicSessionName.Text = snapshot.AppName;
-        MusicPlayGlyph.Text = snapshot.IsPlaying ? "\uE769" : "\uE768";
-
-        if (snapshot.Thumbnail is not null)
+        string title = string.IsNullOrEmpty(snapshot.Title) ? snapshot.AppName : snapshot.Title;
+        if (MusicTitle.Text != title)
         {
-            MusicArt.Source = snapshot.Thumbnail;
-            MusicArt.Visibility = Visibility.Visible;
-            MusicPlaceholder.Visibility = Visibility.Collapsed;
-        }
-        else
-        {
-            MusicArt.Visibility = Visibility.Collapsed;
-            MusicPlaceholder.Visibility = Visibility.Visible;
+            MusicTitle.Text = title;
         }
 
-        ApplyTint(IslandTintSource.Resolve(ColorMode, snapshot.Thumbnail, snapshot.IsPlaying));
+        if (MusicArtist.Text != snapshot.Artist)
+        {
+            MusicArtist.Text = snapshot.Artist;
+        }
+
+        if (MusicSessionName.Text != snapshot.AppName)
+        {
+            MusicSessionName.Text = snapshot.AppName;
+        }
+
+        SetCoverArt(snapshot.Thumbnail, animate: true);
+        UpdatePlayGlyph(snapshot.IsPlaying);
+        UpdatePlayingDot(snapshot.IsPlaying);
+        RefreshPlayPulse();
+
+        // A paused track keeps its album tint: the panel follows the loaded track, not the play state.
+        ApplyTint(IslandTintSource.Resolve(ColorMode, snapshot.Thumbnail, hasSession));
         ApplyTimeline(snapshot);
     }
 
@@ -894,7 +1050,7 @@ public sealed partial class IslandFlyout : UserControl
 
             MediaSnapshot snapshot = _media?.Snapshot ?? MediaSnapshot.Idle;
             ApplyTint(snapshot.HasSession
-                ? IslandTintSource.Resolve(_colorMode, snapshot.Thumbnail, snapshot.IsPlaying)
+                ? IslandTintSource.Resolve(_colorMode, snapshot.Thumbnail, musicPlaying: true)
                 : null);
         }
     }
@@ -902,39 +1058,176 @@ public sealed partial class IslandFlyout : UserControl
     private string _colorMode = IslandConfig.DefaultColorMode;
     private bool _clipboardShown;
 
-    /// <summary>Tints the ambient glow and the progress fill; null restores the neutral look.</summary>
+    /// <summary>
+    /// Paints the album tint on the panel silhouette, the rim, the cover bloom, the seek fill and
+    /// the play/pause circle. Null restores the neutral theme look. Retargeting the existing
+    /// gradient stops makes a track change a smooth fade; the call is a no-op when the tint did not
+    /// change (the timeline poll raises the media snapshot several times per second).
+    /// </summary>
     internal void ApplyTint(Color? tint)
     {
-        _outlineTint = tint;
-        SilhouetteOutline.Stroke = HighlightOutline(tint);
-        if (tint is not Color c)
+        if (_tintApplied && tint == _appliedTint)
         {
-            AmbientGlow.Opacity = 0;
-            MusicProgressFill.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
             return;
         }
 
-        var glow = new RadialGradientBrush(Color.FromArgb(0x59, c.R, c.G, c.B), Colors.Transparent)
-        {
-            Center = new Point(0.1, 0.0),
-            GradientOrigin = new Point(0.1, 0.0),
-            RadiusX = 0.9,
-            RadiusY = 0.55,
-        };
-        glow.Freeze();
-        AmbientGlow.Background = glow;
-        AmbientGlow.Opacity = 1;
+        _tintApplied = true;
+        _appliedTint = tint;
+        ApplyPanelTint(tint);
+        ApplyOutlineTint(tint);
+        ApplyCoverGlow(tint);
+        ApplyProgressTint(tint);
+        ApplyPlayButtonTint(tint);
+        SurfaceTintChanged?.Invoke(this, EventArgs.Empty);
+    }
 
-        var solid = new SolidColorBrush(c);
-        solid.Freeze();
-        MusicProgressFill.Background = solid;
+    private void ApplyPanelTint(Color? tint)
+    {
+        if (_panelTintBrush is null)
+        {
+            return;
+        }
+
+        IReadOnlyList<Color> stops = PanelTintStops(tint);
+        for (int i = 0; i < stops.Count && i < _panelTintBrush.GradientStops.Count; i++)
+        {
+            AnimateGradientStop(_panelTintBrush.GradientStops[i], stops[i], TintFadeMs);
+        }
+    }
+
+    /// <summary>
+    /// The five panel-tint stops. The first two share the join alpha (fillets, panel top edge and
+    /// the joined pill fill all resolve to the same composite), then the wash strengthens over the
+    /// tab strip/header and gets unmistakable through the body, with the last stop deepened toward
+    /// black so the panel keeps depth instead of a flat color. Alphas are chosen against the dark
+    /// theme surface: even the lightest cover tint keeps primary text at AA contrast in the body
+    /// band (asserted by IslandTintTests).
+    /// </summary>
+    private static Color[] PanelTintStops(Color? tint)
+    {
+        if (tint is not Color c)
+        {
+            return [Colors.Transparent, Colors.Transparent, Colors.Transparent, Colors.Transparent, Colors.Transparent];
+        }
+
+        var color = new IslandRgb(c.R, c.G, c.B);
+        IslandRgb deep = IslandPalette.Blend(color, new IslandRgb(0, 0, 0), IslandPalette.PanelTintDeepShade);
+        return
+        [
+            Color.FromArgb(IslandPalette.PanelTintJoinAlpha, c.R, c.G, c.B),
+            Color.FromArgb(IslandPalette.PanelTintJoinAlpha, c.R, c.G, c.B),
+            Color.FromArgb(IslandPalette.PanelTintHeaderAlpha, c.R, c.G, c.B),
+            Color.FromArgb(IslandPalette.PanelTintBodyAlpha, c.R, c.G, c.B),
+            Color.FromArgb(IslandPalette.PanelTintBottomAlpha, deep.R, deep.G, deep.B),
+        ];
+    }
+
+    private void ApplyOutlineTint(Color? tint)
+    {
+        if (_outlineBrush is null)
+        {
+            return;
+        }
+
+        AnimateGradientStop(_outlineBrush.GradientStops[0], OutlineTopColor(tint), TintFadeMs);
+        AnimateGradientStop(_outlineBrush.GradientStops[1], OutlineBottomColor(tint), TintFadeMs);
+    }
+
+    /// <summary>Soft album-color bloom behind the rounded cover; hidden when there is no tint.</summary>
+    private void ApplyCoverGlow(Color? tint)
+    {
+        if (tint is not Color c)
+        {
+            MusicCoverGlow.BeginAnimation(UIElement.OpacityProperty, null);
+            MusicCoverGlow.Opacity = 0;
+            return;
+        }
+
+        var bloom = new RadialGradientBrush(
+            Color.FromArgb(0x8C, c.R, c.G, c.B),
+            Color.FromArgb(0x00, c.R, c.G, c.B))
+        {
+            Center = new Point(0.5, 0.5),
+            GradientOrigin = new Point(0.5, 0.5),
+            RadiusX = 0.5,
+            RadiusY = 0.5,
+        };
+        bloom.Freeze();
+        MusicCoverGlow.Background = bloom;
+        AnimateOpacity(MusicCoverGlow, 1, TintFadeMs);
+    }
+
+    /// <summary>Seek fill, thumb rim and the playing dot follow the active tint (accent when neutral).</summary>
+    private void ApplyProgressTint(Color? tint)
+    {
+        if (tint is Color c)
+        {
+            var solid = new SolidColorBrush(c);
+            solid.Freeze();
+            MusicProgressFill.Background = solid;
+            MusicProgressThumb.BorderBrush = solid;
+            MusicPlayingDot.Background = solid;
+            return;
+        }
+
+        MusicProgressFill.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+        MusicProgressThumb.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+        MusicPlayingDot.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+    }
+
+    /// <summary>
+    /// Play/pause circle follows the active album tint, with the system accent as the fallback
+    /// (neutral color mode / no tint). The glyph is switched to a readable color from the actual
+    /// fill, and the ring pulse around the circle takes the same hue.
+    /// </summary>
+    private void ApplyPlayButtonTint(Color? tint)
+    {
+        _playButtonTint = tint;
+        UpdatePlayButtonFill();
+    }
+
+    /// <summary>
+    /// Repaints the play circle for <see cref="_playButtonTint"/> and the current pointer state.
+    /// With a tint the fill is the album color (lifted slightly on hover), so the circle no longer
+    /// reads as the beige system accent; without one the theme accent + its secondary hover fill
+    /// stay exactly as the style defined them.
+    /// </summary>
+    private void UpdatePlayButtonFill(bool? hover = null)
+    {
+        bool over = hover ?? MusicPlayButton.IsMouseOver;
+        if (_playButtonTint is not Color c)
+        {
+            MusicPlayButton.SetResourceReference(
+                Button.BackgroundProperty,
+                over ? "AccentFillColorSecondaryBrush" : "AccentFillColorDefaultBrush");
+            MusicPlayButton.SetResourceReference(Control.ForegroundProperty, "TextOnAccentFillColorPrimaryBrush");
+            MusicPlayPulse.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+            return;
+        }
+
+        var tint = new IslandRgb(c.R, c.G, c.B);
+        IslandRgb fill = over
+            ? IslandPalette.Blend(tint, new IslandRgb(0xFF, 0xFF, 0xFF), PlayButtonHoverLift)
+            : tint;
+        IslandRgb glyph = IslandPalette.ReadableForeground(fill);
+        MusicPlayButton.Background = FrozenBrush(Color.FromRgb(fill.R, fill.G, fill.B));
+        MusicPlayButton.Foreground = FrozenBrush(Color.FromRgb(glyph.R, glyph.G, glyph.B));
+        MusicPlayPulse.BorderBrush = FrozenBrush(c);
+    }
+
+    private static SolidColorBrush FrozenBrush(Color color)
+    {
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
     }
 
     private bool _writingSeek;
 
     /// <summary>
-    /// The bar only when SMTC gives position and duration. The slider additionally requires <see cref="MediaSnapshot.CanSeek"/>.
-    /// The numbers are the duration text, not a percentage.
+    /// The designed track is shown only when SMTC gives a position and a duration. The slider is
+    /// the interaction layer only while <see cref="MediaSnapshot.CanSeek"/>; otherwise the same
+    /// track is a read-only bar. The label shows the real clock, never an invented percentage.
     /// </summary>
     private void ApplyTimeline(MediaSnapshot snapshot)
     {
@@ -944,34 +1237,86 @@ public sealed partial class IslandFlyout : UserControl
         {
             MusicTimeline.Visibility = Visibility.Collapsed;
             MusicSeek.Visibility = Visibility.Collapsed;
+            MusicProgressThumb.Visibility = Visibility.Collapsed;
             MusicProgressTrack.Visibility = Visibility.Collapsed;
             return;
         }
 
-        MusicTime.Text = clock;
+        if (MusicTime.Text != clock)
+        {
+            MusicTime.Text = clock;
+        }
+
         System.Windows.Automation.AutomationProperties.SetName(MusicTime, clock);
         MusicTimeline.Visibility = Visibility.Visible;
+        MusicProgressTrack.Visibility = Visibility.Visible;
 
-        if (snapshot.CanSeek)
+        bool seekable = snapshot.CanSeek;
+        MusicSeek.Visibility = seekable ? Visibility.Visible : Visibility.Collapsed;
+        MusicProgressThumb.Visibility = seekable ? Visibility.Visible : Visibility.Collapsed;
+        if (seekable)
         {
-            MusicProgressTrack.Visibility = Visibility.Collapsed;
-            MusicSeek.Visibility = Visibility.Visible;
-            MusicSeek.Maximum = duration.TotalMilliseconds;
+            double maximum = duration.TotalMilliseconds;
+            if (Math.Abs(MusicSeek.Maximum - maximum) > 1)
+            {
+                MusicSeek.Maximum = maximum;
+            }
+
             if (!MusicSeek.IsMouseCaptureWithin)
             {
                 _writingSeek = true;
-                MusicSeek.Value = Math.Clamp(position.TotalMilliseconds, 0, duration.TotalMilliseconds);
+                MusicSeek.Value = Math.Clamp(position.TotalMilliseconds, 0, maximum);
                 _writingSeek = false;
             }
 
+            double ratio = MusicSeek.IsMouseCaptureWithin && maximum > 0
+                ? MusicSeek.Value / maximum
+                : position.TotalMilliseconds / maximum;
+            UpdateProgressVisual(ratio);
             return;
         }
 
-        MusicSeek.Visibility = Visibility.Collapsed;
-        MusicProgressTrack.Visibility = Visibility.Visible;
-        double ratio = Math.Clamp(position.TotalMilliseconds / duration.TotalMilliseconds, 0, 1);
-        MusicProgressDone.Width = new GridLength(ratio, GridUnitType.Star);
-        MusicProgressRest.Width = new GridLength(Math.Max(0, 1 - ratio), GridUnitType.Star);
+        UpdateProgressVisual(position.TotalMilliseconds / duration.TotalMilliseconds);
+    }
+
+    private void OnSeekValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_writingSeek || MusicSeek.Maximum <= 0)
+        {
+            return;
+        }
+
+        UpdateProgressVisual(e.NewValue / MusicSeek.Maximum);
+    }
+
+    /// <summary>
+    /// Paints the fill and the thumb from a 0..1 ratio. The thumb is centered on the fill edge
+    /// (half a thumb inset at both ends), which is also how the invisible Slider thumb is
+    /// arranged, so dragging and painting stay aligned.
+    /// </summary>
+    private void UpdateProgressVisual(double ratio)
+    {
+        _progressRatio = Math.Clamp(ratio, 0, 1);
+        double width = MusicProgressTrack.ActualWidth;
+        if (width <= 1)
+        {
+            // Not laid out yet; PositionProgressThumb re-runs from SizeChanged with a real width.
+            return;
+        }
+
+        double center = (SeekThumbDip / 2) + (_progressRatio * Math.Max(0, width - SeekThumbDip));
+        double fraction = Math.Clamp(center / width, 0, 1);
+        MusicProgressDone.Width = new GridLength(fraction, GridUnitType.Star);
+        MusicProgressRest.Width = new GridLength(Math.Max(0, 1 - fraction), GridUnitType.Star);
+        Canvas.SetLeft(MusicProgressThumb, center - (SeekThumbDip / 2));
+    }
+
+    private void PositionProgressThumb()
+    {
+        if (MusicProgressTrack.ActualWidth > 1)
+        {
+            UpdateProgressVisual(_progressRatio);
+        }
     }
 
     private void OnSeekPointerUp(object sender, MouseButtonEventArgs e) => CommitSeek();
@@ -989,11 +1334,27 @@ public sealed partial class IslandFlyout : UserControl
     private void ArmTimelinePoll()
     {
         _timelineArmed = true;
-        _media?.RefreshTimeline();
-        _timelineTimer ??= new DispatcherTimer { Interval = TimelinePollInterval };
+        _timelineTimer ??= new DispatcherTimer { Interval = TimelinePollPlaying };
         _timelineTimer.Tick -= OnTimelineTick;
         _timelineTimer.Tick += OnTimelineTick;
+        UpdateTimelineInterval();
         _timelineTimer.Start();
+        _media?.RefreshTimeline();
+    }
+
+    /// <summary>~250 ms while playing (the service interpolates); the slower cadence while paused.</summary>
+    private void UpdateTimelineInterval()
+    {
+        if (_timelineTimer is null)
+        {
+            return;
+        }
+
+        TimeSpan interval = _media?.Snapshot.IsPlaying == true ? TimelinePollPlaying : TimelinePollPaused;
+        if (_timelineTimer.Interval != interval)
+        {
+            _timelineTimer.Interval = interval;
+        }
     }
 
     private void StopTimelinePoll()
@@ -1010,7 +1371,281 @@ public sealed partial class IslandFlyout : UserControl
             return;
         }
 
+        UpdateTimelineInterval();
         _media?.RefreshTimeline();
+    }
+
+    /// <summary>
+    /// Swaps the play/pause glyphs with a short crossfade. Reduced motion sets the final opacities
+    /// instantly; the glyph pair never re-runs for the same state (the snapshot changes per tick).
+    /// </summary>
+    private void UpdatePlayGlyph(bool playing)
+    {
+        if (_glyphPlaying == playing)
+        {
+            return;
+        }
+
+        _glyphPlaying = playing;
+        AnimateOpacity(MusicPlayGlyph, playing ? 0 : 1, GlyphFadeMs);
+        AnimateOpacity(MusicPauseGlyph, playing ? 1 : 0, GlyphFadeMs);
+    }
+
+    /// <summary>Bright dot while playing, dim while paused; no churn on the per-tick snapshot updates.</summary>
+    private void UpdatePlayingDot(bool playing)
+    {
+        if (_dotPlaying == playing)
+        {
+            return;
+        }
+
+        _dotPlaying = playing;
+        AnimateOpacity(MusicPlayingDot, playing ? 1 : 0.35, 180);
+    }
+
+    /// <summary>Cover art crossfade: the new bitmap fades in over the old one on a second image layer.</summary>
+    private void SetCoverArt(ImageSource? source, bool animate)
+    {
+        ImageSource? current = MusicArt.Source;
+        if (ReferenceEquals(current, source))
+        {
+            if (MusicArtFade.Source is not null)
+            {
+                // A pending crossfade still points at an older bitmap: drop it, the base already matches.
+                _coverFadeId++;
+                MusicArtFade.BeginAnimation(UIElement.OpacityProperty, null);
+                MusicArtFade.Opacity = 0;
+                MusicArtFade.Source = null;
+                MusicArtFade.Visibility = Visibility.Collapsed;
+            }
+
+            MusicPlaceholder.Visibility = source is null ? Visibility.Visible : Visibility.Collapsed;
+            MusicArt.Visibility = source is null ? Visibility.Collapsed : Visibility.Visible;
+            return;
+        }
+
+        if (source is null)
+        {
+            // No artwork: drop both layers at once instead of fading to the placeholder.
+            _coverFadeId++;
+            MusicArtFade.BeginAnimation(UIElement.OpacityProperty, null);
+            MusicArtFade.Opacity = 0;
+            MusicArtFade.Source = null;
+            MusicArtFade.Visibility = Visibility.Collapsed;
+            MusicArt.Source = null;
+            MusicArt.Visibility = Visibility.Collapsed;
+            MusicPlaceholder.Visibility = Visibility.Visible;
+            return;
+        }
+
+        MusicPlaceholder.Visibility = Visibility.Collapsed;
+        MusicArt.Visibility = Visibility.Visible;
+        int id = ++_coverFadeId;
+        bool crossfade = animate && current is not null && SystemParameters.ClientAreaAnimation;
+        if (!crossfade)
+        {
+            MusicArtFade.BeginAnimation(UIElement.OpacityProperty, null);
+            MusicArtFade.Opacity = 0;
+            MusicArtFade.Source = null;
+            MusicArtFade.Visibility = Visibility.Collapsed;
+            MusicArt.Source = source;
+            return;
+        }
+
+        MusicArtFade.Source = source;
+        MusicArtFade.Visibility = Visibility.Visible;
+        AnimateOpacity(MusicArtFade, 1, CoverFadeMs, () =>
+        {
+            if (id != _coverFadeId)
+            {
+                return;
+            }
+
+            MusicArt.Source = source;
+            MusicArt.Visibility = Visibility.Visible;
+            MusicArtFade.BeginAnimation(UIElement.OpacityProperty, null);
+            MusicArtFade.Opacity = 0;
+            MusicArtFade.Source = null;
+            MusicArtFade.Visibility = Visibility.Collapsed;
+        });
+    }
+
+    private void OnMusicCoverSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        // WPF Border does not clip its child, so the rounded cover needs its own clip (scaled to size).
+        if (MusicCover.ActualWidth <= 0 || MusicCover.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        MusicCover.Clip = new RectangleGeometry(
+            new Rect(0, 0, MusicCover.ActualWidth, MusicCover.ActualHeight), 18, 18);
+    }
+
+    /// <summary>Starts the ring pulse only while playing, visible and with client-area animation on.</summary>
+    private void RefreshPlayPulse()
+    {
+        if (MusicBody.Visibility == Visibility.Visible
+            && !_clipboardShown
+            && _media?.Snapshot.IsPlaying == true
+            && SystemParameters.ClientAreaAnimation)
+        {
+            StartPlayPulse();
+            return;
+        }
+
+        StopPlayPulse();
+    }
+
+    private void StartPlayPulse()
+    {
+        if (_playPulseRunning)
+        {
+            return;
+        }
+
+        _playPulseRunning = true;
+        var scale = new ScaleTransform(0.86, 0.86);
+        MusicPlayPulse.RenderTransformOrigin = new Point(0.5, 0.5);
+        MusicPlayPulse.RenderTransform = scale;
+        var length = TimeSpan.FromMilliseconds(1500);
+        var ease = new SineEase { EasingMode = EasingMode.EaseOut };
+        MusicPlayPulse.BeginAnimation(
+            UIElement.OpacityProperty,
+            new DoubleAnimation(0.55, 0, length) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
+        scale.BeginAnimation(
+            ScaleTransform.ScaleXProperty,
+            new DoubleAnimation(0.86, 1.18, length) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
+        scale.BeginAnimation(
+            ScaleTransform.ScaleYProperty,
+            new DoubleAnimation(0.86, 1.18, length) { RepeatBehavior = RepeatBehavior.Forever, EasingFunction = ease });
+    }
+
+    private void StopPlayPulse()
+    {
+        if (!_playPulseRunning && MusicPlayPulse.Opacity <= 0)
+        {
+            return;
+        }
+
+        _playPulseRunning = false;
+        MusicPlayPulse.BeginAnimation(UIElement.OpacityProperty, null);
+        MusicPlayPulse.Opacity = 0;
+        if (MusicPlayPulse.RenderTransform is ScaleTransform scale)
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = 1;
+            scale.ScaleY = 1;
+        }
+    }
+
+    private void OnTransportHover(object sender, MouseEventArgs e)
+    {
+        AnimateControlScale(sender as FrameworkElement, 1.06, 140);
+        // The play circle's hover fill is code-driven (IslandPlayButton has no accent hover
+        // trigger), so a tinted circle would otherwise keep its resting fill while hovered.
+        if (ReferenceEquals(sender, MusicPlayButton))
+        {
+            UpdatePlayButtonFill(hover: true);
+        }
+    }
+
+    private void OnTransportLeave(object sender, MouseEventArgs e)
+    {
+        AnimateControlScale(sender as FrameworkElement, 1.0, 200);
+        if (ReferenceEquals(sender, MusicPlayButton))
+        {
+            UpdatePlayButtonFill(hover: false);
+        }
+    }
+
+    private void OnTransportPress(object sender, MouseButtonEventArgs e)
+        => AnimateControlScale(sender as FrameworkElement, 0.92, 80);
+
+    private void OnTransportRelease(object sender, MouseButtonEventArgs e)
+        => AnimateControlScale(sender as FrameworkElement, sender is UIElement { IsMouseOver: true } ? 1.06 : 1.0, 180);
+
+    /// <summary>Hover/press scale for the transport buttons; reduced motion makes it an instant set.</summary>
+    private static void AnimateControlScale(FrameworkElement? element, double to, double ms)
+    {
+        if (element is null)
+        {
+            return;
+        }
+
+        if (element.RenderTransform is not ScaleTransform scale)
+        {
+            scale = new ScaleTransform(1, 1);
+            element.RenderTransformOrigin = new Point(0.5, 0.5);
+            element.RenderTransform = scale;
+        }
+
+        double duration = IslandMotion.Gate(ms, SystemParameters.ClientAreaAnimation);
+        if (duration <= 0)
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+            scale.ScaleX = to;
+            scale.ScaleY = to;
+            return;
+        }
+
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        var length = TimeSpan.FromMilliseconds(duration);
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(to, length) { EasingFunction = ease });
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(to, length) { EasingFunction = ease });
+    }
+
+    /// <summary>
+    /// Animated opacity change in the "set the local value, animate toward it" style: the final
+    /// value is the local base, so a stopped or completed clock never snaps back. With client-area
+    /// animation off the value is set instantly.
+    /// </summary>
+    private static void AnimateOpacity(UIElement element, double to, double ms, Action? completed = null)
+    {
+        double from = element.Opacity;
+        element.BeginAnimation(UIElement.OpacityProperty, null);
+        element.Opacity = to;
+        double duration = IslandMotion.Gate(ms, SystemParameters.ClientAreaAnimation);
+        if (duration <= 0 || Math.Abs(from - to) < 0.001)
+        {
+            completed?.Invoke();
+            return;
+        }
+
+        var animation = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(duration))
+        {
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop,
+        };
+        if (completed is not null)
+        {
+            animation.Completed += (_, _) => completed();
+        }
+
+        element.BeginAnimation(UIElement.OpacityProperty, animation);
+    }
+
+    /// <summary>Retargets a gradient stop: base value first, then a FillBehavior.Stop animation from the live value.</summary>
+    private static void AnimateGradientStop(GradientStop stop, Color target, double ms)
+    {
+        Color from = stop.Color;
+        stop.BeginAnimation(GradientStop.ColorProperty, null);
+        stop.Color = target;
+        double duration = IslandMotion.Gate(ms, SystemParameters.ClientAreaAnimation);
+        if (duration <= 0 || from == target)
+        {
+            return;
+        }
+
+        stop.BeginAnimation(
+            GradientStop.ColorProperty,
+            new ColorAnimation(from, target, TimeSpan.FromMilliseconds(duration))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+                FillBehavior = FillBehavior.Stop,
+            });
     }
 
     private void OnPreviousTrackClick(object sender, RoutedEventArgs e) => _media?.Previous();
@@ -1030,6 +1665,7 @@ public sealed partial class IslandFlyout : UserControl
     internal void OnPanelClosed()
     {
         StopTimelinePoll();
+        StopPlayPulse();
         StopPrompterPlayback();
         Detach();
 

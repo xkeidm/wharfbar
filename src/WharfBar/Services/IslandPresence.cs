@@ -548,44 +548,50 @@ internal sealed class IslandPresence
         return IslandPillCommand.None;
     }
 
-    internal void PointerEnterPill(long nowMs)
+    /// <summary>
+    /// Geometry-confirmed pointer state, fed by the window's cursor sampling. The island
+    /// popup is a separate window over the pill's lower edge, so a raw <c>MouseLeave</c> can
+    /// fire while the cursor never left the island; the window reports what the pill/panel
+    /// rects prove instead. Entering the island arms the hover-open delay, staying on it
+    /// cancels a pending hover close, and leaving both rects arms the normal grace.
+    /// </summary>
+    internal void SamplePointer(bool overPill, bool overPanel, long nowMs)
     {
-        Expire(nowMs);
-        _pointerOverPill = true;
-        _hoverCloseAt = null;
-
-        if (_panel == IslandPanelBody.None && IsHoverFace(CurrentFace()))
+        bool wasOver = _pointerOverPill || _pointerOverPanel;
+        bool wasOverPill = _pointerOverPill;
+        _pointerOverPill = overPill;
+        _pointerOverPanel = overPanel;
+        bool over = overPill || overPanel;
+        if (over)
         {
-            _hoverOpenAt = nowMs + HoverOpenDelayMs;
+            _hoverCloseAt = null;
+        }
+
+        Expire(nowMs);
+
+        if (over)
+        {
+            if (overPill && !wasOverPill && _panel == IslandPanelBody.None && IsHoverFace(CurrentFace()))
+            {
+                _hoverOpenAt = nowMs + HoverOpenDelayMs;
+            }
+        }
+        else if (wasOver)
+        {
+            _hoverOpenAt = null;
+            ArmHoverClose(nowMs);
         }
 
         Publish();
     }
 
-    internal void PointerLeavePill(long nowMs)
-    {
-        _pointerOverPill = false;
-        _hoverOpenAt = null;
-        Expire(nowMs);
-        ArmHoverClose(nowMs);
-        Publish();
-    }
+    internal void PointerEnterPill(long nowMs) => SamplePointer(true, _pointerOverPanel, nowMs);
 
-    internal void PointerEnterPanel(long nowMs)
-    {
-        Expire(nowMs);
-        _pointerOverPanel = true;
-        _hoverCloseAt = null;
-        Publish();
-    }
+    internal void PointerLeavePill(long nowMs) => SamplePointer(false, _pointerOverPanel, nowMs);
 
-    internal void PointerLeavePanel(long nowMs)
-    {
-        Expire(nowMs);
-        _pointerOverPanel = false;
-        ArmHoverClose(nowMs);
-        Publish();
-    }
+    internal void PointerEnterPanel(long nowMs) => SamplePointer(_pointerOverPill, true, nowMs);
+
+    internal void PointerLeavePanel(long nowMs) => SamplePointer(_pointerOverPill, false, nowMs);
 
     internal void ShowClipboard(long nowMs)
     {
@@ -897,26 +903,16 @@ internal sealed class IslandPresence
     }
 
     /// <summary>
-    /// Now-playing keeps a clipboard satellite only. A HUD can show persistent music
-    /// and, on the primary bar, clipboard beside it. Transient music is not a satellite.
-    /// Idle is empty. The two slots are never the same kind.
+    /// Satellites are for HUD faces only: persistent music and, on the primary bar, clipboard
+    /// beside a volume, brightness, clip, drop, battery, Bluetooth, or camera HUD. A
+    /// now-playing pill is the cover/thumbnail and the title alone — it carries no satellite.
+    /// Transient music is not a satellite, and idle is empty. The two slots are never the same
+    /// kind.
     /// </summary>
     private void ResolveSatellites(IslandPillFace face, out IslandSatellite first, out IslandSatellite second)
     {
         first = IslandSatellite.None;
         second = IslandSatellite.None;
-        bool music = _mode == IslandMusicMode.Persistent && _hasSession;
-        bool clipboard = _clipboardSurface;
-
-        if (face == IslandPillFace.NowPlaying)
-        {
-            if (clipboard)
-            {
-                first = IslandSatellite.Clipboard;
-            }
-
-            return;
-        }
 
         if (face is not (
             IslandPillFace.Volume
@@ -930,6 +926,8 @@ internal sealed class IslandPresence
             return;
         }
 
+        bool music = _mode == IslandMusicMode.Persistent && _hasSession;
+        bool clipboard = _clipboardSurface;
         if (music)
         {
             first = IslandSatellite.Music;

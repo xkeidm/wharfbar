@@ -5,6 +5,11 @@ namespace WharfBar.Models;
 /// <summary>
 /// Snapshot of the playing media (SMTC session). Pure data record — unit-tested.
 /// </summary>
+/// <remarks>
+/// <see cref="Position"/> is the locally interpolated value published by
+/// <see cref="Services.MediaSessionService.RefreshTimeline"/> (SMTC's raw timeline position is frozen
+/// between app reports); <see cref="Duration"/> is the session's <c>EndTime - StartTime</c>.
+/// </remarks>
 internal sealed record MediaSnapshot(
     string SessionId,
     string AppName,

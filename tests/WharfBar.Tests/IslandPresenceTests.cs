@@ -262,7 +262,7 @@ public class IslandPresenceTests
         presence.Tick(1000 + IslandPresence.HudHoldMs);
         Assert.Equal(IslandPillFace.NowPlaying, presence.View.Face);
         Assert.Equal("Dawn", presence.View.Title);
-        Assert.Equal(IslandSatellite.Clipboard, presence.View.FirstSatellite);
+        Assert.Equal(IslandSatellite.None, presence.View.FirstSatellite);
         Assert.Equal(IslandSatellite.None, presence.View.SecondSatellite);
     }
 
@@ -426,7 +426,7 @@ public class IslandPresenceTests
     }
 
     [Fact]
-    public void PersistentMusic_ShowsClipboardSatellite_Only()
+    public void PersistentMusic_HasNoSatellites()
     {
         var presence = new IslandPresence();
         presence.ObserveMedia(Song("Dawn", playing: true), 0);
@@ -434,7 +434,7 @@ public class IslandPresenceTests
         Assert.Equal(IslandPillFace.NowPlaying, presence.View.Face);
         Assert.Equal("Dawn", presence.View.Title);
         Assert.Equal(IslandPanelBody.None, presence.View.Panel);
-        Assert.Equal(IslandSatellite.Clipboard, presence.View.FirstSatellite);
+        Assert.Equal(IslandSatellite.None, presence.View.FirstSatellite);
         Assert.Equal(IslandSatellite.None, presence.View.SecondSatellite);
     }
 
@@ -523,7 +523,7 @@ public class IslandPresenceTests
         presence.Tick(100 + IslandPresence.HudHoldMs);
         Assert.Equal(IslandPillFace.NowPlaying, presence.View.Face);
         Assert.Equal("Dawn", presence.View.Title);
-        Assert.Equal(IslandSatellite.Clipboard, presence.View.FirstSatellite);
+        Assert.Equal(IslandSatellite.None, presence.View.FirstSatellite);
 
         presence.NoteNewClip("second", 3000);
         Assert.Equal(IslandPillCommand.None, presence.Click(3100));
@@ -776,6 +776,95 @@ public class IslandPresenceTests
         left.PointerLeavePill(50);
         left.Tick(IslandPresence.HoverOpenDelayMs);
         Assert.Equal(IslandPanelBody.None, left.View.Panel);
+    }
+
+    [Fact]
+    public void SamplePointer_OverPillTwice_DoesNotPushTheHoverOpenDeadline()
+    {
+        var presence = new IslandPresence();
+        presence.SamplePointer(overPill: true, overPanel: false, nowMs: 100);
+        Assert.Equal(100 + IslandPresence.HoverOpenDelayMs, presence.NextDeadlineMs);
+
+        // The hover watch samples repeatedly while the pointer rests: only the entry may arm.
+        presence.SamplePointer(overPill: true, overPanel: false, nowMs: 160);
+        presence.SamplePointer(overPill: true, overPanel: false, nowMs: 220);
+        Assert.Equal(100 + IslandPresence.HoverOpenDelayMs, presence.NextDeadlineMs);
+
+        presence.Tick(100 + IslandPresence.HoverOpenDelayMs);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+    }
+
+    [Fact]
+    public void SamplePointer_FakePillLeaveCorrectedByPanelPad_KeepsHoverPanelOpen()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(100);
+        long openAt = 100 + IslandPresence.HoverOpenDelayMs;
+        presence.Tick(openAt);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        // The popup window takes the pointer: a pill leave arrives while the cursor sits on
+        // the panel's transparent pad. The geometry sample then proves it is still on the pad.
+        presence.SamplePointer(overPill: false, overPanel: false, nowMs: openAt + 10);
+        Assert.NotNull(presence.NextDeadlineMs);
+        presence.SamplePointer(overPill: false, overPanel: true, nowMs: openAt + 20);
+        Assert.Null(presence.NextDeadlineMs);
+
+        presence.Tick(openAt + IslandPresence.HoverGraceMs + 500);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+    }
+
+    [Fact]
+    public void SamplePointer_GenuineLeave_ClosesAfterTheNormalGrace()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(0);
+        long openAt = IslandPresence.HoverOpenDelayMs;
+        presence.Tick(openAt);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        presence.SamplePointer(overPill: false, overPanel: false, nowMs: openAt);
+        Assert.Equal(openAt + IslandPresence.HoverGraceMs, presence.NextDeadlineMs);
+        presence.Tick(openAt + IslandPresence.HoverGraceMs - 1);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+
+        presence.Tick(openAt + IslandPresence.HoverGraceMs);
+        Assert.Equal(IslandPanelBody.None, presence.View.Panel);
+    }
+
+    [Fact]
+    public void SamplePointer_ReenterBeforeTheHoverCloseDeadline_CancelsIt()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(0);
+        long openAt = IslandPresence.HoverOpenDelayMs;
+        presence.Tick(openAt);
+        presence.SamplePointer(overPill: false, overPanel: false, nowMs: openAt);
+        Assert.NotNull(presence.NextDeadlineMs);
+
+        presence.SamplePointer(overPill: true, overPanel: false, nowMs: openAt + 100);
+        Assert.Null(presence.NextDeadlineMs);
+        presence.Tick(openAt + IslandPresence.HoverGraceMs + 1000);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.False(presence.View.Pinned);
+    }
+
+    [Fact]
+    public void SamplePointer_PinnedPanelIsNotClosedByAGenuineLeave()
+    {
+        var presence = new IslandPresence();
+        presence.PointerEnterPill(0);
+        long openAt = IslandPresence.HoverOpenDelayMs;
+        presence.Tick(openAt);
+        presence.Click(openAt + 10);
+        Assert.True(presence.View.Pinned);
+
+        presence.SamplePointer(overPill: false, overPanel: false, nowMs: openAt + 20);
+        Assert.Null(presence.NextDeadlineMs);
+        presence.Tick(openAt + IslandPresence.HoverGraceMs + 1000);
+        Assert.Equal(IslandPanelBody.Clipboard, presence.View.Panel);
+        Assert.True(presence.View.Pinned);
     }
 
     [Fact]

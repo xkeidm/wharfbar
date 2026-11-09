@@ -24,8 +24,6 @@ public partial class TopBarWindow
     private const double IslandMeterDip = 72;
     // Centered slot outside the title: pill margin 24+24, padding 16+16, glyph, title gap.
     private const double IslandTitleChromeDip = 104;
-    /// <summary>Margin 8 + five 3 DIP bars with 2 DIP gaps.</summary>
-    private const double IslandBarsDip = 28;
 
     /// <summary>Grid margin on each side. Counted so the title ellipsizes before the chip meets a cluster.</summary>
     private const double IslandContentInsetDip = 10;
@@ -64,8 +62,8 @@ public partial class TopBarWindow
     private WallpaperService? _wallpaper;
     private IReadOnlyList<BluetoothDeviceInfo>? _btPrevious;
     private bool _btSeeded;
-    private DispatcherTimer? _vizTimer;
     private DispatcherTimer? _islandClock;
+    private DispatcherTimer? _islandHoverWatch;
     private bool _islandFocusMusic;
     private IslandPanelBody _shownPanel;
     private bool _shownBack;
@@ -75,10 +73,16 @@ public partial class TopBarWindow
     // freezes the face pipeline and feeds a drag width term into AnimatePillWidth.
     private bool _islandDragActive;
     private bool _islandDragValid;
+    // The popup is open and the pill's bottom edge is merged into the panel: the pill stroke
+    // follows the panel rim so the unified outline stays continuous.
+    private bool _islandJoined;
+    // Closed-pill tint cache: the last album tint / hover state painted on the capsule. Keeps the
+    // per-tick media snapshot pushes and pointer samples from rebuilding a frozen brush.
+    private Color? _closedPillTint;
+    private bool _closedPillHover;
     private DropShadowEffect? _islandDragGlow;
     private string? _islandIdleCaptionText;
     private IslandPillFace? _shownFace;
-    private readonly double[] _barScales = new double[VisualizerBars.Count];
     private string? _islandTip;
     private string _faceTitle = string.Empty;
     private double _faceBar = double.NaN;
@@ -88,7 +92,12 @@ public partial class TopBarWindow
     private double _meterFill;
     private double _pillWidth = double.NaN;
     private double _faceSatellites;
-    private double _faceBars;
+    // Screen pixel X of the pill center written by the last popup alignment. A pill width
+    // change keeps the centered pill's screen center, so the panel does not need a new offset.
+    private double? _alignedPillCenterPx;
+    // Last geometry-confirmed over-island sample; a change repaints the hover width even when
+    // the presence view itself did not change (pinned panel, genuine leave).
+    private bool _pointerOverIslandSample;
     private bool _captureExcluded;
     private IslandShotWindow? _shot;
     private Panel? _pillHome;
@@ -107,26 +116,75 @@ public partial class TopBarWindow
 
     private static long IslandNow() => Environment.TickCount64;
 
-    private void OnIslandPillEnter(object sender, MouseEventArgs e)
+    private void OnIslandPillEnter(object sender, MouseEventArgs e) => SyncIslandPointer(IslandNow());
+
+    private void OnIslandPillLeave(object sender, MouseEventArgs e) => SyncIslandPointer(IslandNow());
+
+    /// <summary>
+    /// Geometry-confirmed pointer sample. <c>MouseLeave</c> is not evidence of a real leave:
+    /// the island popup is a separate window that overlaps the pill's lower edge and the
+    /// shadow pad around the panel, so it can take the pointer (and raise a fake leave) while
+    /// the cursor never left the island. <see cref="Mouse.GetPosition"/> asks the input device
+    /// for the cursor in an element's coordinates, so both rects can be tested even when the
+    /// popup owns the pointer.
+    /// </summary>
+    private void SyncIslandPointer(long now)
     {
         if (_presence is null)
         {
             return;
         }
 
-        _presence.PointerEnterPill(IslandNow());
-        ApplyIslandChrome(focusMusic: false);
+        (bool overPill, bool overPanel) = SampleIslandPointer();
+        bool over = overPill || overPanel;
+        bool hoverChanged = over != _pointerOverIslandSample;
+        _pointerOverIslandSample = over;
+        IslandPresenceView before = _presence.View;
+        long? deadline = _presence.NextDeadlineMs;
+        _presence.SamplePointer(overPill, overPanel, now);
+        // A pinned panel keeps the presence view unchanged on a leave, but the pill's hover
+        // allowance still has to follow the pointer, so the geometry change alone repaints.
+        if (hoverChanged || before != _presence.View || deadline != _presence.NextDeadlineMs)
+        {
+            ApplyIslandChrome(focusMusic: false);
+        }
     }
 
-    private void OnIslandPillLeave(object sender, MouseEventArgs e)
+    /// <summary>True while the cursor rests on the pill or on the open panel's surface/pad.</summary>
+    private bool IsPointerOverIsland()
     {
-        if (_presence is null)
+        (bool overPill, bool overPanel) = SampleIslandPointer();
+        bool over = overPill || overPanel;
+        _pointerOverIslandSample = over;
+        return over;
+    }
+
+    private (bool OverPill, bool OverPanel) SampleIslandPointer()
+    {
+        try
         {
-            return;
+            Point pill = Mouse.GetPosition(IslandPill);
+            Size pillSize = new(IslandPill.ActualWidth, IslandPill.ActualHeight);
+            if (!IslandPopup.IsOpen)
+            {
+                return (IslandHoverRegion.Contains(pill, pillSize.Width, pillSize.Height), false);
+            }
+
+            Point panel = Mouse.GetPosition(IslandHost);
+            Size panelSize = new(IslandHost.ActualWidth, IslandHost.ActualHeight);
+            if (IslandHoverRegion.IsOverIsland(pill, pillSize, panel, panelSize))
+            {
+                // The pill and the panel overlap by design; the pill flag wins there.
+                bool overPill = IslandHoverRegion.Contains(pill, pillSize.Width, pillSize.Height);
+                return (overPill, !overPill);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+            // The element is not connected to a presentation source (window closing).
         }
 
-        _presence.PointerLeavePill(IslandNow());
-        ApplyIslandChrome(focusMusic: false);
+        return (false, false);
     }
 
     private void OnIslandPillDragEnter(object sender, DragEventArgs e)
@@ -159,7 +217,17 @@ public partial class TopBarWindow
 
         if (!chrome)
         {
-            IslandPill.ClearValue(Border.BorderBrushProperty);
+            // The drag accent stroke is gone: a joined pill takes the panel rim back, a closed
+            // one returns to the capsule style stroke.
+            if (_islandJoined && IslandPopup.IsOpen)
+            {
+                ApplyIslandJoinRim();
+            }
+            else
+            {
+                IslandPill.ClearValue(Border.BorderBrushProperty);
+            }
+
             if (!IslandPopup.IsOpen)
             {
                 // The style's 1 DIP capsule is the closed default. An open popup owns the
@@ -189,8 +257,6 @@ public partial class TopBarWindow
         IslandTitle.Visibility = Visibility.Collapsed;
         IslandMeter.Visibility = Visibility.Collapsed;
         IslandCoverThumb.Visibility = Visibility.Collapsed;
-        // The badge row is centered and the pill clips; trailing chrome must not eat its DIP.
-        IslandBars.Visibility = Visibility.Collapsed;
         IslandCamera.Visibility = Visibility.Collapsed;
         CollapseIslandSatellite(IslandSatelliteFirst);
         CollapseIslandSatellite(IslandSatelliteSecond);
@@ -205,6 +271,8 @@ public partial class TopBarWindow
         // the exit pipeline restores the face-driven values.
         AutomationProperties.SetName(IslandPill, IslandDragBadgeText);
         SetPlainToolTip(IslandPill, IslandDragBadgeText);
+        // The drag target is a transient chrome state: drop the album tint while it is shown.
+        UpdateClosedIslandPillFill();
         double content = IslandPadDip + IslandGlyphDip + 8 + MeasureIslandDragBadge() + IslandHoverDip;
         AnimatePillWidth(Math.Max(IslandIdleDip, content));
     }
@@ -317,27 +385,9 @@ public partial class TopBarWindow
         return _islandDragGlow;
     }
 
-    private void OnIslandPanelEnter(object sender, MouseEventArgs e)
-    {
-        if (_presence is null)
-        {
-            return;
-        }
+    private void OnIslandPanelEnter(object sender, MouseEventArgs e) => SyncIslandPointer(IslandNow());
 
-        _presence.PointerEnterPanel(IslandNow());
-        ApplyIslandChrome(focusMusic: false);
-    }
-
-    private void OnIslandPanelLeave(object sender, MouseEventArgs e)
-    {
-        if (_presence is null)
-        {
-            return;
-        }
-
-        _presence.PointerLeavePanel(IslandNow());
-        ApplyIslandChrome(focusMusic: false);
-    }
+    private void OnIslandPanelLeave(object sender, MouseEventArgs e) => SyncIslandPointer(IslandNow());
 
     private void OnIslandPillClick(object sender, MouseButtonEventArgs e)
     {
@@ -674,30 +724,17 @@ public partial class TopBarWindow
             return;
         }
 
-        // Popup opening sometimes produces a fake MouseLeave on the pill. If the cursor is still
-        // on the pill or the panel, restore the close delay before Tick.
-        // PointerEnter is not called while the panel is closed: the hover open depends on the 150 ms
-        // delay and re-entering on every tick would reset it.
+        // Popup opening can raise a fake MouseLeave on the pill even though the cursor never
+        // left the island (the popup window sits over the pill's lower edge). The presence
+        // engine gets a geometry-confirmed pointer sample instead of IsMouseOver, which is
+        // false exactly in that case.
         long now = IslandNow();
-        bool panelOpen = _presence.View.Panel != IslandPanelBody.None;
-        if (panelOpen)
-        {
-            if (IslandPill.IsMouseOver)
-            {
-                _presence.PointerEnterPill(now);
-            }
-            else if (IslandPopup.IsOpen && IslandHost.IsMouseOver)
-            {
-                _presence.PointerEnterPanel(now);
-            }
-        }
-
+        (bool overPill, bool overPanel) = SampleIslandPointer();
+        _presence.SamplePointer(overPill, overPanel, now);
         _presence.Tick(now);
-        if (panelOpen && IslandPill.IsMouseOver)
-        {
-            _presence.PointerEnterPill(IslandNow());
-        }
-
+        // Unconditional: ApplyIslandChrome re-arms the one-shot clock through ArmIslandClock.
+        // A conditional repaint would leave the clock stopped if the timer fired a hair early
+        // and no deadline was due yet, so the pending deadline would never fire again.
         ApplyIslandChrome(focusMusic: false);
     }
 
@@ -772,8 +809,10 @@ public partial class TopBarWindow
         }
 
         FallBackFromMusicTab();
-        ApplyIslandTint(_presence.View.Face);
-        SyncVisualizerTimer();
+        ApplyIslandContentChrome(_presence.View.Face);
+        // A track/session change can arrive without a presence-view change (same face, new cover);
+        // the collapsed pill's album tint still has to follow it, including the session-end restore.
+        UpdateClosedIslandPillFill();
     }
 
     private void NoteIslandBattery(bool apply)
@@ -827,15 +866,17 @@ public partial class TopBarWindow
         if (!SyncIslandVisibility(snap))
         {
             ApplyCaptureAffinity(snap, pillShown: false);
-            SyncVisualizerTimer();
+            SyncIslandHoverWatch();
             return;
         }
 
         ApplyIslandFace(snap);
         SyncIslandPopup(snap, focusMusic);
         ApplyCaptureAffinity(snap, pillShown: true);
+        SyncIslandHoverWatch();
+        // The collapsed capsule follows the album cover (joined fill is owned by the popup path).
+        UpdateClosedIslandPillFill();
         ArmIslandClock();
-        SyncVisualizerTimer();
     }
 
     private bool SyncIslandVisibility(IslandPresenceView snap)
@@ -885,14 +926,11 @@ public partial class TopBarWindow
         return snap.Face != IslandPillFace.Idle || snap.Panel != IslandPanelBody.None;
     }
 
-    private string _islandColorMode = IslandConfig.DefaultColorMode;
-    private Color? _lastPillTint; // null == theme accent resource state (initial XAML)
-
-    /// <summary>Bars follow the tint; no tint restores the theme accent.</summary>
-    private void ApplyIslandTint(IslandPillFace face)
+    /// <summary>Now-playing cover/thumbnail chrome. The pill surface tint lives on the panel body.</summary>
+    private void ApplyIslandContentChrome(IslandPillFace face)
     {
-        // ApplyIslandTint is also reached directly (media, color-mode pushes) below
-        // ApplyIslandFace, so the drag freeze has to hold here too: it owns glyph/cover.
+        // Reached directly (media, snapshot pushes) as well as from ApplyIslandFace, so the
+        // drag freeze has to hold here too: it owns glyph/cover.
         if (_islandDragActive)
         {
             return;
@@ -903,38 +941,13 @@ public partial class TopBarWindow
         IslandCoverImage.Source = showCover ? snapshot.Thumbnail : null;
         IslandCoverThumb.Visibility = showCover ? Visibility.Visible : Visibility.Collapsed;
         IslandGlyph.Visibility = showCover ? Visibility.Collapsed : Visibility.Visible;
-        bool music = face == IslandPillFace.NowPlaying && snapshot.IsPlaying;
-        Color? tint = IslandTintSource.Resolve(_islandColorMode, snapshot.Thumbnail, music);
-        if (tint == _lastPillTint)
-        {
-            return;
-        }
-
-        _lastPillTint = tint;
-        Border[] bars = [IslandBar0, IslandBar1, IslandBar2, IslandBar3, IslandBar4];
-        if (tint is Color c)
-        {
-            var brush = new SolidColorBrush(c);
-            brush.Freeze();
-            foreach (Border bar in bars)
-            {
-                bar.Background = brush;
-            }
-
-            return;
-        }
-
-        foreach (Border bar in bars)
-        {
-            bar.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
-        }
     }
 
     private void PushColorMode(IslandConfig config)
     {
-        _islandColorMode = IslandNormalizer.NormalizeColorMode(config.ColorMode);
-        IslandHost.ColorMode = _islandColorMode;
-        ApplyIslandTint(_presence?.View.Face ?? IslandPillFace.Idle);
+        IslandHost.ColorMode = IslandNormalizer.NormalizeColorMode(config.ColorMode);
+        // album <-> system/neutral retints (or restores) the collapsed capsule right away.
+        UpdateClosedIslandPillFill();
     }
 
     private void ApplyIslandFace(IslandPresenceView snap)
@@ -947,7 +960,7 @@ public partial class TopBarWindow
             return;
         }
 
-        ApplyIslandTint(snap.Face);
+        ApplyIslandContentChrome(snap.Face);
         IslandGlyph.Text = snap.Face switch
         {
             IslandPillFace.NowPlaying => GlyphMusic,
@@ -1009,8 +1022,6 @@ public partial class TopBarWindow
         bool meter = snap.Face is IslandPillFace.Volume or IslandPillFace.Brightness or IslandPillFace.Battery;
         bool showTitle = false;
         double titleDip = 0;
-        // Bars sit after the title; reserve them in the title budget before measuring.
-        double barsDip = VisualizerBarsWanted(snap) ? IslandBarsDip : 0;
 
         if (meter)
         {
@@ -1026,7 +1037,7 @@ public partial class TopBarWindow
         else
         {
             HideMeter();
-            showTitle = TryShowTitle(snap, satelliteDip, barsDip, out titleDip);
+            showTitle = TryShowTitle(snap, satelliteDip, out titleDip);
             if (!showTitle)
             {
                 ShowIdleChrome(snap.Face == IslandPillFace.Idle);
@@ -1039,16 +1050,15 @@ public partial class TopBarWindow
             : showTitle
                 ? IslandPadDip + IslandGlyphDip + 8 + titleDip + extras + satelliteDip
                 : IslandIdleDip + extras + satelliteDip;
-        // An OLE drag freezes IsMouseOver at its pre-drag value, so stale hover must not
-        // ride along; the drag chrome path adds its own hover allowance instead.
-        double hover = !_islandDragActive && IslandPill.IsMouseOver ? IslandHoverDip : 0;
+        // The hover allowance is geometry-based: an OLE drag freezes IsMouseOver, and the panel
+        // popup can take the pointer from the pill; a raw IsMouseOver would flicker the width.
+        double hover = !_islandDragActive && IsPointerOverIsland() ? IslandHoverDip : 0;
         AnimatePillWidth(Math.Max(IslandIdleDip, content) + hover);
     }
 
     private bool TryShowTitle(
         IslandPresenceView snap,
         double satelliteDip,
-        double barsDip,
         out double titleDip)
     {
         titleDip = 0;
@@ -1062,7 +1072,6 @@ public partial class TopBarWindow
             && Math.Abs(_faceLeft - LeftCluster.ActualWidth) < 1
             && Math.Abs(_faceRight - StatusStrip.ActualWidth) < 1
             && Math.Abs(_faceSatellites - satelliteDip) < 1
-            && Math.Abs(_faceBars - barsDip) < 1
             && IslandTitle.Visibility == Visibility.Visible;
         if (!sameLayout)
         {
@@ -1071,7 +1080,6 @@ public partial class TopBarWindow
             _faceLeft = LeftCluster.ActualWidth;
             _faceRight = StatusStrip.ActualWidth;
             _faceSatellites = satelliteDip;
-            _faceBars = barsDip;
 
             IslandTitle.Text = snap.Title;
             IslandTitle.BeginAnimation(FrameworkElement.MaxWidthProperty, null);
@@ -1080,7 +1088,7 @@ public partial class TopBarWindow
                 ActualWidth,
                 LeftCluster.ActualWidth + IslandContentInsetDip,
                 StatusStrip.ActualWidth + IslandContentInsetDip,
-                IslandTitleChromeDip + satelliteDip + barsDip + IslandHoverDip,
+                IslandTitleChromeDip + satelliteDip + IslandHoverDip,
                 IslandTitleMeasure.Dip(IslandTitle));
         }
 
@@ -1102,7 +1110,6 @@ public partial class TopBarWindow
     {
         _faceTitle = string.Empty;
         _titleWidth = 0;
-        _faceBars = 0;
         IslandTitle.BeginAnimation(FrameworkElement.MaxWidthProperty, null);
         IslandTitle.MaxWidth = 0;
         IslandTitle.Margin = new Thickness(0);
@@ -1421,6 +1428,9 @@ public partial class TopBarWindow
     private void OnIslandPopupOpened(object sender, EventArgs e)
     {
         CancelIslandMotion();
+        // The panel already shows the track; a pill tooltip that opens later would float over
+        // the tab strip. Suppress it while the panel is open and restore it on close.
+        ToolTipService.SetIsEnabled(IslandPill, false);
         if (Monitor.IsPrimary && Island is { } island)
         {
             IslandHost.Attach(island);
@@ -1438,8 +1448,11 @@ public partial class TopBarWindow
     {
         _shownPanel = IslandPanelBody.None;
         _shownBack = false;
+        _alignedPillCenterPx = null;
+        SyncIslandHoverWatch();
         IslandHost.OnPanelClosed();
         SetIslandJoined(false);
+        ToolTipService.SetIsEnabled(IslandPill, true);
     }
 
     /// <summary>
@@ -1556,6 +1569,9 @@ public partial class TopBarWindow
             work.Right);
         ApplyIslandOffset(offset - IslandFlyout.ShadowPadDip, force);
         IslandHost.SetJoin(pillDip, -offset);
+        // Remember the center this offset was computed for: a later width change that keeps
+        // the centered pill's center must not re-align (that made the panel jitter on hover).
+        _alignedPillCenterPx = origin.X + (pillDip * dpi / 96d / 2d);
         return true;
     }
 
@@ -1579,7 +1595,7 @@ public partial class TopBarWindow
 
     private void OnIslandPopupSizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (!IslandPopup.IsOpen || _islandMeasuring)
+        if (!IslandPopup.IsOpen || !e.WidthChanged || _islandMeasuring)
         {
             return;
         }
@@ -1606,7 +1622,31 @@ public partial class TopBarWindow
             return;
         }
 
+        // The pill is centered on the bar, so a width change (hover allowance, title content)
+        // keeps the pill's screen center and the panel's centered offset still lands on it.
+        // Re-aligning on those hover-only changes was what nudged the panel under the pointer.
+        double? center = IslandPillScreenCenterPx();
+        if (_alignedPillCenterPx is double aligned
+            && center is double current
+            && Math.Abs(current - aligned) < 0.5)
+        {
+            return;
+        }
+
         AlignIslandPopup(force: false);
+    }
+
+    /// <summary>Screen X of the centered pill's middle in device pixels, or null when unconnected.</summary>
+    private double? IslandPillScreenCenterPx()
+    {
+        try
+        {
+            return IslandPill.PointToScreen(new Point(IslandPill.ActualWidth / 2d, 0)).X;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
     }
 
     /// <summary>
@@ -1615,19 +1655,135 @@ public partial class TopBarWindow
     /// </summary>
     private void SetIslandJoined(bool open)
     {
+        _islandJoined = open;
         if (open)
         {
             IslandHost.ApplySurface();
-            IslandPill.Background = FlyoutSurface.Create();
+            // One continuous surface: the pill fill is the same theme surface + album tint at the
+            // panel's top-edge alpha, so the join line, the fillets and the tab strip resolve to
+            // the same color. With no tint this is the plain flyout surface (previous behavior).
+            IslandPill.Background = FlyoutSurface.CreateTinted(IslandHost.SurfaceTint, IslandFlyout.JoinTintAmount);
             IslandPill.CornerRadius = new CornerRadius(12, 12, 0, 0);
             IslandPill.BorderThickness = new Thickness(1, 1, 1, 0);
+            // The fill is shared; the stroke must be too. A capsule-style Bar.PillStroke against
+            // the panel's tinted top-lit rim produced a visible color break where the fillet
+            // meets the pill side.
+            ApplyIslandJoinRim();
             IslandHost.SetJoin(IslandPill.ActualWidth, IslandHost.PanelWidthDip > 0 ? (IslandHost.PanelWidthDip - IslandPill.ActualWidth) / 2d : 0);
+            // The joined fill owns the capsule; force the closed cache to repaint on close.
+            _closedPillTint = null;
             return;
         }
 
         IslandPill.ClearValue(Border.BackgroundProperty);
         IslandPill.ClearValue(Border.CornerRadiusProperty);
         IslandPill.ClearValue(Border.BorderThicknessProperty);
+        IslandPill.ClearValue(Border.BorderBrushProperty);
+        _closedPillTint = null;
+        _closedPillHover = false;
+        // Back to the collapsed indicator: restore the subtle session tint (or the style fill).
+        UpdateClosedIslandPillFill();
+    }
+
+    /// <summary>
+    /// Paints the joined pill's 1 DIP stroke with the panel rim's top color, so the fillet arc
+    /// and the pill side meet without a color step. Re-applied when the album tint changes.
+    /// </summary>
+    private void ApplyIslandJoinRim()
+    {
+        var brush = new SolidColorBrush(IslandHost.JoinRimColor);
+        brush.Freeze();
+        IslandPill.BorderBrush = brush;
+    }
+
+    private void OnIslandSurfaceTintChanged(object? sender, EventArgs e)
+    {
+        if (_islandJoined && IslandPopup.IsOpen)
+        {
+            // Same fill + rim as the panel's top edge: the join is one surface, and when the tint
+            // changes (track, tab, color mode) the pill follows on the same fade's completion.
+            IslandPill.Background = FlyoutSurface.CreateTinted(IslandHost.SurfaceTint, IslandFlyout.JoinTintAmount);
+            ApplyIslandJoinRim();
+            return;
+        }
+
+        UpdateClosedIslandPillFill();
+    }
+
+    /// <summary>
+    /// Closed pill fill: while a session is carried and <c>island.colorMode</c> is album, the
+    /// capsule takes a subtle version of the cover tint so the indicator itself follows the album.
+    /// Idle / clipboard-only states, the neutral and system color modes and the drag chrome keep
+    /// the plain theme fill; the same extractor/snapshot as the panel is used, so pill and panel
+    /// always agree (including the accent fallback when a session has no cover).
+    /// </summary>
+    private void UpdateClosedIslandPillFill()
+    {
+        if (_islandJoined || IslandPopup.IsOpen)
+        {
+            // The joined fill (SetIslandJoined / OnIslandSurfaceTintChanged) owns the pill.
+            _closedPillTint = null;
+            return;
+        }
+
+        Color? tint = ResolveClosedIslandTint();
+        bool hover = IslandPill.IsMouseOver;
+        if (tint == _closedPillTint && hover == _closedPillHover)
+        {
+            return;
+        }
+
+        _closedPillTint = tint;
+        _closedPillHover = hover;
+        if (tint is not Color c)
+        {
+            IslandPill.ClearValue(Border.BackgroundProperty);
+            return;
+        }
+
+        // Base = the bar's own capsule fill for the current state (theme-following, or the
+        // wallpaper-following plate in transparent mode), so the album hue is added on top of the
+        // exact fill the style would have used. Hover keeps the palette's hover plate as its base
+        // (the local Background suppresses the style's own hover trigger) and gets a slightly
+        // stronger tint amount on top.
+        string hoverKey = TopBarContrastPalette.PillFillHoverKey;
+        string restingKey = TopBarContrastPalette.PillFillKey;
+        if ((IslandPill.TryFindResource(hover ? hoverKey : restingKey) as SolidColorBrush)?.Color is not Color surface)
+        {
+            IslandPill.ClearValue(Border.BackgroundProperty);
+            return;
+        }
+
+        IslandPill.Background = FlyoutSurface.CreateTintedOver(
+            surface,
+            c,
+            hover ? IslandPalette.PillTintHoverAmount : IslandPalette.PillTintAmount);
+    }
+
+    /// <summary>Tint the closed pill follows, or null when there is nothing to follow.</summary>
+    private Color? ResolveClosedIslandTint()
+    {
+        if (_islandDragActive || _presence is null || Island is not { Config.Enabled: true } island)
+        {
+            return null;
+        }
+
+        if (!string.Equals(
+                IslandNormalizer.NormalizeColorMode(island.Config.ColorMode),
+                IslandConfig.ColorModeAlbum,
+                StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        MediaSnapshot snapshot = _engine.Media.Snapshot;
+        if (!snapshot.HasSession)
+        {
+            return null;
+        }
+
+        // The panel's own resolver: album mode, the live cover, accent fallback without a cover.
+        return IslandTintSource.Resolve(IslandConfig.ColorModeAlbum, snapshot.Thumbnail, musicPlaying: true);
     }
 
     /// <summary>
@@ -1675,6 +1831,51 @@ public partial class TopBarWindow
         _islandClock.Start();
     }
 
+    /// <summary>
+    /// Keeps a short repeating pointer sample alive while an unpinned (hover/transient) panel
+    /// is open. The panel popup is a separate window that sits over the pill's lower edge, so
+    /// it can take the pointer without a real leave and without a MouseEnter on the panel; a
+    /// one-off event check cannot see that. Pinned panels and closed popups stop the watch.
+    /// </summary>
+    private void SyncIslandHoverWatch()
+    {
+        bool wanted = IslandPopup.IsOpen
+            && _presence is { View.Panel: not IslandPanelBody.None, View.Pinned: false };
+        if (!wanted)
+        {
+            if (_islandHoverWatch is { IsEnabled: true })
+            {
+                _islandHoverWatch.Stop();
+            }
+
+            return;
+        }
+
+        if (_islandHoverWatch is null)
+        {
+            _islandHoverWatch = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+            _islandHoverWatch.Tick += OnIslandHoverWatchTick;
+        }
+
+        if (!_islandHoverWatch.IsEnabled)
+        {
+            _islandHoverWatch.Start();
+        }
+    }
+
+    private void OnIslandHoverWatchTick(object? sender, EventArgs e)
+    {
+        // A close animation can finish without another chrome pass; the watch must not outlive
+        // the popup it samples.
+        if (!IslandPopup.IsOpen)
+        {
+            _islandHoverWatch?.Stop();
+            return;
+        }
+
+        SyncIslandPointer(IslandNow());
+    }
+
     private WallpaperTransitionRequest? BuildWallpaperTransitionRequest()
     {
         IslandConfig? cfg = Island?.Config;
@@ -1711,6 +1912,7 @@ public partial class TopBarWindow
         IslandHost.ScreenPickerRequested += OnIslandScreenPickerRequested;
         IslandHost.PrompterPinnedChanged += OnIslandPrompterPinnedChanged;
         IslandHost.CameraMirrorRequested += OnIslandCameraMirrorRequested;
+        IslandHost.SurfaceTintChanged += OnIslandSurfaceTintChanged;
         IslandHost.AttachMedia(_engine.Media);
         if (Monitor.IsPrimary)
         {
@@ -1777,6 +1979,7 @@ public partial class TopBarWindow
         IslandHost.ScreenPickerRequested -= OnIslandScreenPickerRequested;
         IslandHost.PrompterPinnedChanged -= OnIslandPrompterPinnedChanged;
         IslandHost.CameraMirrorRequested -= OnIslandCameraMirrorRequested;
+        IslandHost.SurfaceTintChanged -= OnIslandSurfaceTintChanged;
         IslandHost.DetachWallpaper();
         if (_wallpaper is not null)
         {
@@ -1802,11 +2005,11 @@ public partial class TopBarWindow
         _engine.Bluetooth.Changed -= OnBluetoothNotice;
         _engine.Bluetooth.StopWatching();
         CameraMirrorHost.Updated -= OnCameraMirrorUpdated;
-        if (_vizTimer is not null)
+        if (_islandHoverWatch is not null)
         {
-            _vizTimer.Stop();
-            _vizTimer.Tick -= OnVisualizerTick;
-            _vizTimer = null;
+            _islandHoverWatch.Stop();
+            _islandHoverWatch.Tick -= OnIslandHoverWatchTick;
+            _islandHoverWatch = null;
         }
 
         if (Island is { } island)
@@ -1816,6 +2019,10 @@ public partial class TopBarWindow
         }
 
         ClearCaptureAffinity();
+        // No service left to follow: the capsule returns to the plain style fill.
+        IslandPill.ClearValue(Border.BackgroundProperty);
+        _closedPillTint = null;
+        _closedPillHover = false;
         IslandHost.Detach();
         _presence = null;
         _islandPrompterPinned = false;
@@ -2252,20 +2459,8 @@ public partial class TopBarWindow
         bool camera = snap.Face == IslandPillFace.Camera;
         IslandCamera.Visibility = camera ? Visibility.Visible : Visibility.Collapsed;
         IslandCamera.Source = camera ? CameraMirrorHost.Preview?.Frame : null;
-        bool bars = VisualizerBarsWanted(snap);
-        IslandBars.Visibility = bars ? Visibility.Visible : Visibility.Collapsed;
-        double cameraDip = camera && IslandCamera.Source is not null ? 44 : 0;
-        return cameraDip + (bars ? IslandBarsDip : 0);
+        return camera && IslandCamera.Source is not null ? 44 : 0;
     }
-
-    /// <summary>
-    /// Bars follow the music face, not SMTC IsPlaying — some players keep a
-    /// session while playback status lags; peak stays flat when audio is quiet.
-    /// </summary>
-    private bool VisualizerBarsWanted(IslandPresenceView snap)
-        => snap.Face == IslandPillFace.NowPlaying
-           && Island?.Config.Visualizer == true
-           && _engine.Media.Snapshot.HasSession;
 
     private void OnBluetoothNotice(object? sender, EventArgs e)
     {
@@ -2323,90 +2518,6 @@ public partial class TopBarWindow
         }
 
         _engine.Bluetooth.StopWatching();
-    }
-
-    private bool VisualizerWanted()
-        => Monitor.IsPrimary
-           && _presence is not null
-           && VisualizerBarsWanted(_presence.View);
-
-    private void SyncVisualizerTimer()
-    {
-        if (!VisualizerWanted())
-        {
-            if (_vizTimer is { IsEnabled: true })
-            {
-                _vizTimer.Stop();
-                VisualizerBars.Reset();
-            }
-
-            return;
-        }
-
-        if (_vizTimer is null)
-        {
-            _vizTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-            _vizTimer.Tick += OnVisualizerTick;
-        }
-
-        if (!_vizTimer.IsEnabled)
-        {
-            VisualizerBars.Reset();
-            _vizTimer.Start();
-        }
-    }
-
-    private void OnVisualizerTick(object? sender, EventArgs e)
-    {
-        if (!VisualizerWanted())
-        {
-            _vizTimer?.Stop();
-            VisualizerBars.Reset();
-            if (IslandBars.Visibility == Visibility.Visible)
-            {
-                ApplyIslandChrome(focusMusic: false);
-            }
-
-            return;
-        }
-
-        float peak = 0f;
-        if (_engine.Volume.Snapshot is { IsMuted: true })
-        {
-            // Endpoint peak is pre-master-volume; mute still means a quiet chip.
-            peak = 0f;
-        }
-        else
-        {
-            _ = AudioPeak.TryRead(out peak);
-        }
-
-        // Bars are fixed 14 DIP tall and scaled with a RenderTransform: no layout pass per tick,
-        // and a tick whose scales did not change (silence) touches nothing at all.
-        float[] levels = VisualizerBars.Step(peak);
-        Border[] bars = [IslandBar0, IslandBar1, IslandBar2, IslandBar3, IslandBar4];
-        for (int i = 0; i < bars.Length; i++)
-        {
-            double scale = IslandMotion.BarScale(levels[i], VisualizerBars.MaxDip);
-            if (Math.Abs(scale - _barScales[i]) < 0.01)
-            {
-                continue;
-            }
-
-            _barScales[i] = scale;
-            if (bars[i].RenderTransform is ScaleTransform transform)
-            {
-                transform.ScaleY = scale;
-            }
-        }
-
-        // The drag chrome collapses the bars, and ApplyIslandFace is frozen while a drag is
-        // active (SetIslandDragActive owns those chrome mutations): repainting on this ~20 Hz
-        // tick would only fight the drag chrome. Exit rebuilds the face through UpdateIslandPill.
-        if (IslandBars.Visibility != Visibility.Visible && !_islandDragActive)
-        {
-            ApplyIslandChrome(focusMusic: false);
-        }
     }
 
     private static bool FaceHasTitle(IslandPillFace face)

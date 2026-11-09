@@ -8,6 +8,8 @@ namespace WharfBar.Views;
 /// <summary>
 /// Turns a cover bitmap into the final tint color. The extraction runs on a 32x32 copy
 /// (microseconds) and is cached by bitmap reference, so repeated calls for the same track are free.
+/// A gray or very dark cover still resolves to its representative average color, so the island
+/// follows the album instead of always falling back to the accent (null = no usable image color).
 /// UI thread only.
 /// </summary>
 internal static class IslandTintSource

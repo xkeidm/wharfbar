@@ -6,6 +6,13 @@ namespace WharfBar.Services;
 
 internal static class WallpaperAccent
 {
+    /// <summary>
+    /// Wallpaper accent keeps the pre-existing "colorful enough" contract: a gray or monochrome
+    /// wallpaper must not repaint the accent. The island tint may follow such a cover, but this
+    /// side spawns a Windows accent write, so it stays conservative.
+    /// </summary>
+    internal const double MinSaturation = 0.15;
+
     internal static IslandRgb? TryFromPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
@@ -61,7 +68,7 @@ internal static class WallpaperAccent
             return null;
         }
 
-        return c;
+        return IslandPalette.Saturation(c) < MinSaturation ? null : c;
     }
 
     internal static bool ShouldApply(bool enabled, IslandRgb? color)

@@ -37,34 +37,6 @@ public class IslandMotionTests
     }
 
     [Fact]
-    public void BarScale_NeverDropsBelowOneDip()
-    {
-        Assert.Equal(1d / 14, IslandMotion.BarScale(0f, 14), 6);
-        Assert.Equal(1d, IslandMotion.BarScale(3f, 14), 6);
-    }
-
-    [Fact]
-    public void Step_RisesWithoutOvershootAndFallsToZero()
-    {
-        VisualizerBars.Reset();
-        float[] first = VisualizerBars.Step(1f);
-        float[] second = VisualizerBars.Step(1f);
-        for (int i = 0; i < VisualizerBars.Count; i++)
-        {
-            Assert.InRange(first[i], 0f, 1f);
-            Assert.True(second[i] >= first[i]);
-        }
-
-        float[] last = second;
-        for (int i = 0; i < 60; i++)
-        {
-            last = VisualizerBars.Step(0f);
-        }
-
-        Assert.All(last, level => Assert.Equal(0f, level));
-    }
-
-    [Fact]
     public void MorphOpenMs_Enabled_VariedByRatio_AndLerps()
     {
         var fast = IslandMotion.MorphOpenMs(1.0, true);
