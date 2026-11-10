@@ -142,6 +142,15 @@ internal sealed class TrayMirrorService : IDisposable
     private bool _stateBlipConfirmedEmpty;
     private DateTime _lastStateChange;
 
+    // A bootstrap that the blocked-window checks keep deferring must not stay deferred forever:
+    // with the bar empty the mirror gets no icons at all (2026-11-10 field report on a
+    // dual-monitor PC — a maximized window on the primary monitor deferred the only read for the
+    // whole session). After MaxBlockedBootstrapWait one blip runs anyway.
+    private DateTime _bootstrapBlockedAt;
+
+    // Fullscreen-on-primary skips were silent; log the transition once instead of every poll.
+    private bool _fullscreenBlockedLogged;
+
     // Once UIA has delivered icons, the mirror source is locked for the session: the
     // classic toolbar can transiently reappear during state blips (unpark windows) and
     // its differently-keyed items would wipe and re-add the whole mirror on every flip.
@@ -480,19 +489,33 @@ internal sealed class TrayMirrorService : IDisposable
                 return null;
             }
 
-            // A fullscreen foreground window (WharfBar's own colour picker included) makes the
-            // shell virtualize the tray: a read taken there returns 0 buttons no matter how the
-            // bar is shown (2026-11-09 diag: a false "tray is empty" under the fullscreen picker),
-            // and a work-area flap under a fullscreen app is visible. Never blip there.
-            if (IsForegroundFullscreenOnPrimary())
+            // A fullscreen foreground window on the PRIMARY monitor (WharfBar's own colour picker
+            // included) makes the shell virtualize the tray: a read taken there returns 0 buttons
+            // no matter how the bar is shown (2026-11-09 diag: a false "tray is empty" under the
+            // fullscreen picker), and a work-area flap under a fullscreen app is visible. Never
+            // blip there. A fullscreen app on a secondary monitor must not block the primary read:
+            // the blip only reflows the primary work area (2026-11-10 field report: the old check
+            // measured the foreground window's own monitor and blocked silently on monitor 2).
+            if (TryGetFullscreenForegroundOnPrimary(out string fullscreenWindow))
             {
+                if (!_fullscreenBlockedLogged)
+                {
+                    _fullscreenBlockedLogged = true;
+                    TrayPeekDiagnostics.LogNote(
+                        $"state-blip skipped: fullscreen foreground on primary ({fullscreenWindow})");
+                }
+
                 return null;
             }
+
+            _fullscreenBlockedLogged = false;
 
             // ABM_SETSTATE(0) ↔ ABS_AUTOHIDE reserves and releases the taskbar strip, so every
             // maximized/snapped/bottom-touching window jumps twice. Gated hard (bootstrap of an
             // empty mirror, its bounded retries, or rare upkeep while the user is away). A blocked
-            // blip does not stamp the clock.
+            // blip does not stamp the clock — except a bootstrap blocked for too long: the only
+            // read must not be deferred forever (that leaves the bar with no tray icons at all,
+            // 2026-11-10 field report).
             TrayStateBlipReason reason = TrayStateBlipGate.Decide(
                 hasSnapshot: hasSnapshot,
                 bootstrapAttempts: _bootstrapBlips,
@@ -501,21 +524,39 @@ internal sealed class TrayMirrorService : IDisposable
                 userIdle: idle);
             if (reason == TrayStateBlipReason.None)
             {
+                _bootstrapBlockedAt = default;
                 return null;
             }
 
-            bool blocked = TrayStateBlipGate.ChecksAllAffectedWindows(reason, _bootstrapBlips)
-                ? TrayAutoHideReveal.HasWindowAffectedByWorkAreaChange(ReservedStripPx)
-                : HasMaximizedWindowOnPrimary();
-            if (blocked)
+            bool allAffected = TrayStateBlipGate.ChecksAllAffectedWindows(reason, _bootstrapBlips);
+            string blocker = allAffected
+                ? (TrayAutoHideReveal.HasWindowAffectedByWorkAreaChange(ReservedStripPx)
+                    ? "affected window on primary"
+                    : string.Empty)
+                : FindMaximizedWindowOnPrimary() ?? string.Empty;
+            if (blocker.Length > 0)
             {
-                // Visible to QA in the diag log: an empty mirror can stay empty for as long as
-                // this window is up, so the reason must not be silent.
+                if (_bootstrapBlockedAt == default)
+                {
+                    _bootstrapBlockedAt = now;
+                }
+
+                if (!TrayStateBlipGate.ShouldForceBlockedBootstrap(
+                        hasSnapshot, reason, now - _bootstrapBlockedAt))
+                {
+                    // Visible to QA in the diag log: an empty mirror can stay empty for as long as
+                    // this window is up, so the reason must not be silent.
+                    TrayPeekDiagnostics.LogNote(
+                        $"state-blip blocked reason={reason} attempt={_bootstrapBlips} ({blocker})");
+                    return null;
+                }
+
                 TrayPeekDiagnostics.LogNote(
-                    $"state-blip blocked reason={reason} attempt={_bootstrapBlips} (maximized/affected window)");
-                return null;
+                    $"state-blip forced after {(now - _bootstrapBlockedAt).TotalSeconds:F0}s blocked " +
+                    $"reason={reason} attempt={_bootstrapBlips} ({blocker})");
             }
 
+            _bootstrapBlockedAt = default;
             _lastStateChange = now;
             _bootstrapBlips++;
             TrayPeekDiagnostics.LogStateChange($"refresh-{reason}");
@@ -538,37 +579,73 @@ internal sealed class TrayMirrorService : IDisposable
     }
 
     /// <summary>
-    /// True when the foreground window is a real fullscreen app covering the primary monitor.
-    /// Maximized frames are excluded: DWM stretches them a few pixels past the monitor and they
-    /// are <c>IsZoomed</c>, so they must not be mistaken for fullscreen.
+    /// True when the foreground window is a real fullscreen app covering the <b>primary</b>
+    /// monitor. Maximized frames are excluded: DWM stretches them a few pixels past the monitor
+    /// and they are <c>IsZoomed</c>, so they must not be mistaken for fullscreen. The monitor is
+    /// the primary one on purpose: the state blip reflows the primary work area only, so a
+    /// fullscreen app on a secondary monitor must not block the read (2026-11-10 field report:
+    /// the old code measured the foreground window's own monitor, so a fullscreen app on
+    /// monitor 2 blocked the primary tray permanently and silently). <paramref name="window"/> is
+    /// a short class/title description for the diag log.
     /// </summary>
-    private static bool IsForegroundFullscreenOnPrimary()
+    private static bool TryGetFullscreenForegroundOnPrimary(out string window)
     {
+        window = string.Empty;
         IntPtr foreground = NativeMethods.GetForegroundWindow();
         if (foreground == IntPtr.Zero
             || NativeMethods.IsIconic(foreground)
             || NativeMethods.IsZoomed(foreground)
-            || !NativeMethods.GetWindowRect(foreground, out RECT window))
+            || !NativeMethods.GetWindowRect(foreground, out RECT bounds))
         {
             return false;
         }
 
-        IntPtr monitor = NativeMethods.MonitorFromWindow(foreground, NativeMethods.MONITOR_DEFAULTTOPRIMARY);
+        // The desktop window always resolves to the primary monitor; the flag check guards the
+        // API's fallback (a monitor-less caller gets the nearest monitor instead).
+        IntPtr monitor = NativeMethods.MonitorFromWindow(
+            NativeMethods.GetDesktopWindow(),
+            NativeMethods.MONITOR_DEFAULTTOPRIMARY);
         var info = new MONITORINFO
         {
             cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<MONITORINFO>(),
         };
-        if (monitor == IntPtr.Zero || !NativeMethods.GetMonitorInfo(monitor, ref info))
+        if (monitor == IntPtr.Zero
+            || !NativeMethods.GetMonitorInfo(monitor, ref info)
+            || (info.dwFlags & NativeMethods.MONITORINFOF_PRIMARY) == 0)
         {
             return false;
         }
 
         const int tolerance = 2;
         RECT screen = info.rcMonitor;
-        return window.Left <= screen.Left + tolerance
-            && window.Top <= screen.Top + tolerance
-            && window.Right >= screen.Right - tolerance
-            && window.Bottom >= screen.Bottom - tolerance;
+        bool fullscreen = bounds.Left <= screen.Left + tolerance
+            && bounds.Top <= screen.Top + tolerance
+            && bounds.Right >= screen.Right - tolerance
+            && bounds.Bottom >= screen.Bottom - tolerance;
+        if (!fullscreen)
+        {
+            return false;
+        }
+
+        window = DescribeWindow(foreground);
+        return true;
+    }
+
+    /// <summary><c>class='…' title='…'</c> for the diag log (bounded, best effort).</summary>
+    private static string DescribeWindow(IntPtr hwnd)
+    {
+        var cls = new System.Text.StringBuilder(256);
+        _ = NativeMethods.GetClassName(hwnd, cls, cls.Capacity);
+        var title = new System.Text.StringBuilder(256);
+        _ = NativeMethods.GetWindowText(hwnd, title, title.Capacity);
+        // One diag line per attempt: a title with a line break must not split it.
+        string text = title.ToString().Replace('\r', ' ').Replace('\n', ' ');
+        if (text.Length > 80)
+        {
+            text = text[..80];
+        }
+
+        return $"class='{cls}' title='{text}'";
     }
 
     /// <summary>
@@ -595,6 +672,8 @@ internal sealed class TrayMirrorService : IDisposable
         _bootstrapBlips = 0;
         _stateBlipConfirmedEmpty = false;
         _lastStateChange = default;
+        _bootstrapBlockedAt = default;
+        _fullscreenBlockedLogged = false;
         _uiaLocked = false;
         _lastToolbar = IntPtr.Zero;
         _lastGoodUiaItems = [];
@@ -798,16 +877,43 @@ internal sealed class TrayMirrorService : IDisposable
         return rects;
     }
 
-    /// <summary>True when a maximized top-level window sits on the primary monitor.</summary>
-    private static bool HasMaximizedWindowOnPrimary()
+    /// <summary>
+    /// Description of a visible maximized window on the primary monitor, or null when there is
+    /// none. Only windows the user can actually see count: cloaked windows (other virtual
+    /// desktops, suspended UWP), tool/no-activate overlays and WharfBar's own windows make the
+    /// desktop jump nothing, and they used to defer the bootstrap read forever (2026-11-10 field
+    /// report: bar empty, no visible maximized window, log repeating <c>state-blip blocked
+    /// reason=Bootstrap</c>).
+    /// </summary>
+    private static string? FindMaximizedWindowOnPrimary()
     {
-        bool maximized = false;
-        NativeMethods.EnumWindows((hwnd, _) =>
+        string? culprit = null;
+        uint ownPid = (uint)Environment.ProcessId;
+        NativeMethods.EnumWindows((hwnd, lParam) =>
         {
-            if (maximized
+            if (culprit is not null
                 || !NativeMethods.IsWindowVisible(hwnd)
                 || NativeMethods.IsIconic(hwnd)
                 || !NativeMethods.IsZoomed(hwnd))
+            {
+                return true;
+            }
+
+            int exStyle = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+            if ((exStyle & (NativeMethods.WS_EX_TOOLWINDOW | NativeMethods.WS_EX_NOACTIVATE)) != 0)
+            {
+                return true;
+            }
+
+            _ = NativeMethods.GetWindowThreadProcessId(hwnd, out uint pid);
+            if (pid == ownPid)
+            {
+                return true;
+            }
+
+            if (NativeMethods.DwmGetWindowAttribute(
+                    hwnd, NativeMethods.DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0
+                && cloaked != 0)
             {
                 return true;
             }
@@ -823,10 +929,10 @@ internal sealed class TrayMirrorService : IDisposable
                 return true;
             }
 
-            maximized = true;
+            culprit = DescribeWindow(hwnd);
             return false;
         }, IntPtr.Zero);
-        return maximized;
+        return culprit;
     }
 
     private struct CaptureStats

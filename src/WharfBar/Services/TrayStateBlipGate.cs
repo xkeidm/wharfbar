@@ -47,6 +47,16 @@ internal static class TrayStateBlipGate
     /// <summary>How many state blips a shell session may spend trying to fill an empty mirror.</summary>
     internal const int MaxBootstrapAttempts = 3;
 
+    /// <summary>
+    /// How long a bootstrap may stay deferred by the blocked-window checks before one blip runs
+    /// anyway. The blocked paths do not advance the attempt counters (a blocked blip is not
+    /// evidence about the tray), so without this escape a visible maximized window on the primary
+    /// monitor would defer the only read for the whole session and the bar would show no tray
+    /// icons at all (2026-11-10 field report: dual-monitor PC, <c>state-blip blocked
+    /// reason=Bootstrap attempt=0</c> repeating forever). One work-area reflow is the lesser evil.
+    /// </summary>
+    internal static readonly TimeSpan MaxBlockedBootstrapWait = TimeSpan.FromSeconds(30);
+
     /// <param name="hasSnapshot">The mirror currently shows (held) icons.</param>
     /// <param name="bootstrapAttempts">
     /// State blips already spent on this explorer instance (0 = none yet). Maintenance requires at
@@ -102,6 +112,21 @@ internal static class TrayStateBlipGate
             ? TrayStateBlipReason.Maintenance
             : TrayStateBlipReason.None;
     }
+
+    /// <summary>
+    /// Pure: may a bootstrap that the blocked-window checks keep deferring run anyway? The blocked
+    /// paths never advance <c>bootstrapAttempts</c> (a deferred blip proves nothing about the
+    /// tray), so without this escape a visible maximized window on the primary monitor would
+    /// defer the only read for the whole session. Only the first-read cases (Bootstrap and the
+    /// bounded BootstrapRetry series) are forced; the bounded series still caps how often.
+    /// </summary>
+    internal static bool ShouldForceBlockedBootstrap(
+        bool hasSnapshot,
+        TrayStateBlipReason reason,
+        TimeSpan blockedFor) =>
+        !hasSnapshot
+        && reason is TrayStateBlipReason.Bootstrap or TrayStateBlipReason.BootstrapRetry
+        && blockedFor >= MaxBlockedBootstrapWait;
 
     /// <summary>
     /// Bootstrap of a fresh shell only waits for maximized windows (startup re-flows the desktop

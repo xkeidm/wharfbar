@@ -8,6 +8,12 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- The tray mirror no longer stays empty for the whole session when the bootstrap state blip is deferred by a maximized window on the primary monitor: with the bar empty the blocked path never spent an attempt, so the only read could be deferred forever (2026-11-10 field report: dual-monitor PC, `state-blip blocked reason=Bootstrap attempt=0 (maximized/affected window)` repeating every 4 s, no tray icons on the bar). A never-filled bootstrap blocked for more than `TrayStateBlipGate.MaxBlockedBootstrapWait` (30 s) now runs one forced blip (`state-blip forced after Ns blocked …`), and the bounded attempt series still caps the work-area reflows.
+- The tray mirror's blocking-window checks only count windows the user can see: cloaked windows (other virtual desktops, suspended UWP), tool/no-activate overlays and WharfBar's own windows no longer defer the bootstrap read, and the blocked log names the culprit (`class='…' title='…'`) so the window can be found.
+- The fullscreen-foreground check now measures the primary monitor instead of the foreground window's own monitor, so a fullscreen app on a secondary monitor can no longer block the primary tray read silently; the skip is logged once per transition (`state-blip skipped: fullscreen foreground on primary …`).
+
 ## [1.0.0-beta.3] — 2026-11-09
 
 ### Added

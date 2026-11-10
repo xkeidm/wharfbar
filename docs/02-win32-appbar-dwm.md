@@ -124,6 +124,19 @@ For top-bar indicators:
   keeps it invisible with a **WS_EX_LAYERED + alpha 0** fallback (UIA continues to see
   `IsWindowVisible=true`); if that fails too, the peek does not open and the poll is skipped.
 
+   **Deferred bootstrap (2026-11-10):** the state blip is deferred while a visible maximized window sits
+   on the primary monitor (dropping the auto-hide state moves it twice). That check never spent a
+   bootstrap attempt, so it used to defer the *only* read for the whole session — an empty bar with no
+   tray icons (field report: dual-monitor PC, `state-blip blocked reason=Bootstrap attempt=0
+   (maximized/affected window)` every 4 s). A never-filled bootstrap blocked for more than
+   `TrayStateBlipGate.MaxBlockedBootstrapWait` (30 s) now runs one forced blip
+   (`state-blip forced after Ns blocked …`); the bounded attempt series still caps the reflows. The
+   check only counts windows the user can see (cloaked windows — other virtual desktops, suspended
+   UWP — tool/no-activate overlays and WharfBar's own windows are ignored) and logs the culprit's
+   class/title. The fullscreen skip is **primary-monitor only**: a fullscreen app on a secondary
+   monitor no longer blocks the read (the blip reflows the primary work area only), and the skip is
+   logged once per transition (`state-blip skipped: fullscreen foreground on primary …`).
+
    > **Icon capture has to be INSIDE the PEEK (2026-09-30, live measurement + fix).**
    > `PrintWindow(PW_RENDERFULLCONTENT)` **writes no pixels at all into the DIB while the taskbar
    > `IsWindowVisible=False`, but returns `TRUE`** → a `1920x48` fully black (`[0,0,0,255]`) bitmap

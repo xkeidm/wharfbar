@@ -184,4 +184,45 @@ public class TrayStateBlipGateTests
         Assert.False(TrayStateBlipGate.ChecksAllAffectedWindows(
             TrayStateBlipReason.Bootstrap, bootstrapAttempts: 0));
     }
+
+    [Fact]
+    public void BlockedBootstrap_IsForcedAfterTheBoundedWait()
+    {
+        // The blocked paths never advance the attempt counters (a deferred blip proves nothing
+        // about the tray), so a maximized window on the primary monitor used to defer the only
+        // read forever and the bar showed no tray icons at all (2026-11-10 field report).
+        Assert.False(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.Bootstrap, TimeSpan.Zero));
+        Assert.False(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.Bootstrap,
+            TrayStateBlipGate.MaxBlockedBootstrapWait - TimeSpan.FromSeconds(1)));
+        Assert.True(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.Bootstrap,
+            TrayStateBlipGate.MaxBlockedBootstrapWait));
+        Assert.True(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.BootstrapRetry,
+            TrayStateBlipGate.MaxBlockedBootstrapWait));
+    }
+
+    [Fact]
+    public void BlockedBootstrap_IsNotForcedOnceTheMirrorHasIcons()
+    {
+        // A populated mirror already has its icons; a deferred maintenance/retry blip must stay
+        // deferred rather than flap the desktop for pixels that are already on the bar.
+        Assert.False(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: true, TrayStateBlipReason.Bootstrap, TimeSpan.FromHours(1)));
+        Assert.False(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.None, TimeSpan.FromHours(1)));
+        Assert.False(TrayStateBlipGate.ShouldForceBlockedBootstrap(
+            hasSnapshot: false, TrayStateBlipReason.Maintenance, TimeSpan.FromHours(1)));
+    }
+
+    [Fact]
+    public void BlockedBootstrapWait_IsShortAndBounded()
+    {
+        // The whole point is to fill a blank bar quickly; a multi-minute wait would reproduce the
+        // original "never appeared" complaint.
+        Assert.True(TrayStateBlipGate.MaxBlockedBootstrapWait <= TimeSpan.FromMinutes(1));
+        Assert.True(TrayStateBlipGate.MaxBlockedBootstrapWait >= TimeSpan.FromSeconds(10));
+    }
 }
