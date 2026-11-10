@@ -8,6 +8,8 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.0.0-beta.4] — 2026-11-10
+
 ### Fixed
 
 - The tray mirror no longer stays empty for the whole session when the bootstrap state blip is deferred by a maximized window on the primary monitor: with the bar empty the blocked path never spent an attempt, so the only read could be deferred forever (2026-11-10 field report: dual-monitor PC, `state-blip blocked reason=Bootstrap attempt=0 (maximized/affected window)` repeating every 4 s, no tray icons on the bar). A never-filled bootstrap blocked for more than `TrayStateBlipGate.MaxBlockedBootstrapWait` (30 s) now runs one forced blip (`state-blip forced after Ns blocked …`), and the bounded attempt series still caps the work-area reflows.
