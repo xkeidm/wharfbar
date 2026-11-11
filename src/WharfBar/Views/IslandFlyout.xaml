@@ -148,6 +148,13 @@
             </Setter>
         </Style>
     </UserControl.Resources>
+    <!-- Hit surface: the popup child spans the panel plus its shadow pad. A popup with
+         AllowsTransparency is a per-pixel-alpha layered window, so Windows routes a click to it
+         only where the rendered alpha is non-zero; a fully transparent background would still
+         pass the click through. Alpha 1/255 is imperceptible but makes the pad (and the band
+         over the pill's lower half) hit-testable, so the window can pin/toggle the pill there and
+         light-dismiss on a pad click instead of leaking the click to the app behind. -->
+    <Grid x:Name="HitSurface" Background="#01000000">
     <Grid x:Name="SurfaceRoot"
           HorizontalAlignment="Left"
           Margin="24,10,24,24"
@@ -916,5 +923,6 @@
         </Grid>
         </Grid>
     </Border>
+    </Grid>
     </Grid>
 </UserControl>

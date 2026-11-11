@@ -185,7 +185,8 @@
                     Drop="OnIslandPillDrop"
                     DragEnter="OnIslandPillDragEnter"
                     DragLeave="OnIslandPillDragLeave"
-                    DragOver="OnIslandDragOver">
+                    DragOver="OnIslandDragOver"
+                    ToolTipOpening="OnIslandToolTipOpening">
                 <StackPanel x:Name="IslandContent"
                             Orientation="Horizontal"
                             HorizontalAlignment="Center"
@@ -249,7 +250,8 @@
                     <Border x:Name="IslandSatelliteFirst"
                             Style="{StaticResource IslandSatelliteHit}"
                             Visibility="Collapsed"
-                            MouseLeftButtonUp="OnIslandFirstSatelliteClick">
+                            MouseLeftButtonUp="OnIslandFirstSatelliteClick"
+                            ToolTipOpening="OnIslandToolTipOpening">
                         <TextBlock x:Name="IslandSatelliteFirstGlyph"
                                    FontFamily="{DynamicResource AppIconFontFamily}"
                                    FontSize="13"
@@ -262,7 +264,8 @@
                     <Border x:Name="IslandSatelliteSecond"
                             Style="{StaticResource IslandSatelliteHit}"
                             Visibility="Collapsed"
-                            MouseLeftButtonUp="OnIslandSecondSatelliteClick">
+                            MouseLeftButtonUp="OnIslandSecondSatelliteClick"
+                            ToolTipOpening="OnIslandToolTipOpening">
                         <TextBlock x:Name="IslandSatelliteSecondGlyph"
                                    FontFamily="{DynamicResource AppIconFontFamily}"
                                    FontSize="13"
@@ -518,6 +521,8 @@
                 <local:IslandFlyout x:Name="IslandHost"
                                     AllowDrop="True"
                                     PreviewKeyDown="OnIslandKeyDown"
+                                    PreviewMouseLeftButtonDown="OnIslandHostPreviewMouseLeftButtonDown"
+                                    PreviewMouseLeftButtonUp="OnIslandHostPreviewMouseLeftButtonUp"
                                     MouseEnter="OnIslandPanelEnter"
                                     MouseLeave="OnIslandPanelLeave"
                                     DragEnter="OnIslandPanelDragEnter"

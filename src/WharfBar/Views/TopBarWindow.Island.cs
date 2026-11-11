@@ -51,6 +51,12 @@ public partial class TopBarWindow
     private const double IslandSwallowReleaseScale = 1.05;
 
     private bool _islandClosePending;
+    // The grow-from-the-pill open morph is running. WPF raises Popup.Opened after the popup's
+    // first layout pass, and that pass can already trigger the reveal (popup width known ->
+    // TryRevealIsland -> AnimateIsland). OnIslandPopupOpened must not cancel that morph as if
+    // it were a stale close: doing so snapped the panel to its final scale/opacity, so the
+    // documented ~200 ms grow opened as an instant pop on the first paint.
+    private bool _islandOpeningMotion;
     // Prompter playback pin: while true the panel cannot auto-close; the pin carries the event (Task 3).
     private bool _islandPrompterPinned;
     // A close coming from a pill/satellite/keyboard click overrides the pin one time (it comes through the CloseIsland path).
@@ -102,6 +108,10 @@ public partial class TopBarWindow
     // Screen pixel X of the pill center written by the last popup alignment. A pill width
     // change keeps the centered pill's screen center, so the panel does not need a new offset.
     private double? _alignedPillCenterPx;
+    // Pill width (DIP) the popup's silhouette join was last built for. A centered width change
+    // keeps the panel where it is but moves the pill's left/right edges — the fillet notch has to
+    // be rebuilt or the joined pill visibly outgrows the panel's top edge.
+    private double _joinPillWidthDip;
     // Last geometry-confirmed over-island sample; a change repaints the hover width even when
     // the presence view itself did not change (pinned panel, genuine leave).
     private bool _pointerOverIslandSample;
@@ -170,14 +180,28 @@ public partial class TopBarWindow
     {
         try
         {
-            Point pill = Mouse.GetPosition(IslandPill);
+            // Mouse.GetPosition is the last position WPF received from an input message of this
+            // process. Once the pointer rests over another application (or the last WPF window
+            // under it, the popup, was closed), it goes stale at the popup's click point and the
+            // geometric sample keeps saying "over the pill": the hover panel then neither closes
+            // on leave nor re-opens after a click-close, because the pointer never counts as
+            // having re-entered. The real cursor position cannot go stale.
+            if (!TryGetCursorInElement(IslandPill, out Point pill))
+            {
+                return (false, false);
+            }
+
             Size pillSize = new(IslandPill.ActualWidth, IslandPill.ActualHeight);
             if (!IslandPopup.IsOpen)
             {
                 return (IslandHoverRegion.Contains(pill, pillSize.Width, pillSize.Height), false);
             }
 
-            Point panel = Mouse.GetPosition(IslandHost);
+            if (!TryGetCursorInElement(IslandHost, out Point panel))
+            {
+                return (false, false);
+            }
+
             Size panelSize = new(IslandHost.ActualWidth, IslandHost.ActualHeight);
             if (IslandHoverRegion.IsOverIsland(pill, pillSize, panel, panelSize))
             {
@@ -192,6 +216,26 @@ public partial class TopBarWindow
         }
 
         return (false, false);
+    }
+
+    /// <summary>Cursor position in an element's coordinates, from the real cursor (not WPF's cached input state).</summary>
+    private static bool TryGetCursorInElement(Visual element, out Point point)
+    {
+        point = default;
+        if (!NativeMethods.GetCursorPos(out POINT cursor))
+        {
+            return false;
+        }
+
+        try
+        {
+            point = element.PointFromScreen(new Point(cursor.X, cursor.Y));
+            return true;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     private void OnIslandPillDragEnter(object sender, DragEventArgs e)
@@ -706,6 +750,75 @@ public partial class TopBarWindow
         }
 
         RunIslandCommand(_presence.Click(IslandNow()));
+    }
+
+    /// <summary>
+    /// The island popup's window starts 12 DIP above the panel top (shadow pad) and therefore
+    /// covers the pill's lower half. Those clicks used to land on the popup with no element to
+    /// receive them — the pill could only be pinned/toggled by clicking its upper few DIP. Route
+    /// the band over the pill to the pill's own activation.
+    /// </summary>
+    private void OnIslandHostPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!IslandPopup.IsOpen || !_islandJoined)
+        {
+            return;
+        }
+
+        Point pointInHost = e.GetPosition(IslandHost);
+        if (IsIslandPillScreenPoint(IslandHost.PointToScreen(pointInHost)))
+        {
+            e.Handled = true;
+            ActivateIslandPill();
+            return;
+        }
+
+        // A click in the transparent shadow pad is a light dismiss. The popup is its own
+        // no-activate window, so the window-behind activation that normally closes a pinned
+        // flyout never reaches the bar and the click used to be swallowed instead.
+        if (!IslandHost.IsPointInsidePanel(pointInHost))
+        {
+            e.Handled = true;
+            CloseIsland();
+        }
+    }
+
+    /// <summary>
+    /// Companion to the mouse-down forwarding: a real pill click also activates the bar window as
+    /// a side effect of mouse activation, which is what keeps Esc (bar-level PreviewKeyDown)
+    /// working. Doing that on mouse-up matters: activating on mouse-down changes the mouse
+    /// capture owner, and the same physical click's up event then lands on the bar pill and runs
+    /// the click a second time (pin immediately toggled back off).
+    /// </summary>
+    private void OnIslandHostPreviewMouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!IslandPopup.IsOpen || !_islandJoined)
+        {
+            return;
+        }
+
+        if (IsIslandPillScreenPoint(IslandHost.PointToScreen(e.GetPosition(IslandHost))))
+        {
+            e.Handled = true;
+            Activate();
+        }
+    }
+
+    /// <summary>True when a screen-space point (device pixels) lies on the island pill.</summary>
+    private bool IsIslandPillScreenPoint(Point screenPoint)
+    {
+        try
+        {
+            Point origin = IslandPill.PointToScreen(new Point(0, 0));
+            Point corner = IslandPill.PointToScreen(
+                new Point(IslandPill.ActualWidth, IslandPill.ActualHeight));
+            return screenPoint.X >= origin.X - 1 && screenPoint.X <= corner.X + 1
+                && screenPoint.Y >= origin.Y - 1 && screenPoint.Y <= corner.Y + 1;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -1583,6 +1696,14 @@ public partial class TopBarWindow
             return;
         }
 
+        // A close that is still animating (the pointer left, then came back — or a click pinned
+        // the panel) must not win over this presentation: its Completed would set IsOpen=false
+        // and the next chrome pass would re-open the panel, i.e. a close+reopen blink.
+        if (_islandClosePending)
+        {
+            CancelIslandMotion();
+        }
+
         if (_shownPanel == snap.Panel && _shownBack == snap.ShowClipboardBack)
         {
             if (focusMusic)
@@ -1623,6 +1744,7 @@ public partial class TopBarWindow
 
     private void CloseIslandPopupOnly(bool animate)
     {
+        bool wasAwaitingReveal = _islandAwaitingReveal;
         _islandAwaitingReveal = false;
         _islandRevealPosted = false;
         if (!IslandPopup.IsOpen)
@@ -1631,8 +1753,27 @@ public partial class TopBarWindow
             return;
         }
 
-        if (animate && !_islandClosePending)
+        if (animate)
         {
+            // A close that is already animating is a no-op. The presence engine can emit
+            // Panel=None on two passes (and an explicit close runs after the engine's own
+            // close); falling through to the instant branch here tore the popup down mid-close,
+            // so the panel vanished and the pill unjoined before the animation had finished.
+            if (_islandClosePending)
+            {
+                return;
+            }
+
+            // Never revealed (the measured width was not known yet): hide it instead of
+            // animating a visible frame — an animated close would first paint the panel at
+            // full opacity for one frame.
+            if (wasAwaitingReveal)
+            {
+                CancelIslandMotion();
+                IslandPopup.IsOpen = false;
+                return;
+            }
+
             _islandClosePending = true;
             AnimateIsland(opening: false, () =>
             {
@@ -1653,10 +1794,29 @@ public partial class TopBarWindow
 
     private void OnIslandPopupOpened(object sender, EventArgs e)
     {
-        CancelIslandMotion();
+        // A stale close (or a close that a quick re-open overtook) is dropped here — but the
+        // reveal may already have started the open morph from the popup's first layout pass.
+        // Cancelling that morph here is what made the panel snap open instead of growing.
+        if (!_islandOpeningMotion)
+        {
+            CancelIslandMotion();
+            if (_islandAwaitingReveal)
+            {
+                // CancelIslandMotion writes Opacity=1. The "hidden until arranged" guard must
+                // survive until TryRevealIsland has actually aligned the panel: the reveal can be
+                // deferred (measured width not known in the Opened pass), and a mispositioned
+                // full-opacity first frame would flash before the grow starts.
+                IslandHost.Opacity = 0;
+            }
+        }
+
         // The panel already shows the track; a pill tooltip that opens later would float over
-        // the tab strip. Suppress it while the panel is open and restore it on close.
-        ToolTipService.SetIsEnabled(IslandPill, false);
+        // the tab strip. Suppress it while the panel is open and restore it on close. The
+        // hover that opens the panel (150 ms) can beat the tooltip's own delay, so an instance
+        // that is already open has to be dismissed as well — SetIsEnabled alone only blocks
+        // later ones.
+        SetIslandToolTipsEnabled(false);
+        CloseIslandToolTips();
         if (Monitor.IsPrimary && Island is { } island)
         {
             IslandHost.Attach(island);
@@ -1678,13 +1838,57 @@ public partial class TopBarWindow
         SyncIslandHoverWatch();
         IslandHost.OnPanelClosed();
         SetIslandJoined(false);
-        ToolTipService.SetIsEnabled(IslandPill, true);
+        SetIslandToolTipsEnabled(true);
         // A close can land while the drag is still on the pill (for example a cancel/close
         // animation that a quick re-enter raced). Re-arm the preview so the drag keeps its
         // drop target instead of showing chrome over a closed island.
         if (_islandDragActive && _islandDragValid)
         {
             ArmIslandDragPreview();
+        }
+    }
+
+    /// <summary>
+    /// Suppresses or restores the pill and satellite tooltips. A joined panel owns the space
+    /// directly under the pill, so a tooltip opening there would cover the hub tab strip.
+    /// </summary>
+    private void SetIslandToolTipsEnabled(bool enabled)
+    {
+        foreach (FrameworkElement host in IslandToolTipHosts())
+        {
+            ToolTipService.SetIsEnabled(host, enabled);
+        }
+    }
+
+    /// <summary>
+    /// Dismisses a tooltip that is already on screen when the panel opens. The panel's 150 ms
+    /// hover can win the race against the tooltip's own delay, and disabling the service does not
+    /// close an instance that is already visible.
+    /// </summary>
+    private void CloseIslandToolTips()
+    {
+        foreach (FrameworkElement host in IslandToolTipHosts())
+        {
+            if (host.ToolTip is ToolTip tip && tip.IsOpen)
+            {
+                tip.IsOpen = false;
+            }
+        }
+    }
+
+    private FrameworkElement[] IslandToolTipHosts() =>
+        [IslandPill, IslandSatelliteFirst, IslandSatelliteSecond];
+
+    /// <summary>
+    /// Last line of defence for the tooltip race: a tooltip that WPF already asked to open while
+    /// the panel is joined is refused. <see cref="ToolTipService.SetIsEnabled"/> only covers the
+    /// requests that come after it.
+    /// </summary>
+    private void OnIslandToolTipOpening(object sender, ToolTipEventArgs e)
+    {
+        if (_islandJoined || IslandPopup.IsOpen)
+        {
+            e.Handled = true;
         }
     }
 
@@ -1747,7 +1951,9 @@ public partial class TopBarWindow
             }
 
             _islandRevealPosted = true;
-            _ = Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+            // Render runs before the next paint (Loaded is below it), so the panel is still at
+            // Opacity=0 when the retry aligns it — no mispositioned frame can slip out.
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
             {
                 if (_islandAwaitingReveal && IslandPopup.IsOpen)
                 {
@@ -1802,6 +2008,7 @@ public partial class TopBarWindow
             work.Right);
         ApplyIslandOffset(offset - IslandFlyout.ShadowPadDip, force);
         IslandHost.SetJoin(pillDip, -offset);
+        _joinPillWidthDip = pillDip;
         // Remember the center this offset was computed for: a later width change that keeps
         // the centered pill's center must not re-align (that made the panel jitter on hover).
         _alignedPillCenterPx = origin.X + (pillDip * dpi / 96d / 2d);
@@ -1863,10 +2070,41 @@ public partial class TopBarWindow
             && center is double current
             && Math.Abs(current - aligned) < 0.5)
         {
+            // The panel must not move (the pill's center did not), but the pill's edges did.
+            // The concave fillets are built from the pill's width and left edge, so a hover,
+            // title or HUD width morph has to rebuild the join — otherwise the widened pill
+            // outgrows the panel's top-edge notch and the merged look breaks.
+            RefreshIslandJoin();
             return;
         }
 
         AlignIslandPopup(force: false);
+    }
+
+    /// <summary>
+    /// Rebuilds the silhouette join for the pill's current width without moving the panel
+    /// (<see cref="AlignIslandPopup"/> positions the popup; this only refreshes the notch).
+    /// </summary>
+    private void RefreshIslandJoin()
+    {
+        if (!_islandJoined || !IslandPopup.IsOpen || _islandAwaitingReveal)
+        {
+            return;
+        }
+
+        double pillDip = IslandPill.ActualWidth;
+        double panelDip = IslandHost.PanelWidthDip;
+        if (double.IsNaN(pillDip) || pillDip <= 1 || panelDip <= 1)
+        {
+            return;
+        }
+
+        // Panel-local X of the pill's left edge: the aligned offset includes the shadow-pad
+        // compensation; the width delta splits evenly because the pill stays centered.
+        double offset = IslandPopup.HorizontalOffset + IslandFlyout.ShadowPadDip;
+        double delta = (pillDip - _joinPillWidthDip) / 2d;
+        IslandHost.SetJoin(pillDip, -(offset + delta));
+        _joinPillWidthDip = pillDip;
     }
 
     /// <summary>Screen X of the centered pill's middle in device pixels, or null when unconnected.</summary>
@@ -1903,6 +2141,7 @@ public partial class TopBarWindow
             // meets the pill side.
             ApplyIslandJoinRim();
             IslandHost.SetJoin(IslandPill.ActualWidth, IslandHost.PanelWidthDip > 0 ? (IslandHost.PanelWidthDip - IslandPill.ActualWidth) / 2d : 0);
+            _joinPillWidthDip = IslandPill.ActualWidth;
             // The joined fill owns the capsule; force the closed cache to repaint on close.
             _closedPillTintState = ClosedPillTintState.Invalid;
             return;
@@ -1933,6 +2172,26 @@ public partial class TopBarWindow
         var brush = new SolidColorBrush(IslandHost.JoinRimColor);
         brush.Freeze();
         IslandPill.BorderBrush = brush;
+    }
+
+    /// <summary>
+    /// Re-paints the joined panel surface from the current theme. The panel silhouette, the joined
+    /// pill fill and the rim are single brushes built from the theme at open time, and the island
+    /// popup is its own window (it never sees the bar's WM_THEMECHANGED / WM_SETTINGCHANGE), so a
+    /// theme or accent switch under an open panel has to re-run this paint pass.
+    /// </summary>
+    private void RefreshJoinedIslandSurface()
+    {
+        if (!_islandJoined || !IslandPopup.IsOpen)
+        {
+            return;
+        }
+
+        IslandHost.ApplySurface();
+        IslandHost.RefreshThemeRim();
+        IslandHost.RefreshThemeRows();
+        IslandPill.Background = FlyoutSurface.CreateTinted(IslandHost.SurfaceTint, IslandFlyout.JoinTintAmount);
+        ApplyIslandJoinRim();
     }
 
     private void OnIslandSurfaceTintChanged(object? sender, EventArgs e)
@@ -2039,6 +2298,7 @@ public partial class TopBarWindow
     /// </summary>
     private void CancelIslandMotion()
     {
+        _islandOpeningMotion = false;
         CancelPendingClose(IslandHost, ref _islandClosePending);
         CancelPendingClose(IslandHost.PanelSurface, ref _islandClosePending);
         IslandHost.ClearValue(UIElement.RenderTransformProperty);
@@ -2057,7 +2317,12 @@ public partial class TopBarWindow
         TimeSpan motion = opening
             ? IslandMotion.MorphOpenMs(fromX, enabled)
             : IslandMotion.MorphCloseMs(fromX, enabled);
-        AnimateChipFlyout(IslandHost.PanelSurface, opening, onDone, fromX, 0.05, IslandHost, motion);
+        // Popup.Opened is raised after the popup's first layout pass, and that pass can already
+        // have started this morph (popup width known -> reveal). The flag lets the Opened
+        // handler tell a live open apart from a stale close it has to cancel.
+        _islandOpeningMotion = opening;
+        Action? done = opening ? () => _islandOpeningMotion = false : onDone;
+        AnimateChipFlyout(IslandHost.PanelSurface, opening, done, fromX, 0.05, IslandHost, motion);
     }
 
     private void ArmIslandClock()
@@ -2690,10 +2955,24 @@ public partial class TopBarWindow
         }
 
         bool selected = satellite == _selectedSatellite;
-        host.BorderBrush = selected
-            ? TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue
-            : Brushes.Transparent;
-        host.ToolTip = satellite == IslandSatellite.Music ? Strings.Island_Music : Strings.Island_Clipboard;
+        if (selected && TryFindResource("AccentFillColorDefaultBrush") is not null)
+        {
+            // Live reference: a selected satellite can stay on the pill across a theme/accent swap
+            // with no repaint in between, and a captured accent brush would keep the old ring.
+            host.SetResourceReference(Border.BorderBrushProperty, "AccentFillColorDefaultBrush");
+        }
+        else if (selected)
+        {
+            host.BorderBrush = Brushes.DodgerBlue;
+        }
+        else
+        {
+            host.ClearValue(Border.BorderBrushProperty);
+        }
+
+        // A ToolTip instance (not a plain string) so an already-open satellite tooltip can be
+        // dismissed when the panel opens over the spot where it would sit.
+        SetPlainToolTip(host, satellite == IslandSatellite.Music ? Strings.Island_Music : Strings.Island_Clipboard);
         return IslandSatelliteDip;
     }
 

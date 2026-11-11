@@ -1574,6 +1574,13 @@ public partial class TopBarWindow : Window
         }
 
         RefreshWallpaperTextContrast();
+
+        // Code-built chrome reads the theme at paint time instead of binding to it: the island
+        // panel is its own popup window and never receives the bar's theme messages, so its
+        // silhouette / joined pill / rim / code-built rows are re-painted from this pass (the
+        // single entry point of every theme/accent/background change). The stats sparkline is a
+        // live accent reference and needs no repaint.
+        RefreshJoinedIslandSurface();
     }
 
     /// <summary>

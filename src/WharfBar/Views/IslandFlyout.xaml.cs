@@ -351,6 +351,22 @@ public sealed partial class IslandFlyout : UserControl
         }
     }
 
+    /// <summary>
+    /// True when a point (in this control's coordinates) is inside the visible panel surface
+    /// (<see cref="FlyoutRoot"/>), i.e. not in the transparent shadow pad around it.
+    /// </summary>
+    internal bool IsPointInsidePanel(Point point)
+    {
+        if (FlyoutRoot.ActualWidth <= 1 || FlyoutRoot.ActualHeight <= 1)
+        {
+            return false;
+        }
+
+        Point origin = FlyoutRoot.TranslatePoint(new Point(0, 0), this);
+        return point.X >= origin.X && point.X <= origin.X + FlyoutRoot.ActualWidth
+            && point.Y >= origin.Y && point.Y <= origin.Y + FlyoutRoot.ActualHeight;
+    }
+
     /// <summary>The silhouette is painted with this fill so the pill and the panel share it.</summary>
     internal void ApplySurface()
     {
