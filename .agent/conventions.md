@@ -26,6 +26,11 @@
 - Win32 structs (`APPBARDATA` and the like) are `internal` inside `Native/`; the service layer translates them into domain models.
 - A new Win32 call: add the signature to `docs/02-win32-appbar-dwm.md`; do not swallow the error return / `GetLastWin32Error` silently (at least a debug log).
 - WPF-UI backdrop first; DWM is the fallback.
+- Theme colours: a brush read in code is a **snapshot** of the current WPF-UI theme dictionary. Anything
+  code-built uses `DynamicResource` / `SetResourceReference` (never `TryFindResource(...)` assigned to
+  `Foreground`/`Background`/`Fill`), otherwise it keeps the old palette after a light/dark/accent switch.
+  Window-level theme reaction goes through `AppThemePreference` / `AppThemeWatcher`, not WPF-UI's
+  `SystemThemeWatcher` (which applies the raw system theme). Detail: `docs/04-gotchas.md`.
 - `schemaVersion` is a required field on config models; prefer reading without breaking, using per-field defaults.
 - The AppBar lifecycle lives in one place (register/unregister/re-register); `ABM_NEW` / `ABM_REMOVE` stay symmetric.
 - `unsafe` / `AllowUnsafeBlocks` only when there is a real need.

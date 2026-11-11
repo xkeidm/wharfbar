@@ -44,7 +44,9 @@ Windows taskbar layout: **one** icon per application.
   (`MinimizedWindowsSource` cache; no `EnumWindows` on the UI thread).
 - Multiple windows or processes stay in one box. While `WindowCount` > 1 a count badge sits at the icon's top
   right; the tooltip becomes `Name (N)`. The running capsule does not change: a long accent line when a window is
-  open on the desktop, a short neutral line when all of them are minimized.
+  open on the desktop, a short neutral line when all of them are minimized. Both lines (and the progress
+  lane under the glyph) are **live theme brushes**: they re-resolve on a light/dark/accent switch without
+  a repaint (docs/04-gotchas.md, `DockItemCell.ApplyPillBrush`).
   The badge, the line, and the thumbnail count only windows whose center is on **this** dock's monitor
   (ADR-014). On a minimized window the center is read from the restore
   rectangle (`rcNormalPosition`), not from the icon point; otherwise an unpinned box would disappear.
@@ -53,6 +55,14 @@ Windows taskbar layout: **one** icon per application.
 - **Launchpad** is at the far left of the strip. The glyph is the **brand logo tile** (ADR-019): a rounded tile (radius 28 on the 128 grid) at the normal icon size, with the solid small WharfBar mark (`logoStyle` = `wharfbar`, default; sun + pier, no plank gaps) or four Windows panes (`windows`). Colours come from `BrandPalette` (accent hue + effective light/dark theme; sun fixed per theme). The tile is a frozen, cached `DrawingImage` (`BrandLogo.DockTile`). On `WM_THEMECHANGED` / `WM_SYSCOLORCHANGE` / `WM_DWMCOLORIZATIONCOLORCHANGED` / `WM_SETTINGCHANGE("ImmersiveColorSet")`, and after a theme/accent/logo change in settings, only this cell's glyph is swapped (`RefreshBrandTile`); menu and tooltip stay. No timer. The icon does not grow on hover. A left click opens the box in the center of the primary screen; the box is visible before the scan finishes, and a warm catalog paints the full list on the first frame. The pad is keyboard-first: the search box is focused, Up/Down/Left/Right move between tiles (the first Up returns to search), Enter opens the focused tile, and Escape clears a non-empty query before it closes. Typing while a tile is focused goes back into the search box. In default view the body is Pinned (up to 6) → Recent (4, `Show all`) → All apps under letter headings with a grid/list toggle; while searching the matching apps come first (exact, prefix, word-start, substring), followed by matching recent files. Recent shortcuts Windows records for protocol jumps (`ms-*`, `name:`) and their ` (54)` launch counters are filtered out. The card shrinks to the screen and the phone panel is hidden when it does not fit; if a phone is connected, the vertical panel opens on the right of the box, the screenshot sits inside the phone frame, and the notification row uses the app icon. The wallpaper shows behind the box. The account chip always sits on the box's bottom strip. `Documents`, `Downloads`, `Pictures`, `Settings`, `Widget`, `Plugin`, and `Power` are chosen with `launchpad.tools`; a right click on the strip opens a checked menu and the selection is saved immediately. The button is 40 DIP, the glyph is centered; the card padding stays outside the corner curve.
   An unreachable `Programs` link is skipped. Widget and Plugin open the gallery (ADR-017): built-in items work, a local manifest is a record only. It is not written to `dock.items` or the User Pinned
   folder.
+- **`Task View`** sits immediately after the Launchpad tile, before the pins. A left click sends
+  Win+Tab (`SendInputKeys.TrySendWinTab`, deferred to `DispatcherPriority.Input` like the Win+N
+  notification-center path), so the Windows Task View toggles exactly as the system button does; the
+  shell owns the overlay. The glyph is the Segoe MDL2 Assets / Segoe Fluent Icons `\uE7C4` TaskView
+  glyph in the theme's primary text colour (`TextFillColorPrimaryBrush`), drawn as a frozen bitmap
+  and re-rendered by `RefreshBrandTile` on a theme/accent change (the same path as the Launchpad
+  tile). It is not written to `dock.items` or the User Pinned folder; its right-click menu is the
+  title card + `Open`.
 - **`Downloads`** sits immediately after the pin group, and **`Recycle Bin`** sits at the far right of
   the strip. Neither is written to `dock.items` or the User Pinned folder.
 
@@ -109,8 +119,9 @@ Hover does not grow the icon; the live strip scale is 1. The dock's first placem
 | Left click | Bring forward / launch; a second click minimizes (`WindowActivationService`) |
 | Left click (folder / `Downloads`) | Directory-stack flyout. A file uses `ShellExecuteW` (the registered verb). A folder goes down one level |
 | Left click (trash) | `shell:RecycleBinFolder` |
+| Left click (Task View) | Toggles the Windows Task View with a synthesized Win+Tab |
 | Hover (running app) | A card per window (still preview + title, up to 8 in rows of 4, open windows first then minimized). A single-window app gets one card too. A click on the card — preview or title — activates/restores that exact window and closes the card |
-| Right click (icon) | The menu below. Downloads and the trash have only the title + `Open` |
+| Right click (icon) | The menu below. Downloads, the trash and Task View have only the title + `Open` |
 | Right click (empty plate) | Background: Mica / Transparent / Tint + opacity (tint) |
 | Drag | Reorder pinned items; an accent line shows the target; the click is suppressed |
 | Drop | Adds `.lnk/.exe/.bat/.cmd`; dedupes by path |

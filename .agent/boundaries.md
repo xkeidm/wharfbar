@@ -29,6 +29,16 @@
   `SW_HIDE` alone is not enough (it leaves a ~48 px ghost). External `SetWindowPos`
   interference with maximized windows is FORBIDDEN (it produces a 7 ms fight with Firefox/WinForms window managers — tried,
   removed).
+- **Top-bar strip guard (2026-11-10):** Windows has **no API that forbids placing a window in an
+  AppBar strip** (the AppBar only shapes the work area; a manual drag always wins — the taskbar has
+  the same property and paints over the strip). `TopBarStripGuard` enforces the strip instead of
+  painting it, so the `transparent` bar stays see-through and the live wallpaper (slideshows,
+  animated walls) is always exact: an out-of-context `EVENT_SYSTEM_MOVESIZEEND` /
+  `EVENT_OBJECT_SHOW` hook pushes a **normal framed window** back below the bar with one
+  `SetWindowPos` (`SWP_ASYNCWINDOWPOS | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE`), only after
+  the interactive move/show — never mid-drag. Fullscreen, tool, no-activate, own-process and
+  child windows are excluded (`StripIntrusionPolicy`). This is deliberate and bounded; it does not
+  relax the forbidden work-area / maximized-window interference above.
 - **Measurement trap:** `ABM_SETSTATE`/`ABM_SETPOS` take effect **only when a registered AppBar** calls them;
   probing from outside returns `TRUE` and does nothing, which produces a false "the API is dead" result
   (this mistake was made on 2026-09-30). `SPI_SETWORKAREA` really is a silent no-op;

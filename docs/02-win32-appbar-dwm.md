@@ -61,6 +61,20 @@ An AppBar is appropriate for the top bar. The dock plate is an overlay (Topmost 
 
 While `dock.autoHide=false`, a sibling window (`DockWorkAreaReservation`) reserves a full-width strip at the plate height with an `ABE_BOTTOM` registration. The window is created with raw `CreateWindowEx` (`WS_EX_LAYERED` + alpha 0 + `WS_EX_TRANSPARENT`): a WPF `HwndSource` paints this strip black, because DWM redirection ignores `LWA_ALPHA`. The wallpaper stays visible, and the click falls through to the desktop. A maximized window follows the work area, so it stops at the top of the dock; desktop icons use the same edge. Auto-hide calls `ABM_REMOVE`. `SPI_SETWORKAREA` is not used for this job (a silent no-op on 25H2). On exit the registration is released with `ABM_REMOVE`.
 
+### Keeping the strip clear — there is no "forbid placement" API
+
+The AppBar contract only shapes the **work area**: maximize, snap and initial window placement respect the reserved strip, but a **manual drag** can always put a window there (a window may also restore from its own saved position, or be placed by its application). Windows offers no API that forbids a rectangle to other processes' windows — the taskbar has the same property and relies on painting over the strip.
+
+`TopBarStripGuard` enforces the strip instead of painting it:
+
+- An out-of-context `SetWinEventHook` (documented; nothing is injected into the other process, same pattern as `DockShellHook`) listens for `EVENT_SYSTEM_MOVESIZEEND` (`0x000B` — the interactive move/resize loop has finished) and `EVENT_OBJECT_SHOW` (`0x8002` — a window was shown/restored). The callback runs on the installing thread's (WPF UI) message loop, so it only validates cheaply and posts the hwnd.
+- The deferred pass re-reads the window rect and the monitor's `rcMonitor` / `rcWork` (`Display.GetMonitorBounds` / `GetMonitorWorkArea`), and `StripIntrusionPolicy` decides: no clamp when the monitor has no top AppBar, when the window is already below `rcWork.Top`, when it is entirely above the screen, or when it is fullscreen (a window covering its whole monitor — the bar hides for it via `ABN_FULLSCREENAPP`). Otherwise the window moves to `rcWork.Top` with one `SetWindowPos(..., SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS)`.
+- `SWP_ASYNCWINDOWPOS` queues the move to the owning thread, so a hung/busy application cannot stall the AppBar UI thread; the guard never moves a window **while** it is being dragged (only after release), so Windows' own move loop is never fought.
+- Eligibility (`IsEligible`): visible, not minimized/maximized, top-level (`WS_CHILD` absent), with a caption (`WS_CAPTION` both bits — menus, popups, OSDs and splash screens do not have one), and neither `WS_EX_TOOLWINDOW` nor `WS_EX_NOACTIVATE`. WharfBar's own windows are skipped by `WINEVENT_SKIPOWNPROCESS` (and by pid in the sweep).
+- `QueueSweep()` runs one coalesced `EnumWindows` pass at startup, on `WM_DPICHANGED` / `WM_DISPLAYCHANGE` and whenever a top bar is created/rebuilt, so windows already sitting under a bar are pushed out too.
+
+Consequence: a window dragged under the bar is visible through a `transparent` bar *while it is being dragged* and is pushed out when the mouse is released. Nothing is painted over the strip, so the live wallpaper — Windows slideshows and animated/dynamic walls included — is always exact; there is no snapshot to keep in sync (see `docs/04-gotchas.md`).
+
 ---
 
 ## b) DWM / Mica / backdrop
@@ -742,3 +756,33 @@ SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, "ImmersiveColorSet", SMT
 ```
 
 Failure does not block WharfBar theme apply. Fixed **light/dark** Appearance changes broadcast `ImmersiveColorSet`; wallpaper pair sync from that path is explicit in `AppearancePage` (external Windows theme changes do not flip hub pairs unless `theme=system`). Detail: [`05-theme-windows-wallpaper.md`](05-theme-windows-wallpaper.md).
+
+---
+
+## n) Windows key hook (ADR-020)
+
+A bare Windows key tap opens the Launchpad. The shell owns the Win-key hotkey, so the documented hotkey API cannot take it:
+
+```csharp
+RegisterHotKey(NULL, id, MOD_WIN /* 0x8 */, 0)   // -> FALSE, GetLastError() = 1409 (already registered)
+```
+
+Instead `Native/LowLevelKeyboardHook.cs` installs one global low-level keyboard hook on its own message-loop thread (`SetWindowsHookEx(WH_KEYBOARD_LL, proc, GetModuleHandle(null), 0)`), and `Services/WindowsKeyLauncher.cs` + `Services/WindowsKeyGesture.cs` decide what to do:
+
+```csharp
+// user32.dll / kernel32.dll
+SetWindowsHookEx(WH_KEYBOARD_LL /* 13 */, proc, hMod, 0)
+CallNextHookEx(NULL, code, wParam, lParam)      // return (IntPtr)1 to swallow the event
+UnhookWindowsHookEx(hook)
+GetMessage/PeekMessage + PostThreadMessage(WM_QUIT)   // own thread lifetime
+```
+
+KBDLLHOOKSTRUCT: `vkCode`, `scanCode`, `flags` (`LLKHF_INJECTED = 0x10`), `time`, `dwExtraInfo`.
+
+- **Both physical Win key events are swallowed** (down and up). The shell's `MOD_WIN + vk 0` hotkey therefore never arms, and `Start` does not open on the tap.
+- **Chords stay alive:** the first non-Win key pressed while Win is held makes the hook `SendInput` the Win key-down and pass the physical key; on the Win key-up the physical event is swallowed and a synthetic Win key-up is sent. `Win+E`, `Win+Tab`, `Win+Shift+S` and friends behave as before.
+- **Injected input is never touched** (`LLKHF_INJECTED`): the dock Task View tile's `Win+Tab` and the `SendInputKeys` helpers (`Win+B/N/P`) pass through unchanged, so the app cannot take its own shortcuts hostage.
+- **Key state:** blocking only the key-up leaves the OS key state down (the next key press is interpreted as `Win+<key>`); blocking both events and never touching the state for a tap is what keeps the keyboard clean afterwards (`docs/04-gotchas.md`).
+- The hook lives on a dedicated thread because a blocked WPF dispatcher would let Windows time the hook out (`LowLevelHooksTimeout`) and silently drop it. The handler only returns "swallow/pass"; the Launchpad opens through `Dispatcher.BeginInvoke`. `App.OnExit` disposes the hook (unhook + `WM_QUIT`) before the taskbar/AppBar restore.
+- Install failure is not fatal: no registration, a `Debug.WriteLine`, and the app runs without the Windows-key shortcut. A restricted (below-medium-integrity) launch cannot install a desktop-wide hook.
+

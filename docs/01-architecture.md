@@ -107,7 +107,9 @@ src/WharfBar/
  CoreAudioDevices.cs # render device list + default selection
  CoreAudioSessions.cs # application session volumes
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
+ LowLevelKeyboardHook.cs # WH_KEYBOARD_LL on its own message-loop thread; the handler only returns "swallow" (ADR-020)
  DesktopWallpaper.cs # SPI_SETDESKWALLPAPER / SPI_GETDESKWALLPAPER thin wrapper (island wallpaper gallery)
+ WindowEventHook.cs # out-of-context EVENT_SYSTEM_MOVESIZEEND / EVENT_OBJECT_SHOW WinEvents (top-bar strip guard)
  ScreenBitBlt.cs # BitBlt + GetDIBits screen capture (BGRA top-down, physical px, virtual-screen clamp; island color picker)
  SystemAccentPack.cs # PURE: accent DWORD + palette bytes for HKCU write
  SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorNotify broadcast
@@ -135,6 +137,8 @@ src/WharfBar/
  ProcessLauncherService.cs # Process.Start launcher
  WindowActivationService.cs # focusing / minimize toggle on a repeated click
  FullscreenState.cs # in-process fullscreen signal (TopBar → Dock)
+ StripIntrusionPolicy.cs # PURE: does a window intrude on a monitor's top AppBar strip, and to which y — unit tested
+ TopBarStripGuard.cs # app-wide strip guard: WinEvent hooks + one SetWindowPos push + startup/display sweeps
  WorkAreaChanged.cs # dock reposition event after AppBar placement
  DockAutoHideController.cs # edge-band poll, show/hide animation, state machine; tray-peek edge-band suppression
  AutostartService.cs # Startup-folder.lnk; synced with AppConfig.autostart
@@ -194,6 +198,8 @@ src/WharfBar/
  LaunchpadTileNav.cs # PURE arrow-key math over the tile grids (row/column, section handoff)
  LaunchpadSearch.cs # culture-independent I/i folding for the search box
  LaunchpadWarmup.cs # decodes every cached catalog icon in idle UI-thread slices (8 per pass) into the shared `AppIconService`
+ WindowsKeyGesture.cs # PURE Win-key tap/chord decision table for the Launchpad shortcut — unit tested
+ WindowsKeyLauncher.cs # bare Windows key -> Launchpad: swallows the physical key and synthesizes it only for Win+<key> chords (ADR-020)
  TrayOverflowInvoker.cs # peek-show + native overflow + hide again
  TrayMirrorService.cs # polls the tray toolbar, filters system icons, publishes a `TrayMirrorItem` snapshot (ADR-009), cursor-free UIA click replay + gated state-blip reads
  TrayUiaGesture.cs # PURE click→UIA gesture map (left = Invoke, double = two invokes, right = focus + Menu key); no physical click exists
@@ -218,7 +224,7 @@ The island (clipboard history + dropped files) is ADR-010.
 
 | Component | Job |
 |---------|--------|
-| `TopBarWindow` | AppBar; **brand logo: left click opens the Launchpad, right click the app menu**; **island in the center** (`IslandPill` + `IslandPopup`); right cluster; quick settings; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (hidden when there is no session); `network` → QS Network |
+| `TopBarWindow` | AppBar; **brand logo: left click and right click both open the app menu**; **island in the center** (`IslandPill` + `IslandPopup`); right cluster; quick settings; `dateTime` + `notifications` (Win+N); `controlCenter` → QS Main; `volume` → QS Mixer; `brightness` → `BrightnessFlyout`; `media` → `MediaFlyout` (hidden when there is no session); `network` → QS Network |
 | `QuickSettingsFlyout` | Win11-style quick settings (tiles / volume mixer / network). Page changes in an open panel are a 220 ms slide+fade (`QuickSettingsPageMotion`); there is none on the first open — ADR-006 |
 | `BrightnessFlyout` | Monitorian-style monitor brightness popover (master slider + independent monitor cards) |
 | `MediaSessionService` | SMTC (`GlobalSystemMediaTransportControlsSessionManager`) monitoring: snapshot (cover/title/artist/playback state), commands (Play/Pause, Next/Previous), session selection; **optimistic play/pause** — `TogglePlayPause` flips and publishes `IsPlaying` before the SMTC command and reverts when it is refused, a 1 s optimistic window keeps the panel poll from undoing the flip until `PlaybackInfoChanged` is authoritative; `PublishPlaybackNow()` publishes playback state/timeline on a playback event without a metadata/artwork reload; the timeline position is **interpolated locally** (`MediaTimeline`: raw `Position` + `(now − LastUpdatedTime) × PlaybackRate`, clamped) because SMTC freezes between app reports; `RefreshTimeline()` publishes it and raises `Changed` after a ≥200 ms move or an `IsPlaying` change; transient `GetPlaybackInfo`/`GetTimelineProperties` COM failures are non-destructive (no fake pause, no selection drop); a monotonic reload generation discards late metadata/artwork completions and the artwork cache is per session + revision (a changed cover with the same title/artist refreshes); events are marshaled to the Dispatcher where it was created; init failure retries in 10 s; `Changed` / `SessionsChanged` (ADR-008) |
@@ -251,6 +257,8 @@ The island (clipboard history + dropped files) is ADR-010.
 | `VeilService` | Overlay state + fade + hotkey host (message-only `HwndSource`); `SetEnabled` → `Config.Save`; `UnregisterHotKey` on exit (ADR-007) |
 | `VeilWindow` | Fullscreen layered overlay (solid color fill, `Topmost`, permanent `WS_EX_TRANSPARENT` passthrough, 280 ms fade); primary-monitor rect + re-placement on `WM_DISPLAYCHANGE` / `WM_DPICHANGED` |
 | `HotkeyNative` / `HotkeyParser` | `RegisterHotKey` / `UnregisterHotKey` P/Invoke; `Ctrl+F11` string ↔ (modifiers, vk) parse/format (ADR-007) |
+| `LowLevelKeyboardHook` | One global `WH_KEYBOARD_LL` hook on its own message-loop thread (a busy dispatcher must not make Windows skip the hook); `Install(2 s)` reports a refused install instead of crashing; the handler answers "swallow / pass" only. Injections are recognized through `LLKHF_INJECTED` (ADR-020) |
+| `WindowsKeyLauncher` | Bare Windows-key tap → `LaunchpadWindow.Toggle` on the dispatcher. Physical Win key events are swallowed; the first chord key makes the hook synthesize the Win key-down and the key-up follows on release, so every Win+<key> shortcut still works. Injected Win keys are never touched. `Dispose` releases the hook before the shell state is restored (ADR-020) |
 | `AboutWindow` | About dialog; no shell registration |
 | `MonitorBrightnessService` | DDC/CI (desktop `dxva2.dll`) + WMI (`WmiMonitorBrightness`) scan; a 50ms debounced background write |
 | `MonitorNative` | `dxva2.dll` P/Invoke functions + `user32.dll` monitor queries |
@@ -283,6 +291,8 @@ The island (clipboard history + dropped files) is ADR-010.
 | `AppIconService` | `ShellIcon` → WPF `ImageSource` (size is the cache key) |
 | `ProcessLauncherService` | `Process.Start` on a pin click |
 | `FullscreenState` | `TopBarWindow` `ABN_FULLSCREENAPP` → hide/show the dock |
+| `StripIntrusionPolicy` | **Pure** decision for the strip guard: no clamp without a top AppBar, when the window is already below `rcWork.Top`, entirely above the screen, or fullscreen (covers its monitor); otherwise the window moves to `rcWork.Top` — unit tested |
+| `TopBarStripGuard` | App-wide enforcement of the reserved strip (Windows has no "forbid placement" API): out-of-context `EVENT_SYSTEM_MOVESIZEEND` / `EVENT_OBJECT_SHOW` hooks post the hwnd, the deferred pass re-reads the rect and pushes a normal framed window below the bar with one `SetWindowPos` (`SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_ASYNCWINDOWPOS`); never mid-drag; fullscreen / tool / no-activate / own-process windows excluded; `QueueSweep` on startup, display/DPI change and top-bar rebuild |
 | `WorkAreaChanged` | Reposition the dock after top-bar AppBar placement |
 | `DockAutoHideController` | `dock.autoHide` state + edge-band poll; show/hide animation; fullscreen bridge; a stealth tray peek suppresses the edge-band show (`ShouldShowForCursor`) |
 | `DockHitTest` | `ApplyInteractive` / `ApplyPassthrough` — `WS_EX_TRANSPARENT` toggle |
@@ -380,6 +390,9 @@ Gallery UI still shows separate light and dark thumbnails; pairing is backend-on
 | `Services/WallpaperCatalog.cs` | Lists image files from bundled + user directories |
 | `Services/WallpaperService.cs` | Apply guard + SPI delegate |
 | `Native/DesktopWallpaper.cs` | `SPI_SETDESKWALLPAPER` / `SPI_GETDESKWALLPAPER` |
+| `Native/WindowEventHook.cs` | Out-of-context `SetWinEventHook` (`EVENT_SYSTEM_MOVESIZEEND`, `EVENT_OBJECT_SHOW`); documented WinEvents, nothing injected |
+| `Services/StripIntrusionPolicy.cs` | **Pure** strip-intrusion decision (physical-pixel rects): clamp target y or no-op — unit tested |
+| `Services/TopBarStripGuard.cs` | App-wide strip guard: hook → deferred rect check → one async `SetWindowPos` push; coalesced sweep |
 | `Services/IslandHub.cs` | Tab enum + config normalization |
 | `Native/ScreenBitBlt.cs` | GDI capture (`BitBlt` + `GetDIBits`, top-down BGRA): `TryCapture` / `TryCaptureRect`; no `GetPixel` |
 | `Views/ColorPickerWindow.xaml(.cs)` | Screen color picker overlay: fullscreen monitor topmost, cursor-centred loupe + HEX/hint card, `Settled`/`Cancelled`; a frozen BitBlt frame is captured before the dim mask shows; Esc cancels through a temporary global `VK_ESCAPE` hotkey (keyboard focus is the fallback) |
@@ -554,6 +567,14 @@ action scans the `Drop` folder so it also covers orphans.
 - **Geometry:** WPF vector geometry only (no SVG library, no new package), 128 grid, frozen; tiles are cached `DrawingImage`s keyed by style and palette. The WharfBar mark is the small solid pier + sun at every size (plank gaps and sea lines were dropped for clarity at dock scale).
 - **App identity:** `ApplicationIcon` = `Assets/WharfBar.ico` (multi-size dusk tile); Settings title bar, About, and window chrome use `Assets/WharfBar.png`. Tray falls back to the exe icon via `SHGetFileInfo`. Rebuild rasters with `python tools/render-app-icon.py`.
 - **Live update:** no timer. The dock's existing theme messages (`WM_THEMECHANGED`, `WM_SYSCOLORCHANGE`, `WM_DWMCOLORIZATIONCOLORCHANGED`, `WM_SETTINGCHANGE("ImmersiveColorSet")`) re-apply the surface and then swap the launch cell's glyph. Settings → Appearance (logo, theme, accent) calls `App.ApplyLogoChanges`. With the system accent on, the tile reads `ApplicationAccentColorManager.GetColorizationColor()` fresh; other WPF-UI accent brushes still update only when `ApplySystemAccent` runs.
+
+## Windows key opens the Launchpad (ADR-020)
+
+- **Decision:** a bare Windows key tap opens (and closes) the Launchpad on the primary monitor; every `Win+<key>` shortcut keeps its Windows meaning, and the Start menu does not open for the tap.
+- **Why a hook:** the shell owns the Win-key hotkey — `RegisterHotKey(hwnd, id, MOD_WIN, 0)` comes back `ERROR_HOTKEY_ALREADY_REGISTERED` (1409) — so the app cannot claim it through the documented hotkey API. A `WH_KEYBOARD_LL` hook is the remaining public path.
+- **How:** both physical Win key events are swallowed, so the shell's hotkey state never arms. The first non-Win key pressed while Win is held makes the hook synthesize the Win key-down (`SendInput`) and pass the physical key; on the Win key-up the hook blocks the physical event and synthesizes the key-up. Injected Win keys (the dock Task View tile, the `Win+B/N/P` helpers) pass untouched, so the app does not fight itself.
+- **Rejected:** blocking only the key-up (the OS key state stays down and the next key becomes `Win+<key>`); `RegisterHotKey` (owned by the shell); IAT-hooking the shell's `twinui` hotkey registration (Open-Shell's approach — far too invasive for a user-space shell).
+- **Failure:** a refused hook install (restricted launch, security software) is only a debug log — the app runs normally without the Windows-key shortcut. Verification notes: `docs/04-gotchas.md`.
 
 ## Window model
 

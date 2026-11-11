@@ -8,6 +8,29 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Added
+
+- A bare **Windows key tap opens the Launchpad** (a second tap closes it) while every `Win+<key>` shortcut keeps working. The shell owns the Win-key hotkey (`RegisterHotKey(hwnd, id, MOD_WIN, 0)` reports "already registered"), so a low-level keyboard hook swallows both physical Win key events and synthesizes the key only when a chord key arrives — which also keeps the Start menu from opening on the tap and leaves the keyboard state clean. Injected input is untouched, so the app's own `Win+Tab` / `Win+B/N/P` gestures still work (ADR-020).
+- A **Task View** built-in dock tile (`builtin:taskview`, "Task View" / Turkish "Görev Görünümü") right after Launchpad. A click toggles the Windows Task View with a synthesized `Win+Tab`; the themed glyph follows light/dark and accent changes like the Launchpad brand tile. It is not written to `dock.items` or the User Pinned folder.
+
+### Changed
+
+- The top-bar brand logo **no longer opens the Launchpad**: left click now opens the logo menu (the same menu as right click, anchored under the icon; click elsewhere or press Esc to close). The Launchpad still opens from its dock tile and from the Windows key.
+
+### Fixed
+
+- A window dragged under the top bar can no longer stay there: the AppBar only shapes the work area (maximize/snap respect it, a manual drag does not) and a `transparent` bar is see-through, so nothing covered the strip. `TopBarStripGuard` now enforces it: out-of-context `EVENT_SYSTEM_MOVESIZEEND` / `EVENT_OBJECT_SHOW` hooks push a normal window back below the bar after the mouse is released (one `SetWindowPos`, no size/z-order/activation change, fullscreen/tool/own windows excluded), plus a sweep at startup, on display change and on a top-bar rebuild. Nothing is painted over the strip, so a `transparent` bar stays see-through and the live wallpaper (slideshows and animated walls included) is always exact.
+- Light mode: the short dock line under a minimized app stayed in the dark-theme colour (white on a light plate, effectively invisible) because the brush was read once from the theme dictionary; the dock running/minimized indicator and its progress lane now use live resource references and follow light/dark/accent immediately.
+- A pinned light (or dark) theme could be silently overridden by the system palette: the settings window (and the gallery) used WPF-UI's `SystemThemeWatcher`, which applies the SYSTEM theme on the first watch and on every later OS theme/colorization change — the Appearance page kept showing "Light" while the whole app ran dark. Both windows now re-resolve the configured theme (`AppThemeWatcher`).
+- Switching the theme from Settings to "System" re-applies the dock chrome explicitly; the dock's DWM backdrop no longer keeps the previous dark/light tint until the next system broadcast.
+- Dock window-preview cards use the theme's subtle fill instead of a hardcoded white wash (invisible on the light card).
+- The island panel no longer snaps open at full size: `Popup.Opened` is raised after the popup's first layout pass, which already starts the grow-from-the-pill reveal, and the Opened handler was cancelling that live morph as if it were a stale close — the panel jumped to its final scale/opacity in one paint, so the documented ~200 ms grow was never visible. The window now tracks the open morph and only drops a stale close.
+- The island pill/satellite tooltip no longer opens over the hub tab strip: the 150 ms hover that opens the panel can beat the tooltip's own delay, and `ToolTipService.SetIsEnabled(false)` only blocks later requests — an instance that was already open stayed on screen. Tooltips are now refused through `ToolTipOpening` while the pill is joined, and an open instance is dismissed when the panel opens.
+- Clicking the island pill while its panel is open now works over the whole pill: the popup window starts 12 DIP above the panel top and covers the pill's lower half, and its shadow pad had no WPF hit target, so the click was swallowed (and pad clicks leaked to the app behind). The popup child now has a 1/255-alpha hit surface: a click over the pill runs the pill's own activation (pin/toggle) and a click in the shadow pad is a light dismiss. The bar is activated on mouse-up — activating on mouse-down made the same click's up event run the pill click a second time and toggle the pin straight back off.
+- The merged pill-and-panel edge stays correct while the pill morphs: the concave fillets were built only on popup alignment, so a centered width change (hover, a title/HUD face, satellites) left the notch at the old pill width (a volume HUD left it ~40 DIP too narrow). The join is now rebuilt for the pill's new edges without moving the panel.
+- The island hover panel no longer gets stuck after the pointer has been over another app: the geometric hover sample used `Mouse.GetPosition`, which is the last position this process received and goes stale (a click-close left it reading "over the pill", so the panel would not re-open and a leave never armed the close grace). It now samples the real cursor (`GetCursorPos`).
+- A close that is still animating no longer tears the panel down when the presence engine emits `Panel=None` twice, and a panel presented again while the close animates (pointer back / a click pins it) cancels that close instead of closing and re-opening (a blink).
+
 ## [1.0.0-beta.4] — 2026-11-10
 
 ### Fixed

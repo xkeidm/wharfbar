@@ -23,7 +23,10 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  at most two satellites on a HUD face (persistent music and clipboard together; a now-playing pill has none). Low-battery threshold
  `island.lowBatteryPercent` (default 20, accepted 5–50). Optional tint `island.colorMode` (`album` default / `system` / `neutral`, ADR-018): in `album` the pill (subtle resting tint, full panel-top color while joined), the panel gradient and the music play/pause circle follow the cover color. Clipboard history is on the primary bar; the secondary pill is music and meters. The multi-line panel is a single
  popup with a **hub tab strip** (`Clipboard` / `Wallpaper` / `Music` / `Shelf` / `Prompter` / `Camera` / `Color`; last tab `island.hubTab`, tab visibility via `island.shelfTab` / `island.prompterTab` / `island.cameraTab` / `island.colorpickerTab` — ADR-010 addendum; labels fold to icons when all seven tabs converge); wallpaper is a thumbnail gallery (bundled `Wallpapers/` + `%AppData%/WharfBar/wallpapers/`, click apply via documented SPI, primary bar only; optional **`island.wallpaperAccent`** syncs WharfBar + best-effort Windows accent from the image after apply, default **on**). **Appearance light/dark** also writes Windows Personalization (`SystemThemeWriter`); **system** leaves Windows alone. Bundled `*-light`/`*-dark` pairs auto-switch with the resolved theme when applied from the hub (`island.lastHubWallpaper`; gallery still shows two tiles). Optional transition (`island.wallpaperTransition`: `off` / `fade` / `blurFade`, default blur+fade): when policy allows, a WorkerW-hosted primary-monitor overlay crossfades the **previous** image out (~450 ms, optional blur), then SPI commits the new wallpaper on fade complete (respects Windows via `island.wallpaperRespectSystemAnimation`, default on); otherwise instant SPI. The **`Color`** tab keeps session-scoped recent picks; its **screen picker** is a full-monitor overlay with a cursor-centred 13×13 loupe over the frozen frame (the pick is the loupe's exact centre pixel, `ScreenSampler.TryCropBox`; the HEX/hint card flips above the loupe near the monitor bottom — `ColorPickerLayout` — and Esc cancels through a temporary global hotkey; the HEX goes to the clipboard outside Win+V history). The AppBar stays 30 DIP (ADR-012, ADR-013). Background personalization: `mica` / `transparent` / `tint`
- + opacity slider (right-click menu). The clock is a single line formatted with the resolved UI culture (`config.language` → `LocalizationService`; e.g. `tr-TR` or `en-US`); a clock click is notification text + a month calendar; the bell → native `Win+N`;
+ + opacity slider (right-click menu). The AppBar strip is enforced, not painted over: `TopBarStripGuard`
+ pushes a normal window back below the bar after an interactive move/resize or a restore
+ (fullscreen/tool/own windows excluded), so the `transparent` bar stays see-through and the live
+ wallpaper — slideshows included — is always exact. The clock is a single line formatted with the resolved UI culture (`config.language` → `LocalizationService`; e.g. `tr-TR` or `en-US`); a clock click is notification text + a month calendar; the bell → native `Win+N`;
  `controlCenter` → QS Main; volume → QS Mixer; brightness → `BrightnessFlyout` (Monitorian DDC/CI + WMI hybrid);
  media → `MediaFlyout` (SMTC; hidden when there is no session, ADR-008); network → QS Network (ADR-006); the energy-saver tile lights from the API/flag or from a read-back of `Always use energy saver`, and a click flips that switch (ADR-013); **AppBar** + tray hybrid.
 - **Dock:** bottom strip (overlay; Topmost ± auto-hide). On the left, taskbar pins are **read-only**
@@ -43,9 +46,13 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  a click on either the preview or the title activates/restores that exact window. A taskbar progress
  bar under the icon (no bar when UIA is empty);
  a short accent pulse on an icon that wants attention. The badge, the line, and the preview cards count only windows on that dock's
- monitor. Launchpad, Downloads, and the trash are built-in tiles
- (not written to the pin folder). Launchpad opens from the dock tile (the themed brand logo tile, ADR-019)
- and from a left click on the top-bar brand logo; right click on the logo opens the menu.
+ monitor. Launchpad, Task View (Görev Görünümü), Downloads, and the trash are built-in tiles
+ (not written to the pin folder). Task View sits right after Launchpad and opens the Windows Task View
+ (`Win+Tab`); its glyph is themed with the launch tile on theme/accent changes.
+ Launchpad opens from the dock tile (the themed brand logo tile, ADR-019) and from a bare Windows-key tap
+ (`WindowsKeyLauncher`, ADR-020: physical Win key events are swallowed, the key is synthesized only for
+ `Win+<key>` chords). The top-bar brand logo opens its menu on left **and** right click — it does not open
+ the Launchpad.
  The face is singular: centered, above the wallpaper; the box opens before the scan finishes, and apps sit under the `All` letter heading (ADR-016).
  The pad is keyboard-first (search focused, arrow keys between tiles, Enter opens, Escape clears then closes);
  the card shrinks to the screen and the phone panel is hidden when it does not fit.

@@ -101,8 +101,8 @@
   (TTL 30 min, refreshed in the background), so the pad paints the **full list on the first frame**
   instead of growing in 16-app slices. `LaunchpadWarmup` decodes the cached catalog's shell icons on
   the UI thread in idle slices (8 per pass, first 64; a shared `AppIconService` store with the face).
-  The top-bar brand logo now **left-opens the launchpad** (`LaunchpadWindow.Toggle`, same window as
-  the dock tile); the app menu stays on **right click** via the existing `ContextMenu`. Face polish:
+  The top-bar brand logo opens the logo menu on **left and right click** (left click is anchored under
+  the logo; the menu closes by clicking elsewhere / Esc, and it **no longer opens the Launchpad**). Face polish:
   eased hover (animated overlay in the flat template, resource-swap fallback), 0.97 press scale,
   secondary-colour letter headers, tile icon/text sizes (44/40 px icons, 12 px labels).
 - **Launchpad usability redesign ✓ (code; screenshot-verified with a render harness)** — the shared flat
@@ -241,6 +241,19 @@
   stay in `%APPDATA%\WharfBar` and survive upgrades/uninstall; the app owns the Startup shortcut.
   The build is unsigned (SmartScreen may warn). Details:
   [`docs/07-packaging-and-releases.md`](../../docs/07-packaging-and-releases.md).
+
+- **Launchpad entry points + Task View tile ✓ (code; physical-key verification pending)** — the Launchpad
+  now opens from a bare **Windows key** tap (`WindowsKeyLauncher` + `WindowsKeyGesture`, ADR-020) and no
+  longer from the top-bar brand logo: the shell owns the Win-key hotkey (`RegisterHotKey(MOD_WIN, 0)` is
+  "already registered"), so a `WH_KEYBOARD_LL` hook on its own thread swallows both physical Win key
+  events and synthesizes the key only for `Win+<key>` chords (blocking just the key-up leaves the OS key
+  state down; injected Win keys pass untouched so the app's own `Win+Tab`/`Win+B` gestures still work).
+  The dock has a **Task View** built-in tile (`builtin:taskview`, right after Launchpad) that toggles the
+  Windows Task View with a synthesized `Win+Tab`; the themed glyph is re-rendered on theme/accent changes
+  like the launch tile. Left click on the top-bar logo opens the logo menu (right click keeps the same menu
+  at the cursor). Tests: `WindowsKeyGestureTests`, extended `DockBuiltInTilesTests` / `DockReorderTests` /
+  `DockMonitorWindowFilterTests`. Details: `docs/01`/`docs/02` §n/`docs/04` and
+  [`docs/01-architecture.md`](../../docs/01-architecture.md).
 
 ## Former to-do list (moved to milestones)
 
