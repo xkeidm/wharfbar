@@ -55,11 +55,37 @@ The build is unsigned, so SmartScreen may warn ("Windows protected your PC" → 
 
 ## Screenshots
 
-| Top bar | Dock | Settings |
-|:-------:|:----:|:--------:|
-| ![WharfBar top bar](docs/media/wharfbar-topbar.jpg) | ![WharfBar dock](docs/media/wharfbar-dock.jpg) | ![WharfBar settings](docs/media/wharfbar-settings.jpg) |
+Real captures on Windows 11 over WharfBar's bundled **Pier Horizon** wallpaper pair. Each pair is the same screen in **dark (left)** and **light (right)** — click a shot to open it full size.
 
-<p align="center"><sub>Illustrative product stills. Live capture here would reserve an AppBar strip, so these mocks stand in until real sessions land.</sub></p>
+<p align="center">
+  <a href="docs/media/screens/en/hero-dark.jpg"><img src="docs/media/screens/en/hero-dark.jpg" alt="WharfBar desktop, dark theme" width="49%"></a>
+  <a href="docs/media/screens/en/hero-light.jpg"><img src="docs/media/screens/en/hero-light.jpg" alt="WharfBar desktop, light theme" width="49%"></a>
+</p>
+<p align="center"><sub><b>Desktop</b> — transparent top bar, the center island and the dock over the wallpaper.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/en/dock-dark.png"><img src="docs/media/screens/en/dock-dark.png" alt="WharfBar dock, dark theme" width="49%"></a>
+  <a href="docs/media/screens/en/dock-light.png"><img src="docs/media/screens/en/dock-light.png" alt="WharfBar dock, light theme" width="49%"></a>
+</p>
+<p align="center"><sub><b>Dock</b> — taskbar pins, running apps and the launch tile in one plate.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/en/island-dark.png"><img src="docs/media/screens/en/island-dark.png" alt="WharfBar island wallpaper gallery, dark theme" width="49%"></a>
+  <a href="docs/media/screens/en/island-light.png"><img src="docs/media/screens/en/island-light.png" alt="WharfBar island wallpaper gallery, light theme" width="49%"></a>
+</p>
+<p align="center"><sub><b>Island</b> — the wallpaper gallery under the pill.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/en/quick-settings-dark.png"><img src="docs/media/screens/en/quick-settings-dark.png" alt="WharfBar quick settings, dark theme" width="49%"></a>
+  <a href="docs/media/screens/en/quick-settings-light.png"><img src="docs/media/screens/en/quick-settings-light.png" alt="WharfBar quick settings, light theme" width="49%"></a>
+</p>
+<p align="center"><sub><b>Quick settings</b> — Wi-Fi, Bluetooth, projection, night light, overlay and volume.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/en/settings-dark.png"><img src="docs/media/screens/en/settings-dark.png" alt="WharfBar settings, dark theme" width="49%"></a>
+  <a href="docs/media/screens/en/settings-light.png"><img src="docs/media/screens/en/settings-light.png" alt="WharfBar settings, light theme" width="49%"></a>
+</p>
+<p align="center"><sub><b>Settings</b> — Appearance, including the light/dark app theme.</sub></p>
 
 ## Why run it
 
@@ -78,7 +104,7 @@ The build is unsigned, so SmartScreen may warn ("Windows protected your PC" → 
 
 One bar per enabled monitor, each registered as an AppBar. Visibility is the `monitors` config.
 
-- **Left:** brand logo menu (default WharfBar Dusk mark; optional Windows logo via `logoStyle`) — Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, quit — plus a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). Missing GPU counters are omitted. No temperature.
+- **Left:** brand logo menu (left click or right click; default WharfBar Dusk mark; optional Windows logo via `logoStyle`) — Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, quit — plus a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). Missing GPU counters are omitted. No temperature.
 - **Center:** the island pill.
 - **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. Default order: tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media start hidden (the island already shows them). Saved order is kept.
 - Clock is a single line in the UI language (Settings → General → Language, or follow Windows when set to System). Click opens notification text and a month calendar. The bell sends `Win+N`.
@@ -112,7 +138,7 @@ A topmost overlay: bottom-left, bottom-center, bottom-right, or the left edge. I
 - Pin and unpin write `dock.items`. A file or folder target also gets a `.lnk` in `User Pinned\TaskBar`. `Taskband` is left untouched.
 - Drag to reorder. Drop `.lnk`, `.exe`, `.bat`, or `.cmd` from Explorer. Right-click: title card, pin or unpin, end task, close window, run as administrator, open file location, new window, window list.
 - Background is Mica, transparent, or tint, chosen separately from the top bar.
-- **Launchpad** (far left), **Downloads**, and **Recycle Bin** (far right) are built-in tiles and are not written into the pin folder. A folder pin opens a stack. Store packages use the package icon when it resolves, and a letter glyph when it does not. Badges, the running mark, and thumbnails count windows on that dock’s monitor.
+- **Launchpad** (far left), **Task View** (right after it), **Downloads**, and **Recycle Bin** (far right) are built-in tiles and are not written into the pin folder. Task View toggles the Windows Task View (`Win+Tab`). A folder pin opens a stack. Store packages use the package icon when it resolves, and a letter glyph when it does not. Badges, the running mark, and thumbnails count windows on that dock’s monitor.
 
 </details>
 
@@ -168,7 +194,7 @@ WharfBar’s own notification icon has a quit item, **Quit WharfBar**. On the pr
 
 <br>
 
-The Launchpad tile opens one centered surface over the wallpaper. It can open before the app scan finishes. Apps are grouped under letter headings. The top-bar logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
+The Launchpad tile opens one centered surface over the wallpaper. A bare **Windows key tap** opens it too (press it again to close; every `Win+<key>` shortcut still works). It can open before the app scan finishes. Apps are grouped under letter headings. The top-bar logo opens the logo menu, not Launchpad. A phone column appears only while a phone is connected: name, battery, and notification count from the Your Phone start card, and a screenshot inside the phone frame. Missing fields stay hidden.
 
 Widget and Plugin open the same catalog as Settings → Plugins. The pieces that run are the Bluetooth connection notice and the camera mirror. A local `%AppData%/WharfBar/plugins/<folder>/manifest.json` is an on/off registration. Plugin assemblies are not loaded. Top bar and dock plugin slots are stored and not drawn.
 

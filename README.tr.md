@@ -51,11 +51,37 @@ Ayrıntı, doğrulama ve sürüm çıkarma adımları: [docs/07-packaging-and-re
 
 ## Ekran görüntüleri
 
-| Üst çubuk | Dock | Ayarlar |
-|:---------:|:----:|:-------:|
-| ![WharfBar üst çubuk](docs/media/wharfbar-topbar.jpg) | ![WharfBar dock](docs/media/wharfbar-dock.jpg) | ![WharfBar ayarlar](docs/media/wharfbar-settings.jpg) |
+Windows 11'de, WharfBar'ın kendi **Pier Horizon** duvar kâğıdı çifti üzerinde gerçek ekran görüntüleri. Her çiftte soldaki **koyu**, sağdaki **açık** temadır — büyütmek için görsele tıklayın.
 
-<p align="center"><sub>Örnek ürün görselleri. Canlı oturum burada AppBar şeridi ayıracağı için gerçek yakalamalar gelene kadar bu mock’lar duruyor.</sub></p>
+<p align="center">
+  <a href="docs/media/screens/tr/hero-dark.jpg"><img src="docs/media/screens/tr/hero-dark.jpg" alt="WharfBar masaüstü, koyu tema" width="49%"></a>
+  <a href="docs/media/screens/tr/hero-light.jpg"><img src="docs/media/screens/tr/hero-light.jpg" alt="WharfBar masaüstü, açık tema" width="49%"></a>
+</p>
+<p align="center"><sub><b>Masaüstü</b> — duvar kâğıdının üzerinde saydam üst çubuk, ortadaki ada ve dock.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/tr/dock-dark.png"><img src="docs/media/screens/tr/dock-dark.png" alt="WharfBar dock, koyu tema" width="49%"></a>
+  <a href="docs/media/screens/tr/dock-light.png"><img src="docs/media/screens/tr/dock-light.png" alt="WharfBar dock, açık tema" width="49%"></a>
+</p>
+<p align="center"><sub><b>Dock</b> — görev çubuğu pinleri, çalışan uygulamalar ve başlatma karosu tek plakada.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/tr/island-dark.png"><img src="docs/media/screens/tr/island-dark.png" alt="WharfBar ada duvar kâğıdı galerisi, koyu tema" width="49%"></a>
+  <a href="docs/media/screens/tr/island-light.png"><img src="docs/media/screens/tr/island-light.png" alt="WharfBar ada duvar kâğıdı galerisi, açık tema" width="49%"></a>
+</p>
+<p align="center"><sub><b>Ada</b> — hapın altında duvar kâğıdı galerisi.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/tr/quick-settings-dark.png"><img src="docs/media/screens/tr/quick-settings-dark.png" alt="WharfBar hızlı ayarlar, koyu tema" width="49%"></a>
+  <a href="docs/media/screens/tr/quick-settings-light.png"><img src="docs/media/screens/tr/quick-settings-light.png" alt="WharfBar hızlı ayarlar, açık tema" width="49%"></a>
+</p>
+<p align="center"><sub><b>Hızlı ayarlar</b> — Wi-Fi, Bluetooth, yansıtma, gece ışığı, kaplama ve ses.</sub></p>
+
+<p align="center">
+  <a href="docs/media/screens/tr/settings-dark.png"><img src="docs/media/screens/tr/settings-dark.png" alt="WharfBar ayarlar, koyu tema" width="49%"></a>
+  <a href="docs/media/screens/tr/settings-light.png"><img src="docs/media/screens/tr/settings-light.png" alt="WharfBar ayarlar, açık tema" width="49%"></a>
+</p>
+<p align="center"><sub><b>Ayarlar</b> — Görünüm; açık/koyu uygulama teması dahil.</sub></p>
 
 ## Neden çalıştırılır
 
@@ -74,7 +100,7 @@ Ayrıntı, doğrulama ve sürüm çıkarma adımları: [docs/07-packaging-and-re
 
 Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitöründe AppBar olarak kaydolur. Görünürlük `monitors` ayarındadır.
 
-- **Sol:** marka logosu menüsü (varsayılan WharfBar Dusk işareti; `logoStyle` ile isteğe bağlı Windows logosu) — Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış — ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
+- **Sol:** marka logosu menüsü (sol veya sağ tık; varsayılan WharfBar Dusk işareti; `logoStyle` ile isteğe bağlı Windows logosu) — Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış — ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
 - **Orta:** ada hapı.
 - **Sağ:** sağ tık menüsünden veya Ayarlar → Üst Çubuk’tan gösterilip gizlenen ve sıralanan durum şeridi. Varsayılan sıra: tepsi aynası, gizli simgeler oku, saat, bildirimler, hızlı ayarlar, ağ, pil. Ses, parlaklık ve medya katalogdadır ve başta kapalıdır; ada bunları zaten gösterir. Kayıtlı sıra korunur.
 - Saat, seçilen arayüz diline göre tek satır biçimlenir (Ayarlar → Genel → Dil; Sistem seçiliyse Windows arayüz dili). Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
@@ -106,7 +132,7 @@ Her zaman üstte duran bir örtü: alt-sol, alt-orta, alt-sağ veya sol kenar. O
 - Sabitle ve kaldır `dock.items` yazar. Hedef dosya veya klasörse `User Pinned\TaskBar` içine `.lnk` de yazılır. `Taskband`’a dokunulmaz.
 - Sürükleyerek sıralanır. Explorer’dan `.lnk`, `.exe`, `.bat` veya `.cmd` bırakılır. Sağ tık: başlık kartı, sabitle veya kaldır, görevi sonlandır, pencereyi kapat, yönetici olarak çalıştır, dosya konumunu aç, yeni pencere, pencere listesi.
 - Arka plan Mica, saydam veya renkli olabilir ve üst çubuktan bağımsız seçilir.
-- **Launchpad** (en solda), **İndirilenler** ve **Geri Dönüşüm Kutusu** (en sağda) yerleşik karolardır; pin klasörüne yazılmaz. Klasör pini yığın açar. Store paketinin simgesi çözülürse o simge, çözülmezse harf kullanılır. Rozet, çalışan işareti ve küçük resim yalnızca o dock’un monitöründeki pencereleri sayar.
+- **Launchpad** (en solda), **Görev Görünümü** (hemen ardından), **İndirilenler** ve **Geri Dönüşüm Kutusu** (en sağda) yerleşik karolardır; pin klasörüne yazılmaz. Görev Görünümü, Windows Görev Görünümü’nü açar/kapatır (`Win+Tab`). Klasör pini yığın açar. Store paketinin simgesi çözülürse o simge, çözülmezse harf kullanılır. Rozet, çalışan işareti ve küçük resim yalnızca o dock’un monitöründeki pencereleri sayar.
 
 </details>
 
@@ -162,7 +188,7 @@ WharfBar’ın kendi bildirim simgesinde çıkış maddesi **WharfBar'ı kapat**
 
 <br>
 
-Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Üst çubuk logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
+Launchpad karosu duvar kâğıdının üstünde, ortada tek bir yüzey açar. Yalnız **Windows tuşuna** basmak da açar (kapatmak için tekrar basın; `Win+<tuş>` kısayolları çalışmaya devam eder). Uygulama taraması bitmeden açılabilir. Uygulamalar harf başlıklarının altında gruplanır. Üst çubuk logosu Launchpad’i değil, logo menüsünü açar. Telefon sütunu yalnız bir telefon bağlıyken görünür. Ad, pil ve bildirim sayısı Your Phone başlangıç kartından gelir; ekran görüntüsü telefon çerçevesinin içindedir. Eksik alan gizlenir.
 
 Widget ve Eklenti, Ayarlar → Eklentiler ile aynı kataloğu açar. Çalışan parçalar Bluetooth bağlantı bildirimi ve kamera aynasıdır. `%AppData%/WharfBar/plugins/<klasör>/manifest.json` bir aç/kapa kaydıdır. Eklenti derlemeleri yüklenmez. Üst çubuk ve dock yuvaları kaydedilir, çizilmez.
 
