@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Interop;
@@ -21,6 +22,8 @@ public partial class App : Application
     private TaskbarVisibilityService? _taskbar;
     private SettingsWindow? _settings;
     private VeilService? _veil;
+    private WindowsKeyLauncher? _winKey;
+    private TopBarStripGuard? _stripGuard;
 
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
@@ -57,6 +60,9 @@ public partial class App : Application
     internal void ApplyTopBarChanges()
     {
         _monitors?.ApplyTopBarChanges();
+
+        // A bar that just appeared owns a strip that may already contain a window.
+        _stripGuard?.QueueSweep();
     }
 
     /// <summary>
@@ -218,6 +224,22 @@ public partial class App : Application
         // RestoreContentBackground on MainWindow — re-assert top bar translucent/mica.
         _monitors.ApplyTopBarChanges();
 
+        // Windows cannot forbid a window from being dragged under an AppBar (the AppBar only
+        // shapes the work area), so the reserved strip is enforced actively instead of painted
+        // over: after every interactive move/resize, a window whose top landed under a bar is
+        // pushed back below it (TopBarStripGuard). Nothing is painted, so the live wallpaper —
+        // slideshows and animated walls included — is always exact.
+        _stripGuard = TopBarStripGuard.Install(Dispatcher);
+        _stripGuard.QueueSweep();
+
+        // Bare Windows key -> Launchpad. The shell owns the Win-key hotkey, so a low-level hook
+        // swallows the physical key and synthesizes it only for Win+<key> chords (docs/04-gotchas.md).
+        _winKey = new WindowsKeyLauncher(_config, Dispatcher);
+        if (!_winKey.Start())
+        {
+            Debug.WriteLine("WharfBar: Windows-key Launchpad shortcut unavailable");
+        }
+
         // Own tray icon only (quit menu). Not reading system status tray icons.
         _tray = new TrayIconService();
 
@@ -274,6 +296,7 @@ public partial class App : Application
     internal void RecreateTopBar()
     {
         _monitors?.RecreateTopBars();
+        _stripGuard?.QueueSweep();
     }
 
     /// <summary>
@@ -286,6 +309,15 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // Release the Windows key first: once the bar is gone the shell must behave as usual.
+        _winKey?.Dispose();
+        _winKey = null;
+
+        // Stop the strip guard before the bars go away: no window move may be posted from a
+        // half-torn-down shell.
+        _stripGuard?.Dispose();
+        _stripGuard = null;
+
         TaskbarVisibilityService? taskbar = _taskbar;
         taskbar?.Restore();
         _taskbar = null;

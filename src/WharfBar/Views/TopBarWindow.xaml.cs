@@ -2076,6 +2076,8 @@ public partial class TopBarWindow : Window
             case NativeMethods.WM_DPICHANGED:
             case NativeMethods.WM_DISPLAYCHANGE:
                 QueueApplyPlacement();
+                // The strip geometry/DPI moved: push windows that now sit under a bar out of it.
+                TopBarStripGuard.Current?.QueueSweep();
                 _ = Dispatcher.BeginInvoke(new Action(() => _engine.MonitorBrightness.RefreshMonitors()));
                 break;
 
