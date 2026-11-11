@@ -46,7 +46,7 @@
                                             Visibility="{Binding PrimaryBadgeVisibility}">
                                         <TextBlock Text="{x:Static res:Strings.MonitorsPage_Primary}"
                                                    FontSize="11"
-                                                   Foreground="White" />
+                                                   Foreground="{DynamicResource TextOnAccentFillColorPrimaryBrush}" />
                                     </Border>
                                 </StackPanel>
                                 <TextBlock Text="{Binding DeviceName}"

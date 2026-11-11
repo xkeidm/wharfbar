@@ -31,12 +31,15 @@ internal sealed class DockSettingsRow : Border
         Id = DockItemStore.IdFor(item);
         CornerRadius = new CornerRadius(8);
         BorderThickness = new Thickness(1);
-        BorderBrush = BrushFor("ControlStrokeColorDefaultBrush");
-        Background = BrushFor("ControlFillColorDefaultBrush");
         Padding = new Thickness(12, 8, 12, 8);
         Margin = new Thickness(0, 0, 0, 6);
         AllowDrop = true;
         Cursor = Cursors.Hand;
+
+        // Live references: the Dock page is cached, so a brush captured once would keep the old
+        // theme — dark row chrome on the light settings page after a light/dark switch.
+        ApplyThemeBrush(this, Border.BackgroundProperty, "ControlFillColorDefaultBrush", SystemColors.ControlBrush);
+        ApplyThemeBrush(this, Border.BorderBrushProperty, "ControlStrokeColorDefaultBrush", SystemColors.ControlDarkBrush);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -47,10 +50,10 @@ internal sealed class DockSettingsRow : Border
         var handle = new SymbolIcon(SymbolRegular.ReOrderDotsVertical24)
         {
             FontSize = 16,
-            Foreground = BrushFor("TextFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = Strings.DockRow_DragTooltip,
         };
+        ApplyThemeBrush(handle, SymbolIcon.ForegroundProperty, "TextFillColorSecondaryBrush");
         Grid.SetColumn(handle, 0);
         grid.Children.Add(handle);
 
@@ -82,9 +85,9 @@ internal sealed class DockSettingsRow : Border
             FontSize = 16,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(10, 0, 0, 0),
-            Foreground = BrushFor("TextFillColorSecondaryBrush"),
             ToolTip = Strings.DockRow_RemoveTooltip,
         };
+        ApplyThemeBrush(remove, SymbolIcon.ForegroundProperty, "TextFillColorSecondaryBrush");
         Grid.SetColumn(remove, 3);
         grid.Children.Add(remove);
 
@@ -104,10 +107,29 @@ internal sealed class DockSettingsRow : Border
     internal event EventHandler? RemoveClicked;
 
     /// <summary>
-    /// App-scoped lookup, not <c>FindResource</c>: the row is constructed before it is added to
-    /// the page tree, so the page's resource dictionaries are not reachable yet. A missing key
-    /// casts to null, which the control reads as "inherit" — same as TopBarPage's cards.
+    /// Paints a theme brush as a <em>live</em> resource reference. The row outlives a light/dark
+    /// (or accent) swap — the Dock page is cached by the NavigationView — so a brush captured with
+    /// <c>TryFindResource</c> would keep the old palette. Only a reference is re-resolved when
+    /// WPF-UI swaps the theme dictionary. The app-scoped check (not the row's own tree) also covers
+    /// the constructor: the row is built before it is added to the page. When the key does not
+    /// resolve at all (unit tests, very early startup) <paramref name="fallback"/> keeps the row's
+    /// chrome instead of leaving it transparent.
     /// </summary>
-    private static Brush BrushFor(string key) =>
-        (Brush)Application.Current.TryFindResource(key);
+    private static void ApplyThemeBrush(
+        FrameworkElement element,
+        DependencyProperty property,
+        string key,
+        Brush? fallback = null)
+    {
+        if (Application.Current?.TryFindResource(key) is Brush)
+        {
+            element.SetResourceReference(property, key);
+            return;
+        }
+
+        if (fallback is not null)
+        {
+            element.SetCurrentValue(property, fallback);
+        }
+    }
 }

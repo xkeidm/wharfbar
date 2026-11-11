@@ -129,7 +129,9 @@ public partial class AppearancePage : Page
         Config.Save(Cfg);
 
         // See OnAccentStyleChanged: library applies rewrite MainWindow chrome; re-assert bars.
-        WharfApp.ApplyLogoChanges();
+        // A theme switch also has to re-establish the dock DWM dark mode and the settings/gallery
+        // frames — switching to "system" emits no system broadcast of its own.
+        WharfApp.ApplyThemeChanges();
 
         WharfApp.FollowWallpaperTheme(fromExternalWindows: false);
     }

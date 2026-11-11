@@ -52,9 +52,15 @@ public partial class QuickSettingsFlyout : UserControl
         internal required Border Border { get; init; }
         internal required TextBlock Icon { get; init; }
         internal required TextBlock Label { get; init; }
+        internal TextBlock? Chevron { get; init; }
         internal bool IsActive { get; set; }
-        internal required SolidColorBrush BaseBrush { get; init; }
-        internal required SolidColorBrush AccentBrush { get; init; }
+
+        /// <summary>Theme resource key currently resolved for the glyph, so the 2 s refresh does not
+        /// rebuild the resource reference on every poll.</summary>
+        internal string? ForegroundKey { get; set; }
+
+        /// <summary>Guards a finishing fill animation from clearing a newer one's local brush.</summary>
+        internal int ToggleAnimationVersion { get; set; }
     }
 
     private readonly Dictionary<string, TileUi> _tiles = new();
@@ -515,11 +521,14 @@ public partial class QuickSettingsFlyout : UserControl
                 CornerRadius = new CornerRadius(6),
                 Cursor = Cursors.Hand,
                 Tag = device.DeviceId,
-                Background = device.IsDefault
-                    ? TryFindResource("ControlFillColorSecondaryBrush") as Brush
-                        ?? Brushes.Transparent
-                    : Brushes.Transparent,
+                Background = Brushes.Transparent,
             };
+            if (device.IsDefault)
+            {
+                // Live reference: the picker rows are rebuilt on refresh, but a captured brush
+                // would still paint the pre-swap palette over a long-lived flyout.
+                row.SetResourceReference(Border.BackgroundProperty, "ControlFillColorSecondaryBrush");
+            }
 
             row.Child = new TextBlock
             {
@@ -819,28 +828,12 @@ public partial class QuickSettingsFlyout : UserControl
     {
         var cell = new StackPanel { Margin = new Thickness(4) };
 
-        SolidColorBrush baseBrush = TryFindResource("ControlFillColorDefaultBrush") as SolidColorBrush
-            ?? Foreground as SolidColorBrush
-            ?? Brushes.Transparent;
-        SolidColorBrush accentBrush = TryFindResource("AccentFillColorDefaultBrush") as SolidColorBrush
-            ?? Foreground as SolidColorBrush
-            ?? Brushes.Transparent;
-
         var border = new Border
         {
-            Style = TryFindResource("QsTile") as Style,
-            Background = tile.IsEnabled
-                ? tile.IsActive ? accentBrush : baseBrush
-                : baseBrush,
             Tag = tile.Id,
             ToolTip = CreateTip(tile.Tooltip),
             IsEnabled = tile.IsEnabled,
         };
-        if (!tile.IsEnabled)
-        {
-            border.Style = TryFindResource("QsTileDisabled") as Style;
-            border.Opacity = 0.45;
-        }
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -853,37 +846,33 @@ public partial class QuickSettingsFlyout : UserControl
         {
             Text = tile.Glyph,
             Style = TryFindResource("QsGlyph") as Style,
-            Foreground = tile.IsActive
-                ? TryFindResource("TextFillColorInverseBrush") as Brush ?? Brushes.Black
-                : TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Foreground,
         };
         grid.Children.Add(icon);
 
+        TextBlock? chevron = null;
         if (tile.HasChevron)
         {
-            var chevron = new Border
+            chevron = new TextBlock
+            {
+                Text = "\uE76C",
+                FontFamily = SystemVersion.IconFontFamily,
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Opacity = 0.85,
+            };
+
+            var chevronHit = new Border
             {
                 Width = 22,
                 Background = Brushes.Transparent,
                 Cursor = Cursors.Hand,
                 Tag = tile.Id,
-                Child = new TextBlock
-                {
-                    Text = "\uE76C",
-                    FontFamily = SystemVersion.IconFontFamily,
-                    FontSize = 12,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Opacity = 0.85,
-                    Foreground = icon.Foreground,
-                },
+                Child = chevron,
             };
-            Grid.SetColumn(chevron, 1);
-            chevron.MouseLeftButtonUp += OnTileChevronClick;
-            grid.Children.Add(chevron);
-
-            border.BorderBrush = TryFindResource("ControlStrokeColorDefaultBrush") as Brush;
-            border.BorderThickness = new Thickness(0);
+            Grid.SetColumn(chevronHit, 1);
+            chevronHit.MouseLeftButtonUp += OnTileChevronClick;
+            grid.Children.Add(chevronHit);
         }
 
         border.Child = grid;
@@ -896,17 +885,51 @@ public partial class QuickSettingsFlyout : UserControl
         };
         cell.Children.Add(label);
 
-        return new TileUi
+        var ui = new TileUi
         {
             Id = tile.Id,
             Cell = cell,
             Border = border,
             Icon = icon,
             Label = label,
+            Chevron = chevron,
             IsActive = tile.IsActive,
-            BaseBrush = baseBrush,
-            AccentBrush = accentBrush,
         };
+        ApplyTileTheme(ui, tile);
+        return ui;
+    }
+
+    /// <summary>
+    /// Paints the theme-dependent parts of a tile through <em>live</em> resource references and
+    /// styles. WPF-UI swaps its theme dictionary on light/dark (and accent) changes; a brush
+    /// captured with <c>TryFindResource</c> would keep the old palette forever — the stale
+    /// dark-theme white glyphs on a light flyout were exactly that bug.
+    /// </summary>
+    private void ApplyTileTheme(TileUi ui, QuickTileState tile)
+    {
+        string styleKey = !tile.IsEnabled
+            ? "QsTileDisabled"
+            : tile.IsActive ? "QsTileActive" : "QsTile";
+        if (TryFindResource(styleKey) is Style style && !ReferenceEquals(ui.Border.Style, style))
+        {
+            ui.Border.Style = style;
+        }
+
+        ui.Border.IsEnabled = tile.IsEnabled;
+
+        // An active tile's accent fill needs inverse text; a disabled tile uses the base text tone.
+        // (A tile disabled while active can still carry the accent background reference that a
+        // finished toggle animation left behind — a local value outranks the QsTileDisabled style;
+        // the disabled opacity keeps it readable.)
+        string foregroundKey = tile.IsEnabled && tile.IsActive
+            ? "TextFillColorInverseBrush"
+            : "TextFillColorPrimaryBrush";
+        if (!string.Equals(ui.ForegroundKey, foregroundKey, StringComparison.Ordinal))
+        {
+            ui.ForegroundKey = foregroundKey;
+            ui.Icon.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+            ui.Chevron?.SetResourceReference(TextBlock.ForegroundProperty, foregroundKey);
+        }
     }
 
     private void UpdateTile(TileUi ui, QuickTileState tile)
@@ -928,41 +951,18 @@ public partial class QuickSettingsFlyout : UserControl
         bool activeChanged = ui.IsActive != tile.IsActive;
         if (activeChanged)
         {
+            Brush? previous = ui.Border.Background;
             ui.IsActive = tile.IsActive;
-            ui.Icon.Foreground = tile.IsActive
-                ? TryFindResource("TextFillColorInverseBrush") as Brush ?? Brushes.Black
-                : TryFindResource("TextFillColorPrimaryBrush") as Brush ?? Foreground;
-            SolidColorBrush? from = ui.Border.Background as SolidColorBrush;
-            var target = new SolidColorBrush((tile.IsActive ? ui.AccentBrush : ui.BaseBrush).Color);
-            SetTileBackground(ui, target);
-            AnimateTileToggle(ui, from, target, tile.IsActive);
+            ApplyTileTheme(ui, tile);
+            AnimateTileToggle(ui, previous, tile.IsActive);
         }
         else
         {
-            SetTileBackground(ui, tile.IsActive ? ui.AccentBrush : ui.BaseBrush);
-        }
-
-        ui.Border.IsEnabled = tile.IsEnabled;
-        if (!tile.IsEnabled)
-        {
-            ui.Border.Style = TryFindResource("QsTileDisabled") as Style;
-            ui.Border.Opacity = 0.45;
-            ui.Border.Cursor = Cursors.Arrow;
-        }
-        else
-        {
-            ui.Border.Style = TryFindResource("QsTile") as Style;
-            ui.Border.Opacity = 1;
-            ui.Border.Cursor = Cursors.Hand;
+            ApplyTileTheme(ui, tile);
         }
     }
 
-    private static void SetTileBackground(TileUi ui, Brush brush)
-    {
-        ui.Border.Background = brush;
-    }
-
-    private void AnimateTileToggle(TileUi ui, SolidColorBrush? from, SolidColorBrush target, bool activating)
+    private void AnimateTileToggle(TileUi ui, Brush? previous, bool activating)
     {
         var group = new TransformGroup();
         var scale = new ScaleTransform(1, 1);
@@ -986,15 +986,33 @@ public partial class QuickSettingsFlyout : UserControl
         Storyboard.SetTargetProperty(pop, new PropertyPath("RenderTransform.Children[0].ScaleX"));
         storyboard.Children.Add(pop);
 
-        if (from is not null && from.Color != target.Color)
+        // The color transition runs on a local brush so the theme's dynamic brush stays shared and
+        // untouched. When it finishes the local value is replaced by a live resource reference
+        // again, so the tile keeps following later light/dark and accent swaps.
+        string fillKey = activating ? "AccentFillColorDefaultBrush" : "ControlFillColorDefaultBrush";
+        Brush? target = TryFindResource(fillKey) as Brush;
+        if (previous is SolidColorBrush previousSolid
+            && target is SolidColorBrush targetSolid
+            && previousSolid.Color != targetSolid.Color)
         {
-            var colorAnim = new ColorAnimation(from.Color, target.Color, TimeSpan.FromMilliseconds(250))
+            var animated = new SolidColorBrush(previousSolid.Color);
+            var colorAnimation = new ColorAnimation(targetSolid.Color, TimeSpan.FromMilliseconds(250))
             {
                 EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseInOut },
+                FillBehavior = FillBehavior.Stop,
             };
-            Storyboard.SetTarget(colorAnim, target);
-            Storyboard.SetTargetProperty(colorAnim, new PropertyPath("Color"));
-            storyboard.Children.Add(colorAnim);
+
+            int version = ++ui.ToggleAnimationVersion;
+            colorAnimation.Completed += (_, _) =>
+            {
+                if (ui.ToggleAnimationVersion == version)
+                {
+                    ui.Border.SetResourceReference(Border.BackgroundProperty, fillKey);
+                }
+            };
+
+            ui.Border.Background = animated;
+            animated.BeginAnimation(SolidColorBrush.ColorProperty, colorAnimation);
         }
 
         storyboard.Begin();
@@ -1132,12 +1150,11 @@ public partial class QuickSettingsFlyout : UserControl
             CornerRadius = new CornerRadius(8),
             Cursor = Cursors.Hand,
             Margin = new Thickness(0, 0, 0, 6),
-            Background = network.IsConnected
-                ? TryFindResource("AccentFillColorDefaultBrush") as Brush
-                    ?? TryFindResource("ControlFillColorDefaultBrush") as Brush
-                : TryFindResource("ControlFillColorDefaultBrush") as Brush,
             Tag = network,
         };
+        border.SetResourceReference(
+            Border.BackgroundProperty,
+            network.IsConnected ? "AccentFillColorDefaultBrush" : "ControlFillColorDefaultBrush");
 
         var dock = new DockPanel();
 
@@ -1197,6 +1214,16 @@ public partial class QuickSettingsFlyout : UserControl
         dock.Children.Add(security);
         dock.Children.Add(name);
         border.Child = dock;
+        if (network.IsConnected)
+        {
+            // The accent fill is a dark accent in light mode and a light accent in dark mode, so
+            // the row's text needs the inverse tone instead of the primary text tone.
+            foreach (TextBlock block in dock.Children.OfType<TextBlock>())
+            {
+                block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorInverseBrush");
+            }
+        }
+
         border.MouseLeftButtonUp += OnWifiRowClick;
         return border;
     }
@@ -1369,9 +1396,9 @@ public partial class QuickSettingsFlyout : UserControl
                 CornerRadius = new CornerRadius(8),
                 Cursor = Cursors.Hand,
                 Margin = new Thickness(0, 0, 0, 6),
-                Background = TryFindResource("ControlFillColorDefaultBrush") as Brush,
                 Tag = device,
             };
+            border.SetResourceReference(Border.BackgroundProperty, "ControlFillColorDefaultBrush");
             border.Child = new DockPanel
             {
                 Children =
@@ -1459,11 +1486,11 @@ public partial class QuickSettingsFlyout : UserControl
                 Cursor = needsSecond ? Cursors.Arrow : Cursors.Hand,
                 Opacity = needsSecond ? 0.45 : 1,
                 Margin = new Thickness(0, 0, 0, 6),
-                Background = active
-                    ? TryFindResource("AccentFillColorDefaultBrush") as Brush
-                    : TryFindResource("ControlFillColorDefaultBrush") as Brush,
                 Tag = mode,
             };
+            border.SetResourceReference(
+                Border.BackgroundProperty,
+                active ? "AccentFillColorDefaultBrush" : "ControlFillColorDefaultBrush");
 
             var glyph = new TextBlock
             {
@@ -1471,9 +1498,6 @@ public partial class QuickSettingsFlyout : UserControl
                 FontFamily = SystemVersion.IconFontFamily,
                 FontSize = 14,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = active
-                    ? TryFindResource("TextFillColorInverseBrush") as Brush
-                    : null,
             };
             DockPanel.SetDock(glyph, Dock.Left);
 
@@ -1490,6 +1514,16 @@ public partial class QuickSettingsFlyout : UserControl
             dock.Children.Add(glyph);
             dock.Children.Add(labelBlock);
             border.Child = dock;
+            if (active)
+            {
+                // Inverse text on the accent fill: the fill is dark in light mode and light in
+                // dark mode, so the primary text tone would lose its contrast.
+                foreach (TextBlock block in dock.Children.OfType<TextBlock>())
+                {
+                    block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorInverseBrush");
+                }
+            }
+
             border.MouseLeftButtonUp += OnProjectModeClick;
             ProjectModeList.Children.Add(border);
         }

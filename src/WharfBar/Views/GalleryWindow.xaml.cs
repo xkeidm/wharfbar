@@ -3,7 +3,6 @@ using System.Windows;
 using WharfBar.Models;
 using WharfBar.Resources;
 using WharfBar.Services;
-using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace WharfBar.Views;
@@ -14,13 +13,27 @@ namespace WharfBar.Views;
 /// </summary>
 internal partial class GalleryWindow : FluentWindow
 {
+    private const WindowBackdropType Backdrop = WindowBackdropType.Mica;
+
     private static GalleryWindow? _plugins;
     private static GalleryWindow? _widgets;
 
     public GalleryWindow()
     {
         InitializeComponent();
-        SystemThemeWatcher.Watch(this, WindowBackdropType.Mica, updateAccents: false);
+        // SystemThemeWatcher would apply the SYSTEM theme on open and override a pinned
+        // light/dark preference; AppThemeWatcher re-resolves the configured theme instead.
+        AppThemeWatcher.Watch(this, Backdrop, () => (Application.Current as App)?.ApplyThemeChanges());
+    }
+
+    /// <summary>Re-asserts this window's frame for the current app theme.</summary>
+    internal void RefreshTheme() => AppThemeWatcher.RefreshWindow(this, Backdrop);
+
+    /// <summary>Re-asserts every open gallery window (the instances are cached per scope).</summary>
+    internal static void RefreshThemeForAll()
+    {
+        _widgets?.RefreshTheme();
+        _plugins?.RefreshTheme();
     }
 
     internal static void Show(AppConfig config, bool widgets)

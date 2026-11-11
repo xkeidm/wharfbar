@@ -15,6 +15,7 @@ using WharfBar.Models;
 using WharfBar.Native;
 using WharfBar.Resources;
 using WharfBar.Services;
+using Wpf.Ui.Appearance;
 
 namespace WharfBar.Views;
 
@@ -431,15 +432,33 @@ public sealed partial class IslandFlyout : UserControl
     private const byte OutlineTopAlphaNeutral = 0x30;
     private const byte OutlineBottomAlphaNeutral = 0x0C;
 
+    /// <summary>
+    /// Top-lit rim on the neutral (untinted) surface. A white hairline is the dark-theme reading;
+    /// on the light theme's near-white panel it disappears, so the rim flips to a dark hairline.
+    /// High contrast uses the system window-text tone, which is black on HCWhite and white on
+    /// HCBlack.
+    /// </summary>
+    private static Color NeutralOutlineColor(byte alpha)
+        => AppThemePreference.Resolve() switch
+        {
+            ApplicationTheme.Light => Color.FromArgb(alpha, 0x00, 0x00, 0x00),
+            ApplicationTheme.HighContrast => Color.FromArgb(
+                alpha,
+                SystemColors.WindowTextColor.R,
+                SystemColors.WindowTextColor.G,
+                SystemColors.WindowTextColor.B),
+            _ => Color.FromArgb(alpha, 0xFF, 0xFF, 0xFF),
+        };
+
     private static Color OutlineTopColor(Color? tint)
         => tint is Color c
             ? Color.FromArgb(OutlineTopAlphaTinted, c.R, c.G, c.B)
-            : Color.FromArgb(OutlineTopAlphaNeutral, 0xFF, 0xFF, 0xFF);
+            : NeutralOutlineColor(OutlineTopAlphaNeutral);
 
     private static Color OutlineBottomColor(Color? tint)
         => tint is Color c
             ? Color.FromArgb(OutlineBottomAlphaTinted, c.R, c.G, c.B)
-            : Color.FromArgb(OutlineBottomAlphaNeutral, 0xFF, 0xFF, 0xFF);
+            : NeutralOutlineColor(OutlineBottomAlphaNeutral);
 
     /// <summary>
     /// Top rim color for the joined pill's border. The panel's outline starts at the fillet tips
@@ -468,10 +487,39 @@ public sealed partial class IslandFlyout : UserControl
     /// <summary>Top-lit rim: bright at the top, fading toward the bottom (animated to the tint when active).</summary>
     private static LinearGradientBrush CreateOutlineBrush()
         => new(
-            Color.FromArgb(OutlineTopAlphaNeutral, 0xFF, 0xFF, 0xFF),
-            Color.FromArgb(OutlineBottomAlphaNeutral, 0xFF, 0xFF, 0xFF),
+            NeutralOutlineColor(OutlineTopAlphaNeutral),
+            NeutralOutlineColor(OutlineBottomAlphaNeutral),
             new Point(0, 0),
             new Point(0, 1));
+
+    /// <summary>
+    /// Re-applies the neutral / tinted rim for the current theme. The panel is its own popup window
+    /// and never receives the bar's theme messages, so an open panel has to be told when the theme
+    /// dictionary was swapped underneath it.
+    /// </summary>
+    internal void RefreshThemeRim() => ApplyOutlineTint(_appliedTint);
+
+    /// <summary>
+    /// Rebuilds the code-built hub rows after a light/dark (or accent) swap. Row and chip fills are
+    /// single brushes read from the theme at build time — the hover/selection handlers exchange
+    /// local brush values, so a live reference would be overwritten by the interaction. The rows are
+    /// therefore rebuilt on the theme-change path instead (the panel is a popup window and never
+    /// sees the bar's theme messages by itself). Selection is preserved by the rebuild methods.
+    /// </summary>
+    internal void RefreshThemeRows()
+    {
+        if (ShelfBody.Visibility == Visibility.Visible)
+        {
+            RebuildShelf();
+        }
+
+        if (ColorPickerBody.Visibility == Visibility.Visible)
+        {
+            RebuildPicker();
+        }
+
+        Rebuild();
+    }
 
     /// <summary>Currently shown hub tab.</summary>
     internal IslandHubTab CurrentHubTab { get; private set; } = IslandHubTab.Clipboard;
@@ -786,7 +834,9 @@ public sealed partial class IslandFlyout : UserControl
         {
             if (b.Tag as string == IslandHub.ToConfig(tab))
             {
-                b.SetResourceReference(BackgroundProperty, "ControlFillColorSecondaryBrush");
+                // Subtle fill, not ControlFillColorSecondary: the latter is a 50 % white wash in the
+                // light theme and the selected tab would be invisible on the near-white panel.
+                b.SetResourceReference(BackgroundProperty, "SubtleFillColorSecondaryBrush");
             }
             else
             {
@@ -1964,9 +2014,14 @@ public sealed partial class IslandFlyout : UserControl
         return string.Format(CultureInfo.CurrentCulture, "{0} · {1}", app, relative);
     }
 
+    /// <summary>
+    /// Hover tile behind a row glyph. <c>ControlFillColorSecondary</c> is a white wash in the light
+    /// theme (#80F9F9F9) and disappears on the near-white panel; the subtle fill is black-alpha in
+    /// light and white-alpha in dark, i.e. it stays visible in both.
+    /// </summary>
     private static Brush ResolveTileBrush()
     {
-        if (Application.Current?.TryFindResource("ControlFillColorSecondaryBrush") is Brush brush)
+        if (Application.Current?.TryFindResource("SubtleFillColorSecondaryBrush") is Brush brush)
         {
             return brush;
         }
@@ -1976,9 +2031,10 @@ public sealed partial class IslandFlyout : UserControl
         return fallback;
     }
 
+    /// <summary>Hover / selection fill for rows and chips (same light-theme reason as <see cref="ResolveTileBrush"/>).</summary>
     private static Brush ResolveSelectedBrush()
     {
-        if (Application.Current?.TryFindResource("ControlFillColorDefaultBrush") is Brush brush)
+        if (Application.Current?.TryFindResource("SubtleFillColorSecondaryBrush") is Brush brush)
         {
             return brush;
         }

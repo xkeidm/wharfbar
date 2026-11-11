@@ -535,7 +535,7 @@ internal sealed partial class DockItemCell : UserControl
         }
 
         ProgressTrack.Visibility = Visibility.Visible;
-        ProgressFill.Background = ProgressBrush(_progress.Kind);
+        ApplyProgressBrush(_progress.Kind);
         ProgressFill.Opacity = _progress.Kind == DockProgressKind.Indeterminate ? 0.45 : 1;
         if (_progress.Percent is double percent && ProgressTrack.ActualWidth > 0)
         {
@@ -548,7 +548,13 @@ internal sealed partial class DockItemCell : UserControl
         ProgressFill.ClearValue(WidthProperty);
     }
 
-    private Brush ProgressBrush(DockProgressKind kind)
+    /// <summary>
+    /// Live resource reference, never a captured brush: WPF-UI swaps its theme dictionary on
+    /// light/dark, and a brush read once with <c>TryFindResource</c> would keep the old palette
+    /// until the state happened to be repainted (the light-mode dock line stuck on the dark-theme
+    /// colour). The progress lane is hidden between states, so there is no repaint to rely on.
+    /// </summary>
+    private void ApplyProgressBrush(DockProgressKind kind)
     {
         string key = kind switch
         {
@@ -557,26 +563,28 @@ internal sealed partial class DockItemCell : UserControl
             _ => "AccentFillColorDefaultBrush",
         };
 
-        if (TryFindResource(key) is Brush brush)
+        if (TryFindResource(key) is null)
         {
-            return brush;
+            key = "AccentFillColorDefaultBrush";
         }
 
-        if (TryFindResource("AccentFillColorDefaultBrush") is Brush accent)
+        if (TryFindResource(key) is not null)
         {
-            return accent;
+            ProgressFill.SetResourceReference(Border.BackgroundProperty, key);
+            return;
         }
 
-        return Brushes.DodgerBlue;
+        // No theme dictionary at all (unit tests, very early startup): keep the lane visible.
+        ProgressFill.SetCurrentValue(Border.BackgroundProperty, Brushes.DodgerBlue);
     }
 
+    /// <summary>Same live-reference rule as <see cref="ApplyProgressBrush"/>.</summary>
     private void ApplyPillBrush(bool open)
     {
-        if (TryFindResource(open
-                ? "AccentFillColorDefaultBrush"
-                : "TextFillColorPrimaryBrush") is Brush brush)
+        string key = open ? "AccentFillColorDefaultBrush" : "TextFillColorPrimaryBrush";
+        if (TryFindResource(key) is not null)
         {
-            RunningPill.Background = brush;
+            RunningPill.SetResourceReference(Border.BackgroundProperty, key);
         }
     }
 

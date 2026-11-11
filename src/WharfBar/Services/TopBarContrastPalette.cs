@@ -16,7 +16,7 @@ internal static class TopBarContrastPalette
     /// <summary>Bar text, glyphs and the logo geometry fill.</summary>
     internal const string TextKey = "Bar.TextPrimary";
 
-    /// <summary>Status strip hover plate (was the hardcoded <c>#1EFFFFFF</c> in the style).</summary>
+    /// <summary>Status strip hover plate: a translucent wash of the text tone (was a fixed <c>#1EFFFFFF</c>).</summary>
     internal const string HitFillKey = "Bar.HitFill";
 
     /// <summary>Island pill resting background (was <c>ControlFillColorDefaultBrush</c>).</summary>
@@ -44,12 +44,15 @@ internal static class TopBarContrastPalette
 
     /// <summary>
     /// Theme-following palette: each bar key mirrors the theme brush the bar's styles used
-    /// before this palette (hover plate keeps the former hardcoded <c>#1EFFFFFF</c>).
+    /// before this palette. <paramref name="lightTheme"/> swaps the hover plate to a dark wash:
+    /// the historical fixed <c>#1EFFFFFF</c> is nearly invisible on the light theme's light
+    /// Mica/plate, so the plate follows the text tone exactly like the wallpaper-driven palettes
+    /// (the default keeps the old dark-theme value for a dark theme).
     /// </summary>
-    internal static IReadOnlyList<KeyValuePair<string, Brush>> Theme(Func<string, Brush> find) => new KeyValuePair<string, Brush>[]
+    internal static IReadOnlyList<KeyValuePair<string, Brush>> Theme(Func<string, Brush> find, bool lightTheme = false) => new KeyValuePair<string, Brush>[]
     {
         new(TextKey, find("TextFillColorPrimaryBrush")),
-        new(HitFillKey, Frozen(0x1E, 0xFF, 0xFF, 0xFF)),
+        new(HitFillKey, lightTheme ? Frozen(0x14, 0x00, 0x00, 0x00) : Frozen(0x1E, 0xFF, 0xFF, 0xFF)),
         new(PillFillKey, find("ControlFillColorDefaultBrush")),
         new(PillFillHoverKey, find("ControlFillColorSecondaryBrush")),
         new(PillStrokeKey, find("ControlStrokeColorDefaultBrush")),

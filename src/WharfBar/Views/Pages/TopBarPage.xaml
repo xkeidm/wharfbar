@@ -46,6 +46,8 @@
             <TextBlock Text="{x:Static res:Strings.TopBarPage_PreviewDescription}"
                        Style="{StaticResource SectionDescription}" />
             <Border Style="{StaticResource SectionCard}" Padding="12,10,12,10" Margin="0,0,0,24">
+                <!-- Deliberate fixed palette: the strip previews the bar over a dark wallpaper
+                     backdrop, so its plate and glyphs must not follow the app light/dark theme. -->
                 <Border CornerRadius="6" Background="#E6141414" Padding="12,6,12,6">
                     <Grid>
                         <Grid.ColumnDefinitions>

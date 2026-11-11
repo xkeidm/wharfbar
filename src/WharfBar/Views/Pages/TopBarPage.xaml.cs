@@ -59,13 +59,17 @@ public partial class TopBarPage : Page
             if (!anyHidden)
             {
                 anyHidden = true;
-                StatusItemsPanel.Children.Add(new System.Windows.Controls.TextBlock
+                var hint = new System.Windows.Controls.TextBlock
                 {
                     Text = Strings.TopBarPage_DisabledHint,
                     FontSize = 12,
                     Margin = new Thickness(0, 4, 0, 8),
-                    Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
-                });
+                };
+                // Live reference: the page is cached, so a captured brush would keep the old theme.
+                hint.SetResourceReference(
+                    System.Windows.Controls.TextBlock.ForegroundProperty,
+                    "TextFillColorSecondaryBrush");
+                StatusItemsPanel.Children.Add(hint);
             }
 
             AddCard(id, isChecked: false);
@@ -78,14 +82,16 @@ public partial class TopBarPage : Page
     {
         var border = new Border
         {
-            Background = (Brush)FindResource("CardBackgroundFillColorDefaultBrush"),
-            BorderBrush = (Brush)FindResource("CardStrokeColorDefaultBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16, 14, 16, 14),
             Margin = new Thickness(0, 0, 0, 8),
             Tag = id,
         };
+        // Code-built cards live as long as the cached page: theme colors must stay live
+        // resource references, not frozen brush snapshots.
+        border.SetResourceReference(Border.BackgroundProperty, "CardBackgroundFillColorDefaultBrush");
+        border.SetResourceReference(Border.BorderBrushProperty, "CardStrokeColorDefaultBrush");
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -96,10 +102,12 @@ public partial class TopBarPage : Page
         {
             Symbol = StatusItemSymbol(id),
             FontSize = 18,
-            Foreground = (Brush)FindResource(isChecked ? "AccentFillColorDefaultBrush" : "TextFillColorSecondaryBrush"),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 16, 0),
         };
+        icon.SetResourceReference(
+            SymbolIcon.ForegroundProperty,
+            isChecked ? "AccentFillColorDefaultBrush" : "TextFillColorSecondaryBrush");
         Grid.SetColumn(icon, 0);
         grid.Children.Add(icon);
 
@@ -111,8 +119,8 @@ public partial class TopBarPage : Page
             VerticalAlignment = VerticalAlignment.Center,
             FontSize = 14,
             FontWeight = FontWeights.Medium,
-            Foreground = (Brush)FindResource("TextFillColorPrimaryBrush"),
         };
+        toggle.SetResourceReference(ToggleSwitch.ForegroundProperty, "TextFillColorPrimaryBrush");
         toggle.Checked += OnStatusToggled;
         toggle.Unchecked += OnStatusToggled;
         Grid.SetColumn(toggle, 1);
@@ -120,6 +128,15 @@ public partial class TopBarPage : Page
 
         if (isChecked)
         {
+            var grip = new SymbolIcon
+            {
+                Symbol = SymbolRegular.ReOrderDotsVertical24,
+                FontSize = 16,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+            grip.SetResourceReference(SymbolIcon.ForegroundProperty, "TextFillColorSecondaryBrush");
+
             // The glyph alone is a poor hit target (only the ink is tested). A transparent
             // border fills the grip column, and the switch — a ToggleButton — never sees
             // this press, so it cannot capture the mouse and cancel the drag.
@@ -131,14 +148,7 @@ public partial class TopBarPage : Page
                 Padding = new Thickness(10, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Stretch,
                 ToolTip = Strings.DockRow_DragTooltip,
-                Child = new SymbolIcon
-                {
-                    Symbol = SymbolRegular.ReOrderDotsVertical24,
-                    FontSize = 16,
-                    Foreground = (Brush)FindResource("TextFillColorSecondaryBrush"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    IsHitTestVisible = false,
-                },
+                Child = grip,
             };
             Grid.SetColumn(handle, 2);
             grid.Children.Add(handle);

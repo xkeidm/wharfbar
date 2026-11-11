@@ -14,6 +14,7 @@ using WharfBar.Native;
 using WharfBar.Resources;
 using WharfBar.Services;
 using Image = System.Windows.Controls.Image;
+using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
 namespace WharfBar.Views;
@@ -1048,8 +1049,7 @@ public partial class TopBarWindow : Window
         bool showGpuPerAdapter = _config.Current.TopBar?.ShowGpuPerAdapter != false;
         string text = snapshot.DisplayText(showGpuPerAdapter);
         SystemStatsText.Text = text;
-        Brush spark = TryFindResource("AccentFillColorDefaultBrush") as Brush ?? Brushes.DodgerBlue;
-        _statsHover?.Apply(snapshot, text, spark);
+        _statsHover?.Apply(snapshot, text);
     }
 
     private void ApplySystemStatsVisibility()
@@ -1550,7 +1550,11 @@ public partial class TopBarWindow : Window
         }
 
         IReadOnlyList<KeyValuePair<string, Brush>> plan = tone == BarTextTone.FollowTheme
-            ? TopBarContrastPalette.Theme(FindThemeBrush)
+            // The theme brushes are read fresh here (this pass re-runs on every theme message), and
+            // the hover plate has to know which side of the theme it is painting on.
+            ? TopBarContrastPalette.Theme(
+                FindThemeBrush,
+                AppThemePreference.Resolve() == ApplicationTheme.Light)
             : TopBarContrastPalette.For(tone);
 
         foreach (KeyValuePair<string, Brush> entry in plan)
@@ -2288,8 +2292,6 @@ public partial class TopBarWindow : Window
                 // same pattern as the other status buttons — gives a ~30×28 hit area with
                 // the icon centered. Hover highlight makes the real target visible; without
                 // it users aim at the 16px glyph and cannot tell when they are on target.
-                var hoverBrush = new SolidColorBrush(Color.FromArgb(0x1E, 0xFF, 0xFF, 0xFF));
-                hoverBrush.Freeze();
                 var host = new Border
                 {
                     Background = Brushes.Transparent,
@@ -2301,7 +2303,11 @@ public partial class TopBarWindow : Window
                     Child = image,
                     Tag = item,
                 };
-                host.MouseEnter += (_, _) => host.Background = hoverBrush;
+                // Live bar-palette reference, like the strip's own hover style: a frozen white
+                // wash stayed white (i.e. invisible) on the light theme and on the wallpaper-driven
+                // palette. Leaving sets Transparent again so the padded hit area still hit-tests.
+                host.MouseEnter += (_, _) =>
+                    host.SetResourceReference(Border.BackgroundProperty, TopBarContrastPalette.HitFillKey);
                 host.MouseLeave += (_, _) => host.Background = Brushes.Transparent;
                 host.MouseDown += OnTrayMirrorItemMouseDown;
                 host.MouseMove += OnTrayMirrorItemMouseMove;

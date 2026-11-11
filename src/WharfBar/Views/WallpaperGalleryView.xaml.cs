@@ -16,7 +16,6 @@ namespace WharfBar.Views;
 public partial class WallpaperGalleryView : UserControl
 {
     private const double PreviewDisplayWidthDip = 388;
-    private static readonly Color BadgeTextColor = Color.FromRgb(0x12, 0x12, 0x1A);
 
     private WallpaperService? _service;
     private bool _hasPreviewSource;
@@ -241,15 +240,18 @@ public partial class WallpaperGalleryView : UserControl
             IsHitTestVisible = false,
         };
         badge.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
-        badge.Child = new TextBlock
+        var badgeGlyph = new TextBlock
         {
             Text = "\u2713",
             FontSize = 9,
             FontWeight = FontWeights.Bold,
-            Foreground = new SolidColorBrush(BadgeTextColor),
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
         };
+        // The accent fill is dark in light mode and light in dark mode, so the check needs the
+        // on-accent tone instead of a fixed dark color (that one disappeared in light mode).
+        badgeGlyph.SetResourceReference(TextBlock.ForegroundProperty, "TextOnAccentFillColorPrimaryBrush");
+        badge.Child = badgeGlyph;
 
         var content = new Grid();
         content.Children.Add(imageHolder);

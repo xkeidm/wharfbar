@@ -358,8 +358,12 @@ public partial class DockWindow : Window
             : Brushes.Transparent;
     }
 
-    /// <summary>The surface first: it re-applies the app theme the brand tile reads.</summary>
-    private void ApplyThemeFromSystem()
+    /// <summary>
+    /// Re-asserts the surface first — it re-applies the app theme the brand tile reads — then the
+    /// launch tile. Also called from settings after an in-app theme change, not only from the
+    /// system broadcast: switching the configured theme to "system" produces no broadcast.
+    /// </summary>
+    internal void RefreshTheme()
     {
         ApplySurfaceFromConfig();
         RefreshBrandTile();
@@ -1978,13 +1982,13 @@ public partial class DockWindow : Window
             case NativeMethods.WM_THEMECHANGED:
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
-                Dispatcher.BeginInvoke(ApplyThemeFromSystem);
+                Dispatcher.BeginInvoke(RefreshTheme);
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
-                    Dispatcher.BeginInvoke(ApplyThemeFromSystem);
+                    Dispatcher.BeginInvoke(RefreshTheme);
                     if (Application.Current is App app)
                     {
                         app.FollowWallpaperTheme(fromExternalWindows: true);

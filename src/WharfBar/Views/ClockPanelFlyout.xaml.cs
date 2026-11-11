@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
 using WharfBar.Services;
@@ -104,19 +103,12 @@ public partial class ClockPanelFlyout : UserControl
             CornerRadius = new CornerRadius(6),
             Child = label,
         };
-        if (!today)
+        if (today)
         {
-            return cell;
-        }
-
-        if (TryFindResource("AccentFillColorDefaultBrush") is Brush fill)
-        {
-            cell.Background = fill;
-        }
-
-        if (TryFindResource("TextOnAccentFillColorPrimaryBrush") is Brush onAccent)
-        {
-            label.Foreground = onAccent;
+            // Live references: the month is repainted on every open, but the accent pair must also
+            // follow a theme/accent swap instead of caching the palette current at build time.
+            cell.SetResourceReference(Border.BackgroundProperty, "AccentFillColorDefaultBrush");
+            label.SetResourceReference(TextBlock.ForegroundProperty, "TextOnAccentFillColorPrimaryBrush");
         }
 
         return cell;

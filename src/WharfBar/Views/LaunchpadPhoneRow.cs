@@ -16,7 +16,6 @@ internal static class LaunchpadPhoneRow
 {
     private static readonly Brush TransparentFill = Brushes.Transparent;
     private static readonly ControlTemplate FlatTemplate = CreateFlatTemplate();
-    private static readonly SolidColorBrush ConnectedBrush = CreateConnectedBrush();
 
     internal const double PanelWidth = 268;
 
@@ -103,7 +102,8 @@ internal static class LaunchpadPhoneRow
         if (phone.Connected)
         {
             var check = Glyph("\uE73E", 12);
-            check.Foreground = ConnectedBrush;
+            // Status green from the theme: the fixed mint tone was only readable on the dark surface.
+            check.SetResourceReference(TextBlock.ForegroundProperty, "SystemFillColorSuccessBrush");
             check.Margin = new Thickness(0, 0, 8, 0);
             check.ToolTip = Strings.Launchpad_Connected;
             status.Children.Add(check);
@@ -547,13 +547,6 @@ internal static class LaunchpadPhoneRow
         };
         block.SetResourceReference(TextBlock.ForegroundProperty, "TextFillColorSecondaryBrush");
         return block;
-    }
-
-    private static SolidColorBrush CreateConnectedBrush()
-    {
-        var brush = new SolidColorBrush(Color.FromRgb(0x3D, 0xD6, 0x8C));
-        brush.Freeze();
-        return brush;
     }
 
     private static ControlTemplate BuildFlatTemplate()

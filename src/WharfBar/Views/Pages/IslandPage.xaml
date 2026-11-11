@@ -268,7 +268,8 @@
                         <TextBlock Text="{x:Static res:Strings.IslandPage_LowBatteryDescription}"
                                    FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
                                    TextWrapping="Wrap" Margin="0,2,0,0" />
-                        <TextBlock x:Name="LowBatteryErrorText" FontSize="12" Foreground="#E57373"
+                        <TextBlock x:Name="LowBatteryErrorText" FontSize="12"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                    Margin="0,6,0,0" Visibility="Collapsed" />
                     </StackPanel>
 
@@ -359,7 +360,8 @@
                                  FontFamily="Consolas" />
                     </Grid>
 
-                    <TextBlock x:Name="LimitsErrorText" FontSize="12" Foreground="#E57373"
+                    <TextBlock x:Name="LimitsErrorText" FontSize="12"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}"
                                Margin="36,8,0,0" Visibility="Collapsed" />
                 </StackPanel>
             </Border>

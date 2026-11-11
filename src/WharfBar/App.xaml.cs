@@ -69,6 +69,19 @@ public partial class App : Application
         _monitors?.RefreshDockBrandTiles();
     }
 
+    /// <summary>
+    /// An in-app light/dark switch happened. Re-asserts every shell surface: the library's theme
+    /// apply repaints the main window opaque and leaves the docks on their previous DWM dark-mode
+    /// state; "system" produces no system broadcast, so nothing else would refresh them.
+    /// </summary>
+    internal void ApplyThemeChanges()
+    {
+        _monitors?.ApplyTopBarChanges();
+        _monitors?.ApplyDockTheme();
+        _settings?.RefreshTheme();
+        GalleryWindow.RefreshThemeForAll();
+    }
+
     /// <summary>Reconciles and applies dock settings to every per-monitor dock.</summary>
     internal void ApplyDockChanges()
     {

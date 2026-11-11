@@ -43,7 +43,11 @@ internal static class TrayLetterGlyph
                         FontWeights.Normal,
                         FontStretches.Normal),
                     13,
-                    new SolidColorBrush(Color.FromRgb(0xE0, 0xE0, 0xE0)),
+                    // Neutral mid gray: the tile is frozen and cached per key, so it cannot follow a
+                    // later light/dark swap — a single tone that reads on both themes (and matches
+                    // the generic tray fallback dot) is the only honest option. The old #E0E0E0 was
+                    // a dark-theme-only letter that disappeared on the light bar/dock.
+                    new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)),
                     VisualTreeHelper.GetDpi(dv).PixelsPerDip);
                 dc.DrawText(text, new Point((SizeDip - text.Width) / 2, (SizeDip - text.Height) / 2));
             }

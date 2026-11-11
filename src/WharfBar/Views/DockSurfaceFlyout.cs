@@ -36,7 +36,6 @@ internal sealed class DockSurfaceFlyout : IDisposable
     private readonly List<PreviewSlot> _previews = [];
     private readonly List<string> _folderStack = [];
     private readonly DispatcherTimer _closeTimer;
-    private readonly Brush _previewBackground;
     private CancellationTokenSource? _capture;
     private int _captureGeneration;
     private bool _disposed;
@@ -54,9 +53,6 @@ internal sealed class DockSurfaceFlyout : IDisposable
         _closeTimer.Tick += (_, _) => Close();
         _card.MouseEnter += (_, _) => CancelClose();
         _card.MouseLeave += (_, _) => ScheduleClose();
-
-        _previewBackground = new SolidColorBrush(Color.FromArgb(0x1A, 0xFF, 0xFF, 0xFF));
-        _previewBackground.Freeze();
     }
 
     internal bool IsOpen => _popup.IsOpen;
@@ -273,9 +269,11 @@ internal sealed class DockSurfaceFlyout : IDisposable
             Height = PreviewHeightDip,
             CornerRadius = new CornerRadius(4),
             ClipToBounds = true,
-            Background = _previewBackground,
             Child = image,
         };
+        // Theme brush, not a white wash: the card is repainted after every light/dark or accent
+        // change and a hardcoded #1AFFFFFF is invisible on the light card.
+        preview.SetResourceReference(Border.BackgroundProperty, "SubtleFillColorSecondaryBrush");
 
         string title = string.IsNullOrWhiteSpace(window.Title) ? Strings.Dock_UntitledWindow : window.Title;
         var caption = new TextBlock

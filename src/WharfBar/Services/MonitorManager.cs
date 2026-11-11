@@ -219,6 +219,19 @@ internal sealed class MonitorManager : IDisposable
     }
 
     /// <summary>
+    /// Re-asserts every dock after an in-app theme/accent change. The docks handle the system
+    /// broadcast themselves; choosing "system" in settings produces no broadcast, so the settings
+    /// page has to drive this path explicitly.
+    /// </summary>
+    internal void ApplyDockTheme()
+    {
+        foreach (DockWindow dock in _docks)
+        {
+            dock.RefreshTheme();
+        }
+    }
+
+    /// <summary>
     /// Rebuilds every top bar when <c>AllowsTransparency</c> must flip (Mica ↔ translucent).
     /// Removes old AppBars only — does <strong>not</strong> restore the Windows taskbar.
     /// Constructs the next window first (no AppBar until Show), then ABM_REMOVE on old;

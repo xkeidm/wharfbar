@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using System.Windows.Threading;
 using WharfBar.Models;
 using WharfBar.Native;
@@ -157,7 +156,9 @@ public partial class TopBarWindow
 
         if (TryPointerOverBox(source, e))
         {
-            TrayOverflowButton.Background = new SolidColorBrush(Color.FromArgb(0x33, 0xFF, 0xFF, 0xFF));
+            // Drop-target plate through the live bar palette (the old fixed #33FFFFFF was a
+            // dark-theme-only wash); ClearValue below restores the style's plain rest state.
+            TrayOverflowButton.SetResourceReference(Border.BackgroundProperty, TopBarContrastPalette.HitFillKey);
             if (!_trayDragFromBox)
             {
                 OpenTrayOverflowBox();

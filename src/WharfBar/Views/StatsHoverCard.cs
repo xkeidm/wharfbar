@@ -33,14 +33,17 @@ internal sealed class StatsHoverCard : StackPanel
         Children.Add(_ramLabel);
         Children.Add(_ram);
         Children.Add(_net);
+
+        // Live accent reference, not a brush handed in at paint time: the card is built once with
+        // the bar and must follow a later light/dark or accent swap on its own.
+        _cpu.SetResourceReference(Shape.StrokeProperty, "AccentFillColorDefaultBrush");
+        _gpu.SetResourceReference(Shape.StrokeProperty, "AccentFillColorDefaultBrush");
+        _ram.SetResourceReference(Shape.StrokeProperty, "AccentFillColorDefaultBrush");
     }
 
-    internal void Apply(SystemStatsSnapshot snapshot, string text, Brush stroke)
+    internal void Apply(SystemStatsSnapshot snapshot, string text)
     {
         _summary.Text = text;
-        _cpu.Stroke = stroke;
-        _ram.Stroke = stroke;
-        _gpu.Stroke = stroke;
         Paint(_cpu, snapshot.CpuHistory);
         bool gpu = snapshot.GpuPercents is { Length: > 0 };
         _gpuLabel.Visibility = gpu ? Visibility.Visible : Visibility.Collapsed;

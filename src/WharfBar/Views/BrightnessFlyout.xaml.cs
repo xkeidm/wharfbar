@@ -117,12 +117,13 @@ public partial class BrightnessFlyout : UserControl
     {
         var border = new Border
         {
-            Background = (Brush)FindResource("ControlFillColorDefaultBrush"),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 0, 0, 8),
             SnapsToDevicePixels = true
         };
+        // Live reference: the cards outlive a theme swap, and a captured brush keeps the old palette.
+        border.SetResourceReference(Border.BackgroundProperty, "ControlFillColorDefaultBrush");
 
         var stack = new StackPanel();
 
