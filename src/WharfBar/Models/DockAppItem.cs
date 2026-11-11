@@ -18,6 +18,7 @@ internal enum DockTileKind
     Downloads,
     Trash,
     Launchpad,
+    TaskView,
 }
 
 /// <summary>

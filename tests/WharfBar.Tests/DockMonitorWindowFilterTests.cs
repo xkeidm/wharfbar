@@ -133,7 +133,18 @@ public class DockMonitorWindowFilterTests
             DockSection.Running,
             string.Empty,
             Kind: DockTileKind.Trash);
-        Assert.Equal(trash, Assert.Single(DockMonitorWindowFilter.Apply([trash], [], MonitorA)));
+        var taskView = new DockAppItem(
+            DockBuiltInTiles.TaskViewId,
+            string.Empty,
+            string.Empty,
+            "Görev Görünümü",
+            false,
+            false,
+            IntPtr.Zero,
+            DockSection.Pinned,
+            string.Empty,
+            Kind: DockTileKind.TaskView);
+        Assert.Equal([trash, taskView], DockMonitorWindowFilter.Apply([trash, taskView], [], MonitorA));
     }
 
     private static DockAppItem RunningPin(string name, IntPtr hwnd, uint pid, int windowCount) =>

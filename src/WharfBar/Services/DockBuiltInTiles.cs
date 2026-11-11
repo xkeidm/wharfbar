@@ -6,9 +6,10 @@ using WharfBar.Resources;
 namespace WharfBar.Services;
 
 /// <summary>
-/// Downloads and Trash are dock tiles, not <c>dock.items</c> and not the User Pinned folder.
-/// A pinned directory is marked so a click opens a stack instead of a second Explorer via the
-/// app launcher. The pin path itself is left alone so unpin still finds the store key.
+/// Launchpad, Task View, Downloads, and Trash are dock tiles, not <c>dock.items</c> and not the
+/// User Pinned folder. A pinned directory is marked so a click opens a stack instead of a second
+/// Explorer via the app launcher. The pin path itself is left alone so unpin still finds the
+/// store key.
 /// </summary>
 internal static class DockBuiltInTiles
 {
@@ -17,6 +18,8 @@ internal static class DockBuiltInTiles
     internal const string TrashId = "builtin:trash";
 
     internal const string LaunchpadId = "builtin:launchpad";
+
+    internal const string TaskViewId = "builtin:taskview";
 
     internal static IReadOnlyList<DockAppItem> MarkFolders(
         IReadOnlyList<DockAppItem> items,
@@ -51,13 +54,14 @@ internal static class DockBuiltInTiles
     }
 
     /// <summary>
-    /// Downloads sits after the pinned group. Trash is the last tile, after unpinned running apps.
+    /// Launchpad is the brand tile at the far left and Task View sits right after it. Downloads
+    /// sits after the pinned group. Trash is the last tile, after unpinned running apps.
     /// </summary>
     internal static IReadOnlyList<DockAppItem> Append(IReadOnlyList<DockAppItem> items, string? downloadsPath)
     {
         ArgumentNullException.ThrowIfNull(items);
 
-        var next = new List<DockAppItem>(items.Count + 3);
+        var next = new List<DockAppItem>(items.Count + 4);
         next.Add(new DockAppItem(
             LaunchpadId,
             string.Empty,
@@ -69,6 +73,17 @@ internal static class DockBuiltInTiles
             DockSection.Pinned,
             string.Empty,
             Kind: DockTileKind.Launchpad));
+        next.Add(new DockAppItem(
+            TaskViewId,
+            string.Empty,
+            string.Empty,
+            Strings.Dock_TaskView,
+            IsPinned: false,
+            IsRunning: false,
+            IntPtr.Zero,
+            DockSection.Pinned,
+            string.Empty,
+            Kind: DockTileKind.TaskView));
         next.AddRange(items);
 
         int insertAt = 0;

@@ -1249,6 +1249,12 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Dock_TaskView {
+            get {
+                return ResourceManager.GetString("Dock_TaskView", resourceCulture);
+            }
+        }
+
         public static string Qs_Title {
             get {
                 return ResourceManager.GetString("Qs_Title", resourceCulture);

@@ -7,12 +7,13 @@ namespace WharfBar.Tests;
 public class DockReorderTests
 {
     [Fact]
-    public void StoreIndexBeforeSlot_SkipsLaunchpadAndBuiltIns()
+    public void StoreIndexBeforeSlot_SkipsLaunchpadTaskViewAndBuiltIns()
     {
         List<PinnedApp> store = Pins("A", "B", "C");
         DockAppItem[] strip =
         [
             Tile("builtin:launchpad", DockTileKind.Launchpad, pinned: false),
+            Tile("builtin:taskview", DockTileKind.TaskView, pinned: false),
             Pin("A"),
             Pin("B"),
             Pin("C"),
@@ -23,10 +24,11 @@ public class DockReorderTests
 
         Assert.Equal(0, Index(strip, 0, store));
         Assert.Equal(0, Index(strip, 1, store));
-        Assert.Equal(1, Index(strip, 2, store));
-        Assert.Equal(2, Index(strip, 3, store));
-        Assert.Equal(3, Index(strip, 4, store));
-        Assert.Equal(3, Index(strip, 6, store));
+        Assert.Equal(0, Index(strip, 2, store));
+        Assert.Equal(1, Index(strip, 3, store));
+        Assert.Equal(2, Index(strip, 4, store));
+        Assert.Equal(3, Index(strip, 5, store));
+        Assert.Equal(3, Index(strip, 7, store));
     }
 
     [Fact]
@@ -111,6 +113,9 @@ public class DockReorderTests
         Assert.False(DockReorder.IsStoredPin(Pin("Missing"), store));
         Assert.False(DockReorder.IsStoredPin(
             Tile("builtin:launchpad", DockTileKind.Launchpad, pinned: false),
+            store));
+        Assert.False(DockReorder.IsStoredPin(
+            Tile("builtin:taskview", DockTileKind.TaskView, pinned: false),
             store));
         Assert.False(DockReorder.IsStoredPin(Running("Calc"), store));
     }

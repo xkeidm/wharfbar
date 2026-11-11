@@ -634,6 +634,7 @@ Diskteki dosya kopyaları silinmez; onları ayrıca “Bırakılan dosyaları si
   <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
   <data name="Dock_Downloads" xml:space="preserve"><value>İndirilenler</value></data>
   <data name="Dock_RecycleBin" xml:space="preserve"><value>Geri Dönüşüm Kutusu</value></data>
+  <data name="Dock_TaskView" xml:space="preserve"><value>Görev Görünümü</value></data>
   <data name="Qs_Title" xml:space="preserve"><value>Hızlı ayarlar</value></data>
   <data name="Qs_Mixer" xml:space="preserve"><value>Ses karıştırıcı</value></data>
   <data name="Qs_Mute" xml:space="preserve"><value>Sessiz</value></data>

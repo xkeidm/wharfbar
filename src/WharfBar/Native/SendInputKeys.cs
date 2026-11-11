@@ -12,7 +12,19 @@ internal static class SendInputKeys
     /// <summary>Opens the Project / display projection UI (Win+P).</summary>
     internal static bool TrySendWinP() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_P);
 
+    /// <summary>
+    /// Toggles the Windows Task View (Win+Tab). SendInput does not wait on the shell; the
+    /// caller only needs to defer the call past its own click handling.
+    /// </summary>
+    internal static bool TrySendWinTab() => TrySendChord(NativeMethods.VK_LWIN, NativeMethods.VK_TAB);
+
     internal static bool TrySendReturn() => TrySendKey(NativeMethods.VK_RETURN);
+
+    /// <summary>One synthesized key-down; the Win-key hook stitches a chord together with it.</summary>
+    internal static bool TrySendKeyDown(ushort virtualKey) => SendKeyState(virtualKey, keyUp: false);
+
+    /// <summary>One synthesized key-up; releases the Win key a chord injected on key-down.</summary>
+    internal static bool TrySendKeyUp(ushort virtualKey) => SendKeyState(virtualKey, keyUp: true);
 
     internal static bool TrySendSpace() => TrySendKey(NativeMethods.VK_SPACE);
 
@@ -41,6 +53,16 @@ internal static class SendInputKeys
         {
             CreateKeyInput(virtualKey, keyUp: false),
             CreateKeyInput(virtualKey, keyUp: true),
+        };
+
+        return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;
+    }
+
+    private static bool SendKeyState(ushort virtualKey, bool keyUp)
+    {
+        var inputs = new INPUT[]
+        {
+            CreateKeyInput(virtualKey, keyUp),
         };
 
         return NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<INPUT>()) == (uint)inputs.Length;

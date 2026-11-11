@@ -631,6 +631,7 @@ File copies on disk are not deleted; you need to remove them separately with “
   <data name="Dock_Launchpad" xml:space="preserve"><value>Launchpad</value></data>
   <data name="Dock_Downloads" xml:space="preserve"><value>Downloads</value></data>
   <data name="Dock_RecycleBin" xml:space="preserve"><value>Recycle Bin</value></data>
+  <data name="Dock_TaskView" xml:space="preserve"><value>Task View</value></data>
   <data name="Qs_Title" xml:space="preserve"><value>Quick settings</value></data>
   <data name="Qs_Mixer" xml:space="preserve"><value>Volume mixer</value></data>
   <data name="Qs_Mute" xml:space="preserve"><value>Mute</value></data>

@@ -23,7 +23,7 @@ internal static class DockPresence
     {
         ArgumentNullException.ThrowIfNull(item);
 
-        if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad)
+        if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad or DockTileKind.TaskView)
         {
             return "id:" + (item.Id ?? string.Empty);
         }

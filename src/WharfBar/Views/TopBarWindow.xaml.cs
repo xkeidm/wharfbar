@@ -59,6 +59,15 @@ public partial class TopBarWindow : Window
     private bool _mediaActive;
     private bool _mediaClosePending;
     private bool _clockClosePending;
+
+    /// <summary>
+    /// Set by the logo's left-button press; <see cref="_appMenuWasOpenOnPress"/> remembers whether
+    /// the menu was already open, because WPF's menu mode may close it on that same press and the
+    /// matching release must then not reopen it (a second click toggles the menu closed).
+    /// </summary>
+    private bool _appMenuButtonPressed;
+
+    private bool _appMenuWasOpenOnPress;
     private StatsHoverCard? _statsHover;
     private bool _trayMirrorActive;
     private readonly Dictionary<string, Border> _trayMirrorImages = new(StringComparer.Ordinal);
@@ -101,6 +110,10 @@ public partial class TopBarWindow : Window
             _config.Current.TopBar?.BackgroundMode ?? TopBarBackgroundModes.Mica);
         InitializeComponent();
         ApplyLogo();
+
+        // The left-click menu open anchors the menu to the logo; the ContextMenu is reused by the
+        // right-click path, so its placement is reset when it closes (see OnAppMenuClosed).
+        AppMenu.Closed += OnAppMenuClosed;
 
         _statusElements = new Dictionary<string, FrameworkElement>(StringComparer.Ordinal)
         {
@@ -219,6 +232,7 @@ public partial class TopBarWindow : Window
         ApplyPlacement();
 
         TrayOverflowButton.PreviewMouseLeftButtonUp += OnTrayOverflowClick;
+        AppMenuButton.PreviewMouseLeftButtonDown += OnAppMenuButtonMouseDown;
         AppMenuButton.PreviewMouseLeftButtonUp += OnAppMenuClick;
         ControlCenterButton.PreviewMouseLeftButtonUp += OnControlCenterClick;
         NetworkButton.PreviewMouseLeftButtonUp += OnNetworkClick;
@@ -326,14 +340,54 @@ public partial class TopBarWindow : Window
         CloseFlyouts();
     }
 
+    private void OnAppMenuButtonMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        _appMenuButtonPressed = true;
+        _appMenuWasOpenOnPress = AppMenu.IsOpen;
+    }
+
     private void OnAppMenuClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
         CloseFlyouts();
 
-        // Left click on the brand logo opens the launchpad (same window the dock
-        // tile toggles). The app menu stays on right click via the ContextMenu.
-        LaunchpadWindow.Toggle(_config.Current);
+        bool pressedOnLogo = _appMenuButtonPressed;
+        bool wasOpenOnPress = _appMenuWasOpenOnPress;
+        _appMenuButtonPressed = false;
+        _appMenuWasOpenOnPress = false;
+
+        // A second left click closes the open menu. Two orders are possible: the press landed on
+        // the logo and WPF's menu mode already closed the menu (the release must not reopen it),
+        // or the menu was still open when the release arrived (close it here).
+        if (AppMenu.IsOpen)
+        {
+            AppMenu.IsOpen = false;
+            return;
+        }
+
+        if (!pressedOnLogo || wasOpenOnPress)
+        {
+            return;
+        }
+
+        // Left click on the brand logo opens the same app menu as right click. A ContextMenu
+        // opened programmatically bypasses ContextMenuService, so its placement has to be set
+        // explicitly before IsOpen: anchored to the logo's bottom-left edge.
+        AppMenu.PlacementTarget = AppMenuButton;
+        AppMenu.Placement = PlacementMode.Bottom;
+        AppMenu.IsOpen = true;
+    }
+
+    /// <summary>
+    /// Restores the mouse-point placement once the menu closes. The right-click path goes through
+    /// ContextMenuService, which positions the ContextMenu from the cursor; the left-click path
+    /// anchors it to the logo, so the anchored placement must not leak into the right-click open.
+    /// </summary>
+    private void OnAppMenuClosed(object sender, RoutedEventArgs e)
+    {
+        AppMenu.Placement = PlacementMode.MousePoint;
+        _appMenuButtonPressed = false;
+        _appMenuWasOpenOnPress = false;
     }
 
     /// <summary>
@@ -342,10 +396,14 @@ public partial class TopBarWindow : Window
     /// left of the screen the window is clamped to the screen edge and the visible menu slides right.
     /// By zeroing the left margin we make the window stay flush with the button and the menu stick to the
     /// icon's left edge; the right/bottom shadow allowance is kept.
+    /// The top margin is zeroed too: with a 30 px allowance the popup window starts at the bar's top
+    /// edge and swallows the clicks meant for the logo, so the menu could not be toggled closed from
+    /// the icon. The visible menu lands in the same place either way (its content top is the logo's
+    /// bottom edge); only the unused upward shadow allowance goes away.
     /// </summary>
     private void OnAppMenuLoaded(object sender, RoutedEventArgs e)
     {
-        ((ContextMenu)sender).Margin = new Thickness(0, 30, 30, 30);
+        ((ContextMenu)sender).Margin = new Thickness(0, 0, 30, 30);
     }
 
     private void OnAboutClick(object sender, RoutedEventArgs e)

@@ -1173,7 +1173,7 @@ public partial class DockWindow : Window
 
     private ContextMenu BuildContextMenuForItem(DockAppItem item)
     {
-        if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad)
+        if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad or DockTileKind.TaskView)
         {
             return BuildBuiltInMenu(item);
         }
@@ -1450,15 +1450,16 @@ public partial class DockWindow : Window
         DockIconFactory.Load(_icons, item, sizePx, _config.LogoStyle, _config.UseSystemAccentColor);
 
     /// <summary>
-    /// Re-tints the launch tile after a theme, accent or logo-style change. Only that one cell's
-    /// glyph is swapped, so menus, tooltips and the other icons stay as they are.
+    /// Re-tints the theme-coloured glyphs after a theme, accent or logo-style change: the
+    /// Launchpad brand tile and the Task View glyph. Only those cells' glyphs are swapped, so
+    /// menus, tooltips and the other icons stay as they are.
     /// </summary>
     internal void RefreshBrandTile()
     {
         int iconPx = ResolveIconPixelSize();
         foreach (DockItemCell cell in _strip.Cells)
         {
-            if (cell.Row is { Kind: DockTileKind.Launchpad } row)
+            if (cell.Row is { Kind: DockTileKind.Launchpad or DockTileKind.TaskView } row)
             {
                 cell.ReplaceIcon(LoadIcon(row.Item, iconPx));
             }

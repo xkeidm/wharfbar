@@ -200,6 +200,13 @@ public partial class DockWindow
             return true;
         }
 
+        if (row.Kind == DockTileKind.TaskView)
+        {
+            _flyout?.Close();
+            _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(ToggleTaskView));
+            return true;
+        }
+
         if (row.Kind == DockTileKind.Trash)
         {
             _flyout?.Close();
@@ -692,6 +699,10 @@ public partial class DockWindow
             {
                 LaunchpadWindow.Toggle(_config);
             }
+            else if (item.Kind == DockTileKind.TaskView)
+            {
+                _ = Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(ToggleTaskView));
+            }
             else if (item.Kind == DockTileKind.Trash)
             {
                 _ = DockShellOpen.TryOpenRecycleBin();
@@ -703,5 +714,26 @@ public partial class DockWindow
         };
         menu.Items.Add(open);
         return menu;
+    }
+
+    /// <summary>
+    /// Toggles the Windows Task View with a synthesized Win+Tab. Deferred to input priority
+    /// like the Win+N notification-center path, so the click is fully handled before the shell
+    /// gesture lands; <see cref="SendInputKeys.TrySendWinTab"/> itself does not block.
+    /// </summary>
+    private static void ToggleTaskView()
+    {
+        try
+        {
+            _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+            if (!SendInputKeys.TrySendWinTab())
+            {
+                Debug.WriteLine("WharfBar: Win+Tab SendInput failed");
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar: task view invoke failed — {ex.Message}");
+        }
     }
 }

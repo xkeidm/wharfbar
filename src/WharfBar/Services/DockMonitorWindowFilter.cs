@@ -64,7 +64,7 @@ internal static class DockMonitorWindowFilter
         var next = new List<DockAppItem>(items.Count);
         foreach (DockAppItem item in items)
         {
-            if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad)
+            if (item.Kind is DockTileKind.Downloads or DockTileKind.Trash or DockTileKind.Launchpad or DockTileKind.TaskView)
             {
                 next.Add(item);
                 continue;

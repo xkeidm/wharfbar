@@ -145,6 +145,9 @@ internal static class NativeMethods
     /// <summary>Owner of a top-level popup. <c>SetWindowLongPtr</c> index, not <c>GWL_HWNDPARENT</c> (-8 is the same value).</summary>
     internal const int GWLP_HWNDPARENT = -8;
     internal const int GWL_EXSTYLE = -20;
+    internal const int GWL_STYLE = -16;
+    internal const int WS_CHILD = 0x40000000;
+    internal const int WS_CAPTION = 0x00C00000;
     internal const int WS_EX_LAYERED = 0x00080000;
     internal const uint LWA_ALPHA = 0x2;
     internal const int WS_EX_TRANSPARENT = 0x00000020;
@@ -193,6 +196,12 @@ internal static class NativeMethods
     internal const uint SWP_FRAMECHANGED = 0x0020;
     internal const uint SWP_SHOWWINDOW = 0x0040;
     internal const uint SWP_HIDEWINDOW = 0x0080;
+
+    /// <summary>Leave the owner z-order alone when moving a window.</summary>
+    internal const uint SWP_NOOWNERZORDER = 0x0200;
+
+    /// <summary>Queue the move to the window's own thread instead of blocking on it.</summary>
+    internal const uint SWP_ASYNCWINDOWPOS = 0x4000;
 
     internal const uint MONITOR_DEFAULTTOPRIMARY = 0x00000001;
     internal const uint MONITOR_DEFAULTTONEAREST = 0x00000002;
@@ -296,6 +305,8 @@ internal static class NativeMethods
     internal const int NIN_KEYSELECT = 0x0401;
 
     internal const ushort VK_LWIN = 0x5B;
+    internal const ushort VK_RWIN = 0x5C;
+    internal const ushort VK_TAB = 0x09;
     internal const ushort VK_B = 0x42;
     internal const ushort VK_N = 0x4E;
     internal const ushort VK_P = 0x50;
@@ -643,6 +654,10 @@ internal static class NativeMethods
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     internal static extern bool IsZoomed(IntPtr hWnd);
+
+    /// <summary>The window with the mouse capture (the dragged/resized window while a loop runs).</summary>
+    [DllImport("user32.dll")]
+    internal static extern IntPtr GetCapture();
 
     [DllImport("user32.dll", SetLastError = true)]
     internal static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
