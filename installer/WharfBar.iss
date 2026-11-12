@@ -32,7 +32,7 @@
 #endif
 
 #ifndef AppVersion
-  #define AppVersion "1.0.0-beta.4"
+  #define AppVersion "1.0.0-beta.5"
 #endif
 
 #ifndef NumericVersion

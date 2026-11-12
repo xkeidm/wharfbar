@@ -8,6 +8,8 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.0.0-beta.5] — 2026-11-12
+
 ### Added
 
 - A bare **Windows key tap opens the Launchpad** (a second tap closes it) while every `Win+<key>` shortcut keeps working. The shell owns the Win-key hotkey (`RegisterHotKey(hwnd, id, MOD_WIN, 0)` reports "already registered"), so a low-level keyboard hook swallows both physical Win key events and synthesizes the key only when a chord key arrives — which also keeps the Start menu from opening on the tap and leaves the keyboard state clean. Injected input is untouched, so the app's own `Win+Tab` / `Win+B/N/P` gestures still work (ADR-020).
