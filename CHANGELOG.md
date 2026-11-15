@@ -8,6 +8,89 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.0.0-beta.6] — 2026-11-15
+
+### Added
+
+- **First-run setup:** a fresh install no longer drops you straight into the shell. WharfBar now opens a
+  setup wizard over the running bar and dock — welcome, look and feel (theme, accent, logo), top bar items
+  and background, dock position/size/background, wallpaper, a how-to-use tour and a finish page (start with
+  Windows, language). Because the shell is already up, every choice previews on the real top bar, dock and
+  desktop behind the window. `config.onboardingCompleted` (soft field) marks it done; an existing config from
+  an older version, or one reset after corruption, counts as completed, so only a new install sees the wizard.
+  Settings → General → **Run setup again** reopens it, and `WharfBar.exe --setup` forces it for QA.
+  Steps change with a Windows-style page transition: the whole page slides in from the right on Continue
+  and from the left on Back (220 ms, ease-out, fading in, and no slide when Windows animations are off).
+- Turkish + English copy for the setup wizard (`Onboarding_*` strings) and a first-run marker test suite
+  (`OnboardingConfigTests`).
+
+### Changed
+
+- A **light/dark switch is now one coordinated crossfade of the whole shell.** Every top bar, dock,
+  Settings, setup wizard and gallery surface is captured, the theme is swapped underneath, and the old
+  frame fades out over 180 ms (instant when Windows client-area animations are off). The palette change
+  no longer happens in visible steps per window, and the switch no longer freezes the shell while Windows
+  is notified of the new personalization theme. The wallpaper theme-partner fade starts only after the
+  shell crossfade, and a system-driven switch (`theme=system`) goes through the same path.
+- `theme=system` now actually follows external Windows light/dark flips: WPF-UI's cached system theme is
+  refreshed from the registry before the resolved theme is compared, so an OS flip is no longer silently
+  ignored (previously the shell kept the previous palette until an in-app change).
+- The Appearance settings page and the setup wizard share one theme/accent/logo apply pipeline
+  (`Services/AppearanceApplier`), so both behave identically (including Windows personalization writes).
+- **The default status strip now follows Windows' tray corner** (catalog v6): tray mirror → hidden icons
+  → volume → brightness → network → battery → quick settings → clock → notifications, with **volume and
+  brightness on by default**. `media` stays in the catalog but off. The setup wizard's Top bar step lists
+  the items in that order. A saved list that is still exactly the old untouched default is migrated once
+  (`TopBarStatusItemIds.LegacyDefaultOrder` / `IsLegacyDefault`); an order the user reordered or toggled is
+  never rewritten.
+
+### Fixed
+
+- **The desktop icon arrangement no longer changes when WharfBar opens.** Reserving the top bar and dock
+  changes the monitor work area, and Windows 11 re-lays-out the desktop icons on every work-area change:
+  25H2 re-expresses the layout on the new grid (the icon pitch changes too, 76×91 → 76×90 after the 30 DIP
+  bar) and the multi-change startup (taskbar strip release + top AppBar + dock AppBar) could re-pack the
+  whole desktop into columns, losing the user's arrangement for the session; a raw position write does not
+  stick while the work area differs. A new `DesktopIconLayoutGuard` captures the layout before the first
+  work-area change as monitor + grid cell through the documented shell view (`IFolderView`; no explorer
+  memory), watches the per-monitor work areas, re-projects the arrangement once the shell settles (a drag
+  made just before a change is adopted), and merges edits made during the session into the restored work
+  areas on exit. It stands down for auto-arranged / off-grid layouts and when the shell view is unavailable.
+  Multi-monitor layouts are projected per monitor.
+- Hovering the system-tray icons no longer changes the background of the whole tray area. The mirrored
+  tray strip painted a hover plate of its own on top of the per-icon plate, so the pointer anywhere in the
+  strip — including the gaps and the outer padding — lit the entire block with a double wash (measured:
+  rest 28 → strip 55 → strip + icon 79 luma). The strip is a container now (`StatusFrame`: same hit area,
+  cursor and drag slot, no hover trigger) and the highlight belongs to the icon under the pointer, as in
+  Windows.
+- The top bar's background now always stays the selected `topBar.backgroundMode` (`mica` / `transparent`
+  / `tint`). WPF-UI repaints `Application.MainWindow` on every theme apply — and the main window is the
+  primary top bar — so a theme/accent apply from Settings, the setup wizard or the gallery could leave a
+  transparent bar with an opaque fill or a stray Mica material behind it (the reported "the background
+  changes by itself"). Theme applies now never touch the bar (`ThemeApplyGuard` detaches the main window
+  from the library), the bar re-asserts its mode on every library theme apply, a backdrop read-back clears
+  a stray Mica attribute in the same frame, and a background watcher corrects any other foreign write
+  immediately. A rebuild also hands `Application.MainWindow` to the replacement bar before the old one
+  closes, removing a window in which the bar's compensation could not run.
+- Window personalization writes no longer run their blocking system-wide broadcast on the UI thread
+  (`SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, "ImmersiveColorSet")`): a theme or wallpaper-accent
+  change used to wait for every top-level window in the system and could re-enter WharfBar's own window
+  procedures mid-switch. The registry values are still written; only the notification moved to the thread
+  pool.
+- The setup wizard no longer stalls for about half a second when the wallpaper step opens (and again when you
+  come back to it): every visit built a fresh step that synchronously decoded the 20 bundled photos at 336 px
+  in its constructor, 450–600 ms of work that landed inside the page transition. Tiles now paint immediately
+  and the thumbnails decode in the background, two at a time, into a frozen per-file cache shared by every
+  visit (bounded at 96 entries); the wizard prewarms the gallery 2 s after it opens, so the step normally
+  appears with every preview ready. A step change now costs a few milliseconds of page construction plus
+  layout instead of that decode.
+- `Strings.Designer.cs` had drifted from `Strings.resx`: seven keys (`Appearance_Logo_Section/Title/Description/
+  WharfBar/Windows`, `Island_WallpaperAccent_Title/Description`) had no generated accessor, so `{x:Static}`
+  could not use them (markup compile MC3011).
+- The setup wizard's Dock and Top bar steps no longer crash while XAML is still being parsed: a slider's
+  `ValueChanged` fired before the value label existed, which aborted the whole window load.
+- The top-bar CPU reading no longer lags Task Manager. CPU/RAM now sample every second (the GPU PDH wildcard and network counters keep their 4 s cadence), so the CPU number is a 1 s average instead of a 4 s average that could be up to 4 s stale — that window made the bar show a high value after the load had already dropped, while Task Manager's 1 s total showed the current figure. The counter itself is unchanged: `GetSystemTimes` busy share, the same `% Processor Time` figure Task Manager's total tracks (`% Processor Utility` is frequency-weighted and was never displayed). The hover card's sparkline therefore covers the latest ~24 s (one point per second) instead of the previous ~96 s.
+
 ## [1.0.0-beta.5] — 2026-11-12
 
 ### Added
