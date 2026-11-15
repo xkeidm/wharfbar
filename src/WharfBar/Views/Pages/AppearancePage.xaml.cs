@@ -1,9 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using WharfBar.Models;
-using WharfBar.Native;
 using WharfBar.Services;
-using Wpf.Ui.Appearance;
 
 namespace WharfBar.Views.Pages;
 
@@ -67,73 +65,27 @@ public partial class AppearancePage : Page
     {
         if (_isLoading) return;
 
-        Cfg.LogoStyle = LogoStyleCombo.SelectedIndex == 1 ? LogoStyles.Windows : LogoStyles.WharfBar;
-        Config.Save(Cfg);
+        AppearanceApplier.ApplyLogoStyle(LogoStyleCombo.SelectedIndex == 1 ? LogoStyles.Windows : LogoStyles.WharfBar);
         LogoPreviewGlyph.Data = BrandLogo.BarGlyph(Cfg.LogoStyle);
-        WharfApp.ApplyLogoChanges();
     }
 
     private void OnAccentStyleChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoading) return;
 
-        bool useSystemAccent = AccentStyleCombo.SelectedIndex == 0;
-        Cfg.UseSystemAccentColor = useSystemAccent;
-        Config.Save(Cfg);
-
-        if (useSystemAccent)
-        {
-            ApplicationAccentColorManager.ApplySystemAccent();
-        }
-        else
-        {
-            ApplicationThemeManager.Apply(AppThemePreference.Resolve());
-        }
-
-        // Direct library applies retarget Application.MainWindow's backdrop/chrome
-        // regardless of the configured top-bar background mode — re-assert every bar.
-        // The dock launch tile is tinted from the accent and theme, so it follows too.
-        WharfApp.ApplyLogoChanges();
+        AppearanceApplier.ApplyAccentStyle(AccentStyleCombo.SelectedIndex == 0);
     }
 
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_isLoading) return;
 
-        string theme = ThemeCombo.SelectedIndex switch
+        AppearanceApplier.ApplyTheme(ThemeCombo.SelectedIndex switch
         {
             1 => AppConfig.ThemeLight,
             2 => AppConfig.ThemeDark,
             _ => AppConfig.ThemeSystem,
-        };
-
-        Cfg.Theme = theme;
-        AppThemePreference.Mode = theme;
-        ApplicationThemeManager.Apply(AppThemePreference.Resolve());
-
-        // Light/dark also write Windows personalization; system leaves Windows alone.
-        if (theme == AppConfig.ThemeLight)
-        {
-            _ = SystemThemeWriter.TryApply(light: true);
-        }
-        else if (theme == AppConfig.ThemeDark)
-        {
-            _ = SystemThemeWriter.TryApply(light: false);
-        }
-
-        if (Cfg.UseSystemAccentColor)
-        {
-            ApplicationAccentColorManager.ApplySystemAccent();
-        }
-
-        Config.Save(Cfg);
-
-        // See OnAccentStyleChanged: library applies rewrite MainWindow chrome; re-assert bars.
-        // A theme switch also has to re-establish the dock DWM dark mode and the settings/gallery
-        // frames — switching to "system" emits no system broadcast of its own.
-        WharfApp.ApplyThemeChanges();
-
-        WharfApp.FollowWallpaperTheme(fromExternalWindows: false);
+        });
     }
 
     private void OnBackgroundModeChanged(object sender, SelectionChangedEventArgs e)

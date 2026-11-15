@@ -408,6 +408,7 @@ public partial class DockWindow : Window
             hwnd,
             translucent ? WindowBackdropType.None : WindowBackdropType.Mica,
             translucent ? DwmCornerPreference.DoNotRound : DwmCornerPreference.Round);
+        ThemeCrossfadeRegistry.Register(this, () => Surface);
         ApplySurfaceFromConfig();
 
         DockHitTest.ApplyInteractive(hwnd);
@@ -487,6 +488,7 @@ public partial class DockWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        ThemeCrossfadeRegistry.Unregister(this);
         DetachSurface();
         _edgeReservation?.Dispose();
         _edgeReservation = null;
@@ -1983,17 +1985,26 @@ public partial class DockWindow : Window
             case NativeMethods.WM_THEMECHANGED:
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
-                Dispatcher.BeginInvoke(RefreshTheme);
+                // Resolved light/dark changes are owned by the coordinator's crossfaded switch;
+                // colourization-only changes still refresh the dock's own frame here.
+                ThemeCoordinator.TryScheduleSystemThemeChange();
+                if (!ThemeCoordinator.SuppressReactiveRefresh)
+                {
+                    Dispatcher.BeginInvoke(RefreshTheme);
+                }
+
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
-                    Dispatcher.BeginInvoke(RefreshTheme);
-                    if (Application.Current is App app)
+                    ThemeCoordinator.TryScheduleSystemThemeChange();
+                    if (!ThemeCoordinator.SuppressReactiveRefresh)
                     {
-                        app.FollowWallpaperTheme(fromExternalWindows: true);
+                        Dispatcher.BeginInvoke(RefreshTheme);
                     }
+
+                    // The wallpaper follow is the coordinator's after-fade step.
                 }
 
                 break;

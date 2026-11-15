@@ -24,6 +24,8 @@ internal partial class GalleryWindow : FluentWindow
         // SystemThemeWatcher would apply the SYSTEM theme on open and override a pinned
         // light/dark preference; AppThemeWatcher re-resolves the configured theme instead.
         AppThemeWatcher.Watch(this, Backdrop, () => (Application.Current as App)?.ApplyThemeChanges());
+        ThemeCrossfadeRegistry.Register(this, () => Content as FrameworkElement);
+        Closed += (_, _) => ThemeCrossfadeRegistry.Unregister(this);
     }
 
     /// <summary>Re-asserts this window's frame for the current app theme.</summary>

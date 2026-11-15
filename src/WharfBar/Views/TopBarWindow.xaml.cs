@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -73,6 +74,17 @@ public partial class TopBarWindow : Window
     private readonly Dictionary<string, Border> _trayMirrorImages = new(StringComparer.Ordinal);
     private DispatcherTimer? _tintSaveTimer;
     private int _pendingTintOpacity;
+
+    /// <summary>Set while a theme-apply-driven background re-assert is queued on the dispatcher.</summary>
+    private bool _backgroundReassertQueued;
+
+    /// <summary>
+    /// Watches <see cref="Window.Background"/> so any foreign paint (a library theme apply, a future
+    /// code path) is detected the moment it lands and the configured background is restored in the
+    /// same frame. This is what makes "the selected top-bar background always wins" an invariant
+    /// rather than a best-effort re-assert after known call sites.
+    /// </summary>
+    private DependencyPropertyDescriptor? _backgroundMonitor;
 
     /// <summary>Wallpaper path of the last completed strip-luma sample (cache key).</summary>
     private string? _wallpaperSampledPath;
@@ -170,7 +182,17 @@ public partial class TopBarWindow : Window
         HookShutdownPaths();
 
         _appearance = new WindowAppearance(this, _source.Handle, Backdrop, Corners);
-        WindowAppearance.MainWindowChromeClobbered += OnMainWindowChromeClobbered;
+
+        // Any application-theme apply (ours, another window's, a future library path) can rewrite a
+        // window background; the bar's configured background must survive all of them. The guard
+        // already keeps WPF-UI off the main window; this subscription is the second safety net and
+        // also covers the WndProc-driven paths landing out of order.
+        ApplicationThemeManager.Changed += OnApplicationThemeChanged;
+        ThemeCrossfadeRegistry.Register(this, () => Surface);
+        _backgroundMonitor = DependencyPropertyDescriptor.FromProperty(
+            Control.BackgroundProperty,
+            typeof(TopBarWindow));
+        _backgroundMonitor?.AddValueChanged(this, OnBackgroundValueChanged);
         ApplyBackgroundAppearance();
 
         _engine.Status.Changed += OnStatusChanged;
@@ -984,6 +1006,13 @@ public partial class TopBarWindow : Window
     internal void AbortRecreate()
     {
         _isRecreateClose = false;
+
+        // The recreate failed: this window stays alive, so it must keep owning the main window.
+        if (Monitor.IsPrimary && Application.Current is { } app)
+        {
+            app.MainWindow = this;
+        }
+
         if (_source is not null)
         {
             // Previous AppBar instance is permanently removed; allocate a fresh one.
@@ -1000,7 +1029,10 @@ public partial class TopBarWindow : Window
 
     private void DisposeOwnedServices()
     {
-        WindowAppearance.MainWindowChromeClobbered -= OnMainWindowChromeClobbered;
+        ApplicationThemeManager.Changed -= OnApplicationThemeChanged;
+        _backgroundMonitor?.RemoveValueChanged(this, OnBackgroundValueChanged);
+        _backgroundMonitor = null;
+        ThemeCrossfadeRegistry.Unregister(this);
         QuickSettingsHost.Detach();
         MediaHost.Detach();
         BrightnessHost.Detach();
@@ -1016,25 +1048,85 @@ public partial class TopBarWindow : Window
         }
     }
 
-    private void OnMainWindowChromeClobbered()
+    /// <summary>
+    /// Re-asserts the configured background after an application-theme apply.
+    ///
+    /// <see cref="ThemeApplyGuard"/> stops WPF-UI from repainting the main window, but the bar still
+    /// has to pick up the new theme (its text/plate palette) and must never keep a background a
+    /// library/theme pass handed it. Runs at Render priority so it lands after the caller's theme
+    /// work and before the frame is presented; queued once per dispatcher turn.
+    /// </summary>
+    private void OnApplicationThemeChanged(ApplicationTheme theme, Color accent) => QueueBackgroundReassert();
+
+    private void QueueBackgroundReassert()
     {
-        // Dock (or any secondary WindowAppearance.Apply) rewrites MainWindow via WPF-UI
-        // RestoreContentBackground — re-assert translucent/mica without recreating the AppBar.
-        // Only the current MainWindow reacts: every bar subscribes to the static event, and
-        // a secondary re-applying here would raise the event again (mutual recursion).
-        if (!ReferenceEquals(Application.Current?.MainWindow, this))
+        if (_backgroundReassertQueued)
         {
             return;
         }
 
-        if (Dispatcher.CheckAccess())
+        _backgroundReassertQueued = true;
+        _ = Dispatcher.BeginInvoke(DispatcherPriority.Render, new Action(() =>
         {
-            ApplyBackgroundAppearance();
+            _backgroundReassertQueued = false;
+            if (IsLoaded)
+            {
+                ApplyBackgroundAppearance();
+            }
+        }));
+    }
+
+    /// <summary>
+    /// Enforces the configured background whenever <see cref="Window.Background"/> is written by
+    /// something other than <see cref="ApplyBackgroundAppearance"/>: an opaque/semi-opaque fill or a
+    /// live system backdrop on a transparent bar is corrected in the same frame. Our own apply writes
+    /// exactly the expected brush, so it passes this check and cannot re-trigger itself.
+    /// </summary>
+    private void OnBackgroundValueChanged(object? sender, EventArgs e)
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        string mode = TopBarBackgroundModes.NormalizeMode(_config.Current.TopBar?.BackgroundMode);
+        if (TopBarBackgroundModes.NeedsTransparency(mode) && _appearance is not null
+            && !_appearance.EnsureNoSystemBackdrop())
+        {
+            QueueBackgroundReassert();
+            return;
+        }
+
+        // Transparent and Mica both expect an effectively clear WPF background (DWM draws Mica);
+        // Tint expects exactly the theme fill at the configured opacity. A Mica bar that fell back
+        // to the opaque paint (no system backdrop support) legitimately owns an opaque fill.
+        byte expectedAlpha;
+        if (mode == TopBarBackgroundModes.Tint)
+        {
+            // The right-click menu previews the slider through the debounced save, so a pending
+            // value is the current one until the timer persists it; otherwise the preview would be
+            // fought by its own invariant check.
+            int tintOpacity = _tintSaveTimer is { IsEnabled: true }
+                ? _pendingTintOpacity
+                : TopBarBackgroundModes.ClampOpacity(
+                    _config.Current.TopBar?.TintOpacity ?? TopBarBackgroundModes.DefaultOpacity);
+            expectedAlpha = (byte)(int)Math.Round(tintOpacity / 100.0 * 255.0);
+        }
+        else if (mode == TopBarBackgroundModes.Mica && _appearance?.IsBackdropActive == false)
+        {
+            expectedAlpha = 255;
         }
         else
         {
-            _ = Dispatcher.BeginInvoke(ApplyBackgroundAppearance);
+            expectedAlpha = 0;
         }
+
+        if (Background is SolidColorBrush solid && Math.Abs(solid.Color.A - expectedAlpha) <= 1)
+        {
+            return;
+        }
+
+        QueueBackgroundReassert();
     }
 
     protected override void OnClosed(EventArgs e)
@@ -2128,20 +2220,30 @@ public partial class TopBarWindow : Window
             case NativeMethods.WM_THEMECHANGED:
             case NativeMethods.WM_SYSCOLORCHANGE:
             case NativeMethods.WM_DWMCOLORIZATIONCOLORCHANGED:
-                ApplyBackgroundAppearance();
+                // A resolved light/dark change is owned by the coordinator (one crossfaded switch
+                // for the whole shell); colourization-only changes still re-assert here.
+                ThemeCoordinator.TryScheduleSystemThemeChange();
+                if (!ThemeCoordinator.SuppressReactiveRefresh)
+                {
+                    ApplyBackgroundAppearance();
+                }
+
                 _engine.TrayMirror.NotifyAppearanceChanged();
                 break;
 
             case NativeMethods.WM_SETTINGCHANGE:
                 if (IsImmersiveColorSet(lParam))
                 {
-                    ApplyBackgroundAppearance();
-                    _engine.TrayMirror.NotifyAppearanceChanged();
-                    if (Application.Current is App app)
+                    ThemeCoordinator.TryScheduleSystemThemeChange();
+                    if (!ThemeCoordinator.SuppressReactiveRefresh)
                     {
-                        app.FollowWallpaperTheme(fromExternalWindows: true);
+                        ApplyBackgroundAppearance();
                     }
 
+                    _engine.TrayMirror.NotifyAppearanceChanged();
+
+                    // The wallpaper theme-partner follow is owned by the coordinator (after the
+                    // shell crossfade), so a system flip does not start two overlapping fades.
                     break;
                 }
 

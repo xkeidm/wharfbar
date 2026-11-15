@@ -22,6 +22,9 @@ public partial class SettingsWindow : FluentWindow
         InitializeComponent();
         // updateAccents: false — accent remapping was painting page body text blue.
         AppThemeWatcher.Watch(this, Backdrop, () => (Application.Current as App)?.ApplyThemeChanges());
+        // This window is a shell surface: the light/dark switch crossfades its content too.
+        ThemeCrossfadeRegistry.Register(this, () => Content as FrameworkElement);
+        Closed += (_, _) => ThemeCrossfadeRegistry.Unregister(this);
         Loaded += OnLoaded;
     }
 

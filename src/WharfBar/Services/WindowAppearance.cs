@@ -30,14 +30,6 @@ internal sealed class WindowAppearance
     private readonly WindowBackdropType _backdrop;
     private readonly DwmCornerPreference _corners;
 
-    /// <summary>
-    /// Raised when <see cref="ApplicationThemeManager.Apply"/> has rewritten
-    /// <see cref="Application.MainWindow"/> chrome (WPF-UI
-    /// <c>RestoreContentBackground</c> → opaque <see cref="SystemColors.WindowColor"/>).
-    /// Top bar re-applies translucent/mica after Dock (or any secondary window) theme Apply.
-    /// </summary>
-    internal static event Action? MainWindowChromeClobbered;
-
     internal WindowAppearance(
         Window window,
         IntPtr hwnd,
@@ -62,7 +54,6 @@ internal sealed class WindowAppearance
         // Swaps the theme resource dictionaries. Passing our backdrop explicitly keeps WPF-UI
         // from force-applying its default one to Application.MainWindow.
         EnsureApplicationTheme(theme, _backdrop);
-        RaiseMainWindowChromeClobberedIfNeeded();
 
         // Plain Window (not FluentWindow) does not always get this from WPF-UI; set it so the
         // system backdrop tints with light/dark correctly.
@@ -88,7 +79,6 @@ internal sealed class WindowAppearance
 
         ApplicationTheme theme = AppThemePreference.Resolve();
         EnsureApplicationTheme(theme, WindowBackdropType.None);
-        RaiseMainWindowChromeClobberedIfNeeded();
         Dwm.SetImmersiveDarkMode(_hwnd, theme == ApplicationTheme.Dark);
 
         ClearSystemBackdrop();
@@ -101,6 +91,7 @@ internal sealed class WindowAppearance
         if (tintOpacity is null)
         {
             SetLayeredWindowBackground(Brushes.Transparent);
+            _ = EnsureNoSystemBackdrop();
             return;
         }
 
@@ -112,42 +103,21 @@ internal sealed class WindowAppearance
         var brush = new SolidColorBrush(Color.FromArgb(a, baseColor.R, baseColor.G, baseColor.B));
         brush.Freeze();
         SetLayeredWindowBackground(brush);
+        _ = EnsureNoSystemBackdrop();
     }
 
     /// <summary>
-    /// Runs <see cref="ApplicationThemeManager.Apply"/> only when the cached app theme
-    /// actually differs. WPF-UI replaces its theme dictionary on EVERY call and then
-    /// repaints <c>Application.MainWindow</c> content opaque (RestoreContentBackground);
-    /// with backdrop None that opaque paint is never cleared again. Skipping redundant
-    /// global applies keeps per-window mode switches from clobbering the main window.
+    /// Applies the theme dictionaries only when the cached app theme actually differs.
+    /// <see cref="ThemeApplyGuard"/> runs the library apply with the main window detached, because
+    /// <see cref="ApplicationThemeManager.Apply"/> otherwise repaints <c>Application.MainWindow</c>
+    /// (the primary top bar) opaque — and with backdrop None that repaint is never cleared by the
+    /// library. Every window still applies its own backdrop below.
     /// </summary>
     private static void EnsureApplicationTheme(ApplicationTheme theme, WindowBackdropType backdrop)
-    {
-        if (ApplicationThemeManager.GetAppTheme() == theme)
-        {
-            return;
-        }
-
-        ApplicationThemeManager.Apply(theme, backdrop, updateAccent: false);
-    }
+        => ThemeApplyGuard.Apply(theme, backdrop, updateAccent: false);
 
     /// <summary>Call when the system reports a theme or colourization change.</summary>
     internal void Refresh() => Apply();
-
-    private void RaiseMainWindowChromeClobberedIfNeeded()
-    {
-        Window? main = Application.Current?.MainWindow;
-        if (main is null || ReferenceEquals(main, _window))
-        {
-            return;
-        }
-
-        // Raised for every non-main window Apply, regardless of AllowsTransparency:
-        // RestoreContentBackground paints an opaque SystemColors.WindowColor over the main
-        // window in translucent modes AND on top of a live Mica backdrop alike — both need
-        // the owner to re-assert its configured background.
-        MainWindowChromeClobbered?.Invoke();
-    }
 
     /// <summary>
     /// Layered (<c>AllowsTransparency</c>) windows need both WPF Background and
@@ -220,7 +190,32 @@ internal sealed class WindowAppearance
         }
 
         Dwm.SetSystemBackdrop(_hwnd, DwmSystemBackdrop.None);
+        Dwm.ClearMicaEffect(_hwnd);
         // Do not call WindowBackdrop.RemoveBackground here for translucent — we own the brush.
+    }
+
+    /// <summary>
+    /// Confirms the window really has no system backdrop left. A transparent top bar is layered:
+    /// a lingering Mica attribute (from a library main-window repaint, or an attribute DWM re-applied
+    /// after a theme change) is invisible to <see cref="Window.Background"/> but paints a tinted
+    /// material behind the bar — the reported "transparent bar turns colour by itself". Called after
+    /// every translucent apply; a mismatch is corrected on the spot, not at the next theme message.
+    /// </summary>
+    internal bool EnsureNoSystemBackdrop()
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            return true;
+        }
+
+        if (Dwm.TryGetSystemBackdrop(_hwnd, out DwmSystemBackdrop current) && current == DwmSystemBackdrop.None)
+        {
+            return true;
+        }
+
+        Dwm.SetSystemBackdrop(_hwnd, DwmSystemBackdrop.None);
+        Dwm.ClearMicaEffect(_hwnd);
+        return !Dwm.TryGetSystemBackdrop(_hwnd, out DwmSystemBackdrop again) || again == DwmSystemBackdrop.None;
     }
 
     /// <summary>WPF-UI and DWM number these differently for <c>Auto</c> and <c>None</c>.</summary>

@@ -26,4 +26,23 @@ internal static class WindowOverlayStyles
 
         NativeMethods.SetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE, ex | NativeMethods.WS_EX_TOOLWINDOW);
     }
+
+    /// <summary>
+    /// Makes a short-lived overlay window invisible to input and activation: the window never takes
+    /// focus (<c>WS_EX_NOACTIVATE</c>) and every click/drag passes through it (<c>WS_EX_TRANSPARENT</c>).
+    /// Used by the theme crossfade, whose overlays sit above the bar/dock/settings for ~180 ms.
+    /// </summary>
+    internal static void MakeClickThroughNoActivate(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        int ex = NativeMethods.GetWindowLong(hwnd, NativeMethods.GWL_EXSTYLE);
+        NativeMethods.SetWindowLong(
+            hwnd,
+            NativeMethods.GWL_EXSTYLE,
+            ex | NativeMethods.WS_EX_NOACTIVATE | NativeMethods.WS_EX_TRANSPARENT | NativeMethods.WS_EX_TOOLWINDOW);
+    }
 }

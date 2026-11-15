@@ -30,7 +30,7 @@ internal static class WallpaperAccentApplier
                 app.ApplyLogoChanges();
             }
 
-            _ = SystemAccentWriter.TryApply(c);
+            _ = SystemAccentWriter.TryApplyAsync(c);
             return true;
         }
         catch (Exception)

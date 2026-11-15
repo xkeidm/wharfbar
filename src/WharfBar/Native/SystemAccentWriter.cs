@@ -12,6 +12,25 @@ internal static class SystemAccentWriter
     private const string AccentKey = @"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent";
     private const string DwmKey = @"Software\Microsoft\Windows\DWM";
 
+    /// <summary>
+    /// Writes the accent values and broadcasts on the thread pool. The broadcast
+    /// (<c>SendMessageTimeout(HWND_BROADCAST, …)</c>) blocks until every top-level window has handled
+    /// the message, so it must never run on the UI thread — the shell would freeze while a wallpaper
+    /// change applies its accent.
+    /// </summary>
+    internal static Task<bool> TryApplyAsync(IslandRgb color) =>
+        Task.Run(() =>
+        {
+            try
+            {
+                return TryApply(color);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+        });
+
     internal static bool TryApply(IslandRgb color)
     {
         try

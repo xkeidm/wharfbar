@@ -256,6 +256,15 @@ internal sealed class MonitorManager : IDisposable
                 old.PrepareForRecreate(); // ABM_REMOVE; no taskbar restore
                 prepared = true;
                 next.Show(); // AppBar registers in OnSourceInitialized
+
+                // Keep "primary bar == MainWindow" true across the swap: the old bar is still the
+                // main window until it closes below, and a theme apply landing in that gap paints a
+                // closed window while the live bar stops compensating for it.
+                if (next.Monitor.IsPrimary && System.Windows.Application.Current is { } app)
+                {
+                    app.MainWindow = next;
+                }
+
                 int index = _topBars.IndexOf(old);
                 if (index >= 0)
                 {

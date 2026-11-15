@@ -229,6 +229,10 @@ internal static class NativeMethods
     internal const uint DWMWA_WINDOW_CORNER_PREFERENCE = 33;
     internal const uint DWMWA_SYSTEMBACKDROP_TYPE = 38;
 
+    /// <summary>Pre-22H2 Mica switch (1029). WPF-UI clears it in <c>RemoveBackdrop</c>; a layered
+    /// window that keeps it reports a Mica backdrop the WPF background cannot cover.</summary>
+    internal const uint DWMWA_MICA_EFFECT = 1029;
+
     /// <summary>DWMWA_CLOAK — set composition cloak (13). Distinct from DWMWA_CLOAKED (14, get).</summary>
     internal const uint DWMWA_CLOAK = 13;
 

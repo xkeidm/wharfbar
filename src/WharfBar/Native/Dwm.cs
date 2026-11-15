@@ -68,6 +68,21 @@ internal static class Dwm
             sizeof(int)) == NativeMethods.S_OK;
     }
 
+    /// <summary>
+    /// Clears the legacy <c>DWMWA_MICA_EFFECT</c> switch (pre-22H2 Mica). WPF-UI's
+    /// <c>RemoveBackdrop</c> clears both attributes; a window that only clears
+    /// <c>DWMWA_SYSTEMBACKDROP_TYPE</c> can still report Mica from the legacy bit on some builds.
+    /// </summary>
+    internal static bool ClearMicaEffect(IntPtr hwnd)
+    {
+        int value = 0;
+        return NativeMethods.DwmSetWindowAttribute(
+            hwnd,
+            NativeMethods.DWMWA_MICA_EFFECT,
+            ref value,
+            sizeof(int)) == NativeMethods.S_OK;
+    }
+
     internal static bool TryGetSystemBackdrop(IntPtr hwnd, out DwmSystemBackdrop backdrop)
     {
         int result = NativeMethods.DwmGetWindowAttribute(

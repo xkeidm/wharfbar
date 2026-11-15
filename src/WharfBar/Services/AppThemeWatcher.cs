@@ -118,10 +118,18 @@ internal static class AppThemeWatcher
             ApplicationTheme desired = AppThemePreference.Resolve();
             if (ApplicationThemeManager.GetAppTheme() != desired)
             {
-                // Backdrop None: the shell windows re-assert their own backdrop right after, and a
-                // Mica attach to the layered (transparent/tint) top bar is forbidden. The library
-                // repaints Application.MainWindow opaque on every apply, hence the callback.
-                ApplicationThemeManager.Apply(desired, WindowBackdropType.None, updateAccent: false);
+                // The shell coordinator owns a theme switch: it applies the dictionaries once and
+                // re-asserts every window (this watcher's own window included) inside one
+                // crossfaded transition. A per-window library apply here would be a second,
+                // partial repaint in the middle of that transition.
+                if (ThemeCoordinator.TryScheduleSystemThemeChange())
+                {
+                    return;
+                }
+
+                // No coordinator available (no Application/dispatcher): keep the previous
+                // behaviour and apply the dictionaries plus the owner's re-assert callback.
+                ThemeApplyGuard.Apply(desired, WindowBackdropType.None, updateAccent: false);
                 _onThemeApplied();
             }
 

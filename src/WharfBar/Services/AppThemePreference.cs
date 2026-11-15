@@ -42,11 +42,20 @@ internal static class AppThemePreference
         return AppConfig.ThemeSystem;
     }
 
-    private static ApplicationTheme ResolveSystemTheme() => ApplicationThemeManager.GetSystemTheme() switch
+    private static ApplicationTheme ResolveSystemTheme()
     {
-        SystemTheme.Dark or SystemTheme.CapturedMotion or SystemTheme.Glow => ApplicationTheme.Dark,
-        SystemTheme.HC1 or SystemTheme.HC2 or SystemTheme.HCBlack or SystemTheme.HCWhite =>
-            ApplicationTheme.HighContrast,
-        _ => ApplicationTheme.Light,
-    };
+        // WPF-UI caches the system theme and updates that cache only inside its own Apply call, so
+        // an OS-driven light/dark flip would otherwise resolve to the stale previous theme: the
+        // broadcast handlers would see "already applied" and the shell silently kept the old
+        // palette. Refresh from the registry before resolving (a few DWORD reads).
+        SystemThemeManager.UpdateSystemThemeCache();
+
+        return ApplicationThemeManager.GetSystemTheme() switch
+        {
+            SystemTheme.Dark or SystemTheme.CapturedMotion or SystemTheme.Glow => ApplicationTheme.Dark,
+            SystemTheme.HC1 or SystemTheme.HC2 or SystemTheme.HCBlack or SystemTheme.HCWhite =>
+                ApplicationTheme.HighContrast,
+            _ => ApplicationTheme.Light,
+        };
+    }
 }
