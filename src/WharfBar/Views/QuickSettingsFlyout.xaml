@@ -1,8 +1,7 @@
 <UserControl xmlns:res="clr-namespace:WharfBar.Resources" x:Class="WharfBar.Views.QuickSettingsFlyout"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             MinWidth="360"
-             MaxWidth="380"
+             Width="360"
              Foreground="{DynamicResource TextFillColorPrimaryBrush}">
 
     <UserControl.Resources>

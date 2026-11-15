@@ -18,6 +18,10 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- **The Quick settings panel no longer changes width when switching pages.** The flyout sized to its
+  content (360–380 DIP), so the volume/mixer page came out ~19 DIP wider than Main and the panel
+  jumped sideways on every page change. The flyout now has one fixed 360 DIP width for every page (the
+  long output-device name trims with an ellipsis instead of widening the panel).
 - **The top bar keeps its reserved strip after an `explorer.exe` restart.** The `TaskbarCreated`
   re-register path skipped `ABM_SETPOS` because the approved rect matched the one committed before
   the shell died — but the fresh shell has no approved rect for the window, so the work area top

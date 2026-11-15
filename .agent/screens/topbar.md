@@ -340,7 +340,8 @@ is therefore no longer silent (ADR-009 keeps hidden/overflow icons out of the mi
 
 `QuickSettingsFlyout` — a single Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; unrelated to the main window's
 Mica); the Main / Mixer /
-Network tabs are shared (ADR-006). Mixer: default device + dropdown + application
+Network tabs are shared (ADR-006); the panel has **one fixed 360 DIP width for every page**, so a page
+change never resizes or shifts it (the long output-device name trims instead). Mixer: default device + dropdown + application
 sessions; a session row is `icon + slider + percent`, the icon is the process icon (letter tile
 when the icon cannot be read, speaker glyph for system sounds) and **muting dims the icon and
 draws a slash across it**; clicking the icon toggles the session mute. Network: connection card + live ↓/↑ traffic row + `Properties` section
