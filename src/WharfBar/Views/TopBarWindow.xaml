@@ -29,13 +29,20 @@
             <Setter Property="Padding" Value="8,6" />
         </Style>
         <!-- ContextMenu / MenuItem: App.xaml BasedOn WPF-UI (do not redefine without BasedOn). -->
-        <Style x:Key="StatusHit" TargetType="Border">
+        <!-- Hit geometry for a right-cluster slot, without the hover plate. Container targets
+             (the tray mirror) take this: its icons paint their own plate, so a plate on the
+             strip itself stacked two washes and lit the whole tray area as one block whenever
+             the pointer was anywhere inside it. Click/drag feedback there belongs to the icons. -->
+        <Style x:Key="StatusFrame" TargetType="Border">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="Padding" Value="6,5" />
             <Setter Property="Margin" Value="0,0,4,0" />
             <Setter Property="MinHeight" Value="28" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <!-- A single status button: StatusFrame plus the hover plate. -->
+        <Style x:Key="StatusHit" TargetType="Border" BasedOn="{StaticResource StatusFrame}">
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{DynamicResource Bar.HitFill}" />
@@ -290,8 +297,10 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center">
 
+                <!-- Container, not a button: no strip-wide hover plate (each mirrored icon
+                     paints its own). StatusFrame keeps the slot's hit area, cursor and drag slot. -->
                 <Border x:Name="TrayMirrorHost"
-                        Style="{StaticResource StatusHit}"
+                        Style="{StaticResource StatusFrame}"
                         Padding="2,2"
                         Margin="0,0,2,0"
                         Visibility="Collapsed">
