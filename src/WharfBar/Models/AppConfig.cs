@@ -36,6 +36,14 @@ internal sealed class AppConfig
     /// </summary>
     public string LogoStyle { get; set; } = LogoStyles.Default;
 
+    /// <summary>
+    /// True once the first-run setup wizard was finished or skipped. Soft field —
+    /// <see cref="CurrentSchemaVersion"/> does not change. A config written before this field
+    /// existed is treated as completed by <see cref="Services.ConfigService"/> (an upgrade must
+    /// not show setup to a long-time user), so only a fresh install starts with it off.
+    /// </summary>
+    public bool OnboardingCompleted { get; set; }
+
     /// <summary>When true, <see cref="Services.AutostartService"/> keeps a Startup-folder shortcut.</summary>
     public bool Autostart { get; set; } = true;
 
@@ -219,10 +227,12 @@ internal sealed class DockConfig
 internal sealed class TopBarConfig
 {
     /// <summary>
-    /// Soft catalog revision (<see cref="AppConfig.SchemaVersion"/> stays 1).
+    /// Soft catalog revision (<see cref="AppConfig.SchemaVersion"/> stays 2).
     /// Missing JSON → 0 (pre-<c>controlCenter</c>); current = <see cref="CurrentStatusCatalogVersion"/>.
+    /// v6 (2026-11-12): the default status order became the Windows-like corner order with volume
+    /// and brightness on; an untouched legacy default is migrated once.
     /// </summary>
-    internal const int CurrentStatusCatalogVersion = 5;
+    internal const int CurrentStatusCatalogVersion = 6;
 
     /// <summary>
     /// Soft catalog revision. 0 = pre-controlCenter configs (migrated on load).

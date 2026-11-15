@@ -46,6 +46,40 @@ public class SystemStatsTests
     }
 
     [Fact]
+    public void SlowSampleTick_RunsFirstAndEveryFourthTick()
+    {
+        // Tick 0 primes the GPU PDH query; the next GPU/network read is due four 1 s ticks later.
+        Assert.True(SystemStatsService.IsSlowSampleTick(0));
+        Assert.False(SystemStatsService.IsSlowSampleTick(1));
+        Assert.False(SystemStatsService.IsSlowSampleTick(2));
+        Assert.False(SystemStatsService.IsSlowSampleTick(3));
+        Assert.True(SystemStatsService.IsSlowSampleTick(4));
+        Assert.True(SystemStatsService.IsSlowSampleTick(8));
+    }
+
+    [Fact]
+    public void AdvanceTick_WrapsToZeroAfterTheFourthTick()
+    {
+        int tick = 0;
+        for (int i = 0; i < SystemStatsService.TicksPerSlowSample - 1; i++)
+        {
+            tick = SystemStatsService.AdvanceTick(tick);
+            Assert.False(SystemStatsService.IsSlowSampleTick(tick));
+        }
+
+        Assert.Equal(0, SystemStatsService.AdvanceTick(tick));
+        Assert.True(SystemStatsService.IsSlowSampleTick(0));
+    }
+
+    [Fact]
+    public void Cadence_IsOneSecondCpuAndFourSecondGpu()
+    {
+        Assert.Equal(TimeSpan.FromSeconds(1), SystemStatsService.SampleInterval);
+        Assert.Equal(4, SystemStatsService.TicksPerSlowSample);
+        Assert.Equal(TimeSpan.FromSeconds(4), SystemStatsService.GpuSampleInterval);
+    }
+
+    [Fact]
     public void ComputeRamUsage_HalfAvailable_Returns50()
     {
         double usage = SystemStatsService.ComputeRamUsage(totalPhys: 16_000UL, availPhys: 8_000UL);

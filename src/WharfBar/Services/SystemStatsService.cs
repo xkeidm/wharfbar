@@ -30,6 +30,9 @@ internal sealed record SystemStatsSnapshot(
 
 /// <summary>
 /// Samples CPU / GPU / RAM usage for the top-bar system-stats readout.
+/// CPU and RAM are read every second — Task Manager's resolution — so the CPU number is a 1 s
+/// average and tracks Task Manager instead of lagging behind it. The PDH GPU wildcard and the
+/// network counters are the expensive samples and run every fourth tick.
 /// Pure computation helpers are static and unit-tested; sampling uses
 /// documented Win32 APIs only (no external packages).
 /// Shared by every top-bar window via <see cref="TopBarEngine"/> (like <see cref="StatusService"/>).
@@ -37,9 +40,22 @@ internal sealed record SystemStatsSnapshot(
 internal sealed class SystemStatsService : IDisposable
 {
     /// <summary>
-    /// GPU PDH wildcard collection is the expensive sample. It runs off the UI thread.
+    /// CPU / RAM cadence, off the UI thread. Matches Task Manager: the bar used to sample every
+    /// 4 s, which displayed a 4 s average that could be up to 4 s stale — with the real workload
+    /// changing inside that window the bar disagreed with Task Manager even though both read the
+    /// same <c>% Processor Time</c> figure.
     /// </summary>
-    internal static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(4);
+    internal static readonly TimeSpan SampleInterval = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// GPU PDH wildcard collection (and the network counter read) is the expensive sample; it runs
+    /// on every <see cref="TicksPerSlowSample"/>th tick.
+    /// </summary>
+    internal static readonly TimeSpan GpuSampleInterval =
+        TimeSpan.FromTicks(SampleInterval.Ticks * TicksPerSlowSample);
+
+    /// <summary>CPU ticks between two expensive (GPU + network) samples.</summary>
+    internal const int TicksPerSlowSample = 4;
 
     /// <summary>Sparkline window. A point is kept only when the visible readout changes.</summary>
     private const int SampleHistoryCap = 30;
@@ -57,6 +73,7 @@ internal sealed class SystemStatsService : IDisposable
     private long _prevSent;
     private DateTime _prevNetAt;
     private bool _haveNet;
+    private int _tickIndex;
     private volatile bool _sampling;
     private int _sampleBusy;
     private volatile bool _disposed;
@@ -95,6 +112,10 @@ internal sealed class SystemStatsService : IDisposable
         }
 
         _sampling = true;
+
+        // Resume on a slow tick so the GPU/network values refresh immediately instead of waiting up
+        // to TicksPerSlowSample - 1 s for the next slow tick.
+        _tickIndex = 0;
         _timer.Change(TimeSpan.Zero, SampleInterval);
     }
 
@@ -120,10 +141,30 @@ internal sealed class SystemStatsService : IDisposable
 
         try
         {
+            bool slowTick = IsSlowSampleTick(_tickIndex);
+            _tickIndex = AdvanceTick(_tickIndex);
+
             double? cpu = SampleCpu();
             double? ram = SampleRam();
-            double?[]? gpu = SampleGpu() ?? Snapshot.GpuPercents;
-            (string down, string up) = SampleNetwork();
+
+            // GPU + network are the expensive samples: read them on the slow tick and carry the
+            // last values in between, so the 1 s CPU readout does not pay for a PDH wildcard read.
+            double?[]? gpu = Snapshot.GpuPercents;
+            bool gpuFresh = false;
+            if (slowTick)
+            {
+                double?[]? sampled = SampleGpu();
+                if (sampled is not null)
+                {
+                    gpu = sampled;
+                    gpuFresh = sampled.Length > 0;
+                }
+            }
+
+            (string down, string up) = slowTick
+                ? SampleNetwork()
+                : (Snapshot.NetworkDownText ?? "—", Snapshot.NetworkUpText ?? "—");
+
             var probe = new SystemStatsSnapshot(cpu, gpu, ram, null, null, null, down, up);
             if (SameReadout(Snapshot, probe))
             {
@@ -132,9 +173,9 @@ internal sealed class SystemStatsService : IDisposable
 
             PushSample(_cpuHistory, cpu);
             PushSample(_ramHistory, ram);
-            if (gpu is { Length: > 0 })
+            if (gpuFresh && gpu is { } freshGpu)
             {
-                PushSample(_gpuHistory, SumGpuInstances([.. gpu.Select(static value => value ?? 0d)]));
+                PushSample(_gpuHistory, SumGpuInstances([.. freshGpu.Select(static value => value ?? 0d)]));
             }
 
             var next = new SystemStatsSnapshot(
@@ -223,6 +264,12 @@ internal sealed class SystemStatsService : IDisposable
             history.RemoveAt(0);
         }
     }
+
+    /// <summary>True on the tick that also refreshes the expensive GPU/network sample; index 0 comes first.</summary>
+    internal static bool IsSlowSampleTick(int tickIndex) => tickIndex % TicksPerSlowSample == 0;
+
+    /// <summary>Next tick index; the slow tick comes first, then every <see cref="TicksPerSlowSample"/>th tick.</summary>
+    internal static int AdvanceTick(int tickIndex) => (tickIndex + 1) % TicksPerSlowSample;
 
     /// <summary>CPU busy percentage since the previous sample; null until two samples exist.</summary>
     private double? SampleCpu()

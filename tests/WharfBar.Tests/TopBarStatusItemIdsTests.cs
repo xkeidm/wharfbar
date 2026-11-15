@@ -6,21 +6,56 @@ namespace WharfBar.Tests;
 public class TopBarStatusItemIdsTests
 {
     [Fact]
-    public void DefaultOrder_OmitsHudItems_CatalogKeepsThem()
+    public void DefaultOrder_TurnsVolumeAndBrightnessOn_KeepsMediaInTheCatalogOnly()
     {
-        Assert.DoesNotContain(TopBarStatusItemIds.Volume, TopBarStatusItemIds.DefaultOrder);
-        Assert.DoesNotContain(TopBarStatusItemIds.Brightness, TopBarStatusItemIds.DefaultOrder);
+        Assert.Contains(TopBarStatusItemIds.Volume, TopBarStatusItemIds.DefaultOrder);
+        Assert.Contains(TopBarStatusItemIds.Brightness, TopBarStatusItemIds.DefaultOrder);
         Assert.DoesNotContain(TopBarStatusItemIds.Media, TopBarStatusItemIds.DefaultOrder);
 
         var catalog = TopBarStatusItemIds.CatalogOrder.ToList();
-        int brightness = catalog.IndexOf(TopBarStatusItemIds.Brightness);
-        Assert.Equal(TopBarStatusItemIds.Volume, catalog[brightness - 1]);
-        Assert.Equal(TopBarStatusItemIds.Media, catalog[brightness + 1]);
+        int volume = catalog.IndexOf(TopBarStatusItemIds.Volume);
+        Assert.Equal(TopBarStatusItemIds.Brightness, catalog[volume + 1]);
 
         foreach (string id in TopBarStatusItemIds.DefaultOrder)
         {
             Assert.Contains(id, catalog);
         }
+    }
+
+    [Fact]
+    public void DefaultOrder_FollowsTheWindowsTrayCornerOrder()
+    {
+        Assert.Equal(
+            [
+                TopBarStatusItemIds.TrayMirror,
+                TopBarStatusItemIds.TrayOverflow,
+                TopBarStatusItemIds.Volume,
+                TopBarStatusItemIds.Brightness,
+                TopBarStatusItemIds.Network,
+                TopBarStatusItemIds.Battery,
+                TopBarStatusItemIds.ControlCenter,
+                TopBarStatusItemIds.DateTime,
+                TopBarStatusItemIds.Notifications,
+            ],
+            TopBarStatusItemIds.DefaultOrder);
+    }
+
+    [Fact]
+    public void IsLegacyDefault_TrueForTheOldUntouchedOrder()
+    {
+        Assert.True(TopBarStatusItemIds.IsLegacyDefault(TopBarStatusItemIds.LegacyDefaultOrder));
+        Assert.True(TopBarStatusItemIds.IsLegacyDefault(TopBarStatusItemIds.LegacyDefaultOrder.ToList()));
+    }
+
+    [Fact]
+    public void IsLegacyDefault_FalseForTheNewDefaultAndCustomOrders()
+    {
+        Assert.False(TopBarStatusItemIds.IsLegacyDefault(TopBarStatusItemIds.DefaultOrder));
+        Assert.False(TopBarStatusItemIds.IsLegacyDefault(
+            [TopBarStatusItemIds.Battery, TopBarStatusItemIds.DateTime, TopBarStatusItemIds.Network]));
+        Assert.False(TopBarStatusItemIds.IsLegacyDefault(null));
+        Assert.False(TopBarStatusItemIds.IsLegacyDefault(
+            TopBarStatusItemIds.LegacyDefaultOrder.Take(3).ToList()));
     }
 
     [Fact]
@@ -38,14 +73,14 @@ public class TopBarStatusItemIdsTests
     }
 
     [Fact]
-    public void InsertInCatalogOrder_ReenablesVolumeBetweenNeighbors()
+    public void InsertInCatalogOrder_ReenablesMediaBetweenNeighbors()
     {
         List<string> placed = TopBarStatusItemIds.InsertInCatalogOrder(
             TopBarStatusItemIds.DefaultOrder.ToList(),
-            TopBarStatusItemIds.Volume);
-        int volume = placed.IndexOf(TopBarStatusItemIds.Volume);
-        Assert.True(volume > placed.IndexOf(TopBarStatusItemIds.ControlCenter));
-        Assert.True(volume < placed.IndexOf(TopBarStatusItemIds.Network));
+            TopBarStatusItemIds.Media);
+        int media = placed.IndexOf(TopBarStatusItemIds.Media);
+        Assert.True(media > placed.IndexOf(TopBarStatusItemIds.ControlCenter));
+        Assert.True(media < placed.IndexOf(TopBarStatusItemIds.DateTime));
     }
 
     [Fact]
@@ -287,20 +322,16 @@ public class TopBarStatusItemIdsTests
             TopBarStatusItemIds.Network,
         };
 
-        Assert.Equal(
-            [
-                TopBarStatusItemIds.Battery,
-                TopBarStatusItemIds.TrayMirror,
-                TopBarStatusItemIds.TrayOverflow,
-                TopBarStatusItemIds.DateTime,
-                TopBarStatusItemIds.Notifications,
-                TopBarStatusItemIds.ControlCenter,
-                TopBarStatusItemIds.Volume,
-                TopBarStatusItemIds.Brightness,
-                TopBarStatusItemIds.Media,
-                TopBarStatusItemIds.Network,
-            ],
-            TopBarStatusItemIds.ShowAll(custom));
+        List<string> all = TopBarStatusItemIds.ShowAll(custom);
+
+        Assert.Equal(TopBarStatusItemIds.CatalogOrder.Count, all.Count);
+        Assert.All(TopBarStatusItemIds.CatalogOrder, id => Assert.Contains(id, all));
+
+        // The user's relative order survives; the inserted ids do not displace each other.
+        Assert.True(all.IndexOf(TopBarStatusItemIds.Battery) < all.IndexOf(TopBarStatusItemIds.DateTime));
+        Assert.True(all.IndexOf(TopBarStatusItemIds.DateTime) < all.IndexOf(TopBarStatusItemIds.Network));
+        Assert.Single(all, id => id == TopBarStatusItemIds.Volume);
+        Assert.Single(all, id => id == TopBarStatusItemIds.Media);
     }
 
     [Fact]

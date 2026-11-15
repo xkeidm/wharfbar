@@ -37,7 +37,10 @@ public class IdleCadenceTests
     public void SharedCensusIsSlowerThanTheOldPerDockScans()
     {
         Assert.True(WindowCensus.Interval >= TimeSpan.FromSeconds(3));
-        Assert.True(SystemStatsService.SampleInterval >= TimeSpan.FromSeconds(4));
+        // CPU/RAM read at Task Manager's 1 s resolution; the expensive GPU PDH + network read keeps
+        // the 4 s cadence (a 4 s CPU average made the bar disagree with Task Manager under load).
+        Assert.Equal(TimeSpan.FromSeconds(1), SystemStatsService.SampleInterval);
+        Assert.True(SystemStatsService.GpuSampleInterval >= TimeSpan.FromSeconds(4));
         Assert.True(TrayMirrorService.PollInterval >= TimeSpan.FromSeconds(4));
         Assert.True(BluetoothService.NoticeInterval >= TimeSpan.FromSeconds(10));
     }

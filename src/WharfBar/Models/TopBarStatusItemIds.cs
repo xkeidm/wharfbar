@@ -17,26 +17,47 @@ internal static class TopBarStatusItemIds
     /// <summary>
     /// Full show/hide catalog, including items omitted from <see cref="DefaultOrder"/>.
     /// Right-click and the Top Bar settings page iterate this so a hidden item can come back.
+    /// The order follows the Windows system-tray corner (left→right): tray icons, hidden-icons
+    /// chevron, the system indicators (volume, brightness, network, battery), quick settings,
+    /// media, then the clock and the notification bell.
     /// </summary>
     internal static readonly IReadOnlyList<string> CatalogOrder =
     [
         TrayMirror,
         TrayOverflow,
-        DateTime,
-        Notifications,
-        ControlCenter,
         Volume,
         Brightness,
-        Media,
         Network,
         Battery,
+        ControlCenter,
+        Media,
+        DateTime,
+        Notifications,
     ];
 
     /// <summary>
-    /// Fresh installs and "reset to default" omit volume, brightness, and media.
-    /// Those stay in <see cref="CatalogOrder"/>. A saved <c>statusItems</c> list is not stripped.
+    /// Fresh installs and "reset to default": the Windows-like corner order with volume and
+    /// brightness on, media left in the catalog. A saved <c>statusItems</c> list is not stripped.
     /// </summary>
     internal static readonly IReadOnlyList<string> DefaultOrder =
+    [
+        TrayMirror,
+        TrayOverflow,
+        Volume,
+        Brightness,
+        Network,
+        Battery,
+        ControlCenter,
+        DateTime,
+        Notifications,
+    ];
+
+    /// <summary>
+    /// The pre-catalog-v6 default (clock/bell before the quick-settings and system indicators,
+    /// volume/brightness off). Used only to migrate a saved list that was never customized:
+    /// <see cref="Services.ConfigService"/> moves it to <see cref="DefaultOrder"/> once.
+    /// </summary>
+    internal static readonly IReadOnlyList<string> LegacyDefaultOrder =
     [
         TrayMirror,
         TrayOverflow,
@@ -46,6 +67,25 @@ internal static class TopBarStatusItemIds
         Network,
         Battery,
     ];
+
+    /// <summary>True when the saved list is still exactly the old untouched default order.</summary>
+    internal static bool IsLegacyDefault(IReadOnlyList<string>? items)
+    {
+        if (items is null || items.Count != LegacyDefaultOrder.Count)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (!string.Equals(items[i], LegacyDefaultOrder[i], StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 
     private static readonly HashSet<string> Known = new(CatalogOrder, StringComparer.Ordinal);
 

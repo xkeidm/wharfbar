@@ -35,6 +35,13 @@ internal sealed class ConfigService
     /// </summary>
     internal bool IsRealUserConfig { get; }
 
+    /// <summary>
+    /// True when the last <see cref="LoadOrCreate"/> found no config file, i.e. WharfBar is being
+    /// launched for the first time on this machine. The first-run setup wizard keys off this and
+    /// the completion marker in the config — never off <c>schemaVersion</c>.
+    /// </summary>
+    internal bool IsFirstRun { get; private set; }
+
     internal ConfigService(string? configDirectory = null)
     {
         IsRealUserConfig = configDirectory is null;
@@ -50,7 +57,8 @@ internal sealed class ConfigService
     /// </summary>
     internal AppConfig LoadOrCreate()
     {
-        if (!File.Exists(ConfigPath))
+        IsFirstRun = !File.Exists(ConfigPath);
+        if (IsFirstRun)
         {
             Current = CreateDefault();
             Save(Current);
@@ -61,6 +69,7 @@ internal sealed class ConfigService
         {
             string json = File.ReadAllText(ConfigPath);
             bool topBarKeyMissing = !JsonRootHasProperty(json, "topBar");
+            bool onboardingKeyMissing = !JsonRootHasProperty(json, "onboardingCompleted");
             bool veilKeyMissing = !JsonRootHasProperty(json, "veil");
             bool islandKeyMissing = !JsonRootHasProperty(json, "island");
             AppConfig? loaded = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions);
@@ -73,6 +82,14 @@ internal sealed class ConfigService
             if (loaded.SchemaVersion > AppConfig.CurrentSchemaVersion)
             {
                 return ReplaceWithDefault($"unsupported schemaVersion {loaded.SchemaVersion}");
+            }
+
+            // Upgrade path: a config written before the first-run setup existed belongs to an
+            // install that is already in use. Mark it completed so the wizard only appears on a
+            // fresh install (a user who closed the wizard early keeps an explicit false).
+            if (onboardingKeyMissing)
+            {
+                loaded.OnboardingCompleted = true;
             }
 
             bool monitorsKeyMissing = !JsonRootHasProperty(json, "monitors");
@@ -97,7 +114,7 @@ internal sealed class ConfigService
                 || MonitorCountChanged(loaded.Monitors, Current.Monitors);
 
             if (iconChanged || statusChanged || catalogChanged || veilKeyMissing
-                || islandKeyMissing || monitorsChanged || dockItemsMigrated)
+                || islandKeyMissing || monitorsChanged || dockItemsMigrated || onboardingKeyMissing)
             {
                 Save(Current);
             }
@@ -194,6 +211,9 @@ internal sealed class ConfigService
             Theme = AppConfig.ThemeSystem,
             Language = AppConfig.LanguageSystem,
             Autostart = true,
+
+            // Fresh install: App.OnStartup shows the setup wizard until it (or Skip) sets this.
+            OnboardingCompleted = false,
             Dock = new DockConfig
             {
                 AutoHide = true,
@@ -289,6 +309,10 @@ internal sealed class ConfigService
         Debug.WriteLine($"[WharfBar] Config reset to defaults: {reason}");
         TryBackupCorruptFile();
         Current = CreateDefault();
+
+        // A corrupt or incompatible file is an install that lost its settings, not a new one:
+        // do not push the first-run wizard at an existing user.
+        Current.OnboardingCompleted = true;
         Save(Current);
         return Current;
     }
@@ -366,6 +390,15 @@ internal sealed class ConfigService
         if (config.TopBar.StatusCatalogVersion < 5)
         {
             TopBarStatusItemIds.EnsureTrayMirror(config.TopBar.StatusItems);
+        }
+
+        if (config.TopBar.StatusCatalogVersion < 6
+            && TopBarStatusItemIds.IsLegacyDefault(config.TopBar.StatusItems))
+        {
+            // 2026-11-12 (catalog v6): the untouched default put the clock/bell before the
+            // quick-settings and system indicators and kept volume/brightness off. Move only a
+            // list that was never reordered or toggled — a customized order is the user's.
+            config.TopBar.StatusItems = TopBarStatusItemIds.DefaultOrder.ToList();
         }
 
         config.TopBar.StatusCatalogVersion = TopBarConfig.CurrentStatusCatalogVersion;
