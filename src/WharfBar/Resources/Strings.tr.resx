@@ -849,4 +849,292 @@ Tamam: yine de devam et
   <data name="ColorPicker_CopiedFormat" xml:space="preserve">
     <value>✓ {0} kopyalandı</value>
   </data>
+  <data name="Onboarding_WindowTitle" xml:space="preserve">
+    <value>WharfBar'ı ayarla</value>
+  </data>
+  <data name="Onboarding_RailTagline" xml:space="preserve">
+    <value>İlk kurulum</value>
+  </data>
+  <data name="Onboarding_StepOfFormat" xml:space="preserve">
+    <value>Adım {0} / {1}</value>
+  </data>
+  <data name="Onboarding_Skip" xml:space="preserve">
+    <value>Kurulumu atla</value>
+  </data>
+  <data name="Onboarding_Back" xml:space="preserve">
+    <value>Geri</value>
+  </data>
+  <data name="Onboarding_Next" xml:space="preserve">
+    <value>Devam</value>
+  </data>
+  <data name="Onboarding_Finish" xml:space="preserve">
+    <value>WharfBar'ı başlat</value>
+  </data>
+  <data name="Onboarding_Rail_Welcome" xml:space="preserve">
+    <value>Hoş geldiniz</value>
+  </data>
+  <data name="Onboarding_Rail_Appearance" xml:space="preserve">
+    <value>Görünüm</value>
+  </data>
+  <data name="Onboarding_Rail_TopBar" xml:space="preserve">
+    <value>Üst bar</value>
+  </data>
+  <data name="Onboarding_Rail_Dock" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Rail_Wallpaper" xml:space="preserve">
+    <value>Duvar kağıdı</value>
+  </data>
+  <data name="Onboarding_Rail_Tour" xml:space="preserve">
+    <value>Nasıl kullanılır</value>
+  </data>
+  <data name="Onboarding_Rail_Finish" xml:space="preserve">
+    <value>Bitir</value>
+  </data>
+  <data name="Onboarding_StepWelcome_Title" xml:space="preserve">
+    <value>WharfBar'a hoş geldiniz</value>
+  </data>
+  <data name="Onboarding_StepWelcome_Subtitle" xml:space="preserve">
+    <value>Windows için Fluent bir üst bar ve dock. Bu kısa kurulum her şeyi hazırlar.</value>
+  </data>
+  <data name="Onboarding_StepAppearance_Title" xml:space="preserve">
+    <value>Görünüm ve tema</value>
+  </data>
+  <data name="Onboarding_StepAppearance_Subtitle" xml:space="preserve">
+    <value>Tema, vurgu rengi ve logo seçin — değişiklikler hemen uygulanır.</value>
+  </data>
+  <data name="Onboarding_StepTopBar_Title" xml:space="preserve">
+    <value>Üst bar</value>
+  </data>
+  <data name="Onboarding_StepTopBar_Subtitle" xml:space="preserve">
+    <value>Barda nelerin görüneceğini seçin. Bu pencerenin arkasında değiştiğini görün.</value>
+  </data>
+  <data name="Onboarding_StepDock_Title" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_StepDock_Subtitle" xml:space="preserve">
+    <value>Dock'u konumlandırın; boyutunu ve arka planını ayarlayın.</value>
+  </data>
+  <data name="Onboarding_StepWallpaper_Title" xml:space="preserve">
+    <value>Duvar kağıdı</value>
+  </data>
+  <data name="Onboarding_StepWallpaper_Subtitle" xml:space="preserve">
+    <value>Paketle gelen arka planlardan birini seçin.</value>
+  </data>
+  <data name="Onboarding_StepTour_Title" xml:space="preserve">
+    <value>Nasıl kullanılır</value>
+  </data>
+  <data name="Onboarding_StepTour_Subtitle" xml:space="preserve">
+    <value>Tek sayfada temel bilgiler — her şey bir tık uzağınızda.</value>
+  </data>
+  <data name="Onboarding_StepFinish_Title" xml:space="preserve">
+    <value>Her şey hazır</value>
+  </data>
+  <data name="Onboarding_StepFinish_Subtitle" xml:space="preserve">
+    <value>Son birkaç seçim, sonra WharfBar devralıyor.</value>
+  </data>
+  <data name="Onboarding_Welcome_Intro" xml:space="preserve">
+    <value>WharfBar, Windows'a bir üst bar ve dock kazandırır: canlı sistem istatistikleri, hızlı ayarlar, pano adası ve launchpad.</value>
+  </data>
+  <data name="Onboarding_Welcome_BarTitle" xml:space="preserve">
+    <value>Üst bar</value>
+  </data>
+  <data name="Onboarding_Welcome_BarBody" xml:space="preserve">
+    <value>Sistem istatistikleri, hızlı ayarlar, ses, medya, bildirimler ve saat — her zaman bir tık uzağınızda.</value>
+  </data>
+  <data name="Onboarding_Welcome_DockTitle" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Welcome_DockBody" xml:space="preserve">
+    <value>Sabitlenmiş ve çalışan uygulamalar tek şeritte. Sıralamak için sürükleyin, eylemler için sağ tıklayın.</value>
+  </data>
+  <data name="Onboarding_Welcome_CustomTitle" xml:space="preserve">
+    <value>Size özel</value>
+  </data>
+  <data name="Onboarding_Welcome_CustomBody" xml:space="preserve">
+    <value>Tema, bar öğeleri, dock konumu ve duvar kağıdı daha sonra Ayarlar'dan değiştirilebilir.</value>
+  </data>
+  <data name="Onboarding_Welcome_TaskbarTitle" xml:space="preserve">
+    <value>Görev çubuğunuz hakkında</value>
+  </data>
+  <data name="Onboarding_Welcome_TaskbarBody" xml:space="preserve">
+    <value>WharfBar çalışırken Windows görev çubuğu gizlenir ve üst kenarı WharfBar devralır. Tepsi simgesinden (veya logo menüsünden) çıkınca görev çubuğu geri gelir.</value>
+  </data>
+  <data name="Onboarding_Welcome_ReplayNote" xml:space="preserve">
+    <value>Buradaki hiçbir şey kalıcı değil: kurulumu istediğiniz zaman Ayarlar → Genel'den yeniden çalıştırabilirsiniz.</value>
+  </data>
+  <data name="Onboarding_Appearance_ThemeHint" xml:space="preserve">
+    <value>Açık veya koyu tema Windows kişiselleştirmesini de günceller; Sistem Windows'a dokunmaz ve onu izler.</value>
+  </data>
+  <data name="Onboarding_Appearance_AccentSection" xml:space="preserve">
+    <value>Vurgu rengi</value>
+  </data>
+  <data name="Onboarding_Appearance_PreviewNote" xml:space="preserve">
+    <value>Bu pencerenin arkasındaki bar ve dock buradaki her seçimi izler.</value>
+  </data>
+  <data name="Onboarding_TopBar_ItemsSection" xml:space="preserve">
+    <value>Bar öğeleri</value>
+  </data>
+  <data name="Onboarding_TopBar_ItemsHint" xml:space="preserve">
+    <value>Öğeleri açıp kapatın; bar anında güncellenir.</value>
+  </data>
+  <data name="Onboarding_TopBar_HiddenSection" xml:space="preserve">
+    <value>Gizli</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsSection" xml:space="preserve">
+    <value>Sistem istatistikleri</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsTitle" xml:space="preserve">
+    <value>CPU, GPU ve RAM</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsDescription" xml:space="preserve">
+    <value>Logonun yanında canlı kullanım. CPU ve RAM her saniye, GPU dört saniyede bir yenilenir.</value>
+  </data>
+  <data name="Onboarding_TopBar_GpuTitle" xml:space="preserve">
+    <value>Her GPU için ayrı gösterge</value>
+  </data>
+  <data name="Onboarding_TopBar_GpuDescription" xml:space="preserve">
+    <value>Çoklu GPU sistemlerde GPU0 ve GPU1 ayrı gösterilir.</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundSection" xml:space="preserve">
+    <value>Bar arka planı</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundTitle" xml:space="preserve">
+    <value>Arka plan</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundDescription" xml:space="preserve">
+    <value>Mica bulanıklığı, tam saydamlık veya renkli dolgu.</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundHint" xml:space="preserve">
+    <value>Arka planı ve opaklığı değiştirmek için istediğiniz zaman bara sağ tıklayın.</value>
+  </data>
+  <data name="Onboarding_Dock_PositionSection" xml:space="preserve">
+    <value>Konum</value>
+  </data>
+  <data name="Onboarding_Dock_PositionDescription" xml:space="preserve">
+    <value>Sol-alt, orta-alt, sağ-alt veya sol kenarda dikey dock.</value>
+  </data>
+  <data name="Onboarding_Dock_SizeDescription" xml:space="preserve">
+    <value>Simge boyutu; plaka da onunla büyür.</value>
+  </data>
+  <data name="Onboarding_Dock_SizeFormat" xml:space="preserve">
+    <value>{0} DIP</value>
+  </data>
+  <data name="Onboarding_Dock_BackgroundSection" xml:space="preserve">
+    <value>Dock arka planı</value>
+  </data>
+  <data name="Onboarding_Dock_BackgroundDescription" xml:space="preserve">
+    <value>Mica gerçek sistem bulanıklığıdır; saydam ve renkli modlar paneli yeniden oluşturur.</value>
+  </data>
+  <data name="Onboarding_Dock_BehaviorSection" xml:space="preserve">
+    <value>Davranış</value>
+  </data>
+  <data name="Onboarding_Dock_Tip" xml:space="preserve">
+    <value>Sabitlemek için bir dosya veya uygulamayı dock'a sürükleyin. Sabitle, Görevi sonlandır, Yönetici olarak çalıştır ve Windows için bir simgeye sağ tıklayın.</value>
+  </data>
+  <data name="Onboarding_Dock_RunningNote" xml:space="preserve">
+    <value>Sabitlenmemiş çalışan uygulamalar ve simge durumuna küçültülmüş pencereler sağ tarafta görünür.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Intro" xml:space="preserve">
+    <value>Seçiminiz hemen Windows'a uygulanır.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_BundledSection" xml:space="preserve">
+    <value>WharfBar paketi</value>
+  </data>
+  <data name="Onboarding_Wallpaper_YoursSection" xml:space="preserve">
+    <value>Görselleriniz</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Empty" xml:space="preserve">
+    <value>Henüz görsel yok. Klasöre .jpg, .png veya .webp ekleyip bu adımı yeniden açın.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_OpenFolder" xml:space="preserve">
+    <value>Duvar kağıdı klasörünü aç</value>
+  </data>
+  <data name="Onboarding_Wallpaper_AccentNote" xml:space="preserve">
+    <value>Kurulum sırasında duvar kağıdından otomatik vurgu rengi kapalıdır; Ayarlar → Ada bölümünden açabilirsiniz.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Failed" xml:space="preserve">
+    <value>Duvar kağıdı değiştirilemedi.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_CurrentFormat" xml:space="preserve">
+    <value>Şu an: {0}</value>
+  </data>
+  <data name="Onboarding_Tour_Intro" xml:space="preserve">
+    <value>İşin çoğunu üç yer yapar: üst bar, dock ve Windows tuşu.</value>
+  </data>
+  <data name="Onboarding_Tour_BarTitle" xml:space="preserve">
+    <value>Üst bar</value>
+  </data>
+  <data name="Onboarding_Tour_BarLogo" xml:space="preserve">
+    <value>Logo menüsü: Windows ayarları ve güç işlemleri, WharfBar Ayarları, Hakkında ve Çıkış.</value>
+  </data>
+  <data name="Onboarding_Tour_BarIsland" xml:space="preserve">
+    <value>Ada: pano, duvar kağıdı, müzik, raf ve daha fazlası tek panelde.</value>
+  </data>
+  <data name="Onboarding_Tour_BarStatus" xml:space="preserve">
+    <value>Durum şeridi: tepsi simgeleri, saat, bildirimler, hızlı ayarlar, ağ ve pil. Sıralamak veya arka planı değiştirmek için sağ tıklayın.</value>
+  </data>
+  <data name="Onboarding_Tour_DockTitle" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Tour_DockPins" xml:space="preserve">
+    <value>Sol: sabitlenmiş uygulamalar. Sağ: çalışan uygulamalar ve simge durumuna küçültülmüş pencereler.</value>
+  </data>
+  <data name="Onboarding_Tour_DockClick" xml:space="preserve">
+    <value>Etkinleştirmek için tıklayın, küçültmek için tekrar tıklayın. Sabitle, Görevi sonlandır ve Windows için sağ tıklayın.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysTitle" xml:space="preserve">
+    <value>Launchpad ve kısayollar</value>
+  </data>
+  <data name="Onboarding_Tour_KeysWin" xml:space="preserve">
+    <value>Launchpad'i aramayla açmak için Windows tuşuna dokunun.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysChords" xml:space="preserve">
+    <value>Win+tuş kısayolları eskisi gibi çalışmaya devam eder.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysQuit" xml:space="preserve">
+    <value>Windows görev çubuğunu geri getirmek için tepsi simgesinden çıkın.</value>
+  </data>
+  <data name="Onboarding_Tour_SettingsTitle" xml:space="preserve">
+    <value>Ayarlar</value>
+  </data>
+  <data name="Onboarding_Tour_SettingsBody" xml:space="preserve">
+    <value>Her şey yapılandırılabilir: tema, bar öğeleri, dock, ada, eklentiler. Bu kurulum Ayarlar → Genel'den yeniden açılabilir.</value>
+  </data>
+  <data name="Onboarding_Finish_Summary" xml:space="preserve">
+    <value>Özet</value>
+  </data>
+  <data name="Onboarding_Finish_ThemeLabel" xml:space="preserve">
+    <value>Tema</value>
+  </data>
+  <data name="Onboarding_Finish_BarItemsLabel" xml:space="preserve">
+    <value>Bar öğeleri</value>
+  </data>
+  <data name="Onboarding_Finish_DockLabel" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Finish_ItemsFormat" xml:space="preserve">
+    <value>{0} öğe</value>
+  </data>
+  <data name="Onboarding_Finish_Note" xml:space="preserve">
+    <value>WharfBar bu pencerenin arkasında çalışıyor. Bitirin; bar ve dock kullanıma hazır.</value>
+  </data>
+  <data name="Onboarding_Finish_SettingsHint" xml:space="preserve">
+    <value>Her şey daha sonra Ayarlar'dan değiştirilebilir; Windows görev çubuğunu geri getirmek için tepsi simgesinden çıkın.</value>
+  </data>
+  <data name="General_SetupSection" xml:space="preserve">
+    <value>Kurulum</value>
+  </data>
+  <data name="General_SetupTitle" xml:space="preserve">
+    <value>Kurulum ve tur</value>
+  </data>
+  <data name="General_SetupDescription" xml:space="preserve">
+    <value>Turu yeniden görmek ve temel ayarları düzenlemek için ilk kurulumu açın.</value>
+  </data>
+  <data name="General_SetupButton" xml:space="preserve">
+    <value>Kurulumu yeniden çalıştır</value>
+  </data>
+  <data name="Onboarding_FinishReplay" xml:space="preserve">
+    <value>Bitti</value>
+  </data>
 </root>

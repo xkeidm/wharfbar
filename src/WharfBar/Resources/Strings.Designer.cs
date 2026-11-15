@@ -2263,6 +2263,529 @@ namespace WharfBar.Resources {
             }
         }
 
+        public static string Onboarding_WindowTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_WindowTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_RailTagline {
+            get {
+                return ResourceManager.GetString("Onboarding_RailTagline", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepOfFormat {
+            get {
+                return ResourceManager.GetString("Onboarding_StepOfFormat", resourceCulture);
+            }
+        }
+        public static string Onboarding_Skip {
+            get {
+                return ResourceManager.GetString("Onboarding_Skip", resourceCulture);
+            }
+        }
+        public static string Onboarding_Back {
+            get {
+                return ResourceManager.GetString("Onboarding_Back", resourceCulture);
+            }
+        }
+        public static string Onboarding_Next {
+            get {
+                return ResourceManager.GetString("Onboarding_Next", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Welcome {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Welcome", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Appearance {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Appearance", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_TopBar {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_TopBar", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Dock {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Dock", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Wallpaper {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Wallpaper", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Tour {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Tour", resourceCulture);
+            }
+        }
+        public static string Onboarding_Rail_Finish {
+            get {
+                return ResourceManager.GetString("Onboarding_Rail_Finish", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepWelcome_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepWelcome_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepWelcome_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepWelcome_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepAppearance_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepAppearance_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepAppearance_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepAppearance_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepTopBar_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepTopBar_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepTopBar_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepTopBar_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepDock_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepDock_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepDock_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepDock_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepWallpaper_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepWallpaper_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepWallpaper_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepWallpaper_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepTour_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepTour_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepTour_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepTour_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepFinish_Title {
+            get {
+                return ResourceManager.GetString("Onboarding_StepFinish_Title", resourceCulture);
+            }
+        }
+        public static string Onboarding_StepFinish_Subtitle {
+            get {
+                return ResourceManager.GetString("Onboarding_StepFinish_Subtitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_Intro {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_Intro", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_BarTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_BarTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_BarBody {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_BarBody", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_DockTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_DockTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_DockBody {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_DockBody", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_CustomTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_CustomTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_CustomBody {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_CustomBody", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_TaskbarTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_TaskbarTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_TaskbarBody {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_TaskbarBody", resourceCulture);
+            }
+        }
+        public static string Onboarding_Welcome_ReplayNote {
+            get {
+                return ResourceManager.GetString("Onboarding_Welcome_ReplayNote", resourceCulture);
+            }
+        }
+        public static string Onboarding_Appearance_ThemeHint {
+            get {
+                return ResourceManager.GetString("Onboarding_Appearance_ThemeHint", resourceCulture);
+            }
+        }
+        public static string Onboarding_Appearance_AccentSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Appearance_AccentSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Appearance_PreviewNote {
+            get {
+                return ResourceManager.GetString("Onboarding_Appearance_PreviewNote", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_ItemsSection {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_ItemsSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_ItemsHint {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_ItemsHint", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_HiddenSection {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_HiddenSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_StatsSection {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_StatsSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_StatsTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_StatsTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_StatsDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_StatsDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_GpuTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_GpuTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_GpuDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_GpuDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_BackgroundSection {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_BackgroundSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_BackgroundTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_BackgroundTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_BackgroundDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_BackgroundDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_TopBar_BackgroundHint {
+            get {
+                return ResourceManager.GetString("Onboarding_TopBar_BackgroundHint", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_PositionSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_PositionSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_PositionDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_PositionDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_SizeDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_SizeDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_SizeFormat {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_SizeFormat", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_BackgroundSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_BackgroundSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_BackgroundDescription {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_BackgroundDescription", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_BehaviorSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_BehaviorSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_Tip {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_Tip", resourceCulture);
+            }
+        }
+        public static string Onboarding_Dock_RunningNote {
+            get {
+                return ResourceManager.GetString("Onboarding_Dock_RunningNote", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_Intro {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_Intro", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_BundledSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_BundledSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_YoursSection {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_YoursSection", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_Empty {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_Empty", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_OpenFolder {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_OpenFolder", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_AccentNote {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_AccentNote", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_Failed {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_Failed", resourceCulture);
+            }
+        }
+        public static string Onboarding_Wallpaper_CurrentFormat {
+            get {
+                return ResourceManager.GetString("Onboarding_Wallpaper_CurrentFormat", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_Intro {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_Intro", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_BarTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_BarTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_BarLogo {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_BarLogo", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_BarIsland {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_BarIsland", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_BarStatus {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_BarStatus", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_DockTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_DockTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_DockPins {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_DockPins", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_DockClick {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_DockClick", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_KeysTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_KeysTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_KeysWin {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_KeysWin", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_KeysChords {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_KeysChords", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_KeysQuit {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_KeysQuit", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_SettingsTitle {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_SettingsTitle", resourceCulture);
+            }
+        }
+        public static string Onboarding_Tour_SettingsBody {
+            get {
+                return ResourceManager.GetString("Onboarding_Tour_SettingsBody", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_Summary {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_Summary", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_ThemeLabel {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_ThemeLabel", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_BarItemsLabel {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_BarItemsLabel", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_DockLabel {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_DockLabel", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_ItemsFormat {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_ItemsFormat", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_Note {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_Note", resourceCulture);
+            }
+        }
+        public static string Onboarding_Finish_SettingsHint {
+            get {
+                return ResourceManager.GetString("Onboarding_Finish_SettingsHint", resourceCulture);
+            }
+        }
+        public static string General_SetupSection {
+            get {
+                return ResourceManager.GetString("General_SetupSection", resourceCulture);
+            }
+        }
+        public static string General_SetupTitle {
+            get {
+                return ResourceManager.GetString("General_SetupTitle", resourceCulture);
+            }
+        }
+        public static string General_SetupDescription {
+            get {
+                return ResourceManager.GetString("General_SetupDescription", resourceCulture);
+            }
+        }
+        public static string General_SetupButton {
+            get {
+                return ResourceManager.GetString("General_SetupButton", resourceCulture);
+            }
+        }
+        public static string Appearance_Logo_Section {
+            get {
+                return ResourceManager.GetString("Appearance_Logo_Section", resourceCulture);
+            }
+        }
+
+        public static string Appearance_Logo_Title {
+            get {
+                return ResourceManager.GetString("Appearance_Logo_Title", resourceCulture);
+            }
+        }
+
+        public static string Appearance_Logo_Description {
+            get {
+                return ResourceManager.GetString("Appearance_Logo_Description", resourceCulture);
+            }
+        }
+
+        public static string Appearance_Logo_WharfBar {
+            get {
+                return ResourceManager.GetString("Appearance_Logo_WharfBar", resourceCulture);
+            }
+        }
+
+        public static string Appearance_Logo_Windows {
+            get {
+                return ResourceManager.GetString("Appearance_Logo_Windows", resourceCulture);
+            }
+        }
+
+        public static string Island_WallpaperAccent_Title {
+            get {
+                return ResourceManager.GetString("Island_WallpaperAccent_Title", resourceCulture);
+            }
+        }
+
+        public static string Island_WallpaperAccent_Description {
+            get {
+                return ResourceManager.GetString("Island_WallpaperAccent_Description", resourceCulture);
+            }
+        }
+
+        public static string Onboarding_FinishReplay {
+            get {
+                return ResourceManager.GetString("Onboarding_FinishReplay", resourceCulture);
+            }
+        }
+
         public static string ColorPicker_CopiedFormat {
             get {
                 return ResourceManager.GetString("ColorPicker_CopiedFormat", resourceCulture);

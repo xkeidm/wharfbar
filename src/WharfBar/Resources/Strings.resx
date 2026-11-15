@@ -846,4 +846,292 @@ Cancel: quit</value>
   <data name="ColorPicker_CopiedFormat" xml:space="preserve">
     <value>✓ {0} copied</value>
   </data>
+  <data name="Onboarding_WindowTitle" xml:space="preserve">
+    <value>Set up WharfBar</value>
+  </data>
+  <data name="Onboarding_RailTagline" xml:space="preserve">
+    <value>First-run setup</value>
+  </data>
+  <data name="Onboarding_StepOfFormat" xml:space="preserve">
+    <value>Step {0} of {1}</value>
+  </data>
+  <data name="Onboarding_Skip" xml:space="preserve">
+    <value>Skip setup</value>
+  </data>
+  <data name="Onboarding_Back" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="Onboarding_Next" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="Onboarding_Finish" xml:space="preserve">
+    <value>Start WharfBar</value>
+  </data>
+  <data name="Onboarding_Rail_Welcome" xml:space="preserve">
+    <value>Welcome</value>
+  </data>
+  <data name="Onboarding_Rail_Appearance" xml:space="preserve">
+    <value>Appearance</value>
+  </data>
+  <data name="Onboarding_Rail_TopBar" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Onboarding_Rail_Dock" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Rail_Wallpaper" xml:space="preserve">
+    <value>Wallpaper</value>
+  </data>
+  <data name="Onboarding_Rail_Tour" xml:space="preserve">
+    <value>How to use</value>
+  </data>
+  <data name="Onboarding_Rail_Finish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="Onboarding_StepWelcome_Title" xml:space="preserve">
+    <value>Welcome to WharfBar</value>
+  </data>
+  <data name="Onboarding_StepWelcome_Subtitle" xml:space="preserve">
+    <value>A Fluent top bar and dock for Windows. This short setup gets everything ready.</value>
+  </data>
+  <data name="Onboarding_StepAppearance_Title" xml:space="preserve">
+    <value>Look and feel</value>
+  </data>
+  <data name="Onboarding_StepAppearance_Subtitle" xml:space="preserve">
+    <value>Pick a theme, accent and logo — changes apply immediately.</value>
+  </data>
+  <data name="Onboarding_StepTopBar_Title" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Onboarding_StepTopBar_Subtitle" xml:space="preserve">
+    <value>Choose what lives on the bar. Watch it change behind this window.</value>
+  </data>
+  <data name="Onboarding_StepDock_Title" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_StepDock_Subtitle" xml:space="preserve">
+    <value>Place the dock and set its size and background.</value>
+  </data>
+  <data name="Onboarding_StepWallpaper_Title" xml:space="preserve">
+    <value>Wallpaper</value>
+  </data>
+  <data name="Onboarding_StepWallpaper_Subtitle" xml:space="preserve">
+    <value>Pick a desktop background from the bundled pack.</value>
+  </data>
+  <data name="Onboarding_StepTour_Title" xml:space="preserve">
+    <value>How to use it</value>
+  </data>
+  <data name="Onboarding_StepTour_Subtitle" xml:space="preserve">
+    <value>The essentials on one page — everything is a click away.</value>
+  </data>
+  <data name="Onboarding_StepFinish_Title" xml:space="preserve">
+    <value>You're all set</value>
+  </data>
+  <data name="Onboarding_StepFinish_Subtitle" xml:space="preserve">
+    <value>A couple of last choices, then WharfBar takes over.</value>
+  </data>
+  <data name="Onboarding_Welcome_Intro" xml:space="preserve">
+    <value>WharfBar gives Windows a top bar and a dock: live system stats, quick settings, a clipboard island and a launchpad.</value>
+  </data>
+  <data name="Onboarding_Welcome_BarTitle" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Onboarding_Welcome_BarBody" xml:space="preserve">
+    <value>System stats, quick settings, volume, media, notifications and the clock — always one click away.</value>
+  </data>
+  <data name="Onboarding_Welcome_DockTitle" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Welcome_DockBody" xml:space="preserve">
+    <value>Pinned and running apps in one strip. Drag to rearrange, right-click for actions.</value>
+  </data>
+  <data name="Onboarding_Welcome_CustomTitle" xml:space="preserve">
+    <value>Yours to shape</value>
+  </data>
+  <data name="Onboarding_Welcome_CustomBody" xml:space="preserve">
+    <value>Theme, bar items, dock position and wallpaper can all be changed later in Settings.</value>
+  </data>
+  <data name="Onboarding_Welcome_TaskbarTitle" xml:space="preserve">
+    <value>About your taskbar</value>
+  </data>
+  <data name="Onboarding_Welcome_TaskbarBody" xml:space="preserve">
+    <value>While WharfBar runs it hides the Windows taskbar and takes over the top edge. Quit from the tray icon (or the logo menu) and the taskbar comes back.</value>
+  </data>
+  <data name="Onboarding_Welcome_ReplayNote" xml:space="preserve">
+    <value>Nothing here is final: run this setup again any time from Settings → General.</value>
+  </data>
+  <data name="Onboarding_Appearance_ThemeHint" xml:space="preserve">
+    <value>Light or dark also updates Windows personalization; System leaves Windows alone and follows it.</value>
+  </data>
+  <data name="Onboarding_Appearance_AccentSection" xml:space="preserve">
+    <value>Accent color</value>
+  </data>
+  <data name="Onboarding_Appearance_PreviewNote" xml:space="preserve">
+    <value>The bar and dock behind this window follow every choice you make here.</value>
+  </data>
+  <data name="Onboarding_TopBar_ItemsSection" xml:space="preserve">
+    <value>Bar items</value>
+  </data>
+  <data name="Onboarding_TopBar_ItemsHint" xml:space="preserve">
+    <value>Turn items on or off; the bar updates as you toggle them.</value>
+  </data>
+  <data name="Onboarding_TopBar_HiddenSection" xml:space="preserve">
+    <value>Hidden</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsSection" xml:space="preserve">
+    <value>System stats</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsTitle" xml:space="preserve">
+    <value>CPU, GPU and RAM</value>
+  </data>
+  <data name="Onboarding_TopBar_StatsDescription" xml:space="preserve">
+    <value>Live usage next to the logo. CPU and RAM refresh every second, GPU every four.</value>
+  </data>
+  <data name="Onboarding_TopBar_GpuTitle" xml:space="preserve">
+    <value>One segment per GPU</value>
+  </data>
+  <data name="Onboarding_TopBar_GpuDescription" xml:space="preserve">
+    <value>Shows GPU0 and GPU1 separately on multi-GPU systems.</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundSection" xml:space="preserve">
+    <value>Bar background</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundTitle" xml:space="preserve">
+    <value>Backdrop</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundDescription" xml:space="preserve">
+    <value>Mica blur, fully transparent, or a tinted fill.</value>
+  </data>
+  <data name="Onboarding_TopBar_BackgroundHint" xml:space="preserve">
+    <value>Right-click the bar at any time to change its background and opacity.</value>
+  </data>
+  <data name="Onboarding_Dock_PositionSection" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="Onboarding_Dock_PositionDescription" xml:space="preserve">
+    <value>Bottom-left, bottom-center, bottom-right, or a vertical dock on the left edge.</value>
+  </data>
+  <data name="Onboarding_Dock_SizeDescription" xml:space="preserve">
+    <value>Icon size; the plate grows with it.</value>
+  </data>
+  <data name="Onboarding_Dock_SizeFormat" xml:space="preserve">
+    <value>{0} DIP</value>
+  </data>
+  <data name="Onboarding_Dock_BackgroundSection" xml:space="preserve">
+    <value>Dock background</value>
+  </data>
+  <data name="Onboarding_Dock_BackgroundDescription" xml:space="preserve">
+    <value>Mica is real system blur; transparent and tinted recreate the panel.</value>
+  </data>
+  <data name="Onboarding_Dock_BehaviorSection" xml:space="preserve">
+    <value>Behavior</value>
+  </data>
+  <data name="Onboarding_Dock_Tip" xml:space="preserve">
+    <value>Drag a file or app onto the dock to pin it. Right-click a tile for Pin, End task, Run as administrator and Windows.</value>
+  </data>
+  <data name="Onboarding_Dock_RunningNote" xml:space="preserve">
+    <value>Unpinned running apps and minimized windows appear on the right side.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Intro" xml:space="preserve">
+    <value>Your choice is applied to Windows right away.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_BundledSection" xml:space="preserve">
+    <value>WharfBar pack</value>
+  </data>
+  <data name="Onboarding_Wallpaper_YoursSection" xml:space="preserve">
+    <value>Your images</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Empty" xml:space="preserve">
+    <value>No images yet. Add .jpg, .png or .webp files to the folder, then reopen this step.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_OpenFolder" xml:space="preserve">
+    <value>Open wallpapers folder</value>
+  </data>
+  <data name="Onboarding_Wallpaper_AccentNote" xml:space="preserve">
+    <value>Automatic accent color from the wallpaper is paused during setup; turn it on in Settings → Island.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_Failed" xml:space="preserve">
+    <value>Couldn't change the wallpaper.</value>
+  </data>
+  <data name="Onboarding_Wallpaper_CurrentFormat" xml:space="preserve">
+    <value>Current: {0}</value>
+  </data>
+  <data name="Onboarding_Tour_Intro" xml:space="preserve">
+    <value>Three places do most of the work: the top bar, the dock and the Windows key.</value>
+  </data>
+  <data name="Onboarding_Tour_BarTitle" xml:space="preserve">
+    <value>Top bar</value>
+  </data>
+  <data name="Onboarding_Tour_BarLogo" xml:space="preserve">
+    <value>Logo menu: Windows settings and power actions, WharfBar Settings, About and Quit.</value>
+  </data>
+  <data name="Onboarding_Tour_BarIsland" xml:space="preserve">
+    <value>Island: clipboard, wallpaper, music, shelf and more in a single panel.</value>
+  </data>
+  <data name="Onboarding_Tour_BarStatus" xml:space="preserve">
+    <value>Status strip: tray icons, clock, notifications, quick settings, network and battery. Right-click to reorder or change the background.</value>
+  </data>
+  <data name="Onboarding_Tour_DockTitle" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Tour_DockPins" xml:space="preserve">
+    <value>Left: pinned apps. Right: running apps and minimized windows.</value>
+  </data>
+  <data name="Onboarding_Tour_DockClick" xml:space="preserve">
+    <value>Click to activate, click again to minimize. Right-click for Pin, End task and Windows.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysTitle" xml:space="preserve">
+    <value>Launchpad and shortcuts</value>
+  </data>
+  <data name="Onboarding_Tour_KeysWin" xml:space="preserve">
+    <value>Tap the Windows key to open the Launchpad with search.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysChords" xml:space="preserve">
+    <value>Win+key shortcuts keep working exactly as before.</value>
+  </data>
+  <data name="Onboarding_Tour_KeysQuit" xml:space="preserve">
+    <value>Quit from the tray icon to restore the Windows taskbar.</value>
+  </data>
+  <data name="Onboarding_Tour_SettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Onboarding_Tour_SettingsBody" xml:space="preserve">
+    <value>Everything is configurable: theme, bar items, dock, island, plugins. This setup can be reopened from Settings → General.</value>
+  </data>
+  <data name="Onboarding_Finish_Summary" xml:space="preserve">
+    <value>Summary</value>
+  </data>
+  <data name="Onboarding_Finish_ThemeLabel" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Onboarding_Finish_BarItemsLabel" xml:space="preserve">
+    <value>Bar items</value>
+  </data>
+  <data name="Onboarding_Finish_DockLabel" xml:space="preserve">
+    <value>Dock</value>
+  </data>
+  <data name="Onboarding_Finish_ItemsFormat" xml:space="preserve">
+    <value>{0} items</value>
+  </data>
+  <data name="Onboarding_Finish_Note" xml:space="preserve">
+    <value>WharfBar is already running behind this window. Finish and the bar and dock are ready to use.</value>
+  </data>
+  <data name="Onboarding_Finish_SettingsHint" xml:space="preserve">
+    <value>Everything can be changed later in Settings; quit from the tray icon to bring the Windows taskbar back.</value>
+  </data>
+  <data name="General_SetupSection" xml:space="preserve">
+    <value>Setup</value>
+  </data>
+  <data name="General_SetupTitle" xml:space="preserve">
+    <value>Setup and tour</value>
+  </data>
+  <data name="General_SetupDescription" xml:space="preserve">
+    <value>Reopen the first-run setup to see the tour again and adjust the basics.</value>
+  </data>
+  <data name="General_SetupButton" xml:space="preserve">
+    <value>Run setup again</value>
+  </data>
+  <data name="Onboarding_FinishReplay" xml:space="preserve">
+    <value>Done</value>
+  </data>
 </root>
