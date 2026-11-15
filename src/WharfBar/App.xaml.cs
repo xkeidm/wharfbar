@@ -13,6 +13,14 @@ namespace WharfBar;
 
 public partial class App : Application
 {
+    /// <summary>
+    /// Tooling hook: when set before the dispatcher runs the application's startup callback,
+    /// <see cref="OnStartup"/> returns without hiding the taskbar, reserving the AppBar or creating
+    /// the shell. The offline UI render harness (<c>.superpowers/scratch</c>) uses it to screenshot
+    /// windows without starting the shell; the product never sets it.
+    /// </summary>
+    internal static bool SuppressShellStartup { get; set; }
+
     private SingleInstanceGuard? _singleInstance;
     private IDisposable? _quitChannel;
     private ConfigService? _config;
@@ -20,10 +28,12 @@ public partial class App : Application
     private MonitorManager? _monitors;
     private TrayIconService? _tray;
     private TaskbarVisibilityService? _taskbar;
+    private DesktopIconLayoutGuard? _iconLayout;
     private SettingsWindow? _settings;
     private VeilService? _veil;
     private WindowsKeyLauncher? _winKey;
     private TopBarStripGuard? _stripGuard;
+    private OnboardingWindow? _onboarding;
 
     /// <summary>Exposes the configuration service for settings pages.</summary>
     internal ConfigService? Config => _config;
@@ -85,6 +95,7 @@ public partial class App : Application
         _monitors?.ApplyTopBarChanges();
         _monitors?.ApplyDockTheme();
         _settings?.RefreshTheme();
+        _onboarding?.RefreshTheme();
         GalleryWindow.RefreshThemeForAll();
     }
 
@@ -140,8 +151,61 @@ public partial class App : Application
         }
     }
 
+    /// <summary>
+    /// Opens the first-run setup wizard, or brings the open one forward. It runs modally while the
+    /// shell is already up, so every choice previews live on the real top bar, dock and desktop.
+    /// Closing or skipping marks onboarding complete; quitting the app mid-setup leaves the marker
+    /// alone, so the next launch shows it again.
+    /// </summary>
+    internal void ShowOnboarding(bool replay = false)
+    {
+        if (_onboarding is not null)
+        {
+            _ = _onboarding.Activate();
+            return;
+        }
+
+        var wizard = new OnboardingWindow(replay);
+        _onboarding = wizard;
+        wizard.Closed += (_, _) =>
+        {
+            _onboarding = null;
+
+            // A quit request (tray menu, installer `--quit`, Windows shutdown) closes the modal
+            // window too; that is not a finished setup.
+            if (!Dispatcher.HasShutdownStarted)
+            {
+                CompleteOnboarding();
+            }
+        };
+
+        wizard.ShowDialog();
+    }
+
+    private void CompleteOnboarding()
+    {
+        if (_config is null)
+        {
+            return;
+        }
+
+        AppConfig config = _config.Current;
+        if (config.OnboardingCompleted)
+        {
+            return;
+        }
+
+        config.OnboardingCompleted = true;
+        _config.Save(config);
+    }
+
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (SuppressShellStartup)
+        {
+            return;
+        }
+
         // First, so any exception from the startup path (config, theme, shell) leaves a managed
         // stack in a crash log instead of only an APPCRASH event. Best-effort by design.
         CrashLog.Install();
@@ -203,7 +267,7 @@ public partial class App : Application
         // attach a DWM Mica backdrop to it — an opaque full-screen cover for the whole
         // startup. Disabled veils must not realize the window at all (VeilService).
         AppThemePreference.Mode = config.Theme;
-        ApplicationThemeManager.Apply(AppThemePreference.Resolve());
+        ThemeApplyGuard.Apply(AppThemePreference.Resolve(), force: true);
         if (config.UseSystemAccentColor)
         {
             ApplicationAccentColorManager.ApplySystemAccent();
@@ -211,6 +275,11 @@ public partial class App : Application
 
         _veil = new VeilService(_config);
         _veil.ApplyConfig(config.Veil);
+
+        // The desktop icon arrangement belongs to the user. Capture it before the first work-area
+        // change (taskbar hide, AppBar strips), and let the guard keep it stable afterwards.
+        _iconLayout = new DesktopIconLayoutGuard();
+        _iconLayout.Start();
 
         _taskbar = new TaskbarVisibilityService();
         _taskbar.CaptureAndHide();
@@ -220,8 +289,9 @@ public partial class App : Application
 
         MainWindow = _monitors.PrimaryTopBar ?? CreateHiddenUtilityWindow();
 
-        // Dock's WindowAppearance.Apply calls ApplicationThemeManager.Apply, which
-        // RestoreContentBackground on MainWindow — re-assert top bar translucent/mica.
+        // A dock's WindowAppearance apply can still swap the theme dictionaries (the guard keeps the
+        // library off MainWindow, so this no longer repaints the bar). Re-assert every bar anyway so
+        // the startup backdrop/tint of each surface is its configured one.
         _monitors.ApplyTopBarChanges();
 
         // Windows cannot forbid a window from being dragged under an AppBar (the AppBar only
@@ -259,6 +329,25 @@ public partial class App : Application
         Dispatcher.BeginInvoke(
             System.Windows.Threading.DispatcherPriority.ApplicationIdle,
             () => _veil?.ReassertBackdrop());
+
+        // First-run setup. The shell is already created, so the wizard edits the live config and
+        // the real bar/dock/desktop show every change behind the window. Deferred to idle so the
+        // AppBar placement and dock lay-out are settled before the window measures the work area.
+        // `--setup` forces it, which is also how manual QA replays the flow.
+        bool wantsSetup = e.Args.Any(
+            static arg => string.Equals(arg, "--setup", StringComparison.OrdinalIgnoreCase));
+        if (!config.OnboardingCompleted || wantsSetup)
+        {
+            Dispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                new Action(() =>
+                {
+                    if (!Dispatcher.HasShutdownStarted)
+                    {
+                        ShowOnboarding();
+                    }
+                }));
+        }
     }
 
     /// <summary>
@@ -341,6 +430,12 @@ public partial class App : Application
         // are gone by now, so waiting here only delays the invisible process exit — but
         // never exit before the taskbar/work-area restore is guaranteed complete.
         taskbar?.WaitForRestore(TaskbarVisibilityService.RestoreWaitTimeout);
+
+        // Bars and taskbar are gone: if the shell did not put the launch icon layout back, repair
+        // it before the process (and the guard thread) goes away.
+        _iconLayout?.RestoreOnExit();
+        _iconLayout?.Dispose();
+        _iconLayout = null;
 
         // Released last: `WharfBar.exe --quit` waits on this mutex before returning, so an
         // installer only replaces the binary once the taskbar and every AppBar are restored.
