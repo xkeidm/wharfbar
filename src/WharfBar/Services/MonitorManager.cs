@@ -154,7 +154,37 @@ internal sealed class MonitorManager : IDisposable
         }
 
         RefreshPrimaryOwnership();
+        RepointWindowsToLiveMonitors();
     }
+
+    /// <summary>
+    /// Hands every existing window the live entry for its display after a display change. Windows
+    /// capture <see cref="MonitorInfo"/> at construction; a resolution / arrangement / DPI change
+    /// leaves that copy stale, and placement, the dock's AppBar reservation and the per-monitor
+    /// window filter all read it.
+    /// </summary>
+    private void RepointWindowsToLiveMonitors()
+    {
+        foreach (TopBarWindow bar in _topBars)
+        {
+            if (FindLiveMonitor(bar.Monitor.DeviceId) is { } live)
+            {
+                bar.UpdateMonitor(live);
+            }
+        }
+
+        foreach (DockWindow dock in _docks)
+        {
+            if (FindLiveMonitor(dock.Monitor.DeviceId) is { } live)
+            {
+                dock.UpdateMonitor(live);
+            }
+        }
+    }
+
+    private MonitorInfo? FindLiveMonitor(string deviceId) =>
+        _monitors.FirstOrDefault(m =>
+            string.Equals(m.DeviceId, deviceId, StringComparison.OrdinalIgnoreCase));
 
     internal void RefreshAllPlacements()
     {

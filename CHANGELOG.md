@@ -18,6 +18,13 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- **A display change no longer leaves a bar or the dock on the old monitor geometry.** Each window
+  captured its `MonitorInfo` at construction, and placement, the dock's bottom AppBar reservation and
+  the per-monitor window filter read that copy — a resolution/arrangement/DPI change therefore kept
+  the window on the stale bounds until a restart. `MonitorManager` now re-points every existing bar
+  and dock at the live entry after a display change (`MonitorWindowSync.ShouldRepoint`), the dock
+  re-applies its placement and reservation, and the dock composer re-filters running windows against
+  the new bounds.
 - **The taskbar watchdog now also releases the top-bar AppBar reservation after a force kill.**
   The baseline file records the HWND of every per-monitor top bar (`appBarHwnds`) and the watchdog
   replays `ABM_REMOVE` for them before restoring the taskbar, because a dead process cannot run it

@@ -24,7 +24,7 @@ internal sealed class DockAppsComposer : IDisposable
     private readonly MinimizedWindowsSource _minimized;
     private readonly TaskbarPinnedAppsSource? _taskbarPins;
     private readonly DockConfig _config;
-    private readonly DockMonitorBounds? _monitor;
+    private DockMonitorBounds? _monitor;
     private List<DockAppItem> _items = [];
 
     internal DockAppsComposer(
@@ -61,6 +61,21 @@ internal sealed class DockAppsComposer : IDisposable
     internal IReadOnlyList<DockAppItem> Items => _items;
 
     internal event EventHandler? Changed;
+
+    /// <summary>
+    /// Re-points the per-monitor window filter at live geometry after a display change (the dock
+    /// captures the bounds at construction). Recomposes so the running-app tiles follow.
+    /// </summary>
+    internal void UpdateMonitorBounds(DockMonitorBounds? monitor)
+    {
+        if (_monitor == monitor)
+        {
+            return;
+        }
+
+        _monitor = monitor;
+        Rebuild();
+    }
 
     /// <summary>
     /// Pure merge. The left group is the taskbar pin order, then dock pins that are not

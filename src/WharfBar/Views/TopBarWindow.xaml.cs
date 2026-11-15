@@ -107,7 +107,24 @@ public partial class TopBarWindow : Window
     private DispatcherTimer? _wallpaperWatch;
 
     /// <summary>The monitor this bar is attached to (physical-pixel geometry).</summary>
-    internal MonitorInfo Monitor { get; }
+    /// <summary>The monitor this bar is anchored to.</summary>
+    internal MonitorInfo Monitor { get; private set; }
+
+    /// <summary>
+    /// Re-points the bar at the live monitor entry after a display change (resolution,
+    /// arrangement, DPI). Placement already reads the window's live monitor, but the island,
+    /// contrast and status code read this copy.
+    /// </summary>
+    internal void UpdateMonitor(MonitorInfo monitor)
+    {
+        if (!MonitorWindowSync.ShouldRepoint(Monitor, monitor))
+        {
+            return;
+        }
+
+        Monitor = monitor;
+        QueueApplyPlacement();
+    }
 
     internal TopBarWindow(TopBarEngine engine, ConfigService config, TaskbarVisibilityService taskbar, VeilService veil, MonitorInfo monitor)
     {

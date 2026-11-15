@@ -215,7 +215,24 @@ public partial class DockWindow : Window
     }
 
     /// <summary>The monitor this dock window is anchored to.</summary>
-    internal MonitorInfo Monitor { get; }
+    internal MonitorInfo Monitor { get; private set; }
+
+    /// <summary>
+    /// Re-points the dock at the live monitor entry after a display change (resolution,
+    /// arrangement, DPI): the plate, the bottom AppBar reservation and the per-monitor window
+    /// filter all read this copy.
+    /// </summary>
+    internal void UpdateMonitor(MonitorInfo monitor)
+    {
+        if (!MonitorWindowSync.ShouldRepoint(Monitor, monitor))
+        {
+            return;
+        }
+
+        Monitor = monitor;
+        _composer?.UpdateMonitorBounds(DockMonitorBounds.From(monitor.Bounds));
+        ApplyPlacement();
+    }
 
     /// <summary>
     /// Re-applies config-driven settings (icon size, auto-hide, magnification, surface,

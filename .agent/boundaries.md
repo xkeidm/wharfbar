@@ -29,6 +29,11 @@
   on/off), each bar is an AppBar on its own monitor. **The `SPI_SETWORKAREA` fallback is dead on 25H2+**
   (the API returns `ERROR_INVALID_PARAMETER` — the `WorkAreaExpandPolicy` circuit breaker skips it);
   there is no non-AppBar edge reservation until a shell that supports a work-area override ships.
+  Display changes re-point every existing bar/dock at the live monitor entry
+  (`MonitorWindowSync.ShouldRepoint` → `MonitorManager.RepointWindowsToLiveMonitors`): placement, the
+  dock reservation and `DockMonitorWindowFilter` read the captured `Monitor.Bounds`, so a
+  resolution/arrangement/DPI change must refresh it. Parity matrix (primary-only vs per-monitor) and
+  the second-display regression checklist: `docs/01-architecture.md` §"Multi-monitor parity".
 - **Hidden taskbar + maximize coverage (ADR-005 note 5, confirmed again on 2026-09-30):**
   the hide flow issues `ABM_SETSTATE(ABS_AUTOHIDE)` and stays in that state while running —
   Explorer parks the bar in a ~2 px clamp, the bottom reservation leaves the work area, and maximized

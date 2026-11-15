@@ -728,6 +728,52 @@ binding it to more than one path is safe. The wired paths:
 After `Remove`, `Register` is rejected; this stops a late `TaskbarCreated`
 message that arrives during shutdown from re-registering the AppBar.
 
+### Multi-monitor parity (what is per monitor, what is primary only)
+
+Every enabled monitor gets its **own** `TopBarWindow` (AppBar, `ABE_TOP`) and its own `DockWindow`
+(overlay + `DockWorkAreaReservation` while auto-hide is off). `MonitorManager` reconciles that window
+set against the live monitors × `config.monitors` (`topBar` / `dock` per entry); a newly seen
+non-primary display defaults to **both off** (`MonitorIdentityMatcher.Resolve`). All bars share one
+`TopBarEngine` (status, volume, media, quick settings, stats).
+
+| Surface | Per monitor | Primary only |
+|--------|-------------|--------------|
+| Top bar window + its AppBar reservation | ✓ | |
+| Bar background mode/tint | ✓ | wallpaper-driven contrast (the wallpaper analysis is primary-only) |
+| Dock plate, magnification, auto-hide, work-area reservation | ✓ | |
+| Status strip items (clock, volume, brightness, media, quick settings, notifications, stats) | ✓ | |
+| Tray mirror (`trayMirror`) | | ✓ (ADR-009): a secondary bar keeps the tray slot collapsed and its `trayOverflow` button opens the native `Win+B` overflow |
+| Island: music presence/pill | ✓ | ✓ for clipboard history, file drop, the hub, wallpaper apply, shelf, prompter and camera (`TopBarWindow.Island` guards on `Monitor.IsPrimary`) |
+| Quick settings / media / brightness flyouts | ✓ (they open from the bar that was clicked) | |
+| Logo menu | ✓ (the bar's own menu) | |
+| Launchpad | | ✓ (`Display.GetPrimaryMonitorBounds`) |
+| Veil overlay, color picker | | ✓ (primary-monitor rect) |
+| Taskbar hide + bottom work-area release | | ✓ (the Windows taskbar is one primary-monitor AppBar) |
+| Desktop icon layout guard | ✓ (per-monitor projection) | |
+| Notification-area icon + Quit | | ✓ (one process) |
+
+Display changes: `WM_DISPLAYCHANGE` → `MonitorManager.Refresh` + `Reconcile` +
+`RepointWindowsToLiveMonitors`. Windows capture `MonitorInfo` at construction, and placement, the
+dock's AppBar reservation and the per-monitor window filter (`DockMonitorWindowFilter`) read that
+copy — `MonitorWindowSync.ShouldRepoint` decides when the live entry (resolution, arrangement, DPI,
+primary flag) has to replace it, then the window re-applies its placement. Per-window DPI comes from
+`WM_DPICHANGED` / `GetDpiForWindow`; the strip guard re-sweeps after a display/DPI change.
+
+Per-monitor regression checklist (needs a second display; run with `run.bat`):
+
+- [ ] Plug in the second display: a bar appears there (when its `monitors[].topBar` is on) and reserves
+  its own top edge; no second island clipboard chrome and no second tray mirror
+- [ ] Enable the dock on the second display: the plate sits on that monitor's bottom edge, maximized
+  windows and desktop icons on that monitor stop above it
+- [ ] Change the second display's resolution or arrangement while both bars are up: the bar and dock
+  follow immediately (no restart) and the dock reservation covers the new strip
+- [ ] Different scale per display (e.g. 100 % / 150 %): bar height and dock icon size stay correct on
+  both; drag a window across the boundary and back
+- [ ] Unplug the second display: its bar/dock close, the primary work area returns, no stale strip
+- [ ] Change which display is primary: `MainWindow` ownership and the theme/background behavior follow
+  the new primary bar
+- [ ] Explorer restart with two bars: both re-register (`TaskbarCreated`), no duplicate strip
+
 ### Message handling (`TopBarWindow.WndProc`)
 
 | Message | Behavior |
