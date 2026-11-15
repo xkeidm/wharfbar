@@ -39,6 +39,20 @@
   the interactive move/show — never mid-drag. Fullscreen, tool, no-activate, own-process and
   child windows are excluded (`StripIntrusionPolicy`). This is deliberate and bounded; it does not
   relax the forbidden work-area / maximized-window interference above.
+- **Desktop icon layout (2026-11-15):** keep the user's icon arrangement stable across the work-area
+  changes WharfBar causes (top bar, dock reservation, taskbar strip release, tray state blips). Capture the
+  layout before the first change and re-project it as **monitor + grid cell** through documented shell
+  interfaces (`IShellWindows` → `IShellBrowser` → `IFolderView`). **Never** read or write explorer's process
+  memory for icon positions, and never write raw pixel positions while the work area differs — the shell
+  snaps/reverts them. The guard must silently stand down (no writes) when the desktop is auto-arranged,
+  "Align icons to grid" is off, or the shell view is unavailable (restricted token).
+- **First-run setup (onboarding):** a fresh install (no `config.json`) may show the setup wizard
+  **only after** the shell is initialized — modal over the running bar/dock, every step editing the
+  live config so the real shell previews it. Never block shell startup on the wizard, never write the
+  `onboardingCompleted` marker from a quit path (a quit mid-setup keeps it `false`), and keep the
+  marker a soft field (no `schemaVersion` bump). Settings → General → "Run setup again" and
+  `WharfBar.exe --setup` replay it. `App.SuppressShellStartup` exists only for offline UI render
+  harnesses under `.superpowers/scratch/` — product paths must never set it.
 - **Measurement trap:** `ABM_SETSTATE`/`ABM_SETPOS` take effect **only when a registered AppBar** calls them;
   probing from outside returns `TRUE` and does nothing, which produces a false "the API is dead" result
   (this mistake was made on 2026-09-30). `SPI_SETWORKAREA` really is a silent no-op;

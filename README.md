@@ -49,6 +49,8 @@ Get the latest beta from **[GitHub Releases](https://github.com/xkeidm/wharfbar/
 
 Settings live in `%AppData%\WharfBar\config.json` — not the install folder — and survive upgrades and uninstall. **Start with Windows** is an app setting (Settings → General): the app keeps its own Startup shortcut and the installer does not create one.
 
+**First launch:** a fresh install opens a short setup wizard (welcome, look and feel, top bar, dock, wallpaper, a how-to-use tour, finish) over the running bar and dock — every choice previews live behind the window. You can skip it; **Settings → General → Run setup again** brings it back any time.
+
 The build is unsigned, so SmartScreen may warn ("Windows protected your PC" → **More info** → **Run anyway**). That is a known beta limitation; check the SHA-256 sums before running.
 
 **Quitting:** tray icon → **Quit WharfBar**, Alt+F4 on the bar, or the top-bar logo menu. Scripts, the installer and the uninstaller use `WharfBar.exe --quit` — never force-kill it ([docs/07](docs/07-packaging-and-releases.md)).
@@ -93,7 +95,7 @@ Real captures on Windows 11 over WharfBar's bundled **Pier Horizon** wallpaper p
 - Pinned apps (including closed) and running apps share a dock — one tile per app — while the taskbar stays out of the way
 - Clipboard history, now playing, and short volume / brightness / battery readouts in the center island
 - Wi-Fi, display projection, monitor brightness, and media controls from the bar
-- Sparse idle work: one shared window census (~3 s), stats every 4 s off the UI thread, tray mirror every 4 s without recapturing bitmaps every pass
+- Sparse idle work: one shared window census (~3 s), CPU/RAM stats every 1 s (GPU/network 4 s) off the UI thread, tray mirror every 4 s without recapturing bitmaps every pass
 
 ## Features
 
@@ -106,7 +108,7 @@ One bar per enabled monitor, each registered as an AppBar. Visibility is the `mo
 
 - **Left:** brand logo menu (left click or right click; default WharfBar Dusk mark; optional Windows logo via `logoStyle`) — Windows Settings, profile, lock, sleep, shut down, restart, WharfBar settings, About, quit — plus a one-line `CPU · GPU · RAM` readout. Hover opens a sparkline and network throughput. Multiple GPUs can be listed separately (`topBar.showGpuPerAdapter`). Missing GPU counters are omitted. No temperature.
 - **Center:** the island pill.
-- **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. Default order: tray mirror, hidden-icons chevron, clock, notifications, quick settings, network, battery. Volume, brightness, and media start hidden (the island already shows them). Saved order is kept.
+- **Right:** a status strip you can show, hide, and reorder from the right-click menu or Settings → Top bar. Default order follows the Windows tray corner: tray mirror, hidden-icons chevron, volume, brightness, network, battery, quick settings, clock, notifications. Media stays in the catalog but starts hidden (the island now playing carries it). Saved order is kept; an untouched pre-v6 default is migrated once to this order.
 - Clock is a single line in the UI language (Settings → General → Language, or follow Windows when set to System). Click opens notification text and a month calendar. The bell sends `Win+N`.
 - Background is Mica, transparent, or a tint plus an opacity slider. Mica and `AllowsTransparency` are never combined. On the transparent top bar the text tone follows the wallpaper automatically (light strip → dark text, dark strip → light text) so text stays readable on any wallpaper.
 

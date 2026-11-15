@@ -134,7 +134,7 @@ The code is in the working tree; a commit and the manual items below are still p
 ### Tray mirror (ADR-009) ✓ (code)
 
 Mirrors third-party tray icons on the top bar with documented comctl32 `TB_*` messages
-(`trayMirror` catalog v5); a system-icon filter; click forward; hidden icons via `Win+B`.
+(`trayMirror` catalog v5, catalog-order v6); a system-icon filter; click forward; hidden icons via `Win+B`.
 
 ## Media panel (SMTC) ✓ (code)
 
@@ -144,6 +144,27 @@ Implemented outside the phase order, as a separate feature after Phase 9 (ADR-00
 - [x] Catalog `media` item + catalog **v4** migration (`EnsureMedia` → after `brightness`)
 - [x] `MediaFlyout` (cover + title/artist + controls + session picker) + top-bar wiring (dynamic visibility, tooltip, animated open/close)
 - [ ] Manual verification: the item appears while media is playing; the controls work; multi-session picker; right-click persistent hide; config migration (the 10-item list in the brief)
+
+## First-run setup (onboarding) ✓ (code; manual verification pending)
+
+A fresh install no longer drops the user straight into the shell: after the shell starts,
+`OnboardingWindow` opens modally (7 steps: welcome, appearance, top bar, dock, wallpaper, how-to tour,
+finish) and edits the live config, so the real bar/dock/desktop preview every choice.
+
+- [x] `AppConfig.onboardingCompleted` (soft field) + `ConfigService.IsFirstRun`; a config written
+  before the field existed (or reset after corruption) counts as completed
+- [x] `Views/OnboardingWindow` shell (step rail, header, footer, theme refresh) + `Views/Onboarding/*`
+- [x] `Services/AppearanceApplier` shared by the Appearance settings page and the onboarding step
+- [x] Settings → General → `Run setup again` replay; `WharfBar.exe --setup` QA flag
+- [x] `Onboarding_*` copy in `Strings.resx` / `Strings.tr.resx`
+- [x] Windows-style step transitions (`Services/OnboardingStepMotion`): the pane slides in from the
+  right on Continue/Next and from the left on Back, 32 DIP + fade over 220 ms, no slide with
+  `ClientAreaAnimation` off
+- [ ] Manual verification: Continue/Back/rail jumps slide in the right direction and fade in; the
+  second and later steps fade too; the pane never spills over the rail
+- [ ] Manual verification: fresh install (`config.json` removed) shows the wizard; skip/close sets the
+  marker; upgrade config does not; `--setup` replays; live previews (theme, bar items, dock position,
+  wallpaper) actually update the shell behind the window
 
 ## Phase 10+ (candidates after v1 — the order is not fixed)
 

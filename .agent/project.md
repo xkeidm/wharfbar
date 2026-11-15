@@ -12,12 +12,15 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
 ## Product
 
 - **Brand logo (ADR-019):** the WharfBar "Dusk" mark by default (solid small pier + sun; no plank gaps), the Windows logo when `logoStyle` = `windows` (Settings → Appearance). Top bar: one colour (bar foreground). Dock launch tile: themed from the accent + light/dark (`BrandPalette`), re-tinted on theme/accent messages; vector geometry in `BrandLogo`.
+- **Theme switch:** light/dark changes are one coordinated shell crossfade (`ThemeCoordinator` + `ThemeTransition`, 180 ms, instant with reduced motion): captures every bar/dock/Settings/Onboarding/Gallery surface, applies the theme underneath (through `ThemeApplyGuard`, the only `ApplicationThemeManager.Apply` entry point — it keeps WPF-UI from repainting the top bar's configured background), re-asserts all surfaces, then fades the old frame out. Windows `theme=system` flips follow the same path (the system theme cache is refreshed first) and the accent/theme registry broadcasts run off the UI thread.
 - **Top bar:** logo on the left (drawn, `logoStyle`) + system stats (`CPU x% · GPU y% · RAM z%`;
  on multiple GPUs a `GPU0/GPU1` split: `topBar.showGpuPerAdapter`;
  `topBar.showSystemStats`, `SystemStatsService`; hovering shows the sparkline and network speed, the bar stays 30 DIP) + menu (`About` / `Close`); on the right, the status strip
- (`trayMirror` → `trayOverflow` → `dateTime` → `notifications` → `controlCenter` →
- `network` → `battery`; customizable). `volume` / `brightness` / `media` stay in the catalog
- but are not in the default order (ADR-011); a saved `statusItems` list is not stripped. Island pill in the center:
+ (`trayMirror` → `trayOverflow` → `volume` → `brightness` → `network` → `battery` →
+ `controlCenter` → `dateTime` → `notifications`; the Windows tray-corner order, customizable).
+ `volume` and `brightness` are on by default (catalog **v6**, 2026-11-12); `media` stays in the
+ catalog but is off. An untouched old default is migrated once; a saved `statusItems` list is not
+ stripped. Island pill in the center:
  idle `Clipboard` or, with `island.idleLabel=lastClip`, the last clip, now playing via `island.musicPresence`
  (`persistent` default / `transient`), a short meter for volume, brightness, and battery,
  at most two satellites on a HUD face (persistent music and clipboard together; a now-playing pill has none). Low-battery threshold
@@ -66,9 +69,14 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  every bar runs on one shared engine; each bar
  is an AppBar on its own monitor (the `SPI_SETWORKAREA` fallback is dead on 25H2+ — ADR-005 addendum).
  Veil is limited to the primary monitor.
+- **Desktop icon layout:** reserving work-area edges makes Windows 11 re-lay-out the desktop icons on every
+ change (25H2 also changes the icon pitch; a multi-change startup can re-pack the desktop into columns).
+ `DesktopIconLayoutGuard` captures the user's arrangement before the first change as monitor + grid cell,
+ re-projects it after each change (250 ms work-area watch), adopts user drags, and merges session edits into
+ the restored work areas on exit. Documented `IFolderView` only (no explorer memory); it stands down for
+ auto-arranged / off-grid layouts and when the shell view is unavailable.
 - **No global menu** — the focused app's File/Edit menu is not moved onto the 30 DIP bar.
- WharfBar's own settings tabs are already in the Settings window (ADR-015).
-- **UI language:** `system` / `en` / `tr` on **General** (`LocalizationService`, `.resx`); restart to apply (Phase 0).
+ WharfBar's own settings tabs are already in the Settings window (ADR-015).- **UI language:** `system` / `en` / `tr` on **General** (`LocalizationService`, `.resx`); restart to apply (Phase 0).
 
 ## Stack (summary)
 
@@ -77,8 +85,8 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
 ## Architecture summary
 
 - UI folder: **`Views/`** (or `UI/`) — do not use `/Windows` (it collides with Win32).
-- Native: `AppBar`, DWM (fallback), `ShellIcon`.
-- Services: config, launcher, icon, autostart (Startup folder), Mutex, status (.NET API).
+- Native: `AppBar`, DWM (fallback), `ShellIcon`, `DesktopIconView` (documented shell view).
+- Services: config, launcher, icon, autostart (Startup folder), Mutex, status (.NET API), desktop icon layout guard.
 - Config: `%AppData%/WharfBar/config.json` + `schemaVersion`.
 
 Full structure: [`../docs/01-architecture.md`](../docs/01-architecture.md).
@@ -145,6 +153,8 @@ hit-test (`DockAutoHideController`, `DockHitTest`)), `ConfigService` → `%AppDa
 (`StatusService`, top bar right strip; single-line clock following UI culture; **Segoe MDL2** glyphs + overflow +
 `controlCenter`), WharfBar's own tray icon + Quit (`TrayIconService`),
 taskbar hide/restore (`TaskbarVisibilityService`; keep-hidden watch; restore on exit → `ABM_REMOVE`),
+desktop icon layout guard (`DesktopIconLayoutGuard` + pure `DesktopIconLayout`; capture-before, cell re-projection
+after every work-area change, exit merge),
 live running apps (`RunningAppsSource`) + minimized windows (`MinimizedWindowsSource`)
 → `DockAppsComposer`, top bar tray overflow button (`TrayOverflowInvoker` / `Win+B`).
 Dock default icon **24 DIP** / button **40** / plate **56 DIP** (padding 10×8, the running capsule 8×3 is inside the button), icon gap 4 DIP, the window is the plate size,
@@ -166,7 +176,8 @@ flyout (art, title/artist, `Play`/`Pause` + `Next`/`Previous`, chevron
 picker when there are multiple sessions); `MediaSessionService` (Windows SMTC watch + commands + 10 s retry),
 `MediaSessionSelector` (most-recently-active policy), `MediaSnapshot`; catalog **v4**
 migration (`media` is inserted after `brightness`).
-**Tray mirror (ADR-009):** top bar `trayMirror` item (catalog **v5**) — reads third-party icons from the real tray
+**Tray mirror (ADR-009):** top bar `trayMirror` item (catalog **v5**, and catalog order v6 puts the
+tray icons before the hidden-icons chevron) — reads third-party icons from the real tray
 toolbar (TrayNotifyWnd/SysPager/ToolbarWindow32),
 filters out system icons, 4 s poll (icon pixels are captured inside a gated state blip
 (`TrayStateBlipGate`), compared by `TrayIconSignature`; crops matted against the taskbar fill by
@@ -183,11 +194,19 @@ and no physical click any more (2026-11-09).
 Monitorian-style DDC/CI + WMI hybrid service (`MonitorBrightnessService`, `MonitorNative`) and
 `BrightnessFlyout` (TopBar brightness glyph `&#xE706;`, master `All displays` slider, independent monitor cards, 50 ms debounced background queue).
 **System stats:** in the top bar's left cluster, beside the brand logo,
-`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, 4 s, off the UI thread; not refreshed when the visible text did not change; `topBar.showSystemStats`
+`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, CPU/RAM 1 s and GPU/network 4 s, off the UI thread; not refreshed when the visible text did not change; `topBar.showSystemStats`
 toggle at Settings → `Top bar`). GPU PDH `\GPU Engine(*)\Utilization Percentage`
 (`PdhAddEnglishCounterW`) — engine instances are grouped into a physical adapter by LUID;
 with `topBar.showGpuPerAdapter` on, multiple GPUs show `GPU0 x% · GPU1 y%` (a single
 total when off; no difference on one GPU). If the counter is missing the GPU section is hidden; the first sample is `--`.
+**First-run setup (onboarding) is in the working tree:** `OnboardingWindow` + `Views/Onboarding/*`
+(welcome, appearance, top bar, dock, wallpaper, how-to tour, finish; `Onboarding_*` copy in en/tr),
+`AppConfig.onboardingCompleted` + `ConfigService.IsFirstRun` (upgrade: missing field = completed;
+corrupt reset = completed; quit mid-setup keeps it false), `Services/AppearanceApplier` shared with the
+Appearance settings page, Settings → General → "Run setup again" replay and a `--setup` QA flag.
+The wizard opens modally over the already running shell so every step previews live; manual
+verification is pending. The offline render harness (`.superpowers/scratch/onboarding-render`)
+renders all 7 steps in both themes/languages and uses the `App.SuppressShellStartup` tooling hook.
 Build: `dotnet build WharfBar.sln`. Detail: [`../docs/01-architecture.md`](../docs/01-architecture.md).
 
 ## Before implementing

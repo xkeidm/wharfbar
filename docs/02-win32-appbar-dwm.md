@@ -61,6 +61,48 @@ An AppBar is appropriate for the top bar. The dock plate is an overlay (Topmost 
 
 While `dock.autoHide=false`, a sibling window (`DockWorkAreaReservation`) reserves a full-width strip at the plate height with an `ABE_BOTTOM` registration. The window is created with raw `CreateWindowEx` (`WS_EX_LAYERED` + alpha 0 + `WS_EX_TRANSPARENT`): a WPF `HwndSource` paints this strip black, because DWM redirection ignores `LWA_ALPHA`. The wallpaper stays visible, and the click falls through to the desktop. A maximized window follows the work area, so it stops at the top of the dock; desktop icons use the same edge. Auto-hide calls `ABM_REMOVE`. `SPI_SETWORKAREA` is not used for this job (a silent no-op on 25H2). On exit the registration is released with `ABM_REMOVE`.
 
+### The desktop icon layout — the work area is also the icon grid
+
+Reserving the top (AppBar) and bottom (dock) edges changes the monitor's work area, and Windows 11
+re-lays-out the **desktop icons** whenever a work area changes: explorer re-expresses the user's
+layout on the new grid (25H2 also changes the icon pitch — 76×91 becomes 76×90 after a 30 px top
+strip) and, when several changes land during startup (taskbar strip release, top AppBar, dock
+AppBar), it can re-pack the whole desktop into columns. The raw pixel layout is therefore not
+stable across a work-area change — and the shell rejects raw writes while the work area differs
+from the layout it has stored: an off-grid position is snapped to the current grid and a
+full-layout write is reverted by the shell's next re-layout pass within a few hundred ms.
+
+`DesktopIconLayoutGuard` keeps the user's arrangement instead of fighting the shell:
+
+- It captures the layout **before the first work-area change** (`App.OnStartup`, before
+  `TaskbarVisibilityService.CaptureAndHide`) through the documented shell view chain:
+  `Shell.Application` → `IShellWindows.FindWindowSW(SWC_DESKTOP)` →
+  `IServiceProvider.QueryService(SID_STopLevelBrowser)` → `IShellBrowser.QueryActiveShellView` →
+  `IFolderView` (`Native/DesktopIconView.cs`). Nothing is read from or written to explorer's
+  process memory; `IFolderView::GetSpacing` / `GetItemPosition` /
+  `SelectAndPositionItems` do the work.
+- The snapshot stores each icon as **monitor + grid cell (column, row)** with a per-monitor anchor
+  (its top-left icon) and the pitch it was captured with (`Services/DesktopIconLayout.cs`, pure and
+  unit-tested). A layout that is not grid-aligned ("Align icons to grid" off) or is auto-arranged is
+  refused: the guard stands down instead of inventing positions.
+- A 250 ms per-monitor work-area signature watch sees every change (WharfBar's own and foreign ones).
+  Once the shell has settled (~800 ms) the guard projects the cells onto the live work areas — the
+  anchor follows that monitor's work-area top/left delta, the pitch is the live `GetSpacing` value —
+  and writes only what differs. A small divergence *before* the change is the user's own drag and is
+  adopted into the model instead of being repaired away.
+- Windows normally restores the launch layout when the work area returns. On exit the guard merges
+  any edits made during the session into the restored work areas, and only rewrites when the shell
+  left something behind.
+
+Result: the arrangement (columns, rows, relative positions) survives a WharfBar session; while the
+bars are up the icons sit on the new grid, so the top row moves down by the bar height but the
+pattern does not change. The single- and multi-monitor cases are covered by the cell projection; a
+monitor that is unplugged is left to the shell.
+
+Limitations: an icon the user dragged within roughly the second before a work-area change can be
+re-projected back (the model refreshes every 3 s and on change detection); a free-positioned or
+auto-arranged desktop is out of scope (detected → no writes at all).
+
 ### Keeping the strip clear — there is no "forbid placement" API
 
 The AppBar contract only shapes the **work area**: maximize, snap and initial window placement respect the reserved strip, but a **manual drag** can always put a window there (a window may also restore from its own saved position, or be placed by its application). Windows offers no API that forbids a rectangle to other processes' windows — the taskbar has the same property and relies on painting over the strip.

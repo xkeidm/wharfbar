@@ -46,6 +46,12 @@ a duplicate uninstall entry, and settings are kept because they live outside the
 closes the running app first (see `--quit`) and does not restart it; the finish page offers to
 launch WharfBar. There is no auto-updater — users download the next release themselves.
 
+**First launch vs. upgrade:** the first launch after a fresh install has no `config.json`, so
+WharfBar opens its first-run setup wizard over the running shell (see
+[`01-architecture.md`](01-architecture.md#first-run-setup-onboarding)). It is skippable and can be
+replayed from Settings → General → Run setup again; a config written by an older version counts as
+completed, so an upgrade never shows the wizard. `WharfBar.exe --setup` forces it for QA.
+
 ## The `--quit` channel
 
 `WharfBar.exe --quit` is the supported way for an installer, uninstaller, or script to stop a

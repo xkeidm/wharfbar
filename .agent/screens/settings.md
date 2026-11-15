@@ -11,14 +11,16 @@ Opens from: top bar logo → `WharfBar Settings` (or the tray menu). WPF-UI
 - **`Start with Windows`** — Startup folder `WharfBar.lnk` (not Registry Run;
   `AutostartService`, config `autostart`)
 - **`Language`** — `System` / `English` / `Türkçe` (config `language`: `system` / `en` / `tr`); applies on restart (`LocalizationService`)
+- **`Setup and tour`** — **`Run setup again`** reopens the first-run wizard modally over the running
+  shell (`App.ShowOnboarding(replay: true)`, final button "Done"); see [`onboarding.md`](onboarding.md)
 
 ## Appearance (`AppearancePage`)
 
 - **`Accent color style`** — `System accent color` / `Fixed theme mode` (config `useSystemAccentColor`)
-- **`Application theme`** — `System default` / `Light` / `Dark` (config `theme`)
+- **`Application theme`** — `System default` / `Light` / `Dark` (config `theme`). A change applies live to the whole shell and is **one coordinated crossfade** (`ThemeCoordinator`/`ThemeTransition`): every top bar, dock, this window, the setup wizard and the gallery crossfade over 180 ms (instant when Windows client-area animations are off). `system` also follows external Windows flips (the cached system theme is refreshed before resolving)
 - **`Logo style`** — `WharfBar` / `Windows` (config `logoStyle`, default `wharfbar`; ADR-019). Labels are `Appearance_Logo_*` in `Strings.resx` / `Strings.tr.resx`. Applies live to every top bar and dock (`App.ApplyLogoChanges`); a theme or accent change on this page also re-tints the dock tile
 - **`Top bar background`** — `Mica (Blur)` / `Transparent` / `Tint`
-  (config `backgroundMode`) + **`Opacity`** slider 0–100 (enabled only for Tint, config `tintOpacity`)
+  (config `backgroundMode`) + **`Opacity`** slider 0–100 (enabled only for Tint, config `tintOpacity`). The selected mode is authoritative — a theme apply, a WPF-UI repaint or a stray DWM backdrop can never override it (see `topbar.md` / `docs/04-gotchas.md`)
 
 ## Dock (`DockPage`)
 

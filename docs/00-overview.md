@@ -14,7 +14,7 @@ The visual language must be **Windows Fluent** (Mica, the system theme). Apple b
 
 1. **Low resource use** — decisions that grow the RAM/CPU footprint are not accepted silently.
    When idle, WharfBar does not step in front of the desktop: window census is a single pass across all docks (3 s),
-   stats are 4 s and off the UI thread (the bar is not refreshed if the visible text has not changed;
+   stats are CPU/RAM 1 s (GPU/network 4 s) and off the UI thread (the bar is not refreshed if the visible text has not changed;
    sampling stops if stats are off), the tray mirror is 4 s (icon pixels are not pulled every round),
    the hidden-dock cursor is 200 ms, progress scanning is 20 s when there is no tray button, and the Bluetooth connection
    notification is 10 s. Detail: the idle-load section of [`01-architecture.md`](01-architecture.md).
@@ -34,6 +34,7 @@ It started for personal use; as it matures, opening it from private → public i
 | Tray hybrid + mirror | Status simulation + the native overflow button; a third-party icon mirror via documented comctl32 `TB_*` messages (ADR-009); hidden icons stay in the native overflow |
 | Taskbar | Hide/auto-hide while WharfBar is running; restore the previous state on exit (ADR-005) |
 | Config | JSON, `%AppData%/WharfBar/config.json` |
+| First-run setup | On a fresh install (`onboardingCompleted` false) a modal wizard over the running shell introduces the app and configures look, top bar, dock and wallpaper; skippable, replayable from Settings → General |
 | Autostart | Startup-folder shortcut |
 | DPI | Per-Monitor V2 (`app.manifest`) |
 | Single-instance | Named Mutex |

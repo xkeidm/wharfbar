@@ -64,7 +64,7 @@
  was removed, `TrayUiaReader` (`SystemTray.NormalButton` filter) + `TrayCapture` (real icon capture via PrintWindow)
  + UIA `InvokePattern`/peek click.
 - **System stats ✓ (code; manual verification pending)** — beside the Windows
- logo in the top bar's left cluster, `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (4 s, off the UI;
+ logo in the top bar's left cluster, `CPU x% · GPU y% · RAM z%`; `SystemStatsService` (CPU/RAM 1 s, GPU/network 4 s, off the UI;
  `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage`
  via `PdhAddEnglishCounterW`; if there is no GPU counter the GPU section is hidden), pure calculation methods
  unit-tested (`SystemStatsTests`, 26 tests), `topBar.showSystemStats` toggle
@@ -254,6 +254,18 @@
   at the cursor). Tests: `WindowsKeyGestureTests`, extended `DockBuiltInTilesTests` / `DockReorderTests` /
   `DockMonitorWindowFilterTests`. Details: `docs/01`/`docs/02` §n/`docs/04` and
   [`docs/01-architecture.md`](../../docs/01-architecture.md).
+
+- **First-run setup (onboarding) ✓ (code; screenshot-verified with a render harness)** — a fresh install
+  (no `config.json`) now opens `OnboardingWindow` modally **after** the shell starts, so every step edits
+  the live config and the real bar/dock/desktop preview it: welcome, appearance (theme cards, accent,
+  logo), top bar (item toggles, stats, background), dock (position, icon size, background, behavior),
+  wallpaper (bundled + user thumbnails, click applies), how-to tour (drawn mini shell + cards) and finish
+  (summary, autostart, language). `config.onboardingCompleted` (soft field) gates it; `ConfigService.IsFirstRun`
+  plus the upgrade/reset rules keep existing users out of it, and Settings → General → "Run setup again"
+  (or `--setup`) replays it. `AppearanceApplier` is now the single theme/accent/logo apply pipeline for the
+  settings page and the step. Tests: `OnboardingConfigTests`; all `Onboarding_*` copy exists in en + tr.
+  The offline harness (`.superpowers/scratch/onboarding-render`, `App.SuppressShellStartup`) renders every
+  step in both themes/languages. Details: [`../screens/onboarding.md`](../screens/onboarding.md).
 
 ## Former to-do list (moved to milestones)
 

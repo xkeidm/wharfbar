@@ -6,7 +6,11 @@ Height 30 DIP, an **AppBar** (work area reserved), always on top. A separate bar
 for each enabled monitor (per-monitor; each bar is an AppBar on its own monitor, and the bar is moved onto that monitor
 before it is registered). Visibility is turned on or off per monitor through the `monitors` config.
 Background mode comes from config: `mica` (default, `AllowsTransparency=false`),
-`transparent` / `tint` (`AllowsTransparency=true` — never together with Mica).
+`transparent` / `tint` (`AllowsTransparency=true` — never together with Mica). **The selected mode
+always wins:** a WPF-UI theme apply never repaints the bar (`ThemeApplyGuard` detaches the main
+window from the library), the bar re-asserts on every library theme apply and on
+`Window.Background` writes (`TopBarWindow.OnBackgroundValueChanged`), and a translucent/mica bar
+reads its DWM backdrop back so a stray Mica attribute is cleared in the same frame.
 
 **Strip guard (`TopBarStripGuard`):** Windows has no API that forbids placing a window in an AppBar
 strip — the AppBar contract shapes the work area, so maximize/snap/new-window placement respect the
@@ -43,7 +47,7 @@ through the shared WPF-UI dictionaries, not the bar's `Bar.*` keys.
   - **`About WharfBar`** → `AboutWindow`
   - **`Quit WharfBar`** → a clean exit (taskbar restore + `ABM_REMOVE`)
 
-System stats (`CPU · GPU · RAM`) are in the same left cluster, on a single line. The sparkline of recent samples and the network speed (↓/↑ bytes/s) are on a card that opens when the pointer is over the text; if the line were placed under the text the 30 DIP bar would grow. If there is no GPU counter the GPU row on the card is hidden. There is no temperature. Network speed uses the same 4 s interval as `SystemStatsService`; the sample is taken off the UI and the bar is not refreshed when the text did not change. If stats are off, sampling stops. The Bluetooth connection notice looks every 10 s; if the list is the same the pill is not refreshed.
+System stats (`CPU · GPU · RAM`) are in the same left cluster, on a single line. The sparkline of recent samples and the network speed (↓/↑ bytes/s) are on a card that opens when the pointer is over the text; if the line were placed under the text the 30 DIP bar would grow. If there is no GPU counter the GPU row on the card is hidden. There is no temperature. Network speed uses the 4 s slow interval of `SystemStatsService` (CPU/RAM refresh every second); the sample is taken off the UI and the bar is not refreshed when the text did not change. If stats are off, sampling stops. The Bluetooth connection notice looks every 10 s; if the list is the same the pill is not refreshed.
 
 ## Windows key — Launchpad shortcut
 
@@ -233,12 +237,16 @@ OLE owns the mouse). The window uses a one-shot timer; the duration is set with 
 
 ## Right cluster — status strip (`StatusStrip`)
 
-The default left-to-right order does **not** include `volume`, `brightness`, and `media` (the island HUD and
-now playing carry them). Every catalog item (tray mirror, hidden icons, clock, notifications,
-quick settings, volume, brightness, media, network, battery) is listed in the right-click menu and in Top bar settings;
+The default left-to-right order (catalog **v6**, 2026-11-12) follows the Windows tray corner:
+tray mirror → hidden icons → volume → brightness → network → battery → quick settings → clock →
+notifications. Volume and brightness are **on** by default; `media` stays in the catalog but off
+(the island now-playing carries it). Every catalog item (tray mirror, hidden icons, volume,
+brightness, network, battery, quick settings, media, clock, notifications) is listed in the
+right-click menu and in Top bar settings;
 a closed one can be turned on. The user's saved `statusItems` order is not stripped
-and a hidden item is not turned back on by itself. **`Show all`** adds the missing ones beside their
-catalog neighbor only when it is chosen.
+and a hidden item is not turned back on by itself. An untouched pre-v6 default is migrated once to
+the new order; a list the user reordered or toggled is never rewritten. **`Show all`** adds the
+missing ones beside their catalog neighbor only when it is chosen.
 
 A visible item, once the threshold (`MinimumHorizontalDragDistance` / `MinimumVerticalDragDistance`)
 is crossed, is dragged on the bar: the item fades, a line in the accent color shows the gap it will be
@@ -246,6 +254,14 @@ dropped into, and on drop `topBar.statusItems` is written and applied to every m
 A click under the threshold opens the flyout. The tray icon's own drag does not reorder the status strip.
 The line is not a child of the strip; it does not shift the measure. Ordering does not use OLE `DoDragDrop`
 (a transparent/tint bar is layered).
+
+Hover feedback belongs to the single button under the pointer: buttons use `StatusHit` (its `IsMouseOver`
+trigger paints `Bar.HitFill`), while group targets use `StatusFrame` — the same padding / margin /
+min-height / hand cursor, no hover plate. The tray mirror (`TrayMirrorHost`) is such a container: its
+icons are 30×28 child hosts that paint their own plate, so a plate on the strip stacked a second wash and
+lit the whole tray area (gaps and outer padding included) whenever the pointer was anywhere inside it.
+The strip keeps its hit area, hand cursor and status-drag slot; only the region-wide tint is gone
+(`docs/04-gotchas.md`).
 
 | id | Surface | Click behavior |
 |----|---------|----------------|
@@ -443,5 +459,9 @@ playback state; the full metadata/artwork reload runs only when the selected ses
 ## Gotchas
 
 - A background-mode change can recreate the window (the right-click menu opens again).
+- A light/dark switch is a crossfade of the whole shell (top bars, docks, Settings/Onboarding/Gallery):
+  `ThemeTransition` captures each surface, swaps the theme underneath, fades the old frame out over
+  180 ms; reduced motion applies instantly. The bar is one of the captured surfaces, so its content
+  changes with the same fade.
 - `AllowsTransparency` is set from `BackgroundMode` in the constructor — it is not written into XAML.
 - Tooltip fonts are Segoe UI (`AppTextFontFamily`) — there is no MDL2 tofu problem.

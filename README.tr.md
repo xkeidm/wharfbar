@@ -45,6 +45,8 @@ En son beta: [GitHub Releases](https://github.com/xkeidm/wharfbar/releases) — 
 
 WharfBar kendi .NET çalışma zamanını taşır (self-contained): ayrıca .NET kurmak gerekmez. Kurulum varsayılan olarak `%LOCALAPPDATA%\Programs\WharfBar` altına yapılır; ayarlar `%APPDATA%\WharfBar\config.json` içinde kalır ve güncelleme ile kaldırmadan sonra korunur. Otomatik başlatma uygulamanın kendi ayarıdır (Ayarlar → Genel → Windows ile başlat); kurulum ayrıca bir başlangıç girdisi oluşturmaz.
 
+**İlk çalıştırma:** yeni bir kurulumda, çalışan bar ve dock'un üzerinde kısa bir kurulum sihirbazı açılır (hoş geldiniz, görünüm, üst bar, dock, duvar kağıdı, nasıl kullanılır turu, bitir) — her seçim pencerenin arkasında canlı görünür. İsterseniz atlayabilirsiniz; **Ayarlar → Genel → Kurulumu yeniden çalıştır** ile her zaman geri gelir.
+
 > **Not (beta).** Kurulum dosyası kod imzalı değil; Windows SmartScreen "Windows kişisel bilgisayarınızı korudu" uyarısı verebilir (Daha fazla bilgi → Yine de çalıştır). `1.0.0-beta*` sürümleri GitHub'da ön sürüm (prerelease) olarak yayınlanır.
 
 Ayrıntı, doğrulama ve sürüm çıkarma adımları: [docs/07-packaging-and-releases.md](docs/07-packaging-and-releases.md).
@@ -89,7 +91,7 @@ Windows 11'de, WharfBar'ın kendi **Pier Horizon** duvar kâğıdı çifti üzer
 - Kapalı olanlar dahil sabitlenmiş uygulamalar ve çalışan uygulamalar aynı dock’ta — uygulama başına bir kutu; görev çubuğu o sırada görünmez
 - Pano geçmişi, şimdi çalan ve kısa ses / parlaklık / pil okumaları ortadaki adada
 - Wi-Fi, ekran yansıtma, monitör parlaklığı ve medya kontrolleri çubuktan
-- Seyrek boşta iş: paylaşılan pencere sayımı (~3 sn), istatistikler 4 sn’de bir UI dışı, tepsi aynası 4 sn’de bir (her turda bitmap yeniden çekilmez)
+- Seyrek boşta iş: paylaşılan pencere sayımı (~3 sn), CPU/RAM istatistikleri 1 sn’de bir (GPU/ağ 4 sn’de bir) UI dışı, tepsi aynası 4 sn’de bir (her turda bitmap yeniden çekilmez)
 
 ## Özellikler
 
@@ -102,7 +104,7 @@ Açık olan her monitörün kendi çubuğu vardır ve her çubuk kendi monitör�
 
 - **Sol:** marka logosu menüsü (sol veya sağ tık; varsayılan WharfBar Dusk işareti; `logoStyle` ile isteğe bağlı Windows logosu) — Windows Ayarları, profil, kilitle, uyku, kapat, yeniden başlat, WharfBar ayarları, Hakkında ve çıkış — ve tek satır `CPU · GPU · RAM`. Üzerine gelince kıvılcım ve ağ hızı açılır. Birden fazla GPU ayrı yazılabilir (`topBar.showGpuPerAdapter`). GPU sayacı yoksa o bölüm görünmez. Sıcaklık yoktur.
 - **Orta:** ada hapı.
-- **Sağ:** sağ tık menüsünden veya Ayarlar → Üst Çubuk’tan gösterilip gizlenen ve sıralanan durum şeridi. Varsayılan sıra: tepsi aynası, gizli simgeler oku, saat, bildirimler, hızlı ayarlar, ağ, pil. Ses, parlaklık ve medya katalogdadır ve başta kapalıdır; ada bunları zaten gösterir. Kayıtlı sıra korunur.
+- **Sağ:** sağ tık menüsünden veya Ayarlar → Üst Çubuk’tan gösterilip gizlenen ve sıralanan durum şeridi. Varsayılan sıra Windows tepsi köşesini izler: tepsi aynası, gizli simgeler oku, ses, parlaklık, ağ, pil, hızlı ayarlar, saat, bildirimler. Medya katalogda kalır ama başta kapalıdır (şimdi çalanı ada gösterir). Kayıtlı sıra korunur; özelleştirilmemiş eski varsayılan bir defaya mahsus bu sıraya taşınır.
 - Saat, seçilen arayüz diline göre tek satır biçimlenir (Ayarlar → Genel → Dil; Sistem seçiliyse Windows arayüz dili). Tıklanınca bildirim metni ve aylık takvim açılır. Zil `Win+N` gönderir.
 - Arka plan Mica, saydam veya renkli olabilir; renkli modda opaklık kaydırıcısı vardır. Mica ile `AllowsTransparency` birlikte kullanılmaz.
 

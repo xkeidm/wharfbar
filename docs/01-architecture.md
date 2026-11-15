@@ -27,7 +27,7 @@ While the application is open, continuous work is sparse. While a panel is close
 |----|--------|-----|
 | Clock | 1 s | The UI is not refreshed if the text is the same |
 | Window census | 3 s, single pass | `WindowCensus`. Each dock does not run its own `EnumWindows` round; the process path is in the pid cache |
-| CPU / GPU / RAM / network speed | 4 s, off the UI | `SystemStatsService`. The PDH GPU wildcard counter is expensive. If the visible text and the network label have not changed, there is no `Changed`. If `showSystemStats` is off, the timer stops |
+| CPU / GPU / RAM / network speed | CPU/RAM 1 s; GPU PDH + network 4 s, off the UI | `SystemStatsService`. The 1 s CPU/RAM tick matches Task Manager's resolution; the CPU value is the same `% Processor Time` figure Task Manager's total tracks (`% Processor Utility` is frequency-weighted and is not shown). The PDH GPU wildcard and the network counter read are the expensive samples and run every fourth tick. If the visible text and the network label have not changed, there is no `Changed`. If `showSystemStats` is off, the timer stops |
 | Tray mirror | 4 s | No new timer; the 4 s poll schedules the gated tray read. Icons are cached by pixel signature; an unchanged snapshot raises no `Changed`. A parked auto-hide tray virtualizes its XAML buttons, so the read is a **state blip** (`ABM_SETSTATE(0)` ↔ `ABS_AUTOHIDE`, work-area flip) gated by `TrayStateBlipGate`: bootstrap of a never-filled mirror + bounded retries, later ≥10/≥20 min apart, user idle ≥3 min, no maximized/bottom-touching window, and never while a fullscreen foreground window (WharfBar's own overlay included) covers the primary monitor. There is no cursor-hopping quiet read. An empty read never clears a populated mirror (a stale icon beats a blank bar); the snapshot resets only when `Shell_TrayWnd` changes. Clicks never move the pointer: UIA `InvokePattern` (left), two invokes (double), verified focus + the Menu key (right) on the button element cached by the read; if that element died, one bounded repair blip re-reads the tray and the gesture is replayed. A menu owner's own pointer warp (it anchors the menu at the real tray icon) is prevented: `TrayPointerGuard` arms a `ClipCursor` clip (a box of `ClipMarginPx = 6` physical px around the click) immediately before the Menu key and releases it after `ClipHoldMs = 150` ms, so the owner's `SetCursorPos` is clamped near the click; a short escape watcher still puts the pointer back if it lands in the tray-anchor band (`TrayCursorWarp`), and a `SetCursorPos` the foreground refused is logged honestly. The pointer stays where the user clicked. A click repair re-captures the strip when the last capture is ≥15 s old. Re-anchor: a bounded 2.5 s watch + 1.5 s re-assert per click, one watcher process-wide, popup-only style classification |
 | Dock auto-hide | 200 ms while hidden, 50 ms while visible | While hidden, the hide timer does not run |
 | Dock progress | 2 s / 20 s | UI Automation is 2 s only while there is a running application and the tray button is open; otherwise 20 s |
@@ -63,10 +63,20 @@ src/WharfBar/
  WallpaperGalleryView.xaml(.cs) # Wallpaper hub body: thumbnail grid, click apply, Open folder
  WallpaperTransitionWindow.xaml(.cs) # WorkerW wallpaper crossfade (SPI after fade; 1×1 then parent)
  AboutWindow.xaml(.cs) # About dialog (no AppBar)
+ OnboardingWindow.xaml(.cs) # First-run setup wizard shell: left step rail, header, footer (Skip/Back/Continue); shown modally over the already running shell
+ Views/Onboarding/
+ WelcomeStep.xaml(.cs) # Setup 1/7: brand hero, what the app adds, taskbar note (no config)
+ AppearanceStep.xaml(.cs) # Setup 2/7: theme cards, accent source, logo style; applies live through AppearanceApplier
+ TopBarStep.xaml(.cs) # Setup 3/7: status item toggles, system stats, bar background + tint opacity
+ DockStep.xaml(.cs) # Setup 4/7: dock position tiles, icon size, background + tint opacity, behavior toggles
+ WallpaperStep.xaml(.cs) # Setup 5/7: bundled + user wallpaper thumbnails, click applies the Windows wallpaper
+ TourStep.xaml(.cs) # Setup 6/7: drawn mini shell mock + how-to-use cards (top bar, dock, keys, settings)
+ FinishStep.xaml(.cs) # Setup 7/7: config summary, start-with-Windows and UI language
  DockWindow.xaml(.cs) # bottom overlay; a three-section dock strip from its own list; plate (Mica / transparent / tinted); fullscreen / work-area
  VeilWindow.xaml(.cs) # fullscreen overlay (click-through, fade; ADR-007)
  SettingsWindow.xaml(.cs) # Settings main window (NavigationView)
  GalleryWindow.xaml(.cs) # Launchpad widget / plugin gallery (ADR-017)
+ ThemeCrossfadeOverlayWindow.cs # no-input topmost snapshot window used by the light/dark crossfade (180 ms fade)
  PluginGalleryView.xaml(.cs) # card list: built-in + local manifest, slot description
  DockItemViewModel.cs # the slot's draw-ready snapshot (icon + tooltip + section flags)
  Views/Controls/
@@ -109,12 +119,13 @@ src/WharfBar/
  Hotkey.cs # RegisterHotKey P/Invoke + shortcut parser (ADR-007)
  LowLevelKeyboardHook.cs # WH_KEYBOARD_LL on its own message-loop thread; the handler only returns "swallow" (ADR-020)
  DesktopWallpaper.cs # SPI_SETDESKWALLPAPER / SPI_GETDESKWALLPAPER thin wrapper (island wallpaper gallery)
+ DesktopIconView.cs # documented shell view chain (IShellWindows -> IShellBrowser -> IFolderView): desktop icon positions read/write, no explorer memory
  WindowEventHook.cs # out-of-context EVENT_SYSTEM_MOVESIZEEND / EVENT_OBJECT_SHOW WinEvents (top-bar strip guard)
  ScreenBitBlt.cs # BitBlt + GetDIBits screen capture (BGRA top-down, physical px, virtual-screen clamp; island color picker)
  SystemAccentPack.cs # PURE: accent DWORD + palette bytes for HKCU write
- SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorNotify broadcast
- ImmersiveColorNotify.cs # shared WM_SETTINGCHANGE ("ImmersiveColorSet") for accent + Windows theme writers
- SystemThemeWriter.cs # best-effort HKCU Personalize light/dark (AppsUseLightTheme / SystemUsesLightTheme); no exit restore
+ SystemAccentWriter.cs # best-effort undocumented HKCU Accent/DWM + ImmersiveColorNotify broadcast (off the UI thread)
+ ImmersiveColorNotify.cs # shared WM_SETTINGCHANGE ("ImmersiveColorSet") for accent + Windows theme writers (blocking broadcast: never call from the UI thread)
+ SystemThemeWriter.cs # best-effort HKCU Personalize light/dark (AppsUseLightTheme / SystemUsesLightTheme); no exit restore; off-thread
  ClipboardNative.cs # clipboard P/Invokes (OpenClipboard/GlobalAlloc/listener) + opt-out read/write (ADR-010)
  Models/
  PinnedApp.cs # pin record (path, args, label)
@@ -123,12 +134,19 @@ src/WharfBar/
  TopBarStatusItemIds.cs # status-strip id catalog + Normalize
  MediaSnapshot.cs # playing-media snapshot (SMTC; Idle + HasSession) — ADR-008
  IslandEntry.cs # island entry (Text/File, preview, file path, time, source application) — ADR-010
- AppConfig.cs # JSON root schema + DockConfig + TopBarConfig + IslandConfig
+ AppConfig.cs # JSON root schema + DockConfig + TopBarConfig + IslandConfig (+ soft onboardingCompleted marker)
  Services/
  SingleInstanceGuard.cs # named Mutex
  QuitChannel.cs # `--quit` cross-process request: signal the running instance, wait on the mutex (installer/uninstaller path)
  WindowAppearance.cs # WPF-UI theme + backdrop; DWM fine-tuning
- AppThemePreference.cs # config theme → ApplicationTheme
+ AppThemePreference.cs # config theme → ApplicationTheme (refreshes WPF-UI's cached system theme first)
+ AppearanceApplier.cs # shared theme/accent/logo apply pipeline (Appearance settings page + onboarding Appearance step)
+ ThemeApplyGuard.cs # the only ApplicationThemeManager.Apply entry point; main window detached for the call
+ ThemeCoordinator.cs # one coordinated theme switch (in-app + Windows broadcast), schedules from WndProc, after-fade follow-ups
+ ThemeTransition.cs # captures the shell windows, applies the theme underneath, fades the old frame out (crossfade)
+ ThemeTransitionPolicy.cs # PURE: crossfade/suppression durations, capture eligibility, snapshot pixel budget
+ ThemeCrossfadeRegistry.cs # shell windows that opt into the crossfade (weak refs, capture-time visual lookup)
+ OnboardingStepMotion.cs # PURE: step transition direction, 32 DIP slide + 220 ms ease-out (matches QuickSettingsPageMotion)
  BrandPalette.cs # PURE: accent + dark/light → logo tile colours (HSL, per-role saturation caps; ADR-019)
  BrandLogo.cs # Dusk mark + Windows logo geometry (128 grid, frozen); bar glyph + cached dock tile DrawingImage (ADR-019)
  ConfigService.cs # read/write %AppData%/WharfBar/config.json
@@ -175,6 +193,8 @@ src/WharfBar/
  IslandPickedColors.cs # session-scoped recent colors (top 8; never written to disk) — unit tested
  TrayIconService.cs # Its own Shell_NotifyIcon + Quit menu
  TaskbarVisibilityService.cs # taskbar capture / hide / restore + watchdog spawn/self-heal
+ DesktopIconLayoutGuard.cs # desktop icon arrangement guard: work-area watch + cell re-projection on its own STA thread
+ DesktopIconLayout.cs # PURE icon-layout snapshot (monitor + grid cell) and work-area/pitch re-projection math
  TaskbarWatchdogState.cs # watchdog baseline JSON store (%LOCALAPPDATA%/WharfBar)
  TaskbarWatchdog.cs # --taskbar-watchdog mode: brings the taskbar back from outside if the process dies without a restore
  DockItemStore.cs # the dock's ordered, deduplicated, persistent fixed list (App is a single instance)
@@ -206,7 +226,7 @@ src/WharfBar/
  TrayCursorWarp.cs # PURE rule: has the pointer been warped into the tray-anchor band (the escape-undo check); a user-moved pointer is never touched
  TrayPointerGuard.cs # prevention: a `ClipCursor` box (`ClipMarginPx = 6`) armed just before the Menu key, released after `ClipHoldMs = 150` ms, plus a short escape watcher
  NotificationCenterInvoker.cs # Win+N
- App.xaml(.cs) # Startup: restricted-launch guard → taskbar hide → TopBar + Dock + tray
+ App.xaml(.cs) # Startup: restricted-launch guard → taskbar hide → TopBar + Dock + tray → first-run setup wizard
  app.manifest # PerMonitorV2 + longPathAware + asInvoker
  WharfBar.csproj
 ```
@@ -260,6 +280,10 @@ The island (clipboard history + dropped files) is ADR-010.
 | `LowLevelKeyboardHook` | One global `WH_KEYBOARD_LL` hook on its own message-loop thread (a busy dispatcher must not make Windows skip the hook); `Install(2 s)` reports a refused install instead of crashing; the handler answers "swallow / pass" only. Injections are recognized through `LLKHF_INJECTED` (ADR-020) |
 | `WindowsKeyLauncher` | Bare Windows-key tap → `LaunchpadWindow.Toggle` on the dispatcher. Physical Win key events are swallowed; the first chord key makes the hook synthesize the Win key-down and the key-up follows on release, so every Win+<key> shortcut still works. Injected Win keys are never touched. `Dispose` releases the hook before the shell state is restored (ADR-020) |
 | `AboutWindow` | About dialog; no shell registration |
+| `OnboardingWindow` | First-run setup shell: numbered step rail (icons + completed checks, jump-to-step), header (title/subtitle from the step table) and footer (Skip / Back / Continue or "Start WharfBar" / "Done" in replay). Modal over the already running shell; a fresh step instance per visit so it always reads the live config; theme-follows the app (`AppThemeWatcher`) and is refreshed by `App.ApplyThemeChanges`. Each step change is a Windows-style page transition: the whole pane (header + body) slides in 32 DIP from the right on forward, from the left on back, fading in over 220 ms; the clip that keeps it off the rail is on the static host, not the moved pane, and the whole transition is skipped with `ClientAreaAnimation` off. Only the explicit skip/close/finish path sets `onboardingCompleted`, not a quit mid-setup |
+| `OnboardingStepMotion` | Pure transition numbers for the wizard: `DirectionFor(from, to)` (index growth = forward), `SlideOffset` (±32 DIP), 220 ms duration and the shared ease-out cubic; the pane clear-and-restart lives in `OnboardingWindow.PrepareStepTransition` / `PlayStepTransition` — unit tested |
+| `Onboarding` steps (`Views/Onboarding/*`) | One `UserControl` per step. Welcome is informational; Appearance/Top bar/Dock/Wallpaper edit the live config and call `App.Apply*` / `Recreate*` so the real shell updates behind the wizard; Wallpaper applies through a step-owned `WallpaperService` with `AccentEnabled = false`; Tour is a drawn mini shell + explanation cards; Finish reads back the summary and owns start-with-Windows + language (restart note) |
+| `AppearanceApplier` | Single home for the appearance apply pipeline shared by the Appearance settings page and the onboarding step: theme (config + preference + guarded `ApplicationThemeManager` apply + Windows personalization + accent + save + one coordinated re-assert of the shell, all inside the `ThemeTransition` crossfade), accent source and logo style. Behavior is identical for both entry points |
 | `MonitorBrightnessService` | DDC/CI (desktop `dxva2.dll`) + WMI (`WmiMonitorBrightness`) scan; a 50ms debounced background write |
 | `MonitorNative` | `dxva2.dll` P/Invoke functions + `user32.dll` monitor queries |
 | `VolumeService` / `AudioEndpointVolume` | Default render-endpoint volume / mute (Core Audio) + a **read-only** default capture-endpoint mute read (`TryGetCaptureMute`; the island camera body's Microphone row — no write method) |
@@ -271,11 +295,17 @@ The island (clipboard history + dropped files) is ADR-010.
 | `NativeMethods` | Raw `DllImport` + structs + constants; `internal`, not called directly from the UI |
 | `Display` | Primary monitor bounds, DPI, DIP → pixel conversion |
 | `Dwm` | Corner preference, immersive dark, backdrop fallback, frame extend |
-| `WindowAppearance` | WPF-UI theme + Mica; DWM fine-tuning; theme refresh |
+| `WindowAppearance` | WPF-UI theme + Mica; DWM fine-tuning; theme refresh. Apply paths go through `ThemeApplyGuard`; a translucent apply reads the system backdrop back (`DWMWA_SYSTEMBACKDROP_TYPE`, legacy `DWMWA_MICA_EFFECT`) so a stray Mica attribute is cleared immediately |
+| `ThemeApplyGuard` | The only place that calls `ApplicationThemeManager.Apply`. WPF-UI repaints `Application.MainWindow` on every apply (`RestoreContentBackground` opaque fill; the removal step is skipped for backdrop `None`, and the default backdrop pushes Mica onto the window) — the main window is the primary top bar, whose background must follow `topBar.backgroundMode`, so the guard detaches `MainWindow` for the duration of the call and restores it unconditionally afterwards |
+| `ThemeTransition` / `ThemeTransitionPolicy` / `ThemeCrossfadeRegistry` | Light/dark switch as a crossfade: every registered shell window (top bars, docks, Settings/Onboarding/Gallery) captures its content to a frozen bitmap, a topmost no-input overlay shows that frame while the theme swaps underneath, then it fades out over **180 ms** ease-out; the policy holds the pure numbers (fade, 320 ms reactive-refresh suppression, capture eligibility, 4 MP snapshot budget) and the client-area-animation gate (reduced motion → instant, as everywhere else). Rapid switches drop stale frames and recapture |
+| `ThemeCoordinator` | Owns "the app theme changed" as one switch. Windows broadcast handlers only *schedule* it (never apply inside the WndProc: `WM_SETTINGCHANGE` is sent synchronously and the sender waits); a pending switch suppresses per-window re-applies; wallpaper theme-partner follow runs only after the crossfade |
 | `SingleInstanceGuard` | Named Mutex; blocks a second instance |
 | `QuitChannel` | `WharfBar.exe --quit` (`Program.Main` branches to it before WPF starts): signals the running instance's named event and waits on the single-instance mutex, so an installer/uninstaller replaces or deletes the binary only after the taskbar and every AppBar are restored. `0` = nothing running or it quit, `1` = still running (an older build without `--quit`, or a 10 s timeout), `2` = unexpected error |
 | `DockWindow` | Bottom overlay; read-only taskbar pins + `dock.items` on the left, unpinned running apps on the right, one icon per application; button rhythm (icon 24, button 40, gap 4, plate padding 10×8), no magnification; background `mica` (DWM, window = plate) or `transparent`/`tint` (layered, corner 14); drag-reorder, file drop, position (bottom-left/center/right), a "Windows" submenu; no AppBar |
 | `TaskbarVisibilityService` | Capture the taskbar baseline at startup; hide `Shell_TrayWnd` / secondary; keep-hidden monitoring (no `ReapplyHide` inside `ApplyPlacement`); restore on exit. The baseline is written to the watchdog state file, the `--taskbar-watchdog` child process is spawned; if a stale file exists, the tray is shown first at startup (self-heal) |
+| `DesktopIconLayoutGuard` | Desktop icon arrangement: capture before the first work-area change (own STA thread/dispatcher), per-monitor work-area signature watch (250 ms), cell re-projection after the shell settles, user drags adopted, exit merge into the restored work areas. Stands down when the layout is auto-arranged / off-grid or the shell view is unavailable |
+| `DesktopIconLayout` | **Pure**: `WorkAreaRect`, `MonitorWorkArea`, `DesktopIconCell`, `DesktopIconLayoutSnapshot.Create` (monitor + anchor + column/row; refuses off-grid layouts) and `DesktopIconLayoutMap.Map` (anchor delta + live pitch) — unit tested |
+| `DesktopIconView` | Documented shell view chain (`Shell.Application` → `IShellWindows.FindWindowSW(SWC_DESKTOP)` → `IShellBrowser.QueryActiveShellView` → `IFolderView`) for reading/writing desktop icon positions; no explorer memory; reports stale views instead of throwing |
 | `TaskbarWatchdog` | Headless mode (`Program.Main` branches, WPF does not start): watches PID + start-time, and applies the baseline if the process dies without a restore. Safe against PID reuse and a new instance rewriting the file |
 | `RunningAppsSource` | `EnumWindows` background thread + `IsHungAppWindow`. Windows are merged on application identity: canonical exe path, AppUserModelId, or pid (transitive). A second process is not dropped; `WindowCount` counts the windows |
 | `WindowCensus` | A **single** `EnumWindows` pass for all docks, 3 s, background thread. The process path stays in the cache until the pid disappears. `RunningAppsSource` and `MinimizedWindowsSource` share this snapshot |
@@ -298,9 +328,9 @@ The island (clipboard history + dropped files) is ADR-010.
 | `DockHitTest` | `ApplyInteractive` / `ApplyPassthrough` — `WS_EX_TRANSPARENT` toggle |
 | `DemoPinnedApps` | The default 4 pins — the first `config.json` seed |
 | `AppConfig` / `DockConfig` | JSON schema (`schemaVersion` 2) |
-| `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema |
-| `AppThemePreference` | The `theme` field → `ApplicationTheme`; `Resolve()` drives wallpaper pair sync |
-| `SystemThemeWriter` / `ImmersiveColorNotify` | When Appearance sets **light** or **dark**, best-effort `HKCU\...\Themes\Personalize` (`AppsUseLightTheme`, `SystemUsesLightTheme`) + `WM_SETTINGCHANGE` (`ImmersiveColorSet`); **system** skips the registry write; silent failure; no exit restore (same policy as accent) |
+| `ConfigService` | Read/write JSON; `.bak` + default on a broken/incompatible schema. Also owns the first-run signal: `IsFirstRun` (no `config.json` at load) and the soft `onboardingCompleted` marker (a config written before the field existed, or a reset after corruption, counts as completed; an explicit `false` stays incomplete) |
+| `AppThemePreference` | The `theme` field → `ApplicationTheme`; `Resolve()` drives wallpaper pair sync. In **system** mode it refreshes WPF-UI's cached system theme first (the cache is otherwise only updated inside the library's own apply) — without it an OS light/dark flip resolves to the stale previous theme and every "changed?" gate stays false |
+| `SystemThemeWriter` / `SystemAccentWriter` / `ImmersiveColorNotify` | When Appearance sets **light** or **dark**, best-effort `HKCU\...\Themes\Personalize` (`AppsUseLightTheme`, `SystemUsesLightTheme`) + `WM_SETTINGCHANGE` (`ImmersiveColorSet`); **system** skips the registry write; silent failure; no exit restore (same policy as accent). The registry writes stay synchronous, but the **broadcast** (`SendMessageTimeout(HWND_BROADCAST)`, up to the 1 s timeout) runs on the thread pool: on the UI thread it froze the shell and re-entered our own WndProcs between the theme apply and its compensating re-assert |
 | `WallpaperPair` | Pure `-light` ↔ `-dark` partner path when the sibling file exists; unpaired names (solids, `turkey-*`, brand PNGs) → no-op — unit tested |
 | `WallpaperThemeSync` | Remembers hub-applied paths in `island.lastHubWallpaper`; `FollowResolvedTheme` applies the partner via `WallpaperService.TryApply` (transition + accent unchanged). **Appearance** → sync after theme change (`fromExternalWindows: false`). **`theme=system`** → sync after bars/dock refresh on `ImmersiveColorSet` (`fromExternalWindows: true`). Fixed light/dark ignores external Windows theme for wallpaper |
 | `BrandPalette` | Pure: accent colour + `isDark` → tile background / pier / sea lines / sun (ADR-019) — unit tested |
@@ -309,10 +339,44 @@ The island (clipboard history + dropped files) is ADR-010.
 | `LocalizationService` | Normalizes `config.language` (`system` \| `en` \| `tr`); `ResolveCulture` maps `system` → OS UI culture (`tr*` → `tr-TR`, else `en-US`); `Apply` sets `CurrentCulture` / `CurrentUICulture` and default thread cultures **before** the first window (beside theme). Changing language in Settings → General saves immediately and takes effect on the **next launch** (optional Quit now); there is no live UI rebuild |
 | `StatusService` | Clock + network/battery; `.NET NetworkInformation` + `GetSystemPowerStatus`; clock/date formatting uses `CurrentCulture` (follows UI language) |
 | `NetworkDetailsService` | Network-page "Properties" (2 s poll, while the page is open): the active adapter (Wi-Fi > Ethernet priority) → IP/gateway/DNS/MAC/link speed; live ↓/↑ Mbps from the `GetIPv4Statistics` byte delta, a counter reset or a duration of 0 → null ("—"). The pure calculation methods are unit tested |
-| `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
+| `SystemStatsService` | The top bar's left-cluster CPU/GPU/RAM reading (CPU/RAM every 1 s, GPU/network every 4 s, off the UI thread); `GetSystemTimes` + `GlobalMemoryStatusEx` + PDH `\GPU Engine(*)\Utilization Percentage` (`PdhAddEnglishCounterW`, independent of localization). The CPU number is the `GetSystemTimes` busy share — the same `% Processor Time` figure Task Manager's own CPU total tracks; `% Processor Utility` is frequency-weighted and is deliberately not used (on a boosting CPU it reads much higher than the busy share). The UI is not refreshed if the visible text and the network label have not changed. Sampling stops if `showSystemStats` is off. GPU engine samples are grouped onto the physical adapter by the LUID in the sample name (`ParseAdapterKey`/`GroupByAdapters`); software adapters (`DXGI_ADAPTER_FLAG_SOFTWARE` — Microsoft Basic Render Driver/WARP, `GetSoftwareAdapterLuidKeys`) are excluded: Windows counts them as a D3D adapter, but they are not a physical GPU, and Task Manager does not list them either. When `topBar.showGpuPerAdapter` is on, `GPU0 x% · GPU1 y%`; when it is off, a single total. The pure calculation methods are unit tested |
 | `TrayIconService` / `NotifyIconHost` | Its own tray icon + Quit menu (`Shell_NotifyIcon`) |
 | `TrayMirrorService` | Polls the tray toolbar every 4 s, filters system icons, and publishes a `TrayMirrorItem` snapshot only when it changed; icon pixels live in `TrayIconCache` (keyed by `TrayIconSignature`) and are captured inside a gated state blip (`TrayStateBlipGate`), because the parked auto-hide tray virtualizes its UIA buttons and there is no cursor-hopping hover read. A read that found the tray empty never clears a populated snapshot — only a new `Shell_TrayWnd` does. Clicks are replayed with UIA (`InvokePattern` for left/double, verified focus + Menu key for right) on the element cached with the snapshot, with one bounded repair blip when that element died; WharfBar never moves the pointer itself. A menu owner's `SetCursorPos` warp is prevented, not undone: `TrayPointerGuard` clips the cursor with `ClipCursor` (`ClipMarginPx = 6`) right before the Menu key and releases it after `ClipHoldMs = 150` ms, and a short escape watcher (`TrayCursorWarp`) still restores a pointer that lands in the tray-anchor band. Click forward (ADR-009) |
 | `PowerStatus` | Battery / AC line (`GetSystemPowerStatus`) |
+
+## First-run setup (onboarding)
+
+A fresh install (no `config.json`) must not drop the user straight into the shell. `App.OnStartup`
+creates the shell first and then, at `DispatcherPriority.ApplicationIdle`, opens `OnboardingWindow`
+modally while `config.onboardingCompleted` is false (or `--setup` was passed). Because the shell is
+already running, every step edits the **live** config and calls the app's existing apply methods, so
+the real top bar, dock and desktop behind the wizard preview each choice — the window is only the
+rail/header/footer shell, the wizard is not a separate preview surface.
+
+```
+App.OnStartup
+  → ConfigService.LoadOrCreate()     // IsFirstRun = no config.json; an upgrade gets the marker set
+  → shell (taskbar hide, top bar AppBar, docks, tray, strip guard)
+  → ApplicationIdle → !onboardingCompleted || --setup
+       → OnboardingWindow.ShowDialog()
+            → step UserControl (fresh instance per visit): Config.Save + App.Apply*/Recreate*
+            → Skip / title-bar close / final button → dialog closes
+       → onboardingCompleted = true   // not when the app is shutting down mid-setup
+```
+
+The marker is a **soft** `AppConfig` field (`schemaVersion` unchanged):
+
+- Older configs without the field count as completed on load, so an upgrade never shows setup.
+- A corrupt/incompatible config that is reset to defaults also counts as completed (an existing
+  user lost settings, it is not a new install).
+- Quitting the app while the wizard is open leaves the field `false`, so the next launch continues
+  the setup; a skip or a normal close marks it complete.
+- Settings → General → **Run setup again** reopens the wizard in replay mode (final button "Done");
+  `WharfBar.exe --setup` forces it for QA.
+
+`Onboarding_*` copy lives in `Strings.resx` / `Strings.tr.resx`; the offline screenshot harness
+(`.superpowers/scratch/onboarding-render`) renders every step in both themes and languages and uses
+the `App.SuppressShellStartup` tooling hook to build windows without starting the shell.
 
 ## Island (ADR-010)
 
@@ -324,7 +388,8 @@ TopBarWindow.xaml — root Grid (no columns; the three clusters share the same c
  ├─ StackPanel (left) : logo + system stats
  ├─ Border "IslandPill" (HorizontalAlignment=Center, AllowDrop) ← island
  └─ StackPanel "StatusStrip" (right) : tray mirror, clock, notification, QS, network, battery …
- (volume / brightness / media are in the catalog; they are not in the default order — ADR-011)
+ (catalog v6 default: tray mirror → hidden icons → volume → brightness → network → battery →
+ quick settings → clock → notifications; `media` stays in the catalog but is off by default — ADR-011)
 
 Popup "IslandPopup" (Placement=Bottom, PlacementTarget=IslandPill, StaysOpen=True,
  AllowsTransparency=True, PopupAnimation=None)
@@ -358,19 +423,34 @@ Design detail: [`05-theme-windows-wallpaper.md`](05-theme-windows-wallpaper.md).
 
 ```
 Appearance theme change (light | dark)
-  → AppConfig + AppThemePreference + ApplicationThemeManager (existing)
-  → SystemThemeWriter.TryApply (HKCU Personalize + ImmersiveColorNotify)
-  → App.FollowWallpaperTheme(fromExternalWindows: false)
+  → config.theme + AppThemePreference.Mode
+  → ThemeTransition.Run: capture every shell window (top bars, docks, Settings/Onboarding/Gallery)
+       → ThemeApplyGuard.Apply (only ApplicationThemeManager.Apply entry point; MainWindow detached)
+       → SystemThemeWriter.TryApplyAsync (HKCU Personalize + off-thread ImmersiveColorNotify)
+       → optional system accent → Config.Save → App.ApplyThemeChanges (all surfaces re-assert)
+       → fade the captured frames out (180 ms; instant when client-area animation is off)
+  → after the fade: App.FollowWallpaperTheme(fromExternalWindows: false)
 
 Appearance theme = system
-  → no SystemThemeWriter; WharfBar follows Windows via existing Refresh on ImmersiveColorSet
-  → TopBar/Dock ImmersiveColorSet → App.FollowWallpaperTheme(fromExternalWindows: true)
+  → no SystemThemeWriter; any shell window's WM_THEMECHANGED / WM_SETTINGCHANGE(ImmersiveColorSet)
+    handler (or AppThemeWatcher) only *schedules* ThemeCoordinator.TryScheduleSystemThemeChange —
+    never applies inside the WndProc (the broadcast is synchronous and the sender waits)
+  → the scheduled switch refreshes WPF-UI's cached system theme, then runs the same crossfaded
+    ThemeTransition and re-asserts every surface
+  → after the fade: App.FollowWallpaperTheme(fromExternalWindows: true)
 
 Hub WallpaperGalleryView click
   → WallpaperService.TryApply → HubApplied → WallpaperThemeSync.Remember(full path)
   → if resolved theme differs from current `-light`/`-dark` variant and sibling exists:
        FollowResolvedTheme may apply partner (same transition/accent rules)
 ```
+
+The top bar's background is an invariant, not a side effect: `ThemeApplyGuard` keeps WPF-UI from
+repainting the main window at all, the bar re-asserts the configured mode on every library theme
+apply (`ApplicationThemeManager.Changed`), and
+`TopBarWindow.OnBackgroundValueChanged` watches `Window.Background` itself — any foreign fill (opaque
+`#FAFAFA`/`#202020`, a tinted plate, a stale Mica attribute) is corrected in the same frame, so the
+mode the user picked always wins. Details: [`04-gotchas.md`](04-gotchas.md).
 
 Gallery UI still shows separate light and dark thumbnails; pairing is backend-only.
 
@@ -689,15 +769,17 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
  "tintOpacity": 40,
  "showSystemStats": true,
  "showGpuPerAdapter": true,
- "statusCatalogVersion": 5,
+ "statusCatalogVersion": 6,
  "statusItems": [
  "trayMirror",
  "trayOverflow",
- "dateTime",
- "notifications",
- "controlCenter",
+ "volume",
+ "brightness",
  "network",
- "battery"
+ "battery",
+ "controlCenter",
+ "dateTime",
+ "notifications"
  ]
  },
  "veil": {
@@ -752,8 +834,8 @@ Implementation: `Models/AppConfig.cs` + `Services/ConfigService.cs` (camelCase J
 | `dock.showRunningApps` | Unpinned running apps + minimized windows |
 | `topBar.backgroundMode` | `mica` \| `transparent` \| `tint`; unknown → `mica` (the default). A Mica ↔ translucent switch requires a TopBar recreate |
 | `topBar.tintOpacity` | 0–100; alpha in tint mode; default **40**; clamped on load |
-| `topBar.statusCatalogVersion` | Soft catalog version (independent of `schemaVersion` 2). Current **5**: a missing `controlCenter` is inserted before `volume`, a missing `brightness` after `volume`, a missing `media` after `brightness` (`Ensure*`; an old version is moved to 5 at startup — ADR-008/009) |
-| `topBar.statusItems` | Visible status-item ids (left→right order). Unknown ids are dropped; empty/missing → `DefaultOrder`. The **default** does not include `volume` / `brightness` / `media` (ADR-011); every catalog item is listed on right-click and in the Top Bar setting, the saved list is not stripped, and a hidden item does not turn itself on. **Show all** inserts the missing ones next to their catalog neighbor. Dragging on the bar changes the order with `MoveToInsertion`. `statusCatalogVersion` stays at 5. A soft field (`schemaVersion` 2) |
+| `topBar.statusCatalogVersion` | Soft catalog version (independent of `schemaVersion` 2). Current **6**: a missing `controlCenter` is inserted before `volume`, a missing `brightness` after `volume`, a missing `media` after `brightness` (`Ensure*`; an old version is moved to the current one at startup — ADR-008/009). **v6 (2026-11-12):** the untouched default order is moved once to the Windows tray-corner order with volume/brightness on; a list the user reordered or toggled is not touched |
+| `topBar.statusItems` | Visible status-item ids (left→right order). Unknown ids are dropped; empty/missing → `DefaultOrder`. The **default** (catalog v6) is the Windows tray-corner order — `trayMirror` → `trayOverflow` → `volume` → `brightness` → `network` → `battery` → `controlCenter` → `dateTime` → `notifications`; `media` stays in the catalog but is off by default (ADR-011). Every catalog item is listed on right-click and in the Top Bar setting, the saved list is not stripped, and a hidden item does not turn itself on. **Show all** inserts the missing ones next to their catalog neighbor. Dragging on the bar changes the order with `MoveToInsertion`. `statusCatalogVersion` stays at the current value. A soft field (`schemaVersion` 2) |
 | `topBar.showSystemStats` | The `CPU x% · GPU y% · RAM z%` reading next to the brand logo in the left cluster (default **`true`**; soft bool — a missing field falls back to the default). If there is no GPU counter, the GPU section is not shown |
 | `topBar.showGpuPerAdapter` | If there is more than one physical GPU, number the GPU sections (`GPU0 x% · GPU1 y%`); when off, a single combined segment (default **`true`**; soft bool). With a single GPU both modes look the same |
 | `veil.enabled` | Overlay on/off (persistent; written by the QS tile + the shortcut + the page toggle). Default **`false`** |
