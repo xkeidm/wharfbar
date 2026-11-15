@@ -341,7 +341,9 @@ is therefore no longer silent (ADR-009 keeps hidden/overflow icons out of the mi
 `QuickSettingsFlyout` — a single Fluent popup (`AllowsTransparency=true`, `StaysOpen=true`; unrelated to the main window's
 Mica); the Main / Mixer /
 Network tabs are shared (ADR-006). Mixer: default device + dropdown + application
-sessions. Network: connection card + live ↓/↑ traffic row + `Properties` section
+sessions; a session row is `icon + slider + percent`, the icon is the process icon (letter tile
+when the icon cannot be read, speaker glyph for system sounds) and **muting dims the icon and
+draws a slash across it**; clicking the icon toggles the session mute. Network: connection card + live ↓/↑ traffic row + `Properties` section
 (adapter, kind, IPv4/IPv6, gateway, DNS, MAC, link speed — `NetworkDetailsService`,
 2 s poll while the page is open; Windows network-properties layout). The open point picks the tab from the icon that was clicked. The popup leaves a slight gap
 under the bar with `VerticalOffset=10`; a 12 px gap on the right edge too (root Border `Margin="0,0,12,0"`,

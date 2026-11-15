@@ -43,6 +43,12 @@ public partial class QuickSettingsFlyout : UserControl
         internal required Slider Slider { get; init; }
         internal required TextBlock PercentText { get; init; }
         internal required FrameworkElement IconHost { get; init; }
+
+        /// <summary>Base icon (app icon, letter tile or speaker glyph); dims while muted.</summary>
+        internal required FrameworkElement IconContent { get; init; }
+
+        /// <summary>Crossed-speaker badge on the icon corner; only visible while muted.</summary>
+        internal required FrameworkElement MuteBadge { get; init; }
     }
 
     private sealed class TileUi
@@ -611,6 +617,8 @@ public partial class QuickSettingsFlyout : UserControl
         }
 
         state.IsMuted = session.IsMuted;
+        state.IconContent.Opacity = session.IsMuted ? 0.45 : 1;
+        state.MuteBadge.Visibility = session.IsMuted ? Visibility.Visible : Visibility.Collapsed;
         if (!string.Equals(state.DisplayName, session.DisplayName, StringComparison.Ordinal))
         {
             state.DisplayName = session.DisplayName;
@@ -656,6 +664,7 @@ public partial class QuickSettingsFlyout : UserControl
         };
 
         // Hit target larger than 20px icon; Segoe UI tip (MDL2 TextBlock must not own the tip).
+        FrameworkElement iconContent = BuildSessionIcon(session, out FrameworkElement muteBadge);
         var iconHost = new Border
         {
             Width = 28,
@@ -663,7 +672,12 @@ public partial class QuickSettingsFlyout : UserControl
             Background = Brushes.Transparent,
             Cursor = Cursors.Hand,
             VerticalAlignment = VerticalAlignment.Center,
-            Child = BuildSessionIcon(session),
+            Child = new Grid
+            {
+                Width = 20,
+                Height = 20,
+                Children = { iconContent, muteBadge },
+            },
         };
         DockPanel.SetDock(iconHost, Dock.Left);
         SetSessionIconTip(iconHost, session.DisplayName);
@@ -676,6 +690,8 @@ public partial class QuickSettingsFlyout : UserControl
             Slider = slider,
             PercentText = percent,
             IconHost = iconHost,
+            IconContent = iconContent,
+            MuteBadge = muteBadge,
         };
         slider.Tag = state;
         slider.ValueChanged += OnSessionVolumeChanged;
@@ -726,7 +742,42 @@ public partial class QuickSettingsFlyout : UserControl
         ToolTipService.SetPlacement(host, System.Windows.Controls.Primitives.PlacementMode.Top);
     }
 
-    private FrameworkElement BuildSessionIcon(AudioAppSession session)
+    private FrameworkElement BuildSessionIcon(AudioAppSession session, out FrameworkElement muteBadge)
+    {
+        FrameworkElement content = BuildSessionIconContent(session);
+        content.Opacity = session.IsMuted ? 0.45 : 1;
+
+        // The mute state belongs to the icon (Windows mixer behaviour): the app icon dims and a
+        // diagonal slash is drawn across it. The stroke is a live resource reference so a
+        // long-lived flyout follows a light/dark swap instead of capturing a brush.
+        var slash = new System.Windows.Shapes.Line
+        {
+            X1 = 2,
+            Y1 = 18,
+            X2 = 18,
+            Y2 = 2,
+            StrokeThickness = 2,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            IsHitTestVisible = false,
+        };
+        slash.SetResourceReference(System.Windows.Shapes.Shape.StrokeProperty, "TextFillColorPrimaryBrush");
+
+        var badge = new Grid
+        {
+            Width = 20,
+            Height = 20,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Visibility = session.IsMuted ? Visibility.Visible : Visibility.Collapsed,
+            Children = { slash },
+        };
+        muteBadge = badge;
+        return content;
+    }
+
+    private FrameworkElement BuildSessionIconContent(AudioAppSession session)
     {
         ImageSource? source = ResolveSessionIcon(session);
         if (source is not null)
@@ -743,9 +794,26 @@ public partial class QuickSettingsFlyout : UserControl
             };
         }
 
+        // An app whose icon could not be read keeps its identity as the same letter tile the
+        // dock/tray fallbacks use; only a session with no owning process (system sounds) falls
+        // back to a speaker glyph.
+        if (session.ProcessId > 0 && TrayLetterGlyph.FirstLetter(session.DisplayName).Length > 0)
+        {
+            return new Image
+            {
+                Source = TrayLetterGlyph.Build(session.DisplayName),
+                Width = 20,
+                Height = 20,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                IsHitTestVisible = false,
+            };
+        }
+
         return new TextBlock
         {
-            Text = session.IsMuted ? "\uE74F" : "\uE767",
+            Text = "\uE767",
             FontFamily = SystemVersion.IconFontFamily,
             FontSize = 16,
             Width = 20,

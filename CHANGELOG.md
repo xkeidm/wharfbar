@@ -8,6 +8,14 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **The volume mixer shows the mute state on the application icon.** A muted session dims its icon
+  to 45 % and draws a diagonal slash across it (a theme-following stroke), instead of leaving a
+  full-brightness icon next to a disabled slider. An application whose icon cannot be read now
+  falls back to the same letter tile the dock/tray use, so the row still reads as that app; only a
+  session with no owning process (`System sounds`) keeps the speaker glyph.
+
 ### Fixed
 
 - **The taskbar watchdog now also releases the top-bar AppBar reservation after a force kill.**
