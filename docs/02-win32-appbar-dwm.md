@@ -61,6 +61,15 @@ When the shell restarts, the AppBar registration is lost.
 is run again and placement is re-applied. `ABM_REMOVE` is not required beforehand, because the old registration
 left with the dead shell. See ADR-003.
 
+> **Trap (measured 2026-11-15):** the re-register path must forget the last approved rect. The normal
+> placement path skips `ABM_SETPOS` when `ABM_QUERYPOS` returns the same rect as the previous commit
+> (that skip is what stops the `ABN_POSCHANGED` loop), but a fresh shell has **no** approved rect for
+> us — so after an explorer restart the work-area top stayed at `0` and the bar floated over the
+> desktop until the next real placement change. `QueueApplyPlacement(reRegister: true)` now clears
+> `_haveLastApprovedPlacement` when `AppBar.ReRegister()` succeeds (the dock reservation already did
+> the same). Verify by killing `explorer.exe` with WharfBar running: the strip must come back within
+> a second (work area `0,30,…`).
+
 ### The dock and the AppBar
 
 An AppBar is appropriate for the top bar. The dock plate is an overlay (Topmost + auto-hide); the plate HWND is not made an AppBar — `ABM_QUERYPOS` stretches the window to the monitor width on the bottom edge. See ADR-001.

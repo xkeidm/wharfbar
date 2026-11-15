@@ -18,6 +18,12 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ### Fixed
 
+- **The top bar keeps its reserved strip after an `explorer.exe` restart.** The `TaskbarCreated`
+  re-register path skipped `ABM_SETPOS` because the approved rect matched the one committed before
+  the shell died — but the fresh shell has no approved rect for the window, so the work area top
+  stayed at `0` and the bar floated over the desktop until the next placement change. Re-registering
+  now forgets the last approved rect first (the dock reservation already did this). Verified live by
+  killing `explorer.exe` with the shell running: work area `0,30,…` within a second.
 - **A display change no longer leaves a bar or the dock on the old monitor geometry.** Each window
   captured its `MonitorInfo` at construction, and placement, the dock's bottom AppBar reservation and
   the per-monitor window filter read that copy — a resolution/arrangement/DPI change therefore kept

@@ -13,7 +13,11 @@
 - WPF-UI backdrop / theme
 - DPI / display change / AppBar callback handlers
 - Fullscreen hiding (bar/dock)
-- AppBar re-registration after an Explorer restart
+- AppBar re-registration after an Explorer restart — on `TaskbarCreated` re-run `ABM_NEW` **and clear
+  the last-approved-rect memory before re-applying placement**: the normal "same rect → skip
+  `ABM_SETPOS`" guard is wrong for a fresh shell, which has no approved rect (measured 2026-11-15:
+  the strip stayed unreserved and the bar floated until the next placement change). The dock
+  reservation resets its own flag the same way.
 - **Stale AppBar reservation after a force kill (2026-11-15):** the watchdog baseline records the
   top-bar HWNDs (`appBarHwnds` in `taskbar-watchdog.json`) and the `--taskbar-watchdog` child
   replays `ABM_REMOVE` for them before restoring the taskbar — a dead owner cannot, and

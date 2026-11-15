@@ -2378,7 +2378,16 @@ public partial class TopBarWindow : Window
             if (_pendingAppBarReregister)
             {
                 _pendingAppBarReregister = false;
-                _appBar?.ReRegister();
+                // A fresh explorer has no approved rect for us. The "same rect as last time"
+                // SETPOS skip must not apply here, or the strip is never reserved again
+                // (measured 2026-11-15: after an explorer restart the work-area top stayed at
+                // 0 and the bar floated over the desktop until the next placement change).
+                // The dock reservation resets its own flag on re-register for the same reason.
+                if (_appBar?.ReRegister() == true)
+                {
+                    _haveLastApprovedPlacement = false;
+                }
+
                 _taskbar.ReapplyHide();
             }
 
