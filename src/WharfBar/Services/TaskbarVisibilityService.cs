@@ -34,6 +34,8 @@ internal sealed class TaskbarVisibilityService
     private int _watchBusy;
     private readonly object _reservationLock = new();
     private readonly Dictionary<string, int> _reservedBottomByMonitor = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _appBarHwndsLock = new();
+    private readonly HashSet<long> _appBarHwnds = new();
     private Timer? _keepHiddenTimer;
     private long _lastWorkAreaCheckMs = -1;
     private Task? _restoreTask;
@@ -147,11 +149,53 @@ internal sealed class TaskbarVisibilityService
                 WorkAreaRight = _baselineWorkArea.Right,
                 WorkAreaBottom = _baselineWorkArea.Bottom,
                 HaveWorkArea = _haveBaselineWorkArea,
+                AppBarHwnds = SnapshotAppBarHwnds(),
             });
         }
         catch (Exception ex)
         {
             Debug.WriteLine($"WharfBar watchdog state save failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Records an AppBar window that reserves a strip for this process generation, so the
+    /// watchdog can release it if this process dies without running <c>ABM_REMOVE</c>.
+    /// Every top bar calls this right after <c>ABM_NEW</c>.
+    /// </summary>
+    internal void TrackAppBarHwnd(IntPtr hwnd) => UpdateAppBarHwnd(hwnd, track: true);
+
+    /// <summary>Forgets a released AppBar window (normal remove, window recreate).</summary>
+    internal void UntrackAppBarHwnd(IntPtr hwnd) => UpdateAppBarHwnd(hwnd, track: false);
+
+    private void UpdateAppBarHwnd(IntPtr hwnd, bool track)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return;
+        }
+
+        bool changed;
+        lock (_appBarHwndsLock)
+        {
+            changed = track ? _appBarHwnds.Add(hwnd.ToInt64()) : _appBarHwnds.Remove(hwnd.ToInt64());
+        }
+
+        // Before capture there is no watchdog file yet (a file would look like an unrestored
+        // generation); after restore the file is gone and must not come back.
+        if (!changed || Volatile.Read(ref _captured) == 0 || Volatile.Read(ref _restored) != 0)
+        {
+            return;
+        }
+
+        SaveWatchdogState();
+    }
+
+    private long[] SnapshotAppBarHwnds()
+    {
+        lock (_appBarHwndsLock)
+        {
+            return _appBarHwnds.ToArray();
         }
     }
 

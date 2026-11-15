@@ -77,7 +77,10 @@
  access violation (`PDH_FMT_COUNTERVALUE` 8↔16 byte ABI bug; fixed + ABI test) skipped the managed
  handlers, so the `WharfBar.exe --taskbar-watchdog` child process watches the baseline
  (`%LOCALAPPDATA%/WharfBar/taskbar-watchdog.json`) and brings the taskbar back on a death without restore;
- a stale file self-heals at startup. AppBar reservation is out of scope (explorer restart).
+ a stale file self-heals at startup. **2026-11-15:** the baseline also records the top-bar HWNDs
+ (`appBarHwnds`) and the watchdog replays `ABM_REMOVE` for them (a dead owner cannot); on 25H2 the
+ shell already drops the dead registration by itself (measured: a force-kill leaves no ghost strip),
+ so the replay covers older shells.
  Force-kill test: the tray is visible in ~0.5 s.
 - **Island — clipboard history + dropped files ✓ (code)** — an island in the **center** of the top bar
  (not a separate window: a centered `Border` + `Popup` panel in `TopBarWindow` XAML; a separate

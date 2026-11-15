@@ -183,6 +183,29 @@ internal sealed class AppBar : IDisposable
 
     public void Dispose() => Remove();
 
+    /// <summary>
+    /// Drops a registration whose owner cannot run <c>ABM_REMOVE</c> any more (the process died).
+    /// <c>ABM_REMOVE</c> is matched on the <c>hwnd</c> in <c>APPBARDATA</c>, not on the calling
+    /// process — measured 2026-11-15: a foreign process released another process's live
+    /// registration and the work area came back. The shell answers 0 when it has already pruned
+    /// the dead window (25H2 does this by itself), so this is best effort.
+    /// </summary>
+    internal static bool TryRemoveForeign(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var data = new APPBARDATA
+        {
+            cbSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<APPBARDATA>(),
+            hWnd = hwnd,
+            uEdge = NativeMethods.ABE_TOP,
+        };
+        return NativeMethods.SHAppBarMessage(NativeMethods.ABM_REMOVE, ref data) != 0;
+    }
+
     /// <summary>Decodes an AppBar callback message; returns false when it is not ours.</summary>
     internal bool TryGetNotification(int message, IntPtr wParam, out AppBarNotification notification)
     {

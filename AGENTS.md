@@ -66,10 +66,14 @@ tests from a normal terminal. Details: [`docs/04-gotchas.md`](docs/04-gotchas.md
 - `src/WharfBar/Views/Pages/` — settings pages (`General`, `Appearance`, `Dock`, `TopBar`, `About`)
 
 > **Warning:** Running the application reserves an AppBar region along the top edge. Force-killing
-> the process (`Stop-Process -Force`, detaching the debugger) skips the `ABM_REMOVE` path;
-> the **taskbar** is now brought back by the watchdog child process within ~0.5 s, but
-> the reserved AppBar strip stays stuck — the fix for that is restarting `explorer.exe`.
-> Close the window the normal way.
+> the process (`Stop-Process -Force`, detaching the debugger) skips the `ABM_REMOVE` path.
+> The watchdog child process brings the **taskbar** back within ~0.5 s, and on Windows 11 25H2
+> (build 26200, measured 2026-11-15) the shell also drops the dead AppBar registration itself:
+> the work area returns to the baseline within ~1 s, so no ghost strip is left behind. For shells
+> that keep the registration the watchdog replays `ABM_REMOVE` with the top-bar HWND it recorded
+> (`appBarHwnds` in `taskbar-watchdog.json`). Still close the window the normal way: a kill whose
+> watchdog is also gone (or a low-integrity launch) leaves the taskbar hidden until the next
+> WharfBar start, which self-heals it.
 
 The machine may have only the .NET 9 SDK installed; that is fine, it can build the
 `net8.0-windows10.0.19041.0` target. **Do not pin to 8.x with `global.json`** — if the 8.x SDK

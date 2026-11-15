@@ -96,8 +96,14 @@ internal static class TaskbarWatchdog
 
         try
         {
+            // A dead owner cannot run ABM_REMOVE, so replay it for every AppBar window the
+            // parent had registered: a shell that keeps the registration would otherwise hold
+            // the reserved strip until Explorer restarts. Best effort — 25H2 drops dead windows
+            // by itself, and the shell answers 0 when there is nothing left to remove.
+            ReleaseStaleAppBars(current!.AppBarHwnds);
+
             TaskbarNative.SetTrayVisible(true);
-            TaskbarNative.SetState(current!.BaselineState);
+            TaskbarNative.SetState(current.BaselineState);
             if (current.HaveWorkArea)
             {
                 _ = TaskbarNative.TrySetPrimaryWorkArea(new RECT
@@ -116,6 +122,26 @@ internal static class TaskbarWatchdog
         finally
         {
             store.Delete();
+        }
+    }
+
+    private static void ReleaseStaleAppBars(long[]? hwnds)
+    {
+        if (hwnds is null)
+        {
+            return;
+        }
+
+        foreach (long raw in hwnds)
+        {
+            try
+            {
+                _ = AppBar.TryRemoveForeign(new IntPtr(raw));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"WharfBar watchdog AppBar release failed (0x{raw:X}): {ex.Message}");
+            }
         }
     }
 

@@ -16,7 +16,13 @@ static extern uint SHAppBarMessage(uint dwMessage, ref APPBARDATA pData);
 
 **Flow:** `ABM_NEW` → `ABM_QUERYPOS` → `ABM_SETPOS` → on close, **always** `ABM_REMOVE`.
 
-If `ABM_REMOVE` is missed, the reserved area stays stuck; the user usually has to restart `explorer.exe`.
+If `ABM_REMOVE` is missed, the shell can keep the reservation. **Measured 2026-11-15 (25H2 build
+26200):** the shell drops a dead window's registration by itself — a force-killed AppBar owner left
+no strip (the work area was back to the baseline within ~1 s, with and without the taskbar
+watchdog). `ABM_REMOVE` is matched on the `hwnd` in `APPBARDATA`, not on the calling process
+(measured: a foreign process released another process's live registration), so the taskbar watchdog
+replays it for the top-bar HWNDs recorded in `taskbar-watchdog.json` — a fallback for shells that
+keep the dead entry; on 25H2 it is a no-op. Restarting `explorer.exe` is a last resort now.
 
 ### Callbacks
 

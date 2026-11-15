@@ -14,6 +14,14 @@
 - DPI / display change / AppBar callback handlers
 - Fullscreen hiding (bar/dock)
 - AppBar re-registration after an Explorer restart
+- **Stale AppBar reservation after a force kill (2026-11-15):** the watchdog baseline records the
+  top-bar HWNDs (`appBarHwnds` in `taskbar-watchdog.json`) and the `--taskbar-watchdog` child
+  replays `ABM_REMOVE` for them before restoring the taskbar — a dead owner cannot, and
+  `ABM_REMOVE` matches on the hwnd, not on the caller (measured: a foreign process released another
+  process's live registration). Measured on 25H2 build 26200: the shell already drops a dead
+  window's registration by itself (a force kill left no ghost strip; the work area was back within
+  ~1 s), so the replay is a no-op there and `explorer.exe` restart is a last resort. The normal
+  `ABM_REMOVE` exit path is unchanged and never skipped.
 - **Hiding / auto-hiding the Windows taskbar while WharfBar is running** — capture the state
   at startup; on the exit and crash paths **restore the previous state** (ADR-005; the same discipline
   as `ABM_REMOVE`). No permanent damage (while WharfBar is closed).

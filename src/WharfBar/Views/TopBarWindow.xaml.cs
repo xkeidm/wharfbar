@@ -251,6 +251,12 @@ public partial class TopBarWindow : Window
             NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
 
         _appBar.Register();
+        if (_appBar.IsRegistered)
+        {
+            // The watchdog can only release a strip whose window handle it knows.
+            _taskbar.TrackAppBarHwnd(_source.Handle);
+        }
+
         ApplyPlacement();
 
         TrayOverflowButton.PreviewMouseLeftButtonUp += OnTrayOverflowClick;
@@ -998,6 +1004,7 @@ public partial class TopBarWindow : Window
         UnhookShutdownPaths();
         CloseFlyouts(animate: false);
         _appBar?.Remove();
+        _taskbar.UntrackAppBarHwnd(_source?.Handle ?? IntPtr.Zero);
     }
 
     /// <summary>
@@ -1021,6 +1028,11 @@ public partial class TopBarWindow : Window
                 NativeMethods.RegisterWindowMessage(AppBarCallbackName),
                 NativeMethods.ABE_TOP);
             _appBar.Register();
+            if (_appBar.IsRegistered)
+            {
+                _taskbar.TrackAppBarHwnd(_source.Handle);
+            }
+
             ApplyPlacement();
         }
 
@@ -2062,6 +2074,7 @@ public partial class TopBarWindow : Window
     {
         _taskbar.Restore();
         _appBar?.Remove();
+        _taskbar.UntrackAppBarHwnd(_source?.Handle ?? IntPtr.Zero);
     }
 
     private void ApplyPlacement()

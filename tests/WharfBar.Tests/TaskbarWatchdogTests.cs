@@ -1,4 +1,5 @@
 using System.IO;
+using WharfBar.Native;
 using WharfBar.Services;
 using Xunit;
 
@@ -32,6 +33,7 @@ public class TaskbarWatchdogStateStoreTests : IDisposable
             WorkAreaRight = 2560,
             WorkAreaBottom = 1392,
             HaveWorkArea = true,
+            AppBarHwnds = new long[] { 0x10134, 0x20A48 },
         };
 
         Store.Save(state);
@@ -44,6 +46,34 @@ public class TaskbarWatchdogStateStoreTests : IDisposable
         Assert.Equal(state.WorkAreaRight, loaded.WorkAreaRight);
         Assert.Equal(state.WorkAreaBottom, loaded.WorkAreaBottom);
         Assert.True(loaded.HaveWorkArea);
+        Assert.Equal(new long[] { 0x10134, 0x20A48 }, loaded.AppBarHwnds);
+    }
+
+    [Fact]
+    public void Load_FileWithoutAppBarHwnds_YieldsEmptyList()
+    {
+        // A file written before the field existed must still load (soft field, like the
+        // onboarding marker): the watchdog then just has no strip to release.
+        Directory.CreateDirectory(_dir);
+        File.WriteAllText(
+            Store.Path,
+            """
+            {
+              "pid": 4242,
+              "processStartTime": "2026-08-25T12:00:00+03:00",
+              "baselineState": 2,
+              "workAreaLeft": 0,
+              "workAreaTop": 0,
+              "workAreaRight": 1920,
+              "workAreaBottom": 1032,
+              "haveWorkArea": true
+            }
+            """);
+
+        TaskbarWatchdogState? loaded = Store.Load();
+
+        Assert.NotNull(loaded);
+        Assert.Empty(loaded!.AppBarHwnds);
     }
 
     [Fact]
@@ -132,5 +162,14 @@ public class TaskbarWatchdogDecisionTests
         TaskbarWatchdogState state = State(pid: 100);
         DateTime drifted = state.ProcessStartTime + TimeSpan.FromMilliseconds(800);
         Assert.True(TaskbarWatchdog.ShouldRestore(state, 100, drifted));
+    }
+}
+
+public class AppBarForeignRemoveTests
+{
+    [Fact]
+    public void TryRemoveForeign_ZeroHandle_IsRefusedWithoutCallingTheShell()
+    {
+        Assert.False(AppBar.TryRemoveForeign(IntPtr.Zero));
     }
 }

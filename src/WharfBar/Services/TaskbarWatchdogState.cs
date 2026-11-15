@@ -26,6 +26,14 @@ internal sealed record TaskbarWatchdogState
     public int WorkAreaBottom { get; init; }
 
     public bool HaveWorkArea { get; init; }
+
+    /// <summary>
+    /// AppBar window handles the shell registered for this process generation (the per-monitor
+    /// top bars). A dead owner cannot run <c>ABM_REMOVE</c>; the watchdog replays it with these
+    /// handles so a shell that keeps the registration cannot hold the reserved strip. Older
+    /// files have no such field → empty list.
+    /// </summary>
+    public long[] AppBarHwnds { get; init; } = Array.Empty<long>();
 }
 
 /// <summary>JSON file store for <see cref="TaskbarWatchdogState"/>. File present = taskbar hidden by us.</summary>

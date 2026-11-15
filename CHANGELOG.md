@@ -8,6 +8,17 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The taskbar watchdog now also releases the top-bar AppBar reservation after a force kill.**
+  The baseline file records the HWND of every per-monitor top bar (`appBarHwnds`) and the watchdog
+  replays `ABM_REMOVE` for them before restoring the taskbar, because a dead process cannot run it
+  and `ABM_REMOVE` is matched on the hwnd, not on the caller. Measured 2026-11-15 on Windows 11
+  25H2 (build 26200): the shell already drops a dead window's registration by itself — a force kill
+  left no ghost strip and the work area was back to the baseline within ~1 s — so the replay is a
+  no-op there and the documented "restart explorer.exe" advice is now a last resort. Handing the
+  watchdog a live foreign registration proved the replay releases the strip.
+
 ## [1.0.0-beta.6] — 2026-11-15
 
 ### Added
