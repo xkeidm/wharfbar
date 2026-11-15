@@ -36,6 +36,59 @@
                 <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
                 <Setter Property="FontSize" Value="12" />
             </Style>
+
+            <!-- First-run setup (OnboardingWindow). Its step UserControls are parsed before they
+                 are hosted in the window, so these shared keys must live in the application
+                 dictionary instead of the window's: {StaticResource} is resolved at load time. -->
+            <Style x:Key="OnboardingSectionHeader" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="Margin" Value="0,16,0,8" />
+            </Style>
+            <Style x:Key="OnboardingCard" TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="16,14" />
+                <Setter Property="Margin" Value="0,0,0,8" />
+            </Style>
+            <Style x:Key="OnboardingCardTitle" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="Medium" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="OnboardingCardBody" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+                <Setter Property="Margin" Value="0,2,0,0" />
+            </Style>
+            <Style x:Key="OnboardingNote" TargetType="{x:Type Border}">
+                <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="14,12" />
+                <Setter Property="Margin" Value="0,12,0,0" />
+            </Style>
+            <Style x:Key="OnboardingHeroTitle" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="22" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            </Style>
+            <Style x:Key="OnboardingBody" TargetType="{x:Type TextBlock}">
+                <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="LineHeight" Value="20" />
+                <Setter Property="TextWrapping" Value="Wrap" />
+                <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

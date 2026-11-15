@@ -1,0 +1,304 @@
+<UserControl x:Class="WharfBar.Views.Onboarding.AppearanceStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:res="clr-namespace:WharfBar.Resources"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             mc:Ignorable="d"
+             d:DesignHeight="560" d:DesignWidth="760">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <!-- Cards are click targets: strip the button chrome and let the inner Border draw the card. -->
+        <Style x:Key="OnboardingChoiceButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
+
+            <!-- Theme: three live-preview cards. -->
+            <TextBlock Text="{x:Static res:Strings.Appearance_ThemeTitle}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,0,0,8" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnThemeSystemClick">
+                    <Border x:Name="ThemeSystemCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="0,0,5,8">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="Desktop24" FontSize="18"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center" />
+                                <ui:SymbolIcon x:Name="ThemeSystemCheck" Grid.Column="2" Symbol="Checkmark24"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               Visibility="Collapsed" />
+                            </Grid>
+
+                            <TextBlock Text="{x:Static res:Strings.Appearance_ThemeSystem}"
+                                       FontSize="13" FontWeight="Medium"
+                                       TextWrapping="Wrap"
+                                       Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+
+                <Button Grid.Column="1"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnThemeLightClick">
+                    <Border x:Name="ThemeLightCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="5,0,5,8">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="WeatherSunny24" FontSize="18"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center" />
+                                <ui:SymbolIcon x:Name="ThemeLightCheck" Grid.Column="2" Symbol="Checkmark24"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               Visibility="Collapsed" />
+                            </Grid>
+
+                            <TextBlock Text="{x:Static res:Strings.Appearance_ThemeLight}"
+                                       FontSize="13" FontWeight="Medium"
+                                       TextWrapping="Wrap"
+                                       Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+
+                <Button Grid.Column="2"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnThemeDarkClick">
+                    <Border x:Name="ThemeDarkCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="5,0,0,8">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <ui:SymbolIcon Grid.Column="0" Symbol="WeatherMoon24" FontSize="18"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               VerticalAlignment="Center" />
+                                <ui:SymbolIcon x:Name="ThemeDarkCheck" Grid.Column="2" Symbol="Checkmark24"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                               Visibility="Collapsed" />
+                            </Grid>
+
+                            <TextBlock Text="{x:Static res:Strings.Appearance_ThemeDark}"
+                                       FontSize="13" FontWeight="Medium"
+                                       TextWrapping="Wrap"
+                                       Margin="0,10,0,0" />
+                        </StackPanel>
+                    </Border>
+                </Button>
+            </Grid>
+
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Appearance_ThemeHint}"
+                       Style="{StaticResource OnboardingBody}"
+                       FontSize="12"
+                       Margin="0,2,0,4" />
+
+            <!-- Accent source: Windows accent vs the fixed theme-mode accent. -->
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Appearance_AccentSection}"
+                       Style="{StaticResource OnboardingSectionHeader}" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnAccentSystemClick">
+                    <Border x:Name="AccentSystemCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="0,0,5,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="Color24" FontSize="18"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Static res:Strings.Appearance_AccentSystem}"
+                                       FontSize="13" FontWeight="Medium"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <ui:SymbolIcon x:Name="AccentSystemCheck" Grid.Column="2" Symbol="Checkmark24"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                </Button>
+
+                <Button Grid.Column="1"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnAccentFixedClick">
+                    <Border x:Name="AccentFixedCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="5,0,0,8">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:SymbolIcon Grid.Column="0" Symbol="PaintBrush24" FontSize="18"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,12,0" />
+                            <TextBlock Grid.Column="1"
+                                       Text="{x:Static res:Strings.Appearance_AccentFixed}"
+                                       FontSize="13" FontWeight="Medium"
+                                       TextWrapping="Wrap" VerticalAlignment="Center" />
+                            <ui:SymbolIcon x:Name="AccentFixedCheck" Grid.Column="2" Symbol="Checkmark24"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           VerticalAlignment="Center"
+                                           Visibility="Collapsed" />
+                        </Grid>
+                    </Border>
+                </Button>
+            </Grid>
+
+            <!-- Logo: real vector previews of both bar glyphs. -->
+            <TextBlock x:Name="LogoSectionHeader"
+                       Style="{StaticResource OnboardingSectionHeader}" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnLogoWharfBarClick">
+                    <Border x:Name="LogoWharfBarCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="0,0,5,8">
+                        <Grid>
+                            <ui:SymbolIcon x:Name="LogoWharfBarCheck" Symbol="Checkmark24"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top"
+                                           Visibility="Collapsed" />
+                            <StackPanel>
+                                <Viewbox Width="56" Height="56" HorizontalAlignment="Center">
+                                    <Canvas Width="128" Height="128">
+                                        <Path x:Name="WharfLogoPath"
+                                              Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="LogoWharfBarLabel"
+                                           FontSize="13" FontWeight="Medium"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Button>
+
+                <Button Grid.Column="1"
+                        Style="{StaticResource OnboardingChoiceButton}"
+                        Click="OnLogoWindowsClick">
+                    <Border x:Name="LogoWindowsCard"
+                            Style="{StaticResource OnboardingCard}"
+                            Margin="5,0,0,8">
+                        <Grid>
+                            <ui:SymbolIcon x:Name="LogoWindowsCheck" Symbol="Checkmark24"
+                                           FontSize="16"
+                                           Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                           HorizontalAlignment="Right" VerticalAlignment="Top"
+                                           Visibility="Collapsed" />
+                            <StackPanel>
+                                <Viewbox Width="56" Height="56" HorizontalAlignment="Center">
+                                    <Canvas Width="128" Height="128">
+                                        <Path x:Name="WindowsLogoPath"
+                                              Fill="{DynamicResource TextFillColorPrimaryBrush}" />
+                                    </Canvas>
+                                </Viewbox>
+                                <TextBlock x:Name="LogoWindowsLabel"
+                                           FontSize="13" FontWeight="Medium"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,10,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Button>
+            </Grid>
+
+            <!-- Reminder that the real shell behind the wizard is following these choices. -->
+            <Border Style="{StaticResource OnboardingNote}" Margin="0,16,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="18"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Top"
+                                   Margin="0,1,12,0" />
+                    <TextBlock Grid.Column="1"
+                               Text="{x:Static res:Strings.Onboarding_Appearance_PreviewNote}"
+                               Style="{StaticResource OnboardingBody}"
+                               FontSize="12" />
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

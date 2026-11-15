@@ -99,6 +99,36 @@
                     HorizontalAlignment="Left" Margin="0,0,0,8"
                     Visibility="Collapsed" Click="OnQuitToApplyClick" />
 
+            <TextBlock Text="{x:Static res:Strings.General_SetupSection}" FontSize="14" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="0,16,0,8" />
+
+            <Border Style="{StaticResource PowerToysCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Settings24" FontSize="20"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,16,0" />
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="{x:Static res:Strings.General_SetupTitle}" FontSize="14" FontWeight="Medium" />
+                        <TextBlock Text="{x:Static res:Strings.General_SetupDescription}"
+                                   FontSize="12" Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                   TextWrapping="Wrap" Margin="0,2,0,0" />
+                    </StackPanel>
+
+                    <ui:Button x:Name="RunSetupButton"
+                               Grid.Column="2"
+                               VerticalAlignment="Center"
+                               Content="{x:Static res:Strings.General_SetupButton}"
+                               Click="OnRunSetupClick" />
+                </Grid>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </Page>

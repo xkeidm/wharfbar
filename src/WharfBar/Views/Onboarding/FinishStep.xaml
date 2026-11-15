@@ -1,0 +1,156 @@
+<UserControl x:Class="WharfBar.Views.Onboarding.FinishStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             xmlns:res="clr-namespace:WharfBar.Resources">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+
+            <!-- What the setup changed, read back from the saved config. -->
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Finish_Summary}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,0,0,8" />
+
+            <Border Style="{StaticResource OnboardingCard}" Padding="18,6">
+                <StackPanel>
+
+                    <Grid Margin="0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Grid.Column="0" Symbol="DarkTheme24" FontSize="16"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Grid.Column="1" Text="{x:Static res:Strings.Onboarding_Finish_ThemeLabel}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ThemeValueText" Grid.Column="2" FontSize="13"
+                                   FontWeight="Medium" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+
+                    <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+
+                    <Grid Margin="0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Navigation24" FontSize="16"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Grid.Column="1" Text="{x:Static res:Strings.Onboarding_Finish_BarItemsLabel}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock x:Name="BarItemsValueText" Grid.Column="2" FontSize="13"
+                                   FontWeight="Medium" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+
+                    <Border Height="1" Background="{DynamicResource CardStrokeColorDefaultBrush}" />
+
+                    <Grid Margin="0,10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <ui:SymbolIcon Grid.Column="0" Symbol="Apps24" FontSize="16"
+                                       VerticalAlignment="Center" Margin="0,0,12,0"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                        <TextBlock Grid.Column="1" Text="{x:Static res:Strings.Onboarding_Finish_DockLabel}"
+                                   FontSize="13" VerticalAlignment="Center" />
+                        <TextBlock x:Name="DockValueText" Grid.Column="2" FontSize="13"
+                                   FontWeight="Medium" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    </Grid>
+
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Finish_Note}"
+                       Style="{StaticResource OnboardingBody}"
+                       Margin="2,4,0,0" />
+
+            <!-- Last two choices: start with Windows and the UI language. -->
+            <TextBlock Text="{x:Static res:Strings.General_StartupSection}"
+                       Style="{StaticResource OnboardingSectionHeader}" />
+
+            <Border Style="{StaticResource OnboardingCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Power24" FontSize="18"
+                                   VerticalAlignment="Center" Margin="0,0,14,0"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="{x:Static res:Strings.General_AutostartTitle}"
+                                   Style="{StaticResource OnboardingCardTitle}" />
+                        <TextBlock Text="{x:Static res:Strings.General_AutostartDescription}"
+                                   Style="{StaticResource OnboardingCardBody}" />
+                    </StackPanel>
+                    <ui:ToggleSwitch x:Name="AutostartToggle" Grid.Column="2"
+                                     VerticalAlignment="Center"
+                                     Checked="OnAutostartChanged"
+                                     Unchecked="OnAutostartChanged" />
+                </Grid>
+            </Border>
+
+            <TextBlock Text="{x:Static res:Strings.General_LanguageSection}"
+                       Style="{StaticResource OnboardingSectionHeader}" />
+
+            <Border Style="{StaticResource OnboardingCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Globe24" FontSize="18"
+                                   VerticalAlignment="Center" Margin="0,0,14,0"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}" />
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                        <TextBlock Text="{x:Static res:Strings.General_LanguageTitle}"
+                                   Style="{StaticResource OnboardingCardTitle}" />
+                        <TextBlock Text="{x:Static res:Strings.General_LanguageDescription}"
+                                   Style="{StaticResource OnboardingCardBody}" />
+                    </StackPanel>
+                    <ComboBox x:Name="LanguageCombo" Grid.Column="2" Width="190"
+                              VerticalAlignment="Center"
+                              SelectionChanged="OnLanguageChanged">
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageSystem}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageEnglish}" />
+                        <ComboBoxItem Content="{x:Static res:Strings.General_LanguageTurkish}" />
+                    </ComboBox>
+                </Grid>
+            </Border>
+
+            <TextBlock x:Name="LanguageRestartNote"
+                       Text="{x:Static res:Strings.General_LanguageRestartNote}"
+                       FontSize="12"
+                       TextWrapping="Wrap"
+                       Margin="2,0,0,0"
+                       Visibility="Collapsed"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <Border Style="{StaticResource OnboardingNote}">
+                <TextBlock Text="{x:Static res:Strings.Onboarding_Finish_SettingsHint}"
+                           Style="{StaticResource OnboardingCardBody}"
+                           Margin="0" />
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

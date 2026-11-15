@@ -1,0 +1,372 @@
+<UserControl x:Class="WharfBar.Views.Onboarding.DockStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:res="clr-namespace:WharfBar.Resources"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             mc:Ignorable="d"
+             d:DesignWidth="740"
+             d:DesignHeight="600"
+             Background="Transparent"
+             Focusable="False"
+             UseLayoutRounding="True">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <!-- Position tiles: a mini screen preview with a small plate, plus an accent ring when
+             selected. Both thicknesses keep the same inner width so the grid does not shift. -->
+        <Style x:Key="PositionTile" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="11,9" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PositionTileSelected" TargetType="Border" BasedOn="{StaticResource PositionTile}">
+            <Setter Property="BorderBrush" Value="{DynamicResource AccentFillColorDefaultBrush}" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+
+        <Style x:Key="OnboardingRowTitle" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+
+        <Style x:Key="OnboardingValueLabel" TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  Padding="0,0,4,12">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Stretch">
+
+            <!-- Position: pick the anchor, the real dock moves immediately. -->
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_PositionSection}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_PositionDescription}"
+                       Style="{StaticResource OnboardingBody}"
+                       Margin="0,0,0,10" />
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="10" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border x:Name="PositionCenterTile"
+                        Grid.Row="0" Grid.Column="0"
+                        Tag="bottom-center"
+                        Style="{StaticResource PositionTile}"
+                        MouseLeftButtonUp="OnPositionTileClick">
+                    <StackPanel>
+                        <Grid Width="96" Height="54" HorizontalAlignment="Center">
+                            <Border CornerRadius="4"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <Border Width="42" Height="5"
+                                    CornerRadius="2.5"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,5" />
+                        </Grid>
+                        <TextBlock Text="{x:Static res:Strings.DockPage_PositionCenter}"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,7,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="PositionLeftTile"
+                        Grid.Row="0" Grid.Column="2"
+                        Tag="bottom-left"
+                        Style="{StaticResource PositionTile}"
+                        MouseLeftButtonUp="OnPositionTileClick">
+                    <StackPanel>
+                        <Grid Width="96" Height="54" HorizontalAlignment="Center">
+                            <Border CornerRadius="4"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <Border Width="42" Height="5"
+                                    CornerRadius="2.5"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Left"
+                                    Margin="5,0,0,5" />
+                        </Grid>
+                        <TextBlock Text="{x:Static res:Strings.DockPage_PositionLeft}"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,7,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="PositionRightTile"
+                        Grid.Row="2" Grid.Column="0"
+                        Tag="bottom-right"
+                        Style="{StaticResource PositionTile}"
+                        MouseLeftButtonUp="OnPositionTileClick">
+                    <StackPanel>
+                        <Grid Width="96" Height="54" HorizontalAlignment="Center">
+                            <Border CornerRadius="4"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <Border Width="42" Height="5"
+                                    CornerRadius="2.5"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    VerticalAlignment="Bottom"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,0,5,5" />
+                        </Grid>
+                        <TextBlock Text="{x:Static res:Strings.DockPage_PositionRight}"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,7,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="PositionLeftEdgeTile"
+                        Grid.Row="2" Grid.Column="2"
+                        Tag="left"
+                        Style="{StaticResource PositionTile}"
+                        MouseLeftButtonUp="OnPositionTileClick">
+                    <StackPanel>
+                        <Grid Width="96" Height="54" HorizontalAlignment="Center">
+                            <Border CornerRadius="4"
+                                    BorderThickness="1"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" />
+                            <Border Width="5" Height="30"
+                                    CornerRadius="2.5"
+                                    Background="{DynamicResource AccentFillColorDefaultBrush}"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Center"
+                                    Margin="5,0,0,0" />
+                        </Grid>
+                        <TextBlock Text="{x:Static res:Strings.DockPage_PositionLeftEdge}"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,7,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <!-- Icon size: DIP value stays visible beside the slider. -->
+            <TextBlock Text="{x:Static res:Strings.DockPage_IconSizeTitle}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,18,0,4" />
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_SizeDescription}"
+                       Style="{StaticResource OnboardingBody}"
+                       Margin="0,0,0,8" />
+            <Border Style="{StaticResource OnboardingCard}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:SymbolIcon Grid.Column="0"
+                                   Symbol="Apps24"
+                                   FontSize="18"
+                                   Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,14,0" />
+
+                    <Slider x:Name="IconSizeSlider"
+                            Grid.Column="1"
+                            Minimum="16" Maximum="36"
+                            IsSnapToTickEnabled="True"
+                            TickFrequency="1"
+                            VerticalAlignment="Center"
+                            ValueChanged="OnIconSizeChanged" />
+
+                    <TextBlock x:Name="IconSizeLabel"
+                               Grid.Column="2"
+                               Style="{StaticResource OnboardingValueLabel}"
+                               MinWidth="56"
+                               TextAlignment="Right"
+                               Margin="14,0,0,0" />
+                </Grid>
+            </Border>
+
+            <!-- Background: mode plus a tint-only opacity row. -->
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_BackgroundSection}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,18,0,4" />
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_BackgroundDescription}"
+                       Style="{StaticResource OnboardingBody}"
+                       Margin="0,0,0,8" />
+            <Border Style="{StaticResource OnboardingCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0"
+                                       Symbol="Blur20"
+                                       FontSize="18"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0" />
+
+                        <TextBlock Grid.Column="1"
+                                   Text="{x:Static res:Strings.DockPage_BackgroundTitle}"
+                                   Style="{StaticResource OnboardingRowTitle}"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0" />
+
+                        <ComboBox x:Name="BackgroundCombo"
+                                  Grid.Column="2"
+                                  Width="180"
+                                  VerticalAlignment="Center"
+                                  SelectionChanged="OnBackgroundModeChanged">
+                            <ComboBoxItem Content="{x:Static res:Strings.DockPage_BackdropMica}" />
+                            <ComboBoxItem Content="{x:Static res:Strings.DockPage_BackdropTransparent}" />
+                            <ComboBoxItem Content="{x:Static res:Strings.DockPage_BackdropTint}" />
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid x:Name="OpacityRow" Margin="32,12,0,0" Visibility="Collapsed">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0"
+                                   Text="{x:Static res:Strings.DockPage_OpacityTitle}"
+                                   Style="{StaticResource OnboardingRowTitle}" />
+                        <TextBlock x:Name="OpacityLabel"
+                                   Grid.Row="0" Grid.Column="1"
+                                   Style="{StaticResource OnboardingValueLabel}" />
+
+                        <Slider x:Name="OpacitySlider"
+                                Grid.Row="1" Grid.ColumnSpan="2"
+                                Minimum="0" Maximum="100"
+                                IsSnapToTickEnabled="True"
+                                TickFrequency="1"
+                                Margin="0,8,0,0"
+                                ValueChanged="OnOpacityChanged" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Behavior: the two dock-wide switches. -->
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_BehaviorSection}"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Margin="0,18,0,8" />
+            <Border Style="{StaticResource OnboardingCard}">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0"
+                                       Symbol="Pin24"
+                                       FontSize="18"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0" />
+
+                        <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.DockPage_AutoHideTitle}"
+                                       Style="{StaticResource OnboardingRowTitle}" />
+                            <TextBlock Text="{x:Static res:Strings.DockPage_AutoHideDescription}"
+                                       Style="{StaticResource OnboardingCardBody}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch x:Name="AutoHideToggle"
+                                         Grid.Column="2"
+                                         VerticalAlignment="Center"
+                                         Checked="OnAutoHideChanged"
+                                         Unchecked="OnAutoHideChanged" />
+                    </Grid>
+
+                    <Border Height="1"
+                            Background="{DynamicResource CardStrokeColorDefaultBrush}"
+                            Margin="0,10,0,10" />
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <ui:SymbolIcon Grid.Column="0"
+                                       Symbol="Apps24"
+                                       FontSize="18"
+                                       Foreground="{DynamicResource AccentFillColorDefaultBrush}"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,14,0" />
+
+                        <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Static res:Strings.DockPage_ShowRunningTitle}"
+                                       Style="{StaticResource OnboardingRowTitle}" />
+                            <TextBlock Text="{x:Static res:Strings.DockPage_ShowRunningDescription}"
+                                       Style="{StaticResource OnboardingCardBody}" />
+                        </StackPanel>
+
+                        <ui:ToggleSwitch x:Name="ShowRunningToggle"
+                                         Grid.Column="2"
+                                         VerticalAlignment="Center"
+                                         Checked="OnShowRunningChanged"
+                                         Unchecked="OnShowRunningChanged" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource OnboardingNote}">
+                <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_RunningNote}"
+                           Style="{StaticResource OnboardingCardBody}"
+                           Margin="0" />
+            </Border>
+            <Border Style="{StaticResource OnboardingNote}">
+                <TextBlock Text="{x:Static res:Strings.Onboarding_Dock_Tip}"
+                           Style="{StaticResource OnboardingCardBody}"
+                           Margin="0" />
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

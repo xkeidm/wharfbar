@@ -1,0 +1,120 @@
+<UserControl x:Class="WharfBar.Views.Onboarding.WallpaperStep"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:res="clr-namespace:WharfBar.Resources"
+             xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+             mc:Ignorable="d"
+             d:DesignHeight="520"
+             Focusable="False">
+
+    <UserControl.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="FontFamily" Value="{DynamicResource AppTextFontFamily}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+        </Style>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel MaxWidth="820" HorizontalAlignment="Stretch" Margin="0,0,0,8">
+
+            <TextBlock Text="{x:Static res:Strings.Onboarding_Wallpaper_Intro}"
+                       Style="{StaticResource OnboardingBody}" />
+
+            <!-- Current desktop wallpaper + way out to the user folder. -->
+            <Grid Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <Grid x:Name="CurrentWallpaperRow"
+                      Grid.Column="0"
+                      VerticalAlignment="Center"
+                      Margin="2,0,12,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Image24" FontSize="14"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock x:Name="CurrentWallpaperText"
+                               Grid.Column="1"
+                               Margin="8,0,0,0"
+                               FontSize="12"
+                               VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                </Grid>
+
+                <Button x:Name="OpenFolderButton"
+                        Grid.Column="1"
+                        Padding="10,6"
+                        FontSize="12"
+                        Cursor="Hand"
+                        VerticalAlignment="Center"
+                        Click="OpenFolderButton_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Folder24" FontSize="14" VerticalAlignment="Center" />
+                        <TextBlock Margin="8,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="{x:Static res:Strings.Onboarding_Wallpaper_OpenFolder}" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+
+            <!-- Apply failures land here instead of a dialog. -->
+            <StackPanel x:Name="StatusRow"
+                        Orientation="Horizontal"
+                        Margin="2,10,0,0"
+                        Visibility="Collapsed">
+                <ui:SymbolIcon Symbol="Alert24" FontSize="14"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+                <TextBlock x:Name="StatusText"
+                           Margin="8,0,0,0"
+                           FontSize="12"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource SystemFillColorCriticalBrush}" />
+            </StackPanel>
+
+            <!-- WharfBar pack: light/dark pairs, solids, Turkey photos and brand marks. -->
+            <TextBlock x:Name="BundledHeader"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Text="{x:Static res:Strings.Onboarding_Wallpaper_BundledSection}" />
+            <WrapPanel x:Name="BundledPanel" />
+
+            <!-- The user's own images from the wallpapers folder. -->
+            <TextBlock x:Name="YoursHeader"
+                       Style="{StaticResource OnboardingSectionHeader}"
+                       Text="{x:Static res:Strings.Onboarding_Wallpaper_YoursSection}" />
+            <WrapPanel x:Name="YoursPanel" />
+
+            <TextBlock x:Name="EmptyText"
+                       Style="{StaticResource OnboardingCardBody}"
+                       Margin="2,6,0,0"
+                       Text="{x:Static res:Strings.Onboarding_Wallpaper_Empty}"
+                       Visibility="Collapsed" />
+
+            <Border Style="{StaticResource OnboardingNote}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <ui:SymbolIcon Grid.Column="0" Symbol="Info24" FontSize="14"
+                                   VerticalAlignment="Top" Margin="0,1,0,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                    <TextBlock Grid.Column="1"
+                               Margin="10,0,0,0"
+                               Style="{StaticResource OnboardingCardBody}"
+                               Text="{x:Static res:Strings.Onboarding_Wallpaper_AccentNote}" />
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

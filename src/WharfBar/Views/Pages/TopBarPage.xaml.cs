@@ -456,7 +456,8 @@ public partial class TopBarPage : Page
         _ => null,
     };
 
-    private static SymbolRegular StatusItemSymbol(string id) => id switch
+    /// <summary>Glyph for a status item id; shared with the first-run setup step.</summary>
+    internal static SymbolRegular StatusItemSymbol(string id) => id switch
     {
         TopBarStatusItemIds.TrayMirror => SymbolRegular.Apps24,
         TopBarStatusItemIds.TrayOverflow => SymbolRegular.ChevronUp24,
@@ -471,7 +472,8 @@ public partial class TopBarPage : Page
         _ => SymbolRegular.Apps24,
     };
 
-    private static string StatusItemName(string id) => id switch
+    /// <summary>Localized label for a status item id; shared with the first-run setup step.</summary>
+    internal static string StatusItemName(string id) => id switch
     {
         TopBarStatusItemIds.TrayMirror => Strings.TopBarItem_TrayMirror,
         TopBarStatusItemIds.TrayOverflow => Strings.TopBarItem_TrayOverflow,

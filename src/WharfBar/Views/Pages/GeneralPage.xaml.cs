@@ -67,6 +67,12 @@ public partial class GeneralPage : Page
         Application.Current.Shutdown();
     }
 
+    /// <summary>Replays the first-run setup wizard on top of the running shell.</summary>
+    private void OnRunSetupClick(object sender, RoutedEventArgs e)
+    {
+        WharfApp.ShowOnboarding(replay: true);
+    }
+
     private void SaveAndApply()
     {
         Config.Save(Cfg);
