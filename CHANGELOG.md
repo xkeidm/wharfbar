@@ -8,6 +8,8 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.0.0-beta.7] — 2026-11-16
+
 ### Changed
 
 - **The volume mixer shows the mute state on the application icon.** A muted session dims its icon
