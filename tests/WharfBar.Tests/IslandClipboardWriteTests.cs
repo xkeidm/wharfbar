@@ -15,6 +15,7 @@ namespace WharfBar.Tests;
 /// add no record to the list and cannot raise <see cref="IslandService.Changed"/>.
 /// If the UI dispatcher is gone, the notification is silently dropped.
 /// </summary>
+[Collection(ClipboardCollection.Name)]
 public sealed class IslandClipboardWriteTests
 {
     [Fact]
@@ -137,17 +138,20 @@ public sealed class IslandClipboardWriteTests
                 File.WriteAllText(b, "2");
 
                 // OpenClipboard can fail while another process holds the clipboard
-                // (CLIPBRD_E_CANT_OPEN) — a transient condition, hence a few retries.
+                // (CLIPBRD_E_CANT_OPEN) — a transient condition, hence retries. The budget is
+                // generous (up to ~1.2 s) because the suite runs classes in parallel and any other
+                // process on the machine may hold the clipboard for a moment; the earlier 5×50 ms
+                // budget made this test flaky under load.
                 bool wrote = false;
                 bool read = false;
                 List<string> paths = [];
-                for (int attempt = 0; attempt < 5 && !read; attempt++)
+                for (int attempt = 0; attempt < 12 && !read; attempt++)
                 {
                     wrote = ClipboardNative.TryWriteFileDropList([a, b]);
                     read = wrote && ClipboardNative.TryReadFileDropList(out paths);
                     if (!read)
                     {
-                        Thread.Sleep(50);
+                        Thread.Sleep(100);
                     }
                 }
 

@@ -232,7 +232,8 @@ public partial class WallpaperStep : UserControl
 
             // Marshal explicitly: the decode runs on a worker thread and the step may be created
             // outside a running dispatcher (render harness), where no SynchronizationContext exists.
-            target.Dispatcher.BeginInvoke(
+            // Fire-and-forget is intended (the placeholder stays until the frame lands).
+            _ = target.Dispatcher.BeginInvoke(
                 DispatcherPriority.Background,
                 new Action(() => target.Source = bmp));
         }
