@@ -107,4 +107,16 @@ public class TaskbarPinnedAppsSourceTests
 
         Assert.Equal("mspaint", result.Label);
     }
+
+    [Fact]
+    public void FriendlyLabel_DoesNotLowercaseAnAlreadyFriendlyLabel()
+    {
+        // A label that equals the shortcut stem but is already the app name ("Warp") must not be
+        // replaced by the executable stem ("warp") when the shell has no display name to offer.
+        var pin = new WharfBar.Models.PinnedApp(@"C:\nope\warp.exe", string.Empty, "Warp");
+
+        WharfBar.Models.PinnedApp result = TaskbarPinnedAppsSource.FriendlyLabel(pin, @"C:\pins\Warp.lnk");
+
+        Assert.Equal("Warp", result.Label);
+    }
 }

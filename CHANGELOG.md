@@ -16,6 +16,26 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
   saved with the retired `bottom-left` / `bottom-right` corner anchors loads as the centered bottom
   dock, and the settings page + setup wizard offer only the two supported choices.
 
+### Fixed
+
+- **A transparent top bar or dock is clickable everywhere again.** Windows hit-tests a layered window
+  per pixel: with a fully clear base only the opaque glyphs received clicks, while every empty pixel
+  of a `transparent` bar fell through to the desktop or the window underneath (in practice the
+  network and control-center icons could not be clicked at all unless the pointer happened to sit on
+  an opaque glyph pixel). The layered base now carries one step of alpha — invisible, but the whole
+  surface is hit-testable.
+- **Turning dock auto-hide on hides the dock immediately.** Parking the plate moved the window while
+  the auto-hide state still read *visible*, so the placement clamp put it straight back on screen;
+  the controller then believed it was hidden and nothing corrected it until a hover. The state is now
+  parked before the move.
+- **A pinned tile keeps its friendly title.** A taskbar pin stored as a shortcut file stem
+  (`mspaint`) replaced the running application's name (`Paint`) the moment the app started; the pin
+  read resolves the shell display name instead. A label that equals the file stem but is already the
+  application name (`Warp`) is left untouched.
+- **A dock drag no longer leaves the dock focused** — the window that was foreground at mouse-down
+  gets the focus back. On the left wall the icon context menu now opens beside the plate instead of
+  covering it.
+
 ## [1.0.0-beta.8] — 2026-11-25
 
 ### Changed

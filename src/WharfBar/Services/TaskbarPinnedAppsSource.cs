@@ -137,10 +137,10 @@ internal sealed class TaskbarPinnedAppsSource : IDisposable
     }
 
     /// <summary>
-    /// A pin whose label is only the shortcut file stem (<c>mspaint</c>) is given the shell /
-    /// application name the running tile shows (<c>Paint</c>), so a pin does not rename itself the
-    /// moment its app starts or the tile is pinned. The lookup is cached and only runs for a label
-    /// that is exactly the file stem.
+    /// A pin whose label is only the shortcut file stem (<c>mspaint</c>) is given the shell name the
+    /// running tile shows (<c>Paint</c>), so a pin does not rename itself the moment its app starts
+    /// or the tile is pinned. Only a real shell display name is used: a lookup that falls back to the
+    /// executable stem must not replace an already-friendly label such as <c>Warp</c>.
     /// </summary>
     internal static PinnedApp FriendlyLabel(PinnedApp pin, string lnkPath)
     {
@@ -151,7 +151,13 @@ internal sealed class TaskbarPinnedAppsSource : IDisposable
         }
 
         string target = string.IsNullOrWhiteSpace(pin.Path) ? lnkPath : pin.Path;
-        string friendly = AppDisplayName.Choose(ShellDisplayName.TryGet(target), null, target);
+        string? shell = ShellDisplayName.TryGet(target);
+        if (!AppDisplayName.IsUsableShellName(shell, target))
+        {
+            return pin;
+        }
+
+        string friendly = shell!.Trim();
         return string.Equals(friendly, pin.Label, StringComparison.Ordinal)
             ? pin
             : new PinnedApp(pin.Path, pin.Args, friendly);

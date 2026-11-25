@@ -40,7 +40,9 @@ internal sealed class WindowActivationService
             return;
         }
 
-        _ = NativeMethods.SetForegroundWindow(_foregroundAtClick);
+        // Our own borderless window owns the foreground; the foreground lock still refuses a bare
+        // SetForegroundWindow from a freshly activated overlay, so attach like the Settings path.
+        _ = ForegroundHelper.TryActivate(_foregroundAtClick);
     }
 
     internal bool TryActivate(IntPtr hwnd)

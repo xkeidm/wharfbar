@@ -247,9 +247,10 @@ public partial class DockWindow : Window
             _autoHide.Start(BuildEdgeProbe);
             if (!wasEnabled && TryGetPlacementGeometry(out PlacementGeometry geo))
             {
+                // State first: the clamp in WM_WINDOWPOSCHANGING reads it to allow the off-screen X.
+                _autoHide.AssumeHidden();
                 SetWindowRect(geo.HiddenX, geo.HiddenY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyPassthrough(hwnd);
-                _autoHide.AssumeHidden();
             }
             else if (wasEnabled)
             {
@@ -447,9 +448,12 @@ public partial class DockWindow : Window
         {
             if (TryGetPlacementGeometry(out PlacementGeometry geo))
             {
+                // Park intent before the move: WM_WINDOWPOSCHANGING clamps the window to the
+                // position implied by the auto-hide state, so a move made while the state is still
+                // Visible is snapped back on screen and the dock is left showing.
+                _autoHide.AssumeHidden();
                 SetWindowRect(geo.HiddenX, geo.HiddenY, geo.WidthPx, geo.HeightPx);
                 DockHitTest.ApplyPassthrough(hwnd);
-                _autoHide.AssumeHidden();
             }
 
             _autoHide.Start(BuildEdgeProbe);
@@ -606,7 +610,9 @@ public partial class DockWindow : Window
             ToolTipService.SetInitialShowDelay(cell, ToolTipInitialShowDelayMs);
             ToolTipService.SetShowDuration(cell, ToolTipShowDurationMs);
 
-            cell.ContextMenu = BuildContextMenuForItem(row.Item);
+            ContextMenu itemMenu = BuildContextMenuForItem(row.Item);
+            cell.ContextMenu = itemMenu;
+            cell.ContextMenuOpening += (_, _) => PositionCellMenu(cell, itemMenu);
 
             // Every tile launches on click; only pinned tiles reorder.
             cell.PreviewMouseLeftButtonDown += OnCellPreviewMouseLeftButtonDown;
@@ -627,6 +633,23 @@ public partial class DockWindow : Window
 
         ApplySurfaceChrome();
         ApplyPlacement();
+    }
+
+    /// <summary>
+    /// A right-click menu opens at the pointer on the bottom dock (Windows style). On the left-wall
+    /// dock that would cover the plate, so it opens beside the icon instead.
+    /// </summary>
+    private void PositionCellMenu(DockItemCell cell, ContextMenu menu)
+    {
+        if (_strip.Vertical)
+        {
+            menu.PlacementTarget = cell;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Right;
+            return;
+        }
+
+        menu.PlacementTarget = null;
+        menu.Placement = System.Windows.Controls.Primitives.PlacementMode.MousePoint;
     }
 
     private void DetachCellHandlers(DockItemCell cell)
