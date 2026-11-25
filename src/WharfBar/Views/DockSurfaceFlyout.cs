@@ -59,6 +59,9 @@ internal sealed class DockSurfaceFlyout : IDisposable
 
     internal DockItemCell? Anchor { get; private set; }
 
+    /// <summary>True for the left-wall dock: cards open beside the plate instead of above it.</summary>
+    internal bool Vertical { get; set; }
+
     internal bool ShowingFolder { get; private set; }
 
     internal void CancelClose() => _closeTimer.Stop();
@@ -440,8 +443,13 @@ internal sealed class DockSurfaceFlyout : IDisposable
         _popup.CustomPopupPlacementCallback = (tipSize, targetSize, _) =>
         {
             double scale = VisualTreeHelper.GetDpi(anchor).DpiScaleX;
-            (double x, double y) = DockTipPlacement.CenterAbove(
-                tipSize.Width, tipSize.Height, targetSize.Width, scale);
+            (double x, double y) = DockTipPlacement.ForDock(
+                Vertical,
+                tipSize.Width,
+                tipSize.Height,
+                targetSize.Width,
+                targetSize.Height,
+                scale);
             return
             [
                 new CustomPopupPlacement(new Point(x, y), PopupPrimaryAxis.Horizontal),

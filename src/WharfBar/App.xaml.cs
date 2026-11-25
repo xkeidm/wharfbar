@@ -141,14 +141,21 @@ public partial class App : Application
         settings.Topmost = true;
         _ = settings.Activate();
         _ = settings.Focus();
-        settings.Topmost = false;
 
         IntPtr hwnd = new WindowInteropHelper(settings).EnsureHandle();
         if (hwnd != IntPtr.Zero)
         {
+            // The click that opened Settings came from a non-activating bar or a closing menu, so
+            // the foreground lock belongs to another process: a bare SetForegroundWindow is
+            // refused. ForegroundHelper attaches the input queue for the call.
             _ = NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
-            _ = NativeMethods.SetForegroundWindow(hwnd);
+            if (!ForegroundHelper.TryActivate(hwnd))
+            {
+                _ = NativeMethods.SetForegroundWindow(hwnd);
+            }
         }
+
+        settings.Topmost = false;
     }
 
     /// <summary>

@@ -29,4 +29,31 @@ public class DockTipPlacementTests
 
         Assert.Equal(-35, y, 3);
     }
+
+    [Fact]
+    public void BesideRight_OpensToTheRightOfTheTargetVerticallyCentered()
+    {
+        (double x, double y) = DockTipPlacement.BesideRight(180, 28, 40, 56, dpiScale: 1);
+
+        Assert.Equal(65, x, 3);
+        Assert.Equal(14, y, 3);
+    }
+
+    [Fact]
+    public void BesideRight_ScalesTheGapWithDpi()
+    {
+        (double x, double _) = DockTipPlacement.BesideRight(180, 28, 40, 56, dpiScale: 2);
+
+        Assert.Equal(90, x, 3);
+    }
+
+    [Fact]
+    public void ForDock_HorizontalCentersAbove_VerticalOpensBeside()
+    {
+        (double horizontalX, _) = DockTipPlacement.ForDock(false, 180, 28, 40, 56, dpiScale: 1);
+        (double verticalX, _) = DockTipPlacement.ForDock(true, 180, 28, 40, 56, dpiScale: 1);
+
+        Assert.Equal(-70, horizontalX, 3);
+        Assert.Equal(65, verticalX, 3);
+    }
 }

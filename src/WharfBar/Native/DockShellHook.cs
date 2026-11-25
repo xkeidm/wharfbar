@@ -16,7 +16,13 @@ internal static class DockShellHook
     internal const int HSHELL_FLASH = HSHELL_REDRAW | HSHELL_HIGHBIT;
     internal const int HSHELL_RUDEAPPACTIVATED = HSHELL_WINDOWACTIVATED | HSHELL_HIGHBIT;
 
+    /// <summary>A top-level window was shown (1) or went away (2): the dock's census is stale.</summary>
+    internal const int HSHELL_WINDOWCREATED = 1;
+
+    internal const int HSHELL_WINDOWDESTROYED = 2;
+
     internal const uint EVENT_SYSTEM_MINIMIZESTART = 0x0016;
+    internal const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
     internal const uint WINEVENT_OUTOFCONTEXT = 0x0000;
     internal const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
     internal const int OBJID_WINDOW = 0;
@@ -66,7 +72,7 @@ internal static class DockShellHook
         ArgumentNullException.ThrowIfNull(proc);
         IntPtr hook = SetWinEventHook(
             EVENT_SYSTEM_MINIMIZESTART,
-            EVENT_SYSTEM_MINIMIZESTART,
+            EVENT_SYSTEM_MINIMIZEEND,
             IntPtr.Zero,
             proc,
             0,

@@ -27,6 +27,7 @@ public partial class DockWindow
     private readonly Dictionary<string, DockProgressState> _progressByKey = new(StringComparer.OrdinalIgnoreCase);
     private DispatcherTimer? _progressTimer;
     private DispatcherTimer? _thumbTimer;
+    private DispatcherTimer? _censusRefreshTimer;
     private DockItemCell? _thumbCell;
     private DockItemCell? _tipHeld;
     private int _shellHookMessage;
@@ -58,6 +59,8 @@ public partial class DockWindow
         _progressTimer = null;
         _thumbTimer?.Stop();
         _thumbTimer = null;
+        _censusRefreshTimer?.Stop();
+        _censusRefreshTimer = null;
         if (_flyout is not null)
         {
             _flyout.Closed -= OnFlyoutClosed;
@@ -360,6 +363,37 @@ public partial class DockWindow
         {
             NoteActivated(lParam);
         }
+        else if (code == DockShellHook.HSHELL_WINDOWCREATED
+            || code == DockShellHook.HSHELL_WINDOWDESTROYED)
+        {
+            // A tile must appear/disappear when the app does, not on the next 3 s census tick.
+            RequestCensusRefresh();
+        }
+    }
+
+    /// <summary>
+    /// Marks the shared window census stale after a shell event (window shown/closed, minimize,
+    /// restore). A short debounce coalesces the burst one launch or close produces (explorer can
+    /// fire several create/destroy messages plus the minimize event); the scan then updates every
+    /// dock at once. Without this a new or closed app tile waits for the 3 s poll.
+    /// </summary>
+    private void RequestCensusRefresh()
+    {
+        _censusRefreshTimer ??= new DispatcherTimer(DispatcherPriority.Background, Dispatcher)
+        {
+            Interval = TimeSpan.FromMilliseconds(120),
+        };
+        _censusRefreshTimer.Tick -= OnCensusRefreshTick;
+        _censusRefreshTimer.Tick += OnCensusRefreshTick;
+        _censusRefreshTimer.Stop();
+        _censusRefreshTimer.Start();
+    }
+
+    private void OnCensusRefreshTick(object? sender, EventArgs e)
+    {
+        _censusRefreshTimer?.Stop();
+        _runningSource?.Refresh();
+        _minimizedSource?.Refresh();
     }
 
     private void NoteFlash(IntPtr hwnd)
@@ -420,6 +454,17 @@ public partial class DockWindow
         {
             return;
         }
+
+        if (eventType == DockShellHook.EVENT_SYSTEM_MINIMIZEEND)
+        {
+            // Restored: the running line/minimized state is stale until the census rescans.
+            RequestCensusRefresh();
+            return;
+        }
+
+        // Minimize start: the snapshot capture below needs the still-live frame, and the
+        // open/minimized pill state must flip without waiting for the poll.
+        RequestCensusRefresh();
 
         if (!NativeMethods.GetWindowRect(hwnd, out RECT rect) || rect.Width <= 0 || rect.Height <= 0)
         {

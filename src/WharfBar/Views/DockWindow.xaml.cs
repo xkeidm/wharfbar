@@ -599,7 +599,7 @@ public partial class DockWindow : Window
                 continue;
             }
 
-            BindDockTip(cell, row.Tooltip);
+            BindDockTip(cell, row.Tooltip, _strip.Vertical);
 
             // Spec §6.3/§9: the user picked "sistem tooltip" as it behaves today, so these two
             // timings are part of the approved look, not incidental defaults.
@@ -753,6 +753,10 @@ public partial class DockWindow : Window
         // Escape, or a release outside the strip: no Drop is ever raised, so the indicator is
         // taken down here rather than in the Drop handler.
         HideDropIndicator();
+
+        // OLE drag activates the dock window; the user was dragging, not switching to the dock.
+        // Hand focus back to whatever was foreground at mouse-down.
+        _activation?.RestoreForegroundAfterInteraction();
 
         // Suppress the release even when the drop was refused — the gesture became a drag, so
         // the matching MouseLeftButtonUp must not read as a click and launch the app.
@@ -944,7 +948,7 @@ public partial class DockWindow : Window
     /// Keeps the open tooltip instance. Replacing <c>ToolTip</c> on the composer's poll
     /// leaves the previous popup on screen, so the same label appears twice.
     /// </summary>
-    private static void BindDockTip(DockItemCell cell, string text)
+    private static void BindDockTip(DockItemCell cell, string text, bool vertical)
     {
         if (cell.ToolTip is ToolTip tip)
         {
@@ -957,10 +961,10 @@ public partial class DockWindow : Window
             return;
         }
 
-        cell.ToolTip = CreateDockTip(text, cell);
+        cell.ToolTip = CreateDockTip(text, cell, vertical);
     }
 
-    private static ToolTip CreateDockTip(string text, UIElement target)
+    private static ToolTip CreateDockTip(string text, UIElement target, bool vertical)
     {
         var tip = new ToolTip
         {
@@ -971,8 +975,13 @@ public partial class DockWindow : Window
         tip.CustomPopupPlacementCallback = (tipSize, targetSize, _) =>
         {
             double scale = target is Visual visual ? VisualTreeHelper.GetDpi(visual).DpiScaleX : 1;
-            (double x, double y) = DockTipPlacement.CenterAbove(
-                tipSize.Width, tipSize.Height, targetSize.Width, scale);
+            (double x, double y) = DockTipPlacement.ForDock(
+                vertical,
+                tipSize.Width,
+                tipSize.Height,
+                targetSize.Width,
+                targetSize.Height,
+                scale);
             return
             [
                 new System.Windows.Controls.Primitives.CustomPopupPlacement(
@@ -1606,7 +1615,7 @@ public partial class DockWindow : Window
         }
 
         lengthPx = Math.Clamp(lengthPx, 1, monitor.Width);
-        int x = BottomAnchorX(monitor, lengthPx, dpi);
+        int x = BottomAnchorX(monitor, lengthPx);
         int visibleY = monitor.Bottom - thicknessPx - bottomGapPx;
         int hiddenY = monitor.Bottom;
 
@@ -1620,17 +1629,9 @@ public partial class DockWindow : Window
         return true;
     }
 
-    /// <summary>Bottom-edge horizontal anchor. The left dock does not use this.</summary>
-    private int BottomAnchorX(RECT monitor, int widthPx, uint dpi)
-    {
-        int marginPx = Display.DipToPixels(12d, dpi);
-        return DockPositions.Normalize(_config.Dock.Position) switch
-        {
-            DockPositions.BottomLeft => monitor.Left + marginPx,
-            DockPositions.BottomRight => monitor.Right - widthPx - marginPx,
-            _ => monitor.Left + ((monitor.Width - widthPx) / 2),
-        };
-    }
+    /// <summary>Bottom-edge horizontal anchor: the plate is always centered. The left dock does not use this.</summary>
+    private static int BottomAnchorX(RECT monitor, int widthPx) =>
+        monitor.Left + ((monitor.Width - widthPx) / 2);
 
     private EdgeProbeContext BuildEdgeProbe()
     {
@@ -1857,6 +1858,12 @@ public partial class DockWindow : Window
     private void ApplyStripGeometry()
     {
         _strip.Vertical = DockPositions.IsLeft(_config.Dock.Position);
+        if (_flyout is not null)
+        {
+            // The preview cards follow the plate: above the bottom dock, beside the left-wall dock.
+            _flyout.Vertical = _strip.Vertical;
+        }
+
         _strip.GlyphSize = _iconSizeDip;
         _strip.IconSize = DockPlateMetrics.ButtonSize(_iconSizeDip);
         SurfaceFlyout.Placement = _strip.Vertical
@@ -1870,10 +1877,26 @@ public partial class DockWindow : Window
 
     private void OnWorkAreaChanged(object? sender, EventArgs e)
     {
-        if (_autoHide.Enabled
-            && _autoHide.State is DockAutoHideVisualState.Showing or DockAutoHideVisualState.Hiding)
+        if (_autoHide.Enabled)
         {
-            return;
+            if (_autoHide.State is DockAutoHideVisualState.Showing or DockAutoHideVisualState.Hiding)
+            {
+                return;
+            }
+
+            if (_autoHide.State == DockAutoHideVisualState.Hidden)
+            {
+                // Enabling auto-hide releases the strip; that work-area change must not put a
+                // documented "hidden" dock back on screen. Stay parked on the new geometry.
+                CancelYAnimation();
+                if (_source is not null && TryGetPlacementGeometry(out PlacementGeometry parked))
+                {
+                    SetWindowRect(parked.HiddenX, parked.HiddenY, parked.WidthPx, parked.HeightPx);
+                    DockHitTest.ApplyPassthrough(_source.Handle);
+                }
+
+                return;
+            }
         }
 
         CancelYAnimation();

@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using WharfBar.Models;
+using WharfBar.Native;
 
 namespace WharfBar.Services;
 
@@ -129,10 +130,31 @@ internal sealed class TaskbarPinnedAppsSource : IDisposable
         var pins = new List<PinnedApp>(links.Length);
         foreach (string link in OrderLinks(links, favorites))
         {
-            pins.Add(PinFromShortcut(link, ResolveLaunch(link)));
+            pins.Add(FriendlyLabel(PinFromShortcut(link, ResolveLaunch(link)), link));
         }
 
         return pins;
+    }
+
+    /// <summary>
+    /// A pin whose label is only the shortcut file stem (<c>mspaint</c>) is given the shell /
+    /// application name the running tile shows (<c>Paint</c>), so a pin does not rename itself the
+    /// moment its app starts or the tile is pinned. The lookup is cached and only runs for a label
+    /// that is exactly the file stem.
+    /// </summary>
+    internal static PinnedApp FriendlyLabel(PinnedApp pin, string lnkPath)
+    {
+        string stem = Path.GetFileNameWithoutExtension(lnkPath);
+        if (stem.Length == 0 || !string.Equals(pin.Label, stem, StringComparison.OrdinalIgnoreCase))
+        {
+            return pin;
+        }
+
+        string target = string.IsNullOrWhiteSpace(pin.Path) ? lnkPath : pin.Path;
+        string friendly = AppDisplayName.Choose(ShellDisplayName.TryGet(target), null, target);
+        return string.Equals(friendly, pin.Label, StringComparison.Ordinal)
+            ? pin
+            : new PinnedApp(pin.Path, pin.Args, friendly);
     }
 
     public void Dispose()

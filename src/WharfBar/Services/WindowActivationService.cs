@@ -25,6 +25,24 @@ internal sealed class WindowActivationService
     /// <summary>Keeps toggle-minimize state coherent after a cued restore activated the window.</summary>
     internal void NoteDockActivated(IntPtr hwnd) => _lastActivatedHwnd = hwnd;
 
+    /// <summary>
+    /// A drag is a reorder, not a window switch: OLE drag activates the borderless dock window, so
+    /// after the gesture the focus captured at mouse-down is handed back. Only runs while the dock
+    /// itself holds the foreground (a real click on another app is left alone).
+    /// </summary>
+    internal void RestoreForegroundAfterInteraction()
+    {
+        IntPtr foreground = NativeMethods.GetForegroundWindow();
+        if (!IsCurrentProcessWindow(foreground)
+            || _foregroundAtClick == IntPtr.Zero
+            || IsCurrentProcessWindow(_foregroundAtClick))
+        {
+            return;
+        }
+
+        _ = NativeMethods.SetForegroundWindow(_foregroundAtClick);
+    }
+
     internal bool TryActivate(IntPtr hwnd)
     {
         if (hwnd == IntPtr.Zero)

@@ -85,4 +85,26 @@ public class TaskbarPinnedAppsSourceTests
         Assert.Equal("/A", pin.Args);
         Assert.Equal("Not Defteri", pin.Label);
     }
+
+    [Fact]
+    public void FriendlyLabel_KeepsALabelThatIsNotTheShortcutFileStem()
+    {
+        var pin = new WharfBar.Models.PinnedApp(@"C:\Windows\System32\notepad.exe", string.Empty, "Not Defteri");
+
+        WharfBar.Models.PinnedApp result = TaskbarPinnedAppsSource.FriendlyLabel(pin, @"C:\pins\Notepad.lnk");
+
+        Assert.Equal(pin, result);
+    }
+
+    [Fact]
+    public void FriendlyLabel_WithNoBetterShellName_KeepsTheStem()
+    {
+        // No readable shell name for this path, so the existing label (the file stem) is kept and
+        // nothing throws: the friendly lookup is best-effort only.
+        var pin = new WharfBar.Models.PinnedApp(string.Empty, string.Empty, "mspaint");
+
+        WharfBar.Models.PinnedApp result = TaskbarPinnedAppsSource.FriendlyLabel(pin, @"C:\pins\mspaint.lnk");
+
+        Assert.Equal("mspaint", result.Label);
+    }
 }
