@@ -97,7 +97,11 @@ internal sealed class QuickSettingsService : IDisposable
         Tiles = BuildTiles();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _timer.Tick += (_, _) => Refresh();
-        _ = InitializeRadiosAsync();
+
+        // Radio discovery (WinRT Windows.Devices.Radios + the access request) is deferred to the
+        // first panel open (StartPolling): the tile state is only consumed by the Quick Settings
+        // flyout, so a running shell that never opens it must not load the WinRT radio stack at
+        // startup. StartPolling re-runs the discovery, and every toggle happens from the open panel.
     }
 
     internal NetworkDetails Network { get; private set; }
@@ -251,13 +255,23 @@ internal sealed class QuickSettingsService : IDisposable
 
     private void Refresh()
     {
-        _nightLight.PollRegistry();
-        _energySaverOn = ReadEnergySaverOn();
-        NetworkDetails nextNet = ReadNetworkDetails();
-        IReadOnlyList<QuickTileState> nextTiles = BuildTiles();
-        Network = nextNet;
-        Tiles = nextTiles;
-        Changed?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            _nightLight.PollRegistry();
+            _energySaverOn = ReadEnergySaverOn();
+            NetworkDetails nextNet = ReadNetworkDetails();
+            IReadOnlyList<QuickTileState> nextTiles = BuildTiles();
+            Network = nextNet;
+            Tiles = nextTiles;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            // The 2 s poll runs on the dispatcher: an escaping throw would reach the unhandled
+            // exception path and can kill the shell. Keep the previous tile state and retry on
+            // the next tick instead.
+            Debug.WriteLine($"WharfBar: quick settings refresh failed — {ex}");
+        }
     }
 
     private IReadOnlyList<QuickTileState> BuildTiles()

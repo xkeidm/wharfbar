@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -8,9 +8,16 @@ namespace WharfBar.Native;
 /// The name the shell shows for a file. A shortcut named <c>File Explorer.lnk</c>
 /// still comes back as the localized label (for example <c>Dosya Gezgini</c>).
 /// </summary>
+/// <remarks>
+/// The cache is queried from the UI and filled from a background census, so it is concurrent. It is
+/// bounded: when it is full the map is cleared instead of growing with the whole file system.
+/// </remarks>
 internal static class ShellDisplayName
 {
-    private static readonly Dictionary<string, string?> Cache = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Upper bound for the cached display names; a full map is cleared on the next miss.</summary>
+    internal const int MaxEntries = 2048;
+
+    private static readonly ConcurrentDictionary<string, string?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
     internal static string? TryGet(string? path)
     {
@@ -25,6 +32,13 @@ internal static class ShellDisplayName
         }
 
         string? name = Query(path);
+        if (Cache.Count >= MaxEntries)
+        {
+            // Cheap bounded reset: the census may write from another thread, so "clear when full"
+            // keeps the map from growing without an insertion-order bookkeeping pass.
+            Cache.Clear();
+        }
+
         Cache[path] = name;
         return name;
     }

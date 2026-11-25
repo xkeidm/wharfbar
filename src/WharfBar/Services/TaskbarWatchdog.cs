@@ -8,13 +8,12 @@ namespace WharfBar.Services;
 /// from outside and restores the Windows taskbar if it dies without restoring. Needed
 /// because corrupting-state exceptions (AccessViolationException) terminate the process
 /// without running any managed handler, so in-process hooks cannot fire.
-/// Runs without initializing WPF — no windows, no tray icon, exits on its own once the
-/// state file is gone (parent restored normally) or after it has performed a restore.
+/// Runs without initializing WPF — no windows, no tray icon. It blocks on the watched process
+/// (no polling) and exits on its own once that process is gone with the state file already
+/// deleted (normal restore), or after it has performed a restore.
 /// </summary>
 internal static class TaskbarWatchdog
 {
-    private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
-
     /// <summary>
     /// Restore decision, pure so PID reuse stays unit-testable: restore only when the
     /// dead process is the exact generation we captured (same pid and start time).
@@ -66,24 +65,18 @@ internal static class TaskbarWatchdog
             return;
         }
 
-        while (true)
+        // The watched process is the only event that matters: block on it instead of polling
+        // every 500 ms. A normal exit restores the taskbar and deletes the state file first; a
+        // crash leaves the file behind, so one check after the exit decides the restore.
+        process.WaitForExit();
+
+        if (!store.Exists())
         {
-            process.WaitForExit(PollInterval);
-
-            if (!store.Exists())
-            {
-                // Parent restored normally and deleted the file — nothing to do.
-                return;
-            }
-
-            if (!process.HasExited)
-            {
-                continue;
-            }
-
-            RestoreIfStillOurs(store, pid, state.ProcessStartTime);
+            // Parent restored normally and deleted the file — nothing to do.
             return;
         }
+
+        RestoreIfStillOurs(store, pid, state.ProcessStartTime);
     }
 
     private static void RestoreIfStillOurs(TaskbarWatchdogStateStore store, int pid, DateTime startTime)

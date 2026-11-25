@@ -30,11 +30,13 @@ internal sealed class MonitorItem
 internal sealed class MonitorBrightnessService : IDisposable
 {
     private readonly object _lock = new();
+    private readonly object _initLock = new();
     private readonly List<MonitorItem> _monitors = [];
     private readonly DispatcherTimer _throttleTimer;
     private readonly Dictionary<string, int> _pendingBrightnessUpdates = new(StringComparer.Ordinal);
     private ManagementEventWatcher? _brightnessWatcher;
     private int? _announcedBrightness;
+    private bool _started;
     private bool _isDisposed;
 
     internal event EventHandler? MonitorsChanged;
@@ -46,6 +48,7 @@ internal sealed class MonitorBrightnessService : IDisposable
     {
         get
         {
+            EnsureStarted();
             lock (_lock)
             {
                 return _announcedBrightness;
@@ -57,6 +60,7 @@ internal sealed class MonitorBrightnessService : IDisposable
     {
         get
         {
+            EnsureStarted();
             lock (_lock)
             {
                 return _monitors.ToList();
@@ -72,15 +76,59 @@ internal sealed class MonitorBrightnessService : IDisposable
         };
         _throttleTimer.Tick += OnThrottleTimerTick;
 
-        RefreshMonitors();
+        // DDC/CI + WMI work is deferred to the first consumer (flyout, island HUD, display-change
+        // refresh): a shell that never reads brightness must not pay for the display scan and the
+        // WMI watcher at startup. See EnsureStarted.
+    }
+
+    /// <summary>
+    /// Starts the display scan and the brightness watch on first use. Idempotent; the initial scan
+    /// stays off the caller's thread, so a read never blocks on DDC/CI or a slow WMI provider and
+    /// the existing <see cref="MonitorsChanged"/> / <see cref="BrightnessChanged"/> events deliver
+    /// the values when they land.
+    /// </summary>
+    private void EnsureStarted()
+    {
+        if (!TryMarkStarted())
+        {
+            return;
+        }
+
+        EnumerateMonitors();
         TryStartBrightnessWatcher();
+    }
+
+    /// <summary>Publishes one start; true only for the call that actually started the service.</summary>
+    private bool TryMarkStarted()
+    {
+        lock (_initLock)
+        {
+            if (_started || _isDisposed)
+            {
+                return false;
+            }
+
+            _started = true;
+            return true;
+        }
     }
 
     /// <summary>
     /// Re-enumerates connected displays and updates their brightness states.
-    /// Cleans up previous DDC/CI physical monitor handles before recreating.
+    /// Cleans up previous DDC/CI physical monitor handles before recreating. Also performs the
+    /// first initialization when no read has started the service yet.
     /// </summary>
     internal void RefreshMonitors()
+    {
+        if (TryMarkStarted())
+        {
+            TryStartBrightnessWatcher();
+        }
+
+        EnumerateMonitors();
+    }
+
+    private void EnumerateMonitors()
     {
         Task.Run(() =>
         {

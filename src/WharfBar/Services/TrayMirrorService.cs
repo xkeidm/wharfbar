@@ -156,6 +156,10 @@ internal sealed class TrayMirrorService : IDisposable
     // its differently-keyed items would wipe and re-add the whole mirror on every flip.
     private bool _uiaLocked;
 
+    // 1 while a poll is posted/running on the STA worker; coalesces timer ticks so a slow poll
+    // cannot build a backlog of duplicate polls (see QueuePoll).
+    private int _pollQueued;
+
     internal TrayMirrorService(Dispatcher dispatcher, TaskbarVisibilityService taskbar)
     {
         _dispatcher = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
@@ -177,10 +181,33 @@ internal sealed class TrayMirrorService : IDisposable
         staThread.Start();
 
         _timer = new System.Threading.Timer(
-            _ => _ = _staDispatcher?.BeginInvoke(Poll, DispatcherPriority.Background),
+            _ => QueuePoll(),
             null,
             PollInterval,
             PollInterval);
+    }
+
+    /// <summary>
+    /// Posts one poll onto the STA worker unless the previous one is still pending or running.
+    /// The timer fires on a thread-pool thread; without this gate a slow poll (a visible tray
+    /// costs a full UI Automation walk) would queue a backlog of duplicate polls that then run
+    /// back to back on the worker.
+    /// </summary>
+    private void QueuePoll()
+    {
+        if (_disposed || Interlocked.Exchange(ref _pollQueued, 1) != 0)
+        {
+            return;
+        }
+
+        Dispatcher? dispatcher = _staDispatcher;
+        if (dispatcher is null)
+        {
+            Interlocked.Exchange(ref _pollQueued, 0);
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(Poll, DispatcherPriority.Background);
     }
 
     /// <summary>Queues <paramref name="action"/> onto the STA dispatcher and waits for it.</summary>
@@ -290,6 +317,7 @@ internal sealed class TrayMirrorService : IDisposable
     {
         if (_disposed)
         {
+            Interlocked.Exchange(ref _pollQueued, 0);
             return;
         }
 
@@ -314,7 +342,22 @@ internal sealed class TrayMirrorService : IDisposable
         {
             System.Diagnostics.Debug.WriteLine($"WharfBar: tray mirror poll failed — {ex.Message}");
         }
+        finally
+        {
+            // Release the coalescing gate last: a tick that arrived while this poll ran is dropped
+            // and the regular cadence picks the next one up.
+            Interlocked.Exchange(ref _pollQueued, 0);
+        }
     }
+
+    /// <summary>
+    /// Pure: is the direct desktop-root UI Automation walk worth paying for this poll? Only while
+    /// explorer actually shows the tray: while the taskbar is hidden/parked (the normal state while
+    /// WharfBar runs) the XAML tray is virtualized and the walk can only return nothing, while it
+    /// still costs a full desktop-tree traversal. Reads then belong to the gated state blip.
+    /// </summary>
+    internal static bool ShouldWalkTrayUia(bool trayVisible, bool trayFullyOnScreen) =>
+        trayVisible && trayFullyOnScreen;
 
     private IReadOnlyList<TrayMirrorItem> PollToolbar(IntPtr toolbar)
     {
@@ -345,9 +388,23 @@ internal sealed class TrayMirrorService : IDisposable
         // the tray and reads (and captures) the real buttons. Poll already runs on the STA
         // worker, so a direct call — RunOnSta here would deadlock on the queue it is blocking.
         TrackShellInstance();
-        IReadOnlyList<UiaTrayButton>? buttons = TrayUiaReader.TryGetTrayButtons();
-        bool directHasButtons = buttons is { Count: > 0 };
-        LogDirectReadTransition(buttons?.Count ?? -1);
+
+        // The walk roots at the DESKTOP and traverses its whole UI Automation tree: measured at
+        // ~0.4 s of CPU per pass on this desktop (the idle hot spot). While the auto-hide tray is
+        // hidden/parked — the normal state while WharfBar runs — explorer virtualizes the tray
+        // buttons, so that walk can only return nothing. Reads then belong to the gated state blip,
+        // which unparks the tray first; only a tray explorer is actually showing is worth walking.
+        IntPtr tray = TrayUiaReader.FindTrayHwnd();
+        bool trayVisible = tray != IntPtr.Zero && NativeMethods.IsWindowVisible(tray);
+        bool trayFullyOnScreen = trayVisible && TrayAutoHideReveal.IsFullyOnScreenNow(tray);
+        IReadOnlyList<UiaTrayButton>? buttons = null;
+        bool directHasButtons = false;
+        if (ShouldWalkTrayUia(trayVisible, trayFullyOnScreen))
+        {
+            buttons = TrayUiaReader.TryGetTrayButtons();
+            directHasButtons = buttons is { Count: > 0 };
+            LogDirectReadTransition(buttons?.Count ?? -1);
+        }
 
         IReadOnlyList<TrayMirrorItem>? refreshed = TryRefreshTray(directHasButtons, out TrayBlipOutcome outcome);
         if (refreshed is { Count: > 0 })
@@ -362,7 +419,6 @@ internal sealed class TrayMirrorService : IDisposable
         // Null (walk failed), empty (virtualized parked tray) and a refresh that proved nothing
         // all mean "no fresh data" — hold the last good snapshot, never publish an empty one.
         buttons ??= [];
-        IntPtr tray = TrayUiaReader.FindTrayHwnd();
 
         // Cached pixels for known keys; a new key gets one shared capture only if the tray is
         // actually shown (the direct read only has buttons while it is — outside that PrintWindow

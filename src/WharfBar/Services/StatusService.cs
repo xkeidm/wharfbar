@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
@@ -36,7 +37,9 @@ internal sealed record StatusSnapshot(
 /// </summary>
 internal sealed class StatusService : IDisposable
 {
-    private static readonly TimeSpan ClockInterval = TimeSpan.FromSeconds(1);
+    /// <summary>Extra delay after a minute boundary so a one-shot clock tick never fires early.</summary>
+    private const int NextMinuteMarginMs = 50;
+
     private static readonly TimeSpan PowerInterval = TimeSpan.FromSeconds(15);
 
     private readonly DispatcherTimer _clockTimer;
@@ -47,11 +50,13 @@ internal sealed class StatusService : IDisposable
     {
         Snapshot = BuildSnapshot();
 
-        _clockTimer = new DispatcherTimer { Interval = ClockInterval };
-        _clockTimer.Tick += (_, _) => RefreshClock();
+        // The clock text has minute resolution, so the timer is re-armed to the next minute
+        // boundary as a one-shot instead of waking the UI thread every second.
+        _clockTimer = new DispatcherTimer { Interval = UntilNextMinute(DateTime.Now) };
+        _clockTimer.Tick += (_, _) => OnClockTick();
 
         _powerTimer = new DispatcherTimer { Interval = PowerInterval };
-        _powerTimer.Tick += (_, _) => RefreshPowerAndNetwork();
+        _powerTimer.Tick += (_, _) => RefreshPower();
 
         NetworkChange.NetworkAvailabilityChanged += OnNetworkChanged;
         NetworkChange.NetworkAddressChanged += OnNetworkChanged;
@@ -92,50 +97,133 @@ internal sealed class StatusService : IDisposable
         }
     }
 
-    private void RefreshClock()
+    /// <summary>
+    /// Time from <paramref name="now"/> to the next minute boundary plus a small margin. The clock
+    /// readout is minute-resolution, so the one-shot clock timer is re-armed with this value.
+    /// </summary>
+    internal static TimeSpan UntilNextMinute(DateTime now)
     {
-        StatusSnapshot previous = Snapshot;
-        DateTime now = DateTime.Now;
-        (string clock, string clockTip) = FormatClock(now);
-        (string date, string dateTip) = FormatDate(now);
-        if (clock == previous.ClockText
-            && clockTip == previous.ClockTooltip
-            && date == previous.DateText
-            && dateTip == previous.DateTooltip)
+        int elapsedInMinuteMs = (now.Second * 1000) + now.Millisecond;
+        return TimeSpan.FromMilliseconds(60_000 - elapsedInMinuteMs + NextMinuteMarginMs);
+    }
+
+    private void OnClockTick()
+    {
+        RefreshClock();
+        RearmClock();
+    }
+
+    private void RearmClock()
+    {
+        if (_disposed)
         {
             return;
         }
 
-        Snapshot = previous with
+        _clockTimer.Stop();
+        _clockTimer.Interval = UntilNextMinute(DateTime.Now);
+        _clockTimer.Start();
+    }
+
+    private void RefreshClock()
+    {
+        try
         {
-            ClockText = clock,
-            ClockTooltip = clockTip,
-            DateText = date,
-            DateTooltip = dateTip,
-        };
-        Changed?.Invoke(this, EventArgs.Empty);
+            StatusSnapshot previous = Snapshot;
+            DateTime now = DateTime.Now;
+            (string clock, string clockTip) = FormatClock(now);
+            (string date, string dateTip) = FormatDate(now);
+            if (clock == previous.ClockText
+                && clockTip == previous.ClockTooltip
+                && date == previous.DateText
+                && dateTip == previous.DateTooltip)
+            {
+                return;
+            }
+
+            Snapshot = previous with
+            {
+                ClockText = clock,
+                ClockTooltip = clockTip,
+                DateText = date,
+                DateTooltip = dateTip,
+            };
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            // A clock read must never take the shell down; the timer re-arms for the next minute.
+            Debug.WriteLine($"WharfBar clock refresh failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Reads only the power state for the 15 s tick. The old tick rebuilt the full snapshot, which
+    /// re-enumerated the network interfaces every 15 s; network text is driven by
+    /// <see cref="NetworkChange"/> events instead.
+    /// </summary>
+    private void RefreshPower()
+    {
+        try
+        {
+            StatusSnapshot previous = Snapshot;
+            PowerStatusInfo power = PowerStatus.Query();
+            (string batteryText, string batteryTip) = FormatBattery(power);
+            if (power.IsBatteryPresent == previous.IsBatteryPresent
+                && power.Percent == previous.BatteryPercent
+                && power.IsCharging == previous.IsBatteryCharging
+                && power.IsAcOnline == previous.IsAcOnline
+                && batteryText == previous.BatteryText
+                && batteryTip == previous.BatteryTooltip)
+            {
+                return;
+            }
+
+            Snapshot = previous with
+            {
+                IsBatteryPresent = power.IsBatteryPresent,
+                BatteryPercent = power.Percent,
+                IsBatteryCharging = power.IsCharging,
+                IsAcOnline = power.IsAcOnline,
+                BatteryText = batteryText,
+                BatteryTooltip = batteryTip,
+            };
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"WharfBar power refresh failed: {ex.Message}");
+        }
     }
 
     private void RefreshPowerAndNetwork()
     {
-        StatusSnapshot next = BuildSnapshot();
-        StatusSnapshot previous = Snapshot;
-
-        // Keep the just-ticked clock text if BuildSnapshot lands in the same minute.
-        if (next.ClockText == previous.ClockText
-            && next.DateText == previous.DateText
-            && next.IsNetworkOnline == previous.IsNetworkOnline
-            && next.NetworkKind == previous.NetworkKind
-            && next.IsBatteryPresent == previous.IsBatteryPresent
-            && next.BatteryPercent == previous.BatteryPercent
-            && next.IsBatteryCharging == previous.IsBatteryCharging
-            && next.IsAcOnline == previous.IsAcOnline)
+        try
         {
-            return;
-        }
+            StatusSnapshot next = BuildSnapshot();
+            StatusSnapshot previous = Snapshot;
 
-        Snapshot = next;
-        Changed?.Invoke(this, EventArgs.Empty);
+            // Keep the just-ticked clock text if BuildSnapshot lands in the same minute.
+            if (next.ClockText == previous.ClockText
+                && next.DateText == previous.DateText
+                && next.IsNetworkOnline == previous.IsNetworkOnline
+                && next.NetworkKind == previous.NetworkKind
+                && next.IsBatteryPresent == previous.IsBatteryPresent
+                && next.BatteryPercent == previous.BatteryPercent
+                && next.IsBatteryCharging == previous.IsBatteryCharging
+                && next.IsAcOnline == previous.IsAcOnline)
+            {
+                return;
+            }
+
+            Snapshot = next;
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception ex)
+        {
+            // Network/WMI read failures cannot terminate the shell from a change callback.
+            Debug.WriteLine($"WharfBar network refresh failed: {ex.Message}");
+        }
     }
 
     private static StatusSnapshot BuildSnapshot()

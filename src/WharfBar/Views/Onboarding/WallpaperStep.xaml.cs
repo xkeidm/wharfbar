@@ -31,9 +31,10 @@ public partial class WallpaperStep : UserControl
     private const int ThumbDecodeWidthPx = 336;
 
     /// <summary>
-    /// Decoded thumbnails, shared by every visit of the step (a fresh step instance is built per
-    /// visit, but the photos are the same files). Keys carry the file's write time so an edited
-    /// wallpaper is never served from a stale entry; the bitmaps are frozen and safe across threads.
+    /// Decoded thumbnails, shared by the step instances of one wizard session (the caches are
+    /// dropped when the step unloads, so they never outlive the wizard). Keys carry the file's
+    /// write time so an edited wallpaper is never served from a stale entry; the bitmaps are frozen
+    /// and safe across threads.
     /// </summary>
     private static readonly ConcurrentDictionary<string, BitmapSource> ThumbCache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -47,6 +48,13 @@ public partial class WallpaperStep : UserControl
     private const int ThumbCacheLimit = 96;
 
     private static int _prewarmed;
+
+    /// <summary>
+    /// Bumped whenever the shared caches are dropped. A decode that was already running (or queued)
+    /// at that moment may not insert its thumbnail afterwards, otherwise an in-flight prewarm would
+    /// refill the "cleared" cache and the memory would stay pinned after the wizard closed.
+    /// </summary>
+    private static int _cacheGeneration;
 
     private readonly WallpaperService _service;
     private readonly Dictionary<string, (Border Tile, Border Badge)> _tilesByPath =
@@ -65,6 +73,39 @@ public partial class WallpaperStep : UserControl
         };
 
         LoadGallery();
+
+        // The wizard builds a fresh step per visit, so both caches are process-wide statics. Drop
+        // them when this step leaves the tree: otherwise up to ~24 MB of decoded thumbnails stay
+        // pinned for the whole process after the wizard closes (or after jumping to another step).
+        Unloaded += OnStepUnloaded;
+        Loaded += OnStepLoaded;
+    }
+
+    /// <summary>
+    /// Also drops the caches when the wizard closes while another step is the current content: then
+    /// no <see cref="WallpaperStep"/> unloads and a late prewarm would leave the thumbnails pinned.
+    /// A static handler avoids retaining this step instance in the window's event list.
+    /// </summary>
+    private void OnStepLoaded(object sender, RoutedEventArgs e)
+    {
+        if (Window.GetWindow(this) is { } window)
+        {
+            window.Closed -= OnHostWindowClosed;
+            window.Closed += OnHostWindowClosed;
+        }
+    }
+
+    /// <summary>Releases the shared thumbnail caches; only the onboarding gallery uses them.</summary>
+    private static void OnStepUnloaded(object sender, RoutedEventArgs e) => DropThumbCaches();
+
+    private static void OnHostWindowClosed(object? sender, EventArgs e) => DropThumbCaches();
+
+    private static void DropThumbCaches()
+    {
+        // Bump first: a decode that is already running must not refill the map right after the clear.
+        Interlocked.Increment(ref _cacheGeneration);
+        ThumbCache.Clear();
+        PendingThumbs.Clear();
     }
 
     /// <summary>
@@ -252,20 +293,23 @@ public partial class WallpaperStep : UserControl
             return Task.FromResult<BitmapSource?>(cached);
         }
 
-        // One decode per file even when a revisit happens mid-decode.
+        // One decode per file even when a revisit happens mid-decode. The cache generation is
+        // captured now: a decode started before a cache clear may not insert its result afterwards.
+        int generation = Volatile.Read(ref _cacheGeneration);
         return PendingThumbs.GetOrAdd(
             key,
-            static (k, p) => Task.Run(() => DecodeThumbAsync(k, p)),
-            path);
+            k => Task.Run(() => DecodeThumbAsync(k, path, generation)));
     }
 
-    private static async Task<BitmapSource?> DecodeThumbAsync(string key, string path)
+    private static async Task<BitmapSource?> DecodeThumbAsync(string key, string path, int generation)
     {
         await DecodeSlots.WaitAsync().ConfigureAwait(false);
         try
         {
             BitmapImage? bmp = TryDecode(path, ThumbDecodeWidthPx);
-            if (bmp is not null && ThumbCache.Count < ThumbCacheLimit)
+            if (bmp is not null
+                && generation == Volatile.Read(ref _cacheGeneration)
+                && ThumbCache.Count < ThumbCacheLimit)
             {
                 // Bounded: a large user wallpaper folder must not pin every thumbnail for the
                 // whole process lifetime (uncached ones simply decode again on a later visit).

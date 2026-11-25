@@ -10,7 +10,16 @@ namespace WharfBar.Services;
 
 internal sealed class AppIconService
 {
+    /// <summary>
+    /// Upper bound for the icon cache. Every entry is a decoded, frozen bitmap, and without a bound a
+    /// long-running Launchpad visit over a big start-menu tree would keep every glyph forever.
+    /// </summary>
+    internal const int MaxEntries = 256;
+
     private readonly ConcurrentDictionary<string, ImageSource> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Insertion order for oldest-first eviction; only keys that were inserted are enqueued.</summary>
+    private readonly ConcurrentQueue<string> _insertionOrder = new();
     private ImageSource? _fallback;
 
     /// <summary>
@@ -22,11 +31,42 @@ internal sealed class AppIconService
     {
         int px = Math.Clamp(sizePx, 16, 256);
         string key = string.IsNullOrWhiteSpace(path) ? $"?\0{px}" : $"{path}\0{px}";
-        return _cache.GetOrAdd(key, _ => Load(path, px));
+        if (_cache.TryGetValue(key, out ImageSource? cached))
+        {
+            return cached;
+        }
+
+        ImageSource loaded = Load(path, px);
+        if (!_cache.TryAdd(key, loaded))
+        {
+            // Another thread cached the same key while this one was loading; both images are frozen
+            // and identical, so the stored one wins (and the local one is simply dropped).
+            return _cache.TryGetValue(key, out ImageSource? winner) ? winner : loaded;
+        }
+
+        _insertionOrder.Enqueue(key);
+        Trim();
+        return loaded;
     }
 
     /// <summary>Convenience — large shell icon (~32 px).</summary>
     internal ImageSource GetIcon(string path) => GetIcon(path, 32);
+
+    /// <summary>Number of cached icons (used by the cache-bound test).</summary>
+    internal int CacheCount => _cache.Count;
+
+    /// <summary>
+    /// Drops the oldest inserted entries until the cache is back within <see cref="MaxEntries"/>.
+    /// Runs after every successful insert; the key just enqueued sits at the tail, so it is never the
+    /// one evicted here.
+    /// </summary>
+    private void Trim()
+    {
+        while (_cache.Count > MaxEntries && _insertionOrder.TryDequeue(out string? oldest))
+        {
+            _cache.TryRemove(oldest, out _);
+        }
+    }
 
     private ImageSource Load(string path, int sizePx)
     {

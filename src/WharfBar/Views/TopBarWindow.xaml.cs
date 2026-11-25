@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -106,6 +107,15 @@ public partial class TopBarWindow : Window
     private static readonly TimeSpan WallpaperWatchInterval = TimeSpan.FromSeconds(3);
     private DispatcherTimer? _wallpaperWatch;
 
+    /// <summary>
+    /// Wallpaper path + tone of the last painted wallpaper-driven palette. The idle watch
+    /// re-samples on every tick; an unchanged decision must not repaint the bar. Cleared on
+    /// every theme/config path (see <see cref="RefreshWallpaperTextContrast"/>) so a theme
+    /// switch still repaints even when the wallpaper did not change.
+    /// </summary>
+    private string? _appliedWallpaperPath;
+    private BarTextTone? _appliedWallpaperTone;
+
     /// <summary>The monitor this bar is attached to (physical-pixel geometry).</summary>
     /// <summary>The monitor this bar is anchored to.</summary>
     internal MonitorInfo Monitor { get; private set; }
@@ -166,6 +176,10 @@ public partial class TopBarWindow : Window
         StatusStrip.LostMouseCapture += OnStatusStripDragLostCapture;
         _statsHover = new StatsHoverCard();
         SystemStatsText.ToolTip = new ToolTip { Content = _statsHover };
+
+        // Stats arrive every second, but the card is invisible while the tooltip is closed;
+        // ApplySystemStats skips painting it there and this paints the latest snapshot once on open.
+        SystemStatsText.ToolTipOpening += OnSystemStatsToolTipOpening;
 
         // Windows-style Show Desktop sliver: click 1 puts open windows down, click 2
         // brings back exactly what it put down. Not a strip slot — no reorder, no map.
@@ -1228,7 +1242,18 @@ public partial class TopBarWindow : Window
         bool showGpuPerAdapter = _config.Current.TopBar?.ShowGpuPerAdapter != false;
         string text = snapshot.DisplayText(showGpuPerAdapter);
         SystemStatsText.Text = text;
-        _statsHover?.Apply(snapshot, text);
+
+        // The sparkline card is only on screen while its tooltip is open: repainting it on every
+        // stats sample would be render work the user cannot see. ToolTipOpening paints once.
+        _statsHover?.ApplyIfShown(snapshot, text);
+    }
+
+    /// <summary>Paints the hover card once for the snapshot that is current when the tooltip opens.</summary>
+    private void OnSystemStatsToolTipOpening(object sender, ToolTipEventArgs e)
+    {
+        SystemStatsSnapshot snapshot = _engine.SystemStats.Snapshot;
+        bool showGpuPerAdapter = _config.Current.TopBar?.ShowGpuPerAdapter != false;
+        _statsHover?.Apply(snapshot, snapshot.DisplayText(showGpuPerAdapter));
     }
 
     private void ApplySystemStatsVisibility()
@@ -1694,7 +1719,7 @@ public partial class TopBarWindow : Window
                 break;
         }
 
-        RefreshWallpaperTextContrast();
+        RefreshWallpaperTextContrast(force: true);
 
         // Code-built chrome reads the theme at paint time instead of binding to it: the island
         // panel is its own popup window and never receives the bar's theme messages, so its
@@ -1705,12 +1730,23 @@ public partial class TopBarWindow : Window
     }
 
     /// <summary>
-    /// Watermark-driven bar palette. Only the fully transparent bar on the primary monitor
+    /// Wallpaper-driven bar palette. Only the fully transparent bar on the primary monitor
     /// follows the wallpaper strip; every other mode mirrors the theme brushes. Sampling is
     /// cached by wallpaper path — refresh calls are cheap.
+    /// <para>
+    /// <paramref name="force"/> marks an authoritative path (theme apply, wallpaper broadcast,
+    /// config change): it drops the palette memo so the pass repaints even when the resolved
+    /// path + tone are unchanged. The idle watch calls it without forcing and relies on the memo.
+    /// </para>
     /// </summary>
-    private void RefreshWallpaperTextContrast()
+    private void RefreshWallpaperTextContrast(bool force = false)
     {
+        if (force)
+        {
+            _appliedWallpaperPath = null;
+            _appliedWallpaperTone = null;
+        }
+
         TopBarConfig? top = _config.Current.TopBar;
         string mode = TopBarBackgroundModes.NormalizeMode(top?.BackgroundMode);
         bool driven = TopBarContrastPolicy.IsWallpaperDriven(mode, Monitor.IsPrimary);
@@ -1735,6 +1771,11 @@ public partial class TopBarWindow : Window
             return;
         }
 
+        // Any direct palette pass invalidates the wallpaper memo: a later wallpaper pass with the
+        // same path still has to repaint after a theme/background switch.
+        _appliedWallpaperPath = null;
+        _appliedWallpaperTone = null;
+
         IReadOnlyList<KeyValuePair<string, Brush>> plan = tone == BarTextTone.FollowTheme
             // The theme brushes are read fresh here (this pass re-runs on every theme message), and
             // the hover plate has to know which side of the theme it is painting on.
@@ -1755,6 +1796,24 @@ public partial class TopBarWindow : Window
         UpdateClosedIslandPillFill();
     }
 
+    /// <summary>
+    /// Applies a wallpaper-resolved palette once per (path, tone) pair. The idle watch re-samples
+    /// every few seconds; an unchanged decision must not write the six brushes, bump
+    /// <c>_barPaletteRevision</c>, or refill the closed island pill for a paint that looks identical.
+    /// </summary>
+    private void ApplyWallpaperBarPalette(string? path, BarTextTone tone)
+    {
+        if (_appliedWallpaperTone == tone
+            && string.Equals(_appliedWallpaperPath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        ApplyBarPalette(tone);
+        _appliedWallpaperPath = path;
+        _appliedWallpaperTone = tone;
+    }
+
     private Brush FindThemeBrush(string key) => (Brush)FindResource(key);
 
     private void SampleWallpaperStrip()
@@ -1763,14 +1822,14 @@ public partial class TopBarWindow : Window
         if (string.IsNullOrWhiteSpace(path))
         {
             // No readable SPI wallpaper → keep the theme palette.
-            ApplyBarPalette(BarTextTone.FollowTheme);
+            ApplyWallpaperBarPalette(null, BarTextTone.FollowTheme);
             return;
         }
 
         if (_wallpaperSampledLuma is { } cached
             && string.Equals(_wallpaperSampledPath, path, StringComparison.OrdinalIgnoreCase))
         {
-            ApplyBarPalette(TopBarContrastPolicy.Decide(cached));
+            ApplyWallpaperBarPalette(path, TopBarContrastPolicy.Decide(cached));
             return;
         }
 
@@ -1809,7 +1868,19 @@ public partial class TopBarWindow : Window
     }
 
     private void OnWallpaperWatchTick(object? sender, EventArgs e)
-        => RefreshWallpaperTextContrast();
+    {
+        try
+        {
+            RefreshWallpaperTextContrast();
+        }
+        catch (Exception ex)
+        {
+            // A DispatcherTimer tick throw reaches the dispatcher's unhandled-exception path and
+            // can take the shell down. The watch is only a fallback for wallpapers that broadcast
+            // nothing: log it and let the next tick retry.
+            Debug.WriteLine($"WharfBar: wallpaper watch tick failed — {ex}");
+        }
+    }
 
     /// <summary>Fallback probe: the SPI wallpaper path when the island service is not attached.</summary>
     private static string? TrySpiWallpaperPath()
@@ -1854,7 +1925,7 @@ public partial class TopBarWindow : Window
         string mode = TopBarBackgroundModes.NormalizeMode(top?.BackgroundMode);
         if (TopBarContrastPolicy.IsWallpaperDriven(mode, Monitor.IsPrimary) && _wallpaperSampledLuma is { } done)
         {
-            ApplyBarPalette(TopBarContrastPolicy.Decide(done));
+            ApplyWallpaperBarPalette(path, TopBarContrastPolicy.Decide(done));
         }
     }
 
@@ -2278,11 +2349,11 @@ public partial class TopBarWindow : Window
                 }
 
                 // SPI_SETDESKWALLPAPER lands here ("wallpaper" lParam, or null for IDesktopWallpaper
-                // changes and older paths). The refresh compares against the last sampled wallapper
-                // path first, so unrelated broadcasts cost one cheap dispatcher hop.
+                // changes and older paths). This is an authoritative broadcast: force the palette
+                // pass so a same-path re-apply still repaints; the idle watch stays the fallback.
                 if (lParam == IntPtr.Zero || IsWallpaperSettingChange(lParam))
                 {
-                    RefreshWallpaperTextContrast();
+                    RefreshWallpaperTextContrast(force: true);
                 }
 
                 break;

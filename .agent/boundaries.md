@@ -83,7 +83,10 @@
   reads run from the desktop root on a dedicated STA dispatcher thread. The only read is a
   **gated state blip** (`TrayStateBlipGate`: bootstrap of a never-filled mirror plus bounded
   retries, later ≥10/≥20 min apart with the user idle ≥3 min and no maximized/bottom-touching
-  window; never while a fullscreen foreground window covers the primary monitor). There is
+  window; never while a fullscreen foreground window covers the primary monitor). The 4 s poll's
+  direct desktop-root walk (~0.4 s of CPU per pass) is gated to a tray that `IsWindowVisible` **and**
+  fully on screen (`TrayMirrorService.ShouldWalkTrayUia`); do not run it while the tray is
+  hidden/parked and do not poll it back-to-back (`QueuePoll` coalesces). There is
   **no cursor-hopping quiet read** — the old hover reveal moved the user's pointer to the bottom
   edge and timed out on the 2026-11-09 machine; `TrayRevealPolicy`, `SendInputMouse` and the
   reveal/backoff machinery were deleted. The blip verifies the unpark

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Windows;
@@ -49,6 +50,12 @@ public partial class TopBarWindow
     private const double IslandSwallowSettleMs = 90;
     private const double IslandSwallowCompressScale = 0.96;
     private const double IslandSwallowReleaseScale = 1.05;
+
+    /// <summary>
+    /// Floor for the one-shot island clock interval. A deadline that has already passed must not
+    /// re-arm at ~1 ms: that turns the timer into a busy tick loop while a state change settles.
+    /// </summary>
+    private const int IslandClockMinDelayMs = 8;
 
     private bool _islandClosePending;
     // The grow-from-the-pill open morph is running. WPF raises Popup.Opened after the popup's
@@ -1058,23 +1065,41 @@ public partial class TopBarWindow
     private void OnIslandClockTick(object? sender, EventArgs e)
     {
         _islandClock?.Stop();
-        if (_presence is null)
+        bool failed = false;
+        try
         {
-            return;
-        }
+            if (_presence is null)
+            {
+                return;
+            }
 
-        // Popup opening can raise a fake MouseLeave on the pill even though the cursor never
-        // left the island (the popup window sits over the pill's lower edge). The presence
-        // engine gets a geometry-confirmed pointer sample instead of IsMouseOver, which is
-        // false exactly in that case.
-        long now = IslandNow();
-        (bool overPill, bool overPanel) = SampleIslandPointer();
-        _presence.SamplePointer(overPill, overPanel, now);
-        _presence.Tick(now);
-        // Unconditional: ApplyIslandChrome re-arms the one-shot clock through ArmIslandClock.
-        // A conditional repaint would leave the clock stopped if the timer fired a hair early
-        // and no deadline was due yet, so the pending deadline would never fire again.
-        ApplyIslandChrome(focusMusic: false);
+            // Popup opening can raise a fake MouseLeave on the pill even though the cursor never
+            // left the island (the popup window sits over the pill's lower edge). The presence
+            // engine gets a geometry-confirmed pointer sample instead of IsMouseOver, which is
+            // false exactly in that case.
+            long now = IslandNow();
+            (bool overPill, bool overPanel) = SampleIslandPointer();
+            _presence.SamplePointer(overPill, overPanel, now);
+            _presence.Tick(now);
+            // Unconditional: ApplyIslandChrome re-arms the one-shot clock through ArmIslandClock.
+            // A conditional repaint would leave the clock stopped if the timer fired a hair early
+            // and no deadline was due yet, so the pending deadline would never fire again.
+            ApplyIslandChrome(focusMusic: false);
+        }
+        catch (Exception ex)
+        {
+            // A throw here would unwind into the dispatcher's unhandled-exception path and can take
+            // the shell down; the one-shot clock is re-armed in the finally so it cannot go inert.
+            failed = true;
+            Debug.WriteLine($"WharfBar: island clock tick failed — {ex}");
+        }
+        finally
+        {
+            if (failed)
+            {
+                ArmIslandClock();
+            }
+        }
     }
 
     private void OnIslandBrightnessChanged(object? sender, EventArgs e) => NoteIslandBrightness(apply: true);
@@ -2338,7 +2363,7 @@ public partial class TopBarWindow
             return;
         }
 
-        long delay = Math.Max(1, deadline - IslandNow());
+        long delay = Math.Max(IslandClockMinDelayMs, deadline - IslandNow());
         _islandClock.Interval = TimeSpan.FromMilliseconds(delay);
         _islandClock.Start();
     }
@@ -2483,7 +2508,7 @@ public partial class TopBarWindow
 
     /// <summary>Hub gallery applied a wallpaper: the strip tone may have changed.</summary>
     private void OnWallpaperAppliedRefreshPalette(string path)
-        => RefreshWallpaperTextContrast();
+        => RefreshWallpaperTextContrast(force: true);
 
     private void DetachIsland()
     {

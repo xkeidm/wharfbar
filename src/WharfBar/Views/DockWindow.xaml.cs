@@ -53,9 +53,6 @@ public partial class DockWindow : Window
 
     private const int PhaseOutMs = 180;
 
-    /// <summary>Cursor catch-up frame interval (ms).</summary>
-    private const int CursorFrameMs = 16;
-
     /// <summary>Tooltip timings kept from the pre-redesign dock (spec §6.3/§9).</summary>
     private const int ToolTipInitialShowDelayMs = 250;
 
@@ -96,9 +93,6 @@ public partial class DockWindow : Window
     /// </summary>
     private uint _monitorDpi;
 
-    private readonly DispatcherTimer _cursorTimer;
-    private double _cursorTarget = 0d;
-    private long _lastCursorFrameMs;
     private bool _isFullscreenHidden;
     private bool _isApplyingPlacement;
     private bool _isAnimatingY;
@@ -201,12 +195,6 @@ public partial class DockWindow : Window
         // does not mistake the current config for a change.
         _appliedShowRunningApps = config.Dock.ShowRunningApps;
         _appliedMagnification = DockMagnification.Clamp(config.Dock.Magnification);
-
-        _cursorTimer = new DispatcherTimer(DispatcherPriority.Render)
-        {
-            Interval = TimeSpan.FromMilliseconds(CursorFrameMs),
-        };
-        _cursorTimer.Tick += OnCursorFrame;
 
         ApplyStripGeometry();
         ApplyPlatePadding();
@@ -534,8 +522,6 @@ public partial class DockWindow : Window
 
         Surface.MouseLeave -= OnSurfaceMouseLeave;
         _tintSaveTimer?.Stop();
-        _cursorTimer.Tick -= OnCursorFrame;
-        _cursorTimer.Stop();
 
         _source?.RemoveHook(WndProc);
         _source = null;
@@ -552,25 +538,7 @@ public partial class DockWindow : Window
         // never raises Drop, so the drop indicator has to be taken down here.
         HideDropIndicator();
 
-        _cursorTimer.Stop();
         AnimatePhase(0d, PhaseOutMs);
-    }
-
-    private void OnCursorFrame(object? sender, EventArgs e)
-    {
-        long now = Environment.TickCount64;
-        double dt = now - _lastCursorFrameMs;
-        _lastCursorFrameMs = now;
-
-        double next = DockMagnification.Eased(Strip.CursorPosition, _cursorTarget, dt);
-        if (Math.Abs(next - _cursorTarget) < 0.001d)
-        {
-            Strip.CursorPosition = _cursorTarget;
-            _cursorTimer.Stop();
-            return;
-        }
-
-        Strip.CursorPosition = next;
     }
 
     private void AnimatePhase(double to, int milliseconds)

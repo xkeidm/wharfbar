@@ -59,6 +59,20 @@ internal sealed class StatsHoverCard : StackPanel
         _net.Text = $"↓ {down}   ↑ {up}";
     }
 
+    /// <summary>
+    /// Applies a stats tick only while the card is on screen. The card is the content of the
+    /// stats tooltip, so a closed tooltip leaves it outside the visual tree
+    /// (<see cref="UIElement.IsVisible"/> false) and a per-sample repaint would be render work
+    /// nobody sees. The owner paints once through <see cref="Apply"/> on ToolTipOpening.
+    /// </summary>
+    internal void ApplyIfShown(SystemStatsSnapshot snapshot, string text)
+    {
+        if (IsVisible)
+        {
+            Apply(snapshot, text);
+        }
+    }
+
     private static void Paint(Polyline line, IReadOnlyList<double>? samples)
     {
         line.Points = Sparkline.Plot(Sparkline.Decimate(samples, Sparkline.DefaultPoints), 160, 18);

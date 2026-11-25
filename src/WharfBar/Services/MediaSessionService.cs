@@ -33,6 +33,13 @@ internal sealed class MediaSessionService : IDisposable
     /// </summary>
     private static readonly TimeSpan OptimisticPlaybackWindow = TimeSpan.FromSeconds(1);
 
+    /// <summary>
+    /// Decode width for one album cover. The island and the tint sampler only draw the cover small,
+    /// while a native-resolution cover (a 3000x3000 square is ~36 MB of pixels) would stay pinned per
+    /// SMTC session for the whole track.
+    /// </summary>
+    private const int ArtworkDecodeWidthPx = 256;
+
     private readonly Dispatcher _dispatcher;
     private readonly MediaSessionSelector _selector = new();
     private readonly MediaAppNameResolver _appNames = new();
@@ -910,6 +917,7 @@ internal sealed class MediaSessionService : IDisposable
             var bitmap = new BitmapImage();
             bitmap.BeginInit();
             bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            bitmap.DecodePixelWidth = ArtworkDecodeWidthPx;
             bitmap.StreamSource = stream.AsStreamForRead();
             bitmap.EndInit();
             bitmap.Freeze();

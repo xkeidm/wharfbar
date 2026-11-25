@@ -181,7 +181,11 @@ tray icons before the hidden-icons chevron) — reads third-party icons from the
 toolbar (TrayNotifyWnd/SysPager/ToolbarWindow32),
 filters out system icons, 4 s poll (icon pixels are captured inside a gated state blip
 (`TrayStateBlipGate`), compared by `TrayIconSignature`; crops matted against the taskbar fill by
-`TrayIconMatte`; an unchanged snapshot is not published), cursor-free click replay
+`TrayIconMatte`; an unchanged snapshot is not published). The poll's **direct desktop-root UIA
+walk is gated to a tray that is actually shown**: it costs ~0.4 s of CPU per pass and a
+hidden/parked tray virtualizes its buttons, so while the taskbar is hidden the walk is skipped and
+the gated state blip is the only read (`TrayMirrorService.ShouldWalkTrayUia`); the 4 s timer also
+posts at most one poll at a time. Cursor-free click replay
 (`TrayUiaGesture`: left = `InvokePattern`, double = two invokes, right = verified focus + the Menu
 key; one repair blip when the cached element died; a menu owner's pointer warp is prevented by
 `TrayPointerGuard` — a `ClipCursor` box of `ClipMarginPx = 6` armed just before the Menu key and
@@ -190,12 +194,24 @@ released after `ClipHoldMs = 150` ms — with the pure `TrayCursorWarp` escape c
 `TrayUiaReader` (SystemTray.NormalButton) + `TrayCapture` (real icon capture from the parked+cloaked
 taskbar via PrintWindow; letter glyph on failure) + UIA click replay. There is no hover-reveal read
 and no physical click any more (2026-11-09).
+**Lightweight by construction (2026-11-22 pass):** idle work is gated by user input and by what is
+actually on screen (stats GPU/network slow tick, Bluetooth notice, desktop-icon COM read, tray UIA
+walk); the clock re-arms to the next minute; the taskbar watchdog blocks on the process instead of
+polling every 500 ms; DDC/CI + WMI brightness starts lazily on first use; image-bearing caches are
+bounded or downscaled (restore snapshots ≤480 px + 48 MiB budget, album art 256 px, wallpaper accent
+64 px, icon cache 256, display names 2048). Measured on the 2026-11-22 machine: idle CPU fell from
+~14 % of one core (same thread mostly in the tray UIA walk) to ~0.3–0.8 %; managed heap ~22 MB and the
+working set (~290 MB) grows only a few MB after warm-up because the baseline is WPF/WinRT runtime, so
+judge changes by the slope. Detail: `docs/01-architecture.md` § Idle load / Memory footprint.
 **Monitor brightness control:**
 Monitorian-style DDC/CI + WMI hybrid service (`MonitorBrightnessService`, `MonitorNative`) and
 `BrightnessFlyout` (TopBar brightness glyph `&#xE706;`, master `All displays` slider, independent monitor cards, 50 ms debounced background queue).
 **System stats:** in the top bar's left cluster, beside the brand logo,
-`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, CPU/RAM 1 s and GPU/network 4 s, off the UI thread; not refreshed when the visible text did not change; `topBar.showSystemStats`
-toggle at Settings → `Top bar`). GPU PDH `\GPU Engine(*)\Utilization Percentage`
+`CPU x% · GPU y% · RAM z%` (`SystemStatsService`, CPU/RAM 1 s and GPU/network 4 s — the GPU/network
+slow tick is skipped while the user has been idle >2 min and carries the last values — off the UI
+thread; both display strings are formatted once per sample; not refreshed when the visible text did
+not change; `topBar.showSystemStats` toggle at Settings → `Top bar`). The clock timer re-arms to the
+next minute (its text is minute-resolution) instead of ticking every second. GPU PDH `\GPU Engine(*)\Utilization Percentage`
 (`PdhAddEnglishCounterW`) — engine instances are grouped into a physical adapter by LUID;
 with `topBar.showGpuPerAdapter` on, multiple GPUs show `GPU0 x% · GPU1 y%` (a single
 total when off; no difference on one GPU). If the counter is missing the GPU section is hidden; the first sample is `--`.

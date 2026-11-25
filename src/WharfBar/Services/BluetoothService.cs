@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows.Threading;
+using WharfBar.Native;
 using Windows.Devices.Bluetooth;
 using Windows.Devices.Enumeration;
 
@@ -17,7 +18,10 @@ internal sealed class BluetoothService : IDisposable
     private static readonly TimeSpan PageInterval = TimeSpan.FromSeconds(2);
 
     /// <summary>Island connect notice. The quick-settings page keeps <see cref="PageInterval"/>.</summary>
-    internal static readonly TimeSpan NoticeInterval = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan NoticeInterval = TimeSpan.FromSeconds(30);
+
+    /// <summary>The WinRT refresh is skipped once the user has been idle for this long.</summary>
+    internal static readonly TimeSpan IdleSkipLimit = TimeSpan.FromMinutes(2);
     private static readonly string[] AdditionalProperties =
     [
         "System.Devices.Aep.IsConnected",
@@ -119,7 +123,9 @@ internal sealed class BluetoothService : IDisposable
 
     private async void Refresh()
     {
-        if (_disposed || Interlocked.Exchange(ref _refreshGate, 1) != 0)
+        if (_disposed
+            || !ShouldRefresh(_page, TrayAutoHideReveal.UserIdleTime())
+            || Interlocked.Exchange(ref _refreshGate, 1) != 0)
         {
             return;
         }
@@ -191,6 +197,13 @@ internal sealed class BluetoothService : IDisposable
             Interlocked.Exchange(ref _refreshGate, 0);
         }
     }
+
+    /// <summary>
+    /// The connect-notice watch does not touch WinRT while the user is away; an open quick-settings
+    /// page keeps refreshing because its reads are driven by a visible page.
+    /// </summary>
+    internal static bool ShouldRefresh(bool pageOpen, TimeSpan userIdle)
+        => pageOpen || userIdle < IdleSkipLimit;
 
     internal static bool SameDevices(
         IReadOnlyList<BluetoothDeviceInfo> left,

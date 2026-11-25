@@ -7,14 +7,20 @@ namespace WharfBar.Views;
 
 /// <summary>
 /// Turns a cover bitmap into the final tint color. The extraction runs on a 32x32 copy
-/// (microseconds) and is cached by bitmap reference, so repeated calls for the same track are free.
+/// (microseconds) and is cached by a weak bitmap reference, so repeated calls for the same track are
+/// free without pinning a cover the media session has already let go.
 /// A gray or very dark cover still resolves to its representative average color, so the island
 /// follows the album instead of always falling back to the accent (null = no usable image color).
 /// UI thread only.
 /// </summary>
 internal static class IslandTintSource
 {
-    private static ImageSource? _lastSource;
+    /// <summary>
+    /// Last cover the tint was computed for. Weak on purpose: the decoded artwork belongs to the
+    /// media session and a static strong reference would keep the previous (large) cover alive after
+    /// the track changed. <see cref="_lastColor"/> alone is all a repeat lookup needs.
+    /// </summary>
+    private static WeakReference<ImageSource>? _lastSource;
     private static IslandRgb? _lastColor;
 
     internal static Color? Resolve(string? mode, ImageSource? thumbnail, bool musicPlaying)
@@ -31,12 +37,14 @@ internal static class IslandTintSource
             return null;
         }
 
-        if (ReferenceEquals(source, _lastSource))
+        if (_lastSource is not null
+            && _lastSource.TryGetTarget(out ImageSource? last)
+            && ReferenceEquals(last, source))
         {
             return _lastColor;
         }
 
-        _lastSource = source;
+        _lastSource = new WeakReference<ImageSource>(source);
         _lastColor = Compute(source);
         return _lastColor;
     }

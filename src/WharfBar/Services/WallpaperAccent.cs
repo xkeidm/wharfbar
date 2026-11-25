@@ -13,6 +13,12 @@ internal static class WallpaperAccent
     /// </summary>
     internal const double MinSaturation = 0.15;
 
+    /// <summary>
+    /// Decode width for the accent sample. The dominant color only reads a 32x32 copy, so decoding a
+    /// full-resolution wallpaper (4K ≈ 33 MB, 8K ≈ 132 MB of pixels) would be wasted memory.
+    /// </summary>
+    private const int DecodeWidthPx = 64;
+
     internal static IslandRgb? TryFromPath(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
@@ -48,11 +54,15 @@ internal static class WallpaperAccent
     private static BitmapSource? TryDecode(string path)
     {
         using var stream = File.OpenRead(path);
-        var decoder = BitmapDecoder.Create(
-            stream,
-            BitmapCreateOptions.IgnoreColorProfile | BitmapCreateOptions.PreservePixelFormat,
-            BitmapCacheOption.OnLoad);
-        return decoder.Frames.Count > 0 ? decoder.Frames[0] : null;
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.CreateOptions = BitmapCreateOptions.IgnoreColorProfile;
+        bitmap.DecodePixelWidth = DecodeWidthPx;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
     }
 
     internal static IslandRgb? FromDominant(IslandRgb? dominant)

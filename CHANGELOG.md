@@ -8,6 +8,41 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **Idle footprint:** WharfBar now does almost nothing while it sits behind the desktop. Measured on
+  the development machine, idle CPU fell from ~14 % of one core to ~0.3–0.8 %. The single biggest
+  cause was the tray mirror's direct UI Automation read: it roots at the desktop and walks the whole
+  automation tree (~0.4 s of CPU per pass) every 4 s, even while the hidden/parked tray virtualizes
+  its buttons. It now runs only while the tray is actually on screen and the gated state blip is the
+  only read otherwise; the poll is also coalesced. Smaller idle cuts: the clock timer re-arms to the
+  next minute (its text has no seconds), the GPU/network stats sample is skipped after 2 min of no
+  input, the Bluetooth connect notice poll is 30 s and pauses while the user is away, the
+  desktop-icon COM read backs off to 30 s when idle, and the taskbar watchdog blocks on the process
+  instead of polling every 500 ms.
+- **Memory over a long session is bounded:** dock restore frames are stored downscaled to ≤480 px
+  with a 48 MiB budget (full-resolution frames could reach ~265 MB at the cache cap), album art is
+  decoded at 256 px, the wallpaper accent at 64 px, the app-icon cache is capped at 256 entries and
+  the shell display-name cache at 2048. Window snapshots no longer copy a second full-frame buffer
+  for the blank check, the onboarding thumbnail caches are released with the wizard, and the
+  brightness (DDC/CI + WMI) stack and the Quick Settings radio discovery start on first use instead
+  of at startup.
+- **A theme/wallpaper pass no longer repaints the top bar every 3 s** when the resolved wallpaper
+  tone did not change, and the stats sparkline card is painted only while its tooltip is open.
+
+### Fixed
+
+- **A recurring timer tick can no longer take the shell down.** The clock, power/network, wallpaper
+  watch, Quick Settings refresh and island deadline tick now log and continue instead of escaping to
+  the dispatcher's unhandled-exception path; the island clock re-arms itself if a tick throws and no
+  longer re-arms at a ~1 ms interval for an already-due deadline.
+- **The desktop-icon guard's shutdown race** (a `ManualResetEventSlim` disposed while its STA thread
+  could still signal it) is gone: the event is disposed only after the thread is known to be joined.
+- **The shell display-name cache** is now a concurrent, bounded dictionary; the background window
+  census and the UI could write the old plain `Dictionary` at the same time.
+- **A 16 ms dock cursor timer that was never started** (dead magnification-ease code) was removed so
+  it cannot become a hot loop later.
+
 ## [1.0.0-beta.7] — 2026-11-16
 
 ### Changed

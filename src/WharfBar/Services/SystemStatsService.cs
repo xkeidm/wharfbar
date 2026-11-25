@@ -5,6 +5,11 @@ using WharfBar.Native;
 namespace WharfBar.Services;
 
 /// <summary>Immutable UI-facing system stats snapshot.</summary>
+/// <remarks>
+/// <see cref="CompactText"/> and <see cref="PerAdapterText"/> cache the formatted top-bar text so
+/// change detection and the UI do not rebuild it on every read. The sampling loop fills them from
+/// the matching values; a snapshot built without them formats on demand.
+/// </remarks>
 internal sealed record SystemStatsSnapshot(
     double? CpuPercent,
     double?[]? GpuPercents,
@@ -13,11 +18,15 @@ internal sealed record SystemStatsSnapshot(
     IReadOnlyList<double>? RamHistory = null,
     IReadOnlyList<double>? GpuHistory = null,
     string? NetworkDownText = null,
-    string? NetworkUpText = null)
+    string? NetworkUpText = null,
+    string? CompactText = null,
+    string? PerAdapterText = null)
 {
     /// <summary>Top-bar text; <paramref name="showGpuPerAdapter"/> numbers segments when two or more adapters report.</summary>
     internal string DisplayText(bool showGpuPerAdapter)
-        => SystemStatsService.FormatText(CpuPercent, GpuPercents, RamPercent, showGpuPerAdapter);
+        => showGpuPerAdapter
+            ? PerAdapterText ?? SystemStatsService.FormatText(CpuPercent, GpuPercents, RamPercent, true)
+            : CompactText ?? SystemStatsService.FormatText(CpuPercent, GpuPercents, RamPercent, false);
 
     /// <summary>Mode-independent canonical value string for change detection (array identity safe).</summary>
     internal string ChangeKey => string.Create(
@@ -32,7 +41,8 @@ internal sealed record SystemStatsSnapshot(
 /// Samples CPU / GPU / RAM usage for the top-bar system-stats readout.
 /// CPU and RAM are read every second — Task Manager's resolution — so the CPU number is a 1 s
 /// average and tracks Task Manager instead of lagging behind it. The PDH GPU wildcard and the
-/// network counters are the expensive samples and run every fourth tick.
+/// network counters are the expensive samples and run every fourth tick while the user is present
+/// (their last values are carried while the session is idle).
 /// Pure computation helpers are static and unit-tested; sampling uses
 /// documented Win32 APIs only (no external packages).
 /// Shared by every top-bar window via <see cref="TopBarEngine"/> (like <see cref="StatusService"/>).
@@ -56,6 +66,12 @@ internal sealed class SystemStatsService : IDisposable
 
     /// <summary>CPU ticks between two expensive (GPU + network) samples.</summary>
     internal const int TicksPerSlowSample = 4;
+
+    /// <summary>
+    /// The GPU PDH wildcard and the network counters are skipped once the user has been idle for
+    /// this long; the last values are carried until input returns.
+    /// </summary>
+    internal static readonly TimeSpan SlowSampleIdleLimit = TimeSpan.FromMinutes(2);
 
     /// <summary>Sparkline window. A point is kept only when the visible readout changes.</summary>
     private const int SampleHistoryCap = 30;
@@ -141,14 +157,18 @@ internal sealed class SystemStatsService : IDisposable
 
         try
         {
-            bool slowTick = IsSlowSampleTick(_tickIndex);
+            int tickIndex = _tickIndex;
             _tickIndex = AdvanceTick(_tickIndex);
+
+            // GPU + network are the expensive samples: read them on the slow tick and carry the
+            // last values in between, so the 1 s CPU readout does not pay for a PDH wildcard read.
+            // While the user is away the slow sample is skipped instead of keeping the GPU/network
+            // queries warm in the background.
+            bool slowTick = ShouldTakeSlowSample(tickIndex, TrayAutoHideReveal.UserIdleTime());
 
             double? cpu = SampleCpu();
             double? ram = SampleRam();
 
-            // GPU + network are the expensive samples: read them on the slow tick and carry the
-            // last values in between, so the 1 s CPU readout does not pay for a PDH wildcard read.
             double?[]? gpu = Snapshot.GpuPercents;
             bool gpuFresh = false;
             if (slowTick)
@@ -165,7 +185,18 @@ internal sealed class SystemStatsService : IDisposable
                 ? SampleNetwork()
                 : (Snapshot.NetworkDownText ?? "—", Snapshot.NetworkUpText ?? "—");
 
-            var probe = new SystemStatsSnapshot(cpu, gpu, ram, null, null, null, down, up);
+            // Format both variants once here and carry them on the snapshot; SameReadout and the
+            // bar read the cached string instead of rebuilding the text up to four times a tick.
+            string compactText = FormatText(cpu, gpu, ram, showGpuPerAdapter: false);
+            string perAdapterText = FormatText(cpu, gpu, ram, showGpuPerAdapter: true);
+            var probe = new SystemStatsSnapshot(
+                cpu,
+                gpu,
+                ram,
+                NetworkDownText: down,
+                NetworkUpText: up,
+                CompactText: compactText,
+                PerAdapterText: perAdapterText);
             if (SameReadout(Snapshot, probe))
             {
                 return;
@@ -186,7 +217,9 @@ internal sealed class SystemStatsService : IDisposable
                 _ramHistory.ToArray(),
                 _gpuHistory.ToArray(),
                 down,
-                up);
+                up,
+                compactText,
+                perAdapterText);
             Publish(next);
         }
         finally
@@ -267,6 +300,14 @@ internal sealed class SystemStatsService : IDisposable
 
     /// <summary>True on the tick that also refreshes the expensive GPU/network sample; index 0 comes first.</summary>
     internal static bool IsSlowSampleTick(int tickIndex) => tickIndex % TicksPerSlowSample == 0;
+
+    /// <summary>
+    /// True when the expensive GPU/network sample should run: only on a slow tick and only while
+    /// the user is present. A session idle for <see cref="SlowSampleIdleLimit"/> carries the last
+    /// values instead of keeping the PDH wildcard and NIC counters collecting in the background.
+    /// </summary>
+    internal static bool ShouldTakeSlowSample(int tickIndex, TimeSpan userIdle)
+        => IsSlowSampleTick(tickIndex) && userIdle < SlowSampleIdleLimit;
 
     /// <summary>Next tick index; the slow tick comes first, then every <see cref="TicksPerSlowSample"/>th tick.</summary>
     internal static int AdvanceTick(int tickIndex) => (tickIndex + 1) % TicksPerSlowSample;

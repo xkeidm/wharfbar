@@ -14,10 +14,15 @@ The visual language must be **Windows Fluent** (Mica, the system theme). Apple b
 
 1. **Low resource use** — decisions that grow the RAM/CPU footprint are not accepted silently.
    When idle, WharfBar does not step in front of the desktop: window census is a single pass across all docks (3 s),
-   stats are CPU/RAM 1 s (GPU/network 4 s) and off the UI thread (the bar is not refreshed if the visible text has not changed;
-   sampling stops if stats are off), the tray mirror is 4 s (icon pixels are not pulled every round),
-   the hidden-dock cursor is 200 ms, progress scanning is 20 s when there is no tray button, and the Bluetooth connection
-   notification is 10 s. Detail: the idle-load section of [`01-architecture.md`](01-architecture.md).
+   stats are CPU/RAM 1 s (GPU/network 4 s while the user is present) and off the UI thread (the bar is not refreshed if the visible text has
+   not changed; sampling stops if stats are off, and the expensive GPU/network sample backs off after 2 min of idle input),
+   the clock timer re-arms to the next minute (the text has minute resolution), the tray mirror is 4 s and its
+   desktop-root UI Automation walk runs **only while explorer actually shows the tray** (a parked tray is virtualized,
+   so the walk would cost ~0.4 s of CPU per pass and read nothing — the gated state blip is the only real read),
+   the hidden-dock cursor is 200 ms, progress scanning is 20 s when there is no tray button, the Bluetooth connect
+   notification is 30 s (skipped while the user is away), the desktop-icon COM read backs off to 30 s once the session
+   is idle, and the taskbar watchdog blocks on the process instead of polling. Detail: the idle-load and
+   memory-footprint sections of [`01-architecture.md`](01-architecture.md).
 2. **A native look on Windows** — Fluent Design; not a “macOS clone”
 3. **Simplicity** — a personal project; a working skeleton first, polish later
 

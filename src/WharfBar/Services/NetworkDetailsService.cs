@@ -74,7 +74,13 @@ internal sealed class NetworkDetailsService : IDisposable
 
     private void Refresh()
     {
-        Snapshot = ReadSnapshot(out NetworkDetailsSnapshot next);
+        NetworkDetailsSnapshot next = ReadSnapshot(out _);
+        if (next == Snapshot)
+        {
+            // No visible change: the 2 s poll must not repaint every listener for identical data.
+            return;
+        }
+
         Snapshot = next;
         Changed?.Invoke(this, EventArgs.Empty);
     }

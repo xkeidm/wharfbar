@@ -27,7 +27,16 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
 {
     private const int WatchIntervalMs = 250;
     private const int SettleDelayMs = 800;
-    private const int IdleRefreshMs = 3000;
+
+    /// <summary>Cadence of the live desktop-icon read while the user is present.</summary>
+    internal const int LiveRefreshMs = 3000;
+
+    /// <summary>Cadence of the live desktop-icon read while the session has been idle.</summary>
+    internal const int LiveRefreshIdleMs = 30_000;
+
+    /// <summary>Idle time after which the live desktop-icon read drops to <see cref="LiveRefreshIdleMs"/>.</summary>
+    internal const int IdleBeforeSlowRefreshMs = 60_000;
+
     private const int VerifyDelayMs = 400;
     private const int MaxWriteAttempts = 3;
     private const int MaxReapplyFailures = 3;
@@ -50,7 +59,7 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
     private List<MonitorWorkArea> _lastMonitors = new();
     private long _monitorSignatureChangedAt;
     private long _nextReapplyAt = -1;
-    private long _nextIdleRefreshAt;
+    private long _lastIdleRefreshAt;
     private long _unavailableUntil;
     private int _openFailures;
     private int _reapplyFailures;
@@ -139,7 +148,7 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
         _desired = baseline;
         _lastMonitors = monitors;
         _monitorSignatureChangedAt = Environment.TickCount64;
-        _nextIdleRefreshAt = Environment.TickCount64 + IdleRefreshMs;
+        _lastIdleRefreshAt = Environment.TickCount64;
         Debug.WriteLine(
             $"WharfBar desktop icons: captured {baseline.Count} icons on {baseline.Monitors.Count} monitor(s), "
             + $"grid {baseline.PitchX}×{baseline.PitchY}");
@@ -222,7 +231,7 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
             _ = TryAdoptSmallChanges(monitors);
             _lastMonitors = monitors;
             _monitorSignatureChangedAt = now;
-            _nextIdleRefreshAt = now + IdleRefreshMs;
+            _lastIdleRefreshAt = now;
             _nextReapplyAt = -1;
             return;
         }
@@ -245,12 +254,23 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
             return;
         }
 
-        if (now >= _nextIdleRefreshAt)
+        // Detect the user's own drags. The COM folder-view read runs every 3 s while the user is
+        // around and backs off to 30 s once the session has been idle for a minute; input brings
+        // the fast interval back on the next watch tick.
+        if (now - _lastIdleRefreshAt >= LiveRefreshIntervalMs(TrayAutoHideReveal.UserIdleTime()))
         {
-            _nextIdleRefreshAt = now + IdleRefreshMs;
+            _lastIdleRefreshAt = now;
             RefreshDesiredFromLive(monitors);
         }
     }
+
+    /// <summary>
+    /// Interval between live desktop-icon reads: the COM folder-view read runs every 3 s while the
+    /// user is present, but a session idle for over a minute only needs the 30 s cadence (a drag
+    /// needs input). The 250 ms monitor check stays unchanged.
+    /// </summary>
+    internal static int LiveRefreshIntervalMs(TimeSpan userIdle)
+        => userIdle.TotalMilliseconds > IdleBeforeSlowRefreshMs ? LiveRefreshIdleMs : LiveRefreshMs;
 
     private DesktopIconLayoutSnapshot? CaptureSnapshot(
         IReadOnlyList<MonitorWorkArea> monitors,
@@ -364,7 +384,7 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
             if (offTarget == 0)
             {
                 _reapplyFailures = 0;
-                _nextIdleRefreshAt = Environment.TickCount64 + IdleRefreshMs;
+                _lastIdleRefreshAt = Environment.TickCount64;
                 return;
             }
         }
@@ -373,7 +393,7 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
         // cannot leave a reserved strip). Never fight it forever: after a few attempts adopt the
         // live state so the desktop stops churning.
         _reapplyFailures++;
-        _nextIdleRefreshAt = Environment.TickCount64 + IdleRefreshMs;
+        _lastIdleRefreshAt = Environment.TickCount64;
         Debug.WriteLine(
             $"WharfBar desktop icons: {targets.Count} icon(s) did not take the re-projected position "
             + $"(attempt {_reapplyFailures})");
@@ -675,9 +695,14 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
             Debug.WriteLine($"WharfBar desktop icons: shutdown failed — {ex.Message}");
         }
 
+        // The STA thread calls _started.Set() from ThreadMain. Only dispose the event once the
+        // thread is known to be gone; a timed-out join can leave it about to call Set(), and
+        // disposing underneath it would throw ObjectDisposedException on that thread. When the
+        // join times out the event is simply left for the GC.
+        bool joined = false;
         try
         {
-            _thread?.Join(TimeSpan.FromSeconds(2));
+            joined = _thread?.Join(TimeSpan.FromSeconds(2)) ?? true;
         }
         catch (Exception ex)
         {
@@ -687,7 +712,10 @@ internal sealed class DesktopIconLayoutGuard : IDisposable
         _thread = null;
         _dispatcher = null;
         InvalidateView();
-        _started.Dispose();
+        if (joined)
+        {
+            _started.Dispose();
+        }
     }
 }
 
