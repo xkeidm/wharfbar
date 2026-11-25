@@ -270,6 +270,39 @@
   The offline harness (`.superpowers/scratch/onboarding-render`, `App.SuppressShellStartup`) renders every
   step in both themes/languages. Details: [`../screens/onboarding.md`](../screens/onboarding.md).
 
+- **Desktop icon layout guard ✓ (code; layout checked live in #26, 2026-11-21)** — a work-area change
+  (top AppBar, dock reservation, taskbar strip release, tray state blip) makes explorer re-lay-out the
+  desktop icons, and on Windows 11 25H2 it re-expresses the whole arrangement on the new grid (pitch
+  76×91 → 76×90 after the 30 px top bar), so the user's layout was lost for the session.
+  `DesktopIconLayoutGuard` captures the arrangement before the first change as monitor + grid cell
+  (own STA thread/dispatcher; raw pixel writes do not stick while the work area differs), watches the
+  per-monitor work area every 250 ms, re-projects the cells once the shell settles, adopts a drag made
+  just before the change (count-based tolerance), and merges the session edits into the restored work
+  areas on exit. It stands down (no writes) when the desktop is auto-arranged, "Align icons to grid"
+  is off, or the shell view is unavailable (restricted token). The live COM folder-view read is 3 s
+  while the user is present and 30 s after a minute of idle (2026-11-22). Tests:
+  `DesktopIconLayoutTests`; detail: `docs/04-gotchas.md` and `01-architecture.md`.
+
+- **Idle load + memory footprint pass ✓ (2026-11-22, measured live)** — the shell sat at ~14 % of one
+  core while idle. The hot spot was the tray mirror's direct desktop-root UI Automation walk: ~0.4 s
+  of CPU per 4 s pass, root at the whole desktop tree, while a parked/hidden tray virtualizes its
+  buttons, so it could only return nothing. The walk now runs only while explorer actually shows the
+  tray (`TrayMirrorService.ShouldWalkTrayUia`) and the 4 s timer posts at most one poll at a time.
+  Other cuts: the clock re-arms to the next minute (minute-resolution text), the GPU/network sample is
+  skipped after 2 min of idle input, the Bluetooth notice poll is 30 s and pauses while the user is
+  away, the desktop-icon read backs off when idle, the wallpaper pass is memoized, the stats sparkline
+  paints only while its tooltip is open, brightness (DDC/CI + WMI) starts on first use, and the
+  taskbar watchdog blocks on the watched process instead of polling every 500 ms. Long sessions stay
+  flat: image-bearing caches are bounded or downscaled (restore frames ≤480 px + a 48 MiB budget,
+  album art 256 px, wallpaper accent 64 px, app icons 256, display names 2048, onboarding thumbnails
+  released with the wizard, window-snapshot blank check samples rows). Recurring timer ticks (clock,
+  power/network, wallpaper watch, Quick Settings refresh, island deadline) no longer escape to the
+  dispatcher's unhandled-exception path. Measured: idle CPU ~14 % → ~0.3–0.8 % of one core; GC heap
+  ~22 MB and the working set (~290 MB) grow only a few MB after warm-up (the rest is the WPF/WinRT
+  baseline, so judge a change by the slope). Tests: `IdleCadenceTests`, `TrayMirrorUiaGateTests`,
+  `AppIconServiceTests`, `DockRestoreSnapshotCacheTests`. Detail: `docs/01-architecture.md` § Idle
+  load / Memory footprint and `docs/04-gotchas.md`.
+
 ## Former to-do list (moved to milestones)
 
 The P0 / P1 / P2 open items below were filed as GitHub issues. Do not treat this section as the live backlog.
