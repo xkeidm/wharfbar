@@ -350,18 +350,6 @@ namespace WharfBar.Resources {
             }
         }
 
-        public static string DockPage_PositionLeft {
-            get {
-                return ResourceManager.GetString("DockPage_PositionLeft", resourceCulture);
-            }
-        }
-
-        public static string DockPage_PositionRight {
-            get {
-                return ResourceManager.GetString("DockPage_PositionRight", resourceCulture);
-            }
-        }
-
         public static string DockPage_PositionLeftEdge {
             get {
                 return ResourceManager.GetString("DockPage_PositionLeftEdge", resourceCulture);

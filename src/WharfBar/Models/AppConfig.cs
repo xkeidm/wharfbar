@@ -131,30 +131,22 @@ internal static class DockSurfaceStyles
     }
 }
 
-/// <summary>Dock anchor along the monitor bottom edge (<see cref="DockConfig.Position"/>).</summary>
+/// <summary>Dock anchor: the centered bottom edge or the full-height left edge.</summary>
 internal static class DockPositions
 {
-    internal const string BottomLeft = "bottom-left";
-
     internal const string BottomCenter = "bottom-center";
-
-    internal const string BottomRight = "bottom-right";
 
     /// <summary>Full-height left edge. The plate is vertical and reserves <c>ABE_LEFT</c>.</summary>
     internal const string Left = "left";
 
+    /// <summary>
+    /// The dock supports exactly two anchors: <c>bottom-center</c> and <c>left</c>. Legacy
+    /// <c>bottom-left</c>/<c>bottom-right</c> values (and anything unknown) load as
+    /// <c>bottom-center</c> — a corner-anchored bottom dock is no longer offered, and a
+    /// half-off-screen or asymmetric plate is not a valid target.
+    /// </summary>
     internal static string Normalize(string? position)
     {
-        if (string.Equals(position, BottomLeft, StringComparison.OrdinalIgnoreCase))
-        {
-            return BottomLeft;
-        }
-
-        if (string.Equals(position, BottomRight, StringComparison.OrdinalIgnoreCase))
-        {
-            return BottomRight;
-        }
-
         if (string.Equals(position, Left, StringComparison.OrdinalIgnoreCase))
         {
             return Left;
@@ -165,6 +157,11 @@ internal static class DockPositions
 
     internal static bool IsLeft(string? position) =>
         string.Equals(Normalize(position), Left, StringComparison.Ordinal);
+
+    /// <summary>True when <paramref name="position"/> is one of the two supported anchors.</summary>
+    internal static bool IsSupported(string? position) =>
+        string.Equals(position, BottomCenter, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(position, Left, StringComparison.OrdinalIgnoreCase);
 }
 
 /// <summary>Dock-specific settings under <see cref="AppConfig.Dock"/>.</summary>
@@ -181,8 +178,11 @@ internal sealed class DockConfig
     /// <summary>Caps oversized early defaults (48/72); allows a modest bump above default.</summary>
     public const double MaxIconSize = 36d;
 
-    /// <summary>Stored for later; <see cref="Services.DockAutoHideController"/> still stubs behavior.</summary>
-    public bool AutoHide { get; set; } = true;
+    /// <summary>
+    /// Dock auto-hide. Off on a fresh install: the dock stays visible and reserves its strip, so a
+    /// maximized window stops at the plate. The user turns it on at Settings → Dock.
+    /// </summary>
+    public bool AutoHide { get; set; }
 
     public double IconSize { get; set; } = DefaultIconSize;
 
@@ -213,7 +213,7 @@ internal sealed class DockConfig
     /// </summary>
     public List<string> ItemOrder { get; set; } = [];
 
-    /// <summary>Anchor: <c>bottom-left</c>, <c>bottom-center</c>, <c>bottom-right</c>, or <c>left</c>.</summary>
+    /// <summary>Anchor: <c>bottom-center</c> (default) or <c>left</c>. See <see cref="DockPositions"/>.</summary>
     public string Position { get; set; } = DockPositions.BottomCenter;
 
     /// <summary>Hover magnification ceiling; 1.0 disables magnification.</summary>

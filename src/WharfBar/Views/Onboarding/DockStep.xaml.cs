@@ -79,8 +79,6 @@ public partial class DockStep : UserControl
     {
         string normalized = DockPositions.Normalize(position);
         SetTileSelected(PositionCenterTile, normalized == DockPositions.BottomCenter);
-        SetTileSelected(PositionLeftTile, normalized == DockPositions.BottomLeft);
-        SetTileSelected(PositionRightTile, normalized == DockPositions.BottomRight);
         SetTileSelected(PositionLeftEdgeTile, normalized == DockPositions.Left);
     }
 

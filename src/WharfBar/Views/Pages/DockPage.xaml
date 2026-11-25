@@ -191,8 +191,6 @@
                         <ComboBox x:Name="PositionCombo" Grid.Column="2" Width="180"
                                   HorizontalAlignment="Right" VerticalAlignment="Center">
                             <ComboBoxItem Content="{x:Static res:Strings.DockPage_PositionCenter}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.DockPage_PositionLeft}" />
-                            <ComboBoxItem Content="{x:Static res:Strings.DockPage_PositionRight}" />
                             <ComboBoxItem Content="{x:Static res:Strings.DockPage_PositionLeftEdge}" />
                         </ComboBox>
                     </Grid>

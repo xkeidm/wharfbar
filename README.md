@@ -132,7 +132,7 @@ The panel under the pill has seven tabs: **Clipboard** (history + search), **Wal
 
 <br>
 
-A topmost overlay: bottom-left, bottom-center, bottom-right, or the left edge. It can auto-hide, and it hides while another app is fullscreen.
+A topmost overlay: centered on the bottom edge or along the left edge. It is visible by default (auto-hide is opt-in in Settings → Dock) and hides while another app is fullscreen.
 
 - **Left:** the Windows taskbar’s `User Pinned\TaskBar` shortcuts, in taskbar order, including apps that are not running, then entries in `dock.items` that are not already there. A running pin stays on that same tile.
 - **Right:** running apps that are not pinned, one tile per app (canonical path, AppUserModelID, or process id). Extra windows are a count badge and a **Windows** submenu. A minimized window is not a second tile.

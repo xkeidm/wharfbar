@@ -216,7 +216,8 @@ internal sealed class ConfigService
             OnboardingCompleted = false,
             Dock = new DockConfig
             {
-                AutoHide = true,
+                // A fresh install shows the dock; auto-hide is opt-in (Settings → Dock).
+                AutoHide = false,
                 IconSize = DockConfig.DefaultIconSize,
                 Items = DemoPinnedApps.All
                     .Select(static a => new PinnedApp(a.Path, a.Args, a.Label))

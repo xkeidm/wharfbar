@@ -341,10 +341,10 @@ if the file is missing, a letter glyph (ADR-014). A broken image path is not lef
 
 The icon bitmap is requested at glyph size (`ResolveIconPixelSize` = `iconSize`, clipped to 16–256 px).
 
-Horizontal alignment is chosen with `dock.position`: `bottom-left` / `bottom-center` / `bottom-right`.
-`DockPositions.Normalize` returns `bottom-center` on an invalid/empty value (a side dock is out of scope:
-work-area reservation and slide-down hiding do not change — only X is aligned). Edge snapping
-uses 12 DIP of inner padding.
+The horizontal anchor is chosen with `dock.position`: `bottom-center` (default) or `left` (a full-height
+vertical plate on the left edge, which reserves `ABE_LEFT`). `DockPositions.Normalize` returns
+`bottom-center` for an invalid/empty value and for the retired `bottom-left` / `bottom-right`
+corner anchors, so the bottom plate is always centered on its monitor.
 
 **Minimized windows:** `WindowCensus` does a **single** `EnumWindows` pass —
 the `WindowEnumeration.GetTopLevelCandidates` table is taken, and the minimized subset is split out

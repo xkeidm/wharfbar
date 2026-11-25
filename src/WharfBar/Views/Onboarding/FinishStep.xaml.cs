@@ -54,8 +54,6 @@ public partial class FinishStep : UserControl
 
         DockValueText.Text = DockPositions.Normalize(Cfg.Dock.Position) switch
         {
-            DockPositions.BottomLeft => Strings.DockPage_PositionLeft,
-            DockPositions.BottomRight => Strings.DockPage_PositionRight,
             DockPositions.Left => Strings.DockPage_PositionLeftEdge,
             _ => Strings.DockPage_PositionCenter,
         };

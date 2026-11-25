@@ -66,9 +66,7 @@ public partial class DockPage : Page
         UpdateOpacityRow(mode);
         PositionCombo.SelectedIndex = DockPositions.Normalize(Cfg.Dock.Position) switch
         {
-            DockPositions.BottomLeft => 1,
-            DockPositions.BottomRight => 2,
-            DockPositions.Left => 3,
+            DockPositions.Left => 1,
             _ => 0,
         };
 
@@ -249,9 +247,7 @@ public partial class DockPage : Page
         if (_isLoading) return;
         Cfg.Dock.Position = PositionCombo.SelectedIndex switch
         {
-            1 => DockPositions.BottomLeft,
-            2 => DockPositions.BottomRight,
-            3 => DockPositions.Left,
+            1 => DockPositions.Left,
             _ => DockPositions.BottomCenter,
         };
         SaveAndApply();

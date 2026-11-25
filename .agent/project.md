@@ -32,7 +32,8 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  wallpaper — slideshows included — is always exact. The clock is a single line formatted with the resolved UI culture (`config.language` → `LocalizationService`; e.g. `tr-TR` or `en-US`); a clock click is notification text + a month calendar; the bell → native `Win+N`;
  `controlCenter` → QS Main; volume → QS Mixer; brightness → `BrightnessFlyout` (Monitorian DDC/CI + WMI hybrid);
  media → `MediaFlyout` (SMTC; hidden when there is no session, ADR-008); network → QS Network (ADR-006); the energy-saver tile lights from the API/flag or from a read-back of `Always use energy saver`, and a click flips that switch (ADR-013); **AppBar** + tray hybrid.
-- **Dock:** bottom strip (overlay; Topmost ± auto-hide). On the left, taskbar pins are **read-only**
+- **Dock:** bottom strip (overlay; Topmost ± auto-hide — auto-hide is **off by default**, opt-in in
+ Settings; shown at the centered bottom edge or as a vertical plate on the left edge). On the left, taskbar pins are **read-only**
  (including closed ones, in taskbar order; ADR-005 2026-10-07 — the folder is **not written**)
  plus entries that are in `dock.items` and not there. A running pin stays on that same single icon. On the right,
  only unpinned running apps. A minimized or background window does not become a second icon;
@@ -42,7 +43,7 @@ On Windows, a **top bar + dock** inspired by Windows, macOS, and Linux desktops:
  `mica` / `transparent` / `tint` (independent of the top bar).
  `Pin to Dock / Unpin` writes `dock.items` and, when the target is a file or folder, writes a `.lnk` into
  `User Pinned\TaskBar`. `Taskband` is not written. Drag-to-reorder, file drop from Explorer,
- bottom-left/center/right and the left edge; right-click context menu (title card, `Pin to Dock`/`Unpin`,
+ `bottom-center` and `left` (the retired corner anchors load as `bottom-center`); right-click context menu (title card, `Pin to Dock`/`Unpin`,
  `End task`, `Close window`, `Run as administrator`, `Open file location`, `New window`,
  **`Windows`**).
  Hover preview: one card per window (still preview + title, up to 8, open windows before minimized);

@@ -8,6 +8,14 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+### Changed
+
+- **The dock is visible on a fresh install, and only two anchors remain.** Auto-hide is now opt-in
+  (Settings → Dock): a new install shows the dock and reserves its strip instead of hiding it behind
+  the bottom edge. `dock.position` accepts exactly `bottom-center` (default) and `left`; a config
+  saved with the retired `bottom-left` / `bottom-right` corner anchors loads as the centered bottom
+  dock, and the settings page + setup wizard offer only the two supported choices.
+
 ## [1.0.0-beta.8] — 2026-11-25
 
 ### Changed

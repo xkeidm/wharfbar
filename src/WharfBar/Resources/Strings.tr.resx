@@ -206,12 +206,6 @@
   <data name="DockPage_PositionCenter" xml:space="preserve">
     <value>Orta (varsayılan)</value>
   </data>
-  <data name="DockPage_PositionLeft" xml:space="preserve">
-    <value>Sol</value>
-  </data>
-  <data name="DockPage_PositionRight" xml:space="preserve">
-    <value>Sağ</value>
-  </data>
   <data name="DockPage_PositionLeftEdge" xml:space="preserve">
     <value>Sol kenar</value>
   </data>
@@ -1012,7 +1006,7 @@ Tamam: yine de devam et
     <value>Konum</value>
   </data>
   <data name="Onboarding_Dock_PositionDescription" xml:space="preserve">
-    <value>Sol-alt, orta-alt, sağ-alt veya sol kenarda dikey dock.</value>
+    <value>Alt kenarda ortada yatay şerit veya sol kenarda dikey dock.</value>
   </data>
   <data name="Onboarding_Dock_SizeDescription" xml:space="preserve">
     <value>Simge boyutu; plaka da onunla büyür.</value>

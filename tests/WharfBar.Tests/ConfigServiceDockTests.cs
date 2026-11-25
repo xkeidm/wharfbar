@@ -122,15 +122,54 @@ public class ConfigServiceDockTests : IDisposable
     {
         Assert.Equal(DockPositions.BottomCenter, DockPositions.Normalize("middle-ish"));
         Assert.Equal(DockPositions.BottomCenter, DockPositions.Normalize(null));
+        Assert.False(DockPositions.IsSupported("middle-ish"));
     }
 
     [Fact]
-    public void Normalize_PreservesLeftAndRightPositions()
+    public void Normalize_MapsRetiredCornerPositionsToBottomCenter()
     {
-        Assert.Equal(DockPositions.BottomLeft, DockPositions.Normalize("Bottom-Left"));
-        Assert.Equal(DockPositions.BottomRight, DockPositions.Normalize("bottom-right"));
+        // The dock offers exactly two anchors now; a config saved with a corner anchor must load
+        // as the centered bottom dock instead of a half-off-screen plate.
+        Assert.Equal(DockPositions.BottomCenter, DockPositions.Normalize("Bottom-Left"));
+        Assert.Equal(DockPositions.BottomCenter, DockPositions.Normalize("bottom-right"));
+        Assert.True(DockPositions.IsSupported(DockPositions.BottomCenter));
+        Assert.True(DockPositions.IsSupported("Bottom-Center"));
+        Assert.True(DockPositions.IsSupported("Left"));
+    }
+
+    [Fact]
+    public void Normalize_PreservesTheLeftWallPosition()
+    {
         Assert.Equal(DockPositions.Left, DockPositions.Normalize("Left"));
         Assert.True(DockPositions.IsLeft("left"));
+        Assert.False(DockPositions.IsLeft(DockPositions.BottomCenter));
+    }
+
+    [Fact]
+    public void FreshInstall_ShowsTheDockInsteadOfAutoHidingIt()
+    {
+        // Auto-hide is opt-in for a new user (Settings → Dock); the default config must not hide
+        // the dock, otherwise a first run looks like nothing happened.
+        AppConfig fresh = ConfigService.CreateDefault();
+        Assert.False(fresh.Dock.AutoHide);
+        Assert.Equal(DockPositions.BottomCenter, fresh.Dock.Position);
+        Assert.Equal(DockConfig.DefaultIconSize, fresh.Dock.IconSize);
+    }
+
+    [Fact]
+    public void LoadOrCreate_RetiredCornerPositionIsNormalizedToBottomCenter()
+    {
+        // A config saved before the corner anchors were retired must not resurrect them: it loads
+        // as the centered bottom dock (and the next save writes bottom-center).
+        Directory.CreateDirectory(Path.Combine(_root, "WharfBar"));
+        File.WriteAllText(
+            ConfigFile,
+            "{\"schemaVersion\":2,\"dock\":{\"position\":\"bottom-left\",\"autoHide\":true,\"items\":[]}}");
+
+        AppConfig loaded = NewService().LoadOrCreate();
+
+        Assert.Equal(DockPositions.BottomCenter, loaded.Dock.Position);
+        Assert.True(loaded.Dock.AutoHide);
     }
 
     [Fact]

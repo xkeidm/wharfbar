@@ -3,16 +3,20 @@
 `src/WharfBar/Views/DockWindow.xaml` (+ `.xaml.cs`), `Views/Controls/DockStrip.cs`,
 `Views/Controls/DockItemCell.xaml`.
 
-A Windows 11 taskbar-style strip. The default is the bottom edge. **`Left edge`** in settings
-(`dock.position` = `left`) stacks the plate vertically on the left edge, reserves a work area of that thickness
-with `ABE_LEFT`, and shifts auto-hide to the left. Bottom positions (`bottom-left` /
-`bottom-center` / `bottom-right`) stay horizontal. The plate is **not** an AppBar (ADR-001); it is a `Topmost` overlay,
+A Windows 11 taskbar-style strip. There are exactly two anchors: the **centered bottom edge**
+(default) and the **left edge**. `dock.position` = `left` stacks the plate vertically on the left
+edge, reserves a work area of that thickness with `ABE_LEFT`, and shifts auto-hide to the left;
+`bottom-center` stays a horizontal, centered plate. The retired `bottom-left` / `bottom-right`
+corner values (and anything unknown) load as `bottom-center` (`DockPositions.Normalize`). The plate
+is **not** an AppBar (ADR-001); it is a `Topmost` overlay,
 placed with physical-pixel `SetWindowPos`, and WPF `Left/Top/Width` is not used. Auto-hide +
 hit-test (`DockAutoHideController` + `DockHitTest`); it hides in a fullscreen app
 (`ABN_FULLSCREENAPP`, even when auto-hide is off — the strip is topmost, so it would stay above the video).
 
+Auto-hide is **off on a fresh install** (the dock is shown; the user turns it on in Settings → Dock).
 While auto-hide is **off**, a sibling unpainted `ABE_BOTTOM` (`DockWorkAreaReservation`, a raw
-window, alpha 0) reserves the full width at the plate height. The wallpaper stays. A maximized
+window, alpha 0) reserves the full width at the plate height (the left dock reserves `ABE_LEFT`).
+The wallpaper stays. A maximized
 window stops at this line; desktop icons use the same work-area edge.
 While auto-hide is on, the registration is removed; windows cover the bottom fully.
 
@@ -172,12 +176,13 @@ The live strip scale is 1. Hover does not call `SetWindowPos`. The plate is not 
 
 ## Settings
 
-[Settings → Dock](settings.md#dock): `autoHide`, `iconSize` (16–36, default 24),
+[Settings → Dock](settings.md#dock): `autoHide` (default **off**), `iconSize` (16–36, default 24),
 `backgroundMode` (`Mica` / `Transparent` / `Tint`) + opacity 0–100 only for `Tint`, `position`
-(bottom-left/center/right), `showRunningApps`, content list (add/remove/drag to reorder).
+(**`bottom-center` or `left`** — no corner anchors), `showRunningApps`, content list
+(add/remove/drag to reorder).
 The same background menu opens by right-clicking the empty plate (not the icon's own menu).
-A Mica ↔ transparent/tint transition recreates the dock. Position is **bottom-edge**
-alignment only; a side dock is out of scope.
+A Mica ↔ transparent/tint transition recreates the dock. A position change recreates the dock at the
+new anchor and re-reserves the work area on that edge.
 
 ## Gotchas
 
