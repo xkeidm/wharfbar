@@ -25,6 +25,17 @@ namespace WharfBar.Services;
 /// </summary>
 internal sealed class WindowAppearance
 {
+    /// <summary>
+    /// Base fill for a fully transparent layered window. Windows hit-tests a layered window
+    /// per pixel: an <c>alpha = 0</c> pixel is click-through, so a <c>transparent</c> bar/dock that
+    /// painted its base fully clear only received clicks on its opaque glyphs while every empty
+    /// pixel fell through to the desktop/window underneath. One step of alpha is invisible and
+    /// keeps the whole window surface hit-testable.
+    /// </summary>
+    internal const byte HitTestFloorAlpha = 1;
+
+    private static readonly Brush HitTestFloor = CreateHitTestFloor();
+
     private readonly Window _window;
     private readonly IntPtr _hwnd;
     private readonly WindowBackdropType _backdrop;
@@ -90,13 +101,13 @@ internal sealed class WindowAppearance
         // windows — composition target must be Transparent too.
         if (tintOpacity is null)
         {
-            SetLayeredWindowBackground(Brushes.Transparent);
+            SetLayeredWindowBackground(HitTestFloor);
             _ = EnsureNoSystemBackdrop();
             return;
         }
 
         int opacity = TopBarBackgroundModes.ClampOpacity(tintOpacity.Value);
-        byte a = (byte)(int)Math.Round(opacity / 100.0 * 255.0);
+        byte a = TintAlpha(opacity);
         Color baseColor = theme == ApplicationTheme.Dark
             ? Color.FromRgb(0x20, 0x20, 0x20)
             : Color.FromRgb(0xFA, 0xFA, 0xFA);
@@ -104,6 +115,21 @@ internal sealed class WindowAppearance
         brush.Freeze();
         SetLayeredWindowBackground(brush);
         _ = EnsureNoSystemBackdrop();
+    }
+
+    /// <summary>
+    /// Tint alpha for a 0–100 opacity, never below the hit-test floor: a 0 % tint must stay
+    /// clickable (see <see cref="HitTestFloorAlpha"/>).
+    /// </summary>
+    internal static byte TintAlpha(int opacity) =>
+        (byte)Math.Max(HitTestFloorAlpha, (int)Math.Round(
+            TopBarBackgroundModes.ClampOpacity(opacity) / 100.0 * 255.0));
+
+    private static Brush CreateHitTestFloor()
+    {
+        var brush = new SolidColorBrush(Color.FromArgb(HitTestFloorAlpha, 0, 0, 0));
+        brush.Freeze();
+        return brush;
     }
 
     /// <summary>
