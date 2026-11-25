@@ -8,6 +8,8 @@ as described in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## [Unreleased]
 
+## [1.0.0-beta.8] — 2026-11-25
+
 ### Changed
 
 - **Idle footprint:** WharfBar now does almost nothing while it sits behind the desktop. Measured on
